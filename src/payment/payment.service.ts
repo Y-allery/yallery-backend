@@ -1,0 +1,79 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
+import { UserService } from '../user/user.service';
+import { PaymentEntity } from './entities/payment.entity';
+import { NotificationGateway } from 'src/notification/notification.gateway';
+
+@Injectable()
+export class PaymentService {
+  private readonly logger = new Logger(PaymentService.name);
+  private productPointsMap: { [key: string]: number } = {
+    '5000yeps': 5000,
+    '15000yeps': 15000,
+    '30000yeps': 30000,
+  };
+
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly userService: UserService,
+    @InjectRepository(PaymentEntity)
+    private readonly paymentRepository: Repository<PaymentEntity>,
+    private readonly notificationGateway: NotificationGateway,
+  ) {}
+
+  async processWebhook(webhookData: Buffer): Promise<void> {
+    try {
+      const dataString = webhookData.toString('utf-8');
+
+      const parsedData = JSON.parse(dataString);
+
+      const profileId = parsedData.customer_user_id;
+      const eventType = parsedData.event_type;
+
+      if (!profileId || !eventType) {
+        return;
+      }
+
+      const user = await this.userService.findById(profileId);
+
+      if (!user) {
+        return;
+      }
+
+      switch (eventType) {
+        case 'non_subscription_purchase':
+          const eventProperties = parsedData.event_properties;
+          const productId = eventProperties?.vendor_product_id;
+          if (!productId) {
+            return;
+          }
+
+          const pointsToAdd = await this.getPointsForProduct(productId);
+
+          if (pointsToAdd === null) {
+            this.logger.error(`Unknown productId: ${productId}`);
+            return;
+          }
+
+          user.points += pointsToAdd;
+          await this.userService.updateUser(user);
+          await this.notificationGateway.emitProfileUpdate(user.id.toString());
+          this.logger.log(
+            `Added ${pointsToAdd} points to user ${profileId} for product ${productId}`,
+          );
+          break;
+
+        default:
+          this.logger.warn(`Unhandled event type: ${eventType}`);
+      }
+    } catch (error) {
+      this.logger.error('Error processing webhook:', error);
+    }
+  }
+
+  private getPointsForProduct(productId: string): number | null {
+    return this.productPointsMap[productId] || null;
+  }
+}

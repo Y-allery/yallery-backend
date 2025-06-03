@@ -1,0 +1,1004 @@
+import { TagService } from './../tag/tag.service';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  forwardRef,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { In, Repository } from 'typeorm';
+import { PostEntity } from './entities/post.entity';
+import { TagEntity } from 'src/tag/entities/tag.entity';
+import { ViewedPostEntity } from './entities/viwed.entity';
+import { UserEntity } from 'src/user/entities/user.entity';
+import { GenerateImageDto } from 'src/image-generation/dto/generate.image.dto';
+import { ContestService } from 'src/contest/contest.service';
+import { ReportPostDto } from './dto/report.post.dto';
+import { ReportPostEntity } from './entities/report.post.entity';
+import { StyleEntity } from './entities/style.entity';
+import { CreateStyleDto } from './dto/create.style.dto';
+import { ActivityService } from 'src/activity/activity.service';
+import { ActivityEnum } from 'src/activity/types/activity.enum';
+import { RoleEnum } from 'src/user/types/role.enum';
+import * as sharp from 'sharp';
+import * as path from 'path';
+import * as fs from 'fs';
+import axios from 'axios';
+import puppeteer from 'puppeteer';
+import { ConfigService } from '@nestjs/config';
+import { NotificationGateway } from 'src/notification/notification.gateway';
+
+const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+const randomSleep = async () =>
+  await sleep(1000 + Math.floor(Math.random() * 1000));
+
+@Injectable()
+export class PostService {
+  constructor(
+    @InjectRepository(PostEntity)
+    private postEntity: Repository<PostEntity>,
+    @InjectRepository(StyleEntity)
+    private styleEntity: Repository<StyleEntity>,
+    @InjectRepository(TagEntity)
+    private tagEntity: Repository<TagEntity>,
+    @InjectRepository(UserEntity)
+    private userEntity: Repository<UserEntity>,
+    @InjectRepository(ViewedPostEntity)
+    private viwedPostEntity: Repository<ViewedPostEntity>,
+    @InjectRepository(ReportPostEntity)
+    private reportPostEntity: Repository<ReportPostEntity>,
+    @InjectRepository(ViewedPostEntity)
+    private viewedPostRepository: Repository<ViewedPostEntity>,
+    @InjectRepository(PostEntity)
+    private postRepository: Repository<PostEntity>,
+    @InjectRepository(UserEntity)
+    private userRepository: Repository<UserEntity>,
+    private contestService: ContestService,
+    private activityService: ActivityService,
+    private tagService: TagService,
+    private readonly configService: ConfigService,
+    @Inject(forwardRef(() => NotificationGateway))
+    private readonly notificationGateway: NotificationGateway,
+  ) {}
+
+  async getPosts(cursor: number | null, limit: number, userId: number) {
+    const cursorCondition = cursor ? `AND p.id < ${cursor}` : '';
+
+    const query = `
+      SELECT DISTINCT
+        p.id, 
+        p.imageUrl AS image_url, 
+        p.createdAt AS created_at,
+        u.id AS user_id,
+        t.id AS tag_id,
+        CONCAT('#', t.name) AS tag_name,
+        (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS like_count,
+        CASE 
+          WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ${userId}) 
+          THEN TRUE 
+          ELSE FALSE 
+        END AS is_liked,
+        FALSE AS is_viewed  
+      FROM 
+        posts p
+        JOIN users u ON p.userId = u.id
+        JOIN tags t ON p.tagId = t.id
+      WHERE 
+        p.is_published = true 
+        AND p.is_blocked = false
+        AND NOT EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ${userId})
+        AND p.tagId IN (
+          SELECT tagsId
+          FROM users_tags_tags t
+          WHERE t.usersId = ${userId}
+        )
+        ${cursorCondition} -- Додаємо умову курсора
+      ORDER BY 
+        p.id DESC -- Порядок для курсора
+      LIMIT ${limit};
+    `;
+
+    const posts = await this.postEntity.query(query);
+
+    const nextCursor = posts.length > 0 ? posts[posts.length - 1].id : null;
+
+    return {
+      data: posts,
+      nextCursor,
+      hasNextPage: posts.length === limit,
+    };
+  }
+  async findPostsByTag(
+    tagId: number,
+    page: number,
+    limit: number,
+  ): Promise<{ data: any[]; total: number; page: number; limit: number }> {
+    const offset = (page - 1) * limit;
+
+    const postsQuery = this.tagEntity
+      .createQueryBuilder('tag')
+      .leftJoinAndSelect('tag.posts', 'post')
+      .leftJoinAndSelect('post.user', 'user')
+      .leftJoin('post.likes', 'like')
+      .select([
+        'post.id AS post_id',
+        'post.imageUrl AS post_imageUrl',
+        'post.createdAt AS post_createdAt',
+        'user.id AS user_id',
+        'tag.id AS tag_id',
+        `CONCAT('#', tag.name) AS tag_name`,
+        `(SELECT COUNT(*) FROM likes l WHERE l.postId = post.id) AS likeCount`,
+      ])
+      .where('tag.id = :tagId', { tagId })
+      .andWhere('post.is_published = :is_published', { is_published: true })
+      .groupBy('post.id')
+      .orderBy('post.createdAt', 'DESC')
+      .offset(offset)
+      .limit(limit)
+      .getRawMany();
+
+    const totalQuery = this.postEntity
+      .createQueryBuilder('post')
+      .where('post.tagId = :tagId', { tagId })
+      .getCount();
+
+    const [posts, total] = await Promise.all([postsQuery, totalQuery]);
+
+    return {
+      data: posts,
+      total,
+      page,
+      limit,
+    };
+  }
+
+  async publishPost(postId: number, userId: number) {
+    const post = await this.postEntity.findOne({
+      where: { id: postId, user: { id: userId }, is_published: false },
+      relations: { user: true, contest: true, tag: true },
+      select: {
+        id: true,
+        user: { id: true },
+        contest: { id: true },
+        tag: { id: true },
+      },
+    });
+    const user = await this.userEntity.findOne({
+      where: { id: userId },
+      relations: { tags: true },
+    });
+
+    if (!post) {
+      throw new NotFoundException('Post not found or already published');
+    }
+
+    if (post.user.id !== userId) {
+      throw new ForbiddenException('You are not allowed to publish this post');
+    }
+
+    if (!post?.tag?.id) throw new BadRequestException('Select tag first');
+
+    post.is_published = true;
+    if (post.contest) {
+      await this.contestService.participateInContest(post.contest.id, userId);
+    }
+
+    await this.tagService.checkAndSubscribeToTag(user, post.tag.id);
+    return this.postEntity.save(post);
+  }
+  async getUnpublishedPosts(userId: number) {
+    const query = `
+      SELECT 
+        p.*,
+        (SELECT COUNT(*) FROM likes WHERE likes.postId = p.id) AS like_count
+      FROM posts p
+      WHERE p.userId = ${userId} AND p.is_saved = true
+      ORDER BY createdAt DESC
+    `;
+
+    return await this.postEntity.query(query);
+  }
+  async getPublishedPosts(userId: number) {
+    const query = `
+      SELECT 
+        p.*,
+        (SELECT COUNT(*) FROM likes WHERE likes.postId = p.id) AS like_count
+      FROM posts p
+      WHERE p.userId = ${userId} AND p.is_published = true
+      ORDER BY createdAt DESC
+    `;
+
+    return await this.postEntity.query(query);
+  }
+  async markAllAsUnviewed(userId: number) {
+    const result = await this.viewedPostRepository.delete({
+      user: { id: userId },
+    });
+
+    return {
+      message: 'All posts have been marked as unviewed.',
+      deletedCount: result.affected,
+    };
+  }
+
+  async markPostsAsViewed(postIds: number[], userId: number) {
+    const posts = await this.postRepository.find({
+      where: { id: In(postIds) },
+    });
+
+    const foundIds = posts.map((post) => post.id);
+    const notFoundIds = postIds.filter((id) => !foundIds.includes(id));
+
+    if (posts.length === 0) {
+      return {
+        message: 'No posts were marked as viewed.',
+        markedCount: 0,
+        notFoundIds,
+      };
+    }
+
+    const existingViewedPosts = await this.viewedPostRepository.find({
+      where: {
+        post: { id: In(foundIds) },
+        user: { id: userId },
+      },
+      relations: { post: true },
+      select: ['post'],
+    });
+
+    const viewedPostIds = existingViewedPosts.map((vp) => vp.post.id);
+
+    const newViewedPostIds = foundIds.filter(
+      (id) => !viewedPostIds.includes(id),
+    );
+
+    if (newViewedPostIds.length === 0) {
+      return {
+        message: 'All existing posts have already been marked as viewed.',
+        markedCount: 0,
+        notFoundIds,
+      };
+    }
+
+    const newViewedPosts = newViewedPostIds
+      .map((id) => {
+        const post = posts.find((p) => p.id === id);
+        if (!post) return null;
+        return this.viewedPostRepository.create({
+          post,
+          user: { id: userId },
+        });
+      })
+      .filter((item) => item !== null);
+    await this.viewedPostRepository.save(newViewedPosts);
+
+    const response = {
+      message:
+        notFoundIds.length > 0
+          ? 'Some posts were marked as viewed, but some posts were not found.'
+          : 'All posts were successfully marked as viewed.',
+      markedCount: newViewedPosts.length,
+      notFoundIds,
+    };
+
+    return response;
+  }
+  async savePost(
+    dto: GenerateImageDto,
+    imageUrl: string,
+    user_id: number,
+    contest_id: number | null,
+  ) {
+    const post = this.postEntity.create({
+      user: { id: user_id },
+      imageUrl,
+      tag: { id: dto.tag_id },
+      contest: { id: contest_id },
+      is_published: false,
+    });
+    const savedPost = await this.postEntity.save(post);
+    return savedPost;
+  }
+
+  async blockPost(post_id: number) {
+    const post = await this.postEntity.findOne({ where: { id: post_id } });
+    if (!post) throw new NotFoundException('Post not found');
+
+    post.is_blocked = true;
+    await this.postEntity.save(post);
+    return {
+      success: true,
+      message: 'Post blocked succesfully',
+    };
+  }
+
+  async reportPost(dto: ReportPostDto, userId: number) {
+    const { postId, description } = dto;
+
+    const post = await this.postEntity.findOne({
+      where: { id: postId },
+      relations: ['user'],
+    });
+
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    const existingReport = await this.reportPostEntity.findOne({
+      where: {
+        post: { id: postId },
+        reportingUser: { id: userId },
+      },
+    });
+
+    if (existingReport) {
+      return { message: 'You have already reported this post' };
+    }
+
+    await this.activityService.createActivities(
+      userId,
+      [post.user.id],
+      ActivityEnum.ADMIN_REPORT,
+      undefined,
+      true,
+      undefined,
+      post,
+    );
+    const newReport = this.reportPostEntity.create({
+      reportingUser: { id: userId },
+      reportedUser: { id: post.user.id },
+      post,
+      description,
+    });
+
+    await this.reportPostEntity.save(newReport);
+    return { message: 'Report has been submitted successfully' };
+  }
+
+  async getReportPosts({ page, limit }: { page: number; limit: number }) {
+    const offset = (page - 1) * limit;
+
+    const queryBuilder = this.reportPostEntity
+      .createQueryBuilder('report')
+      .leftJoinAndSelect('report.post', 'post')
+      .leftJoinAndSelect('post.tag', 'tag')
+      .leftJoinAndSelect('report.reportingUser', 'reportingUser')
+      .leftJoinAndSelect('report.reportedUser', 'reportedUser')
+      .orderBy('reportedUser.is_deleted', 'ASC')
+      .addOrderBy('post.is_blocked', 'ASC')
+      .addOrderBy('report.createdAt', 'DESC')
+      .skip(offset)
+      .take(limit);
+
+    const [results, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      data: results.map((report) => ({
+        reportId: report.id,
+        postId: report.post.id,
+        postImageUrl: report.post.imageUrl,
+        tagName: report.post.tag ? report.post.tag.name : null,
+        reportingUserId: report.reportingUser.id,
+        reportingUserName: report.reportingUser.name,
+        reportedUserId: report.reportedUser.id,
+        reportedUserName: report.reportedUser.name,
+        description: report.description,
+        reportDate: report.createdAt,
+        is_user_blocked: report.reportedUser.is_deleted,
+        is_post_blocked: report.post.is_blocked,
+      })),
+      total,
+      page,
+      limit,
+    };
+  }
+  async unblockPost(post_id: number) {
+    const post = await this.postEntity.findOne({
+      where: { id: post_id, is_blocked: true },
+    });
+    if (!post) throw new NotFoundException('Post not found');
+
+    post.is_blocked = false;
+    await this.postEntity.save(post);
+    return {
+      success: true,
+      message: 'Post unblocked successfully',
+    };
+  }
+
+  async createStyle(dto: CreateStyleDto): Promise<StyleEntity> {
+    const newStyle = this.styleEntity.create(dto);
+    return this.styleEntity.save(newStyle);
+  }
+
+  async findAllStyles(): Promise<StyleEntity[]> {
+    return this.styleEntity.find();
+  }
+
+  async findStyleById(id: number): Promise<StyleEntity> {
+    return this.styleEntity.findOne({ where: { id } });
+  }
+
+  async rejectComplaint(
+    reportId: number,
+  ): Promise<{ success: boolean; message: string }> {
+    const report = await this.reportPostEntity.findOne({
+      where: { id: reportId },
+    });
+
+    if (!report) {
+      throw new NotFoundException('Report not found');
+    }
+
+    await this.reportPostEntity.remove(report);
+
+    return {
+      success: true,
+      message: 'Complaint rejected and report deleted successfully.',
+    };
+  }
+
+  async updateStyle(id: number, dto: CreateStyleDto): Promise<StyleEntity> {
+    const style = await this.styleEntity.preload({
+      id: id,
+      ...dto,
+    });
+    if (!style) throw new NotFoundException(`Style with ID ${id} not found`);
+    return this.styleEntity.save(style);
+  }
+
+  async deleteStyle(id: number): Promise<void> {
+    const result = await this.styleEntity.delete(id);
+    if (result.affected === 0) {
+      throw new NotFoundException(`Style with ID ${id} not found`);
+    }
+  }
+
+  async deleteUserAccount(user_id: number) {
+    const user = await this.userEntity.findOne({
+      where: { id: user_id, is_deleted: false },
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    user.is_deleted = true;
+    await this.userEntity.save(user);
+    return { status: 'Success', message: 'User deleted successfully' };
+  }
+
+  async getPostById(postId: number): Promise<any> {
+    const post = await this.postEntity.findOne({
+      where: { id: postId },
+      relations: ['user', 'tag', 'contest', 'likes'],
+    });
+
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    return {
+      id: post.id,
+      imageUrl: post.imageUrl,
+      createdAt: post.createdAt,
+      user: {
+        id: post.user.id,
+        name: post.user.name,
+        email: post.user.email,
+        avatarUrl: post.user.avatar,
+      },
+      tag: {
+        id: post.tag.id,
+        name: post.tag.name,
+      },
+      contest: post.contest
+        ? {
+            id: post.contest.id,
+            name: post.contest.name,
+            status: post.contest.status,
+            description: post.contest.description,
+          }
+        : null,
+      likeCount: post.likes.length,
+      isPublished: post.is_published,
+      isBlocked: post.is_blocked,
+      isRejected: post.is_rejected,
+    };
+  }
+
+  async deleteReport(
+    reportId: number,
+  ): Promise<{ success: boolean; message: string }> {
+    const report = await this.reportPostEntity.findOne({
+      where: { id: reportId },
+      relations: { reportedUser: true, reportingUser: true, post: true },
+    });
+    const admins = await this.userEntity.find({
+      where: { role: RoleEnum.ADMIN },
+    });
+    if (!report) {
+      throw new NotFoundException('Report not found');
+    }
+
+    await this.activityService.deleteAdminPostActivity(
+      report.post.id,
+      report.reportingUser.id,
+    );
+    await this.activityService.createActivities(
+      null,
+      admins.map((e) => e.id),
+      ActivityEnum.ADMIN_REPORT_REVIEW,
+      undefined,
+      true,
+      undefined,
+      report.post,
+    );
+
+    await this.reportPostEntity.delete(reportId);
+    return {
+      success: true,
+      message: 'Report deleted successfully',
+    };
+  }
+
+  async getPostImageWithWatermark(postId: number): Promise<Buffer> {
+    const post = await this.postEntity.findOne({ where: { id: postId } });
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    let imageBuffer: Buffer;
+    try {
+      const response = await axios.get(post.imageUrl, {
+        responseType: 'arraybuffer',
+      });
+      imageBuffer = Buffer.from(response.data, 'binary');
+    } catch (error) {
+      throw new NotFoundException('Error fetching image from URL');
+    }
+
+    const watermarkPath = path.join(
+      __dirname,
+      '..',
+      '..',
+      'public',
+      'watermark.png',
+    );
+    if (!fs.existsSync(watermarkPath)) {
+      throw new NotFoundException('Watermark file not found');
+    }
+    const watermarkBuffer = fs.readFileSync(watermarkPath);
+
+    let processedImageBuffer: Buffer;
+    try {
+      processedImageBuffer = await sharp(imageBuffer)
+        .composite([
+          {
+            input: watermarkBuffer,
+            gravity: 'southeast',
+          },
+        ])
+        .toBuffer();
+    } catch (error) {
+      throw new Error('Error processing image');
+    }
+
+    return processedImageBuffer;
+  }
+
+  async share(
+    userId: number,
+  ): Promise<{ message: string; pointsAwarded: number }> {
+    const dailyPoints = this.configService.get('SHARE_YEPS') || 5;
+    const now = new Date();
+    const startOfToday = new Date(now.setHours(0, 0, 0, 0));
+
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.lastShareRewardAt && user.lastShareRewardAt >= startOfToday) {
+      return {
+        message: 'You have already received points for sharing today.',
+        pointsAwarded: 0,
+      };
+    }
+
+    user.lastShareRewardAt = now;
+    user.points += dailyPoints;
+    await this.userRepository.save(user);
+
+    await this.notificationGateway.emitProfileUpdate(user.id.toString());
+    return {
+      message: 'Points awarded successfully for sharing.',
+      pointsAwarded: dailyPoints,
+    };
+  }
+
+  async tweetImageViaPuppeteer(
+    post_id: string,
+    userId: number,
+  ): Promise<{ message: string; tweetUrl: string }> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const post = await this.postEntity.findOne({
+      where: { id: +post_id },
+      relations: ['contest', 'contest.tag'],
+    });
+
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    const SESSION_PATH = path.resolve(
+      __dirname,
+      '..',
+      '..',
+      'public',
+      'twitter-session.json',
+    );
+
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox'],
+    });
+    const page = await browser.newPage();
+    await page.setUserAgent(
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
+    );
+    await page.setViewport({ width: 1280, height: 800 });
+
+    const TWITTER_USERNAME = this.configService.get<string>('TWITTER_USERNAME');
+    const TWITTER_PASSWORD = this.configService.get<string>('TWITTER_PASSWORD');
+
+    if (fs.existsSync(SESSION_PATH)) {
+      const cookies = JSON.parse(fs.readFileSync(SESSION_PATH, 'utf8'));
+      await page.setCookie(...cookies);
+      await page.goto('https://twitter.com/home', {
+        waitUntil: 'networkidle2',
+      });
+
+      await new Promise((res) => setTimeout(res, 3000));
+      const is2faPrompt = await page.$(
+        'input[name="text"][inputmode="numeric"]',
+      );
+      if (is2faPrompt) {
+        await browser.close();
+        return await this._recoverSessionViaGmail(post_id, userId);
+      }
+
+      const isLoggedIn = await page.evaluate(() =>
+        Boolean(
+          document.querySelector(
+            '[data-testid="SideNav_AccountSwitcher_Button"]',
+          ),
+        ),
+      );
+
+      if (isLoggedIn) {
+        return await this._postTweet(page, post, user, TWITTER_USERNAME);
+      } else {
+      }
+    }
+
+    // --- 2FA check before login ---
+
+    const isCodeInputPresent = await page.$(
+      'input[name="text"][inputmode="numeric"]',
+    );
+
+    if (isCodeInputPresent) {
+      await browser.close();
+      return await this._recoverSessionViaGmail(post_id, userId);
+    }
+
+    await page.goto('https://twitter.com/login', { waitUntil: 'networkidle2' });
+
+    await page.waitForSelector('input[name="text"]', { timeout: 10000 });
+    await page.type('input[name="text"]', TWITTER_USERNAME);
+    await page.keyboard.press('Enter');
+    await randomSleep();
+
+    try {
+      await page.waitForSelector('input[name="text"]', { timeout: 3000 });
+      const inputVisible = await page.$eval(
+        'input[name="text"]',
+        (el) => (el as HTMLElement).offsetParent !== null,
+      );
+      if (inputVisible) {
+        await page.type('input[name="text"]', TWITTER_USERNAME);
+        await page.keyboard.press('Enter');
+        await randomSleep();
+      }
+    } catch (e) {}
+
+    // Password step
+    await page.waitForSelector('input[name="password"]', { timeout: 10000 });
+    await page.type('input[name="password"]', TWITTER_PASSWORD);
+    await page.keyboard.press('Enter');
+    await randomSleep();
+
+    try {
+      await page.waitForSelector('input[data-testid="ocfEnterTextTextInput"]', {
+        timeout: 5000,
+      });
+
+      const CONFIRM_CODE_PATH = path.resolve(
+        __dirname,
+        '..',
+        '..',
+        'public',
+        'twitter-confirmation-code.txt',
+      );
+
+      let savedCode: string | null = null;
+      if (fs.existsSync(CONFIRM_CODE_PATH)) {
+        savedCode = fs.readFileSync(CONFIRM_CODE_PATH, 'utf8').trim();
+      }
+
+      if (savedCode) {
+        await page.waitForSelector(
+          'input[data-testid="ocfEnterTextTextInput"]',
+          {
+            timeout: 10000,
+          },
+        );
+
+        const codeInput = await page.$(
+          'input[data-testid="ocfEnterTextTextInput"]',
+        );
+        if (!codeInput) {
+          await browser.close();
+          return await this._recoverSessionViaGmail(post_id, userId);
+        }
+
+        await codeInput.focus();
+        await page.evaluate(() => {
+          const el = document.activeElement as HTMLInputElement;
+          if (el) el.value = '';
+        });
+
+        await page.type(
+          'input[data-testid="ocfEnterTextTextInput"]',
+          savedCode,
+          {
+            delay: 100,
+          },
+        );
+
+        await page.keyboard.press('Enter');
+        await randomSleep();
+
+        // Recheck if still on same screen → means code invalid
+        const stillOnCodeInput = await page.$(
+          'input[data-testid="ocfEnterTextTextInput"]',
+        );
+        if (stillOnCodeInput) {
+          fs.unlinkSync(CONFIRM_CODE_PATH);
+          await browser.close();
+          return await this._recoverSessionViaGmail(post_id, userId);
+        }
+      } else {
+        await browser.close();
+        return await this._recoverSessionViaGmail(post_id, userId);
+      }
+    } catch (err) {}
+
+    const cookies = await page.cookies();
+    const requiredCookies = cookies.filter((cookie) =>
+      ['auth_token', '_twitter_sess', 'ct0', 'att'].includes(cookie.name),
+    );
+    fs.writeFileSync(SESSION_PATH, JSON.stringify(requiredCookies, null, 2));
+
+    return await this._postTweet(page, post, user, TWITTER_USERNAME);
+  }
+
+  private async _postTweet(
+    page: any,
+    post: PostEntity,
+    user: UserEntity,
+    twitterUsername: string,
+  ): Promise<{ message: string; tweetUrl: string }> {
+    await page.goto('https://twitter.com/compose/tweet', {
+      waitUntil: 'networkidle2',
+    });
+
+    const tweetText = `Generated by ${user.twitterUsername} #${post.contest.tag.name} #${post.id}`;
+    await page.waitForSelector('[data-testid="tweetTextarea_0"]');
+    await page.type('[data-testid="tweetTextarea_0"]', tweetText);
+
+    const input = await page.$('input[type="file"]');
+    if (!input) {
+      throw new Error('Tweet image upload field not found');
+    }
+
+    const imagePath = await this.downloadImageToTmp(post.imageUrl);
+    if (!fs.existsSync(imagePath)) {
+      throw new Error('Image file was not saved');
+    }
+
+    await randomSleep();
+    await input.uploadFile(imagePath);
+    await page.focus('[data-testid="tweetTextarea_0"]');
+
+    await page.keyboard.press('ArrowDown');
+
+    await randomSleep();
+
+    const tweetButton = await page.$('[data-testid="tweetButton"]');
+    if (!tweetButton) {
+      throw new Error('Tweet button not found');
+    }
+
+    await page.focus('[data-testid="tweetTextarea_0"]');
+    await page.keyboard.type(' ');
+    await randomSleep();
+    if (imagePath && fs.existsSync(imagePath)) {
+      fs.unlinkSync(imagePath);
+    }
+    const isButtonDisabled = await tweetButton.evaluate((btn) =>
+      btn.hasAttribute('disabled'),
+    );
+
+    if (isButtonDisabled) {
+      return {
+        message: 'Tweet button disabled, tweet not sent.',
+        tweetUrl: '',
+      };
+    }
+
+    // Wait for Twitter API response to capture new tweet ID
+    const tweetResponsePromise = page.waitForResponse(
+      (res) =>
+        res.url().includes('/CreateTweet') && res.request().method() === 'POST',
+    );
+
+    await tweetButton.focus();
+    await page.evaluate(() => {
+      const btn = document.querySelector('[data-testid="tweetButton"]');
+      if (btn) (btn as HTMLElement).click();
+    });
+
+    const tweetRes = await tweetResponsePromise;
+    const tweetData = await tweetRes.json();
+    const tweetId =
+      tweetData.data.create_tweet.tweet_results.result.rest_id ||
+      tweetData.data?.id;
+
+    const tweetUrlFull = `https://twitter.com/${twitterUsername}/status/${tweetId}`;
+
+    post.tweetLink = tweetUrlFull;
+    await this.postEntity.save(post);
+
+    const telegramUrl = `https://api.telegram.org/bot${this.configService.get('TELEGRAM_BOT_TOKEN')}/sendPhoto`;
+    const payload = {
+      chat_id: user.telegramId,
+      photo: post.imageUrl,
+      caption: `🎉 Your tweet is live! Repost your tweet to secure your spot in the contest`,
+      reply_markup: {
+        inline_keyboard: [[{ text: 'See tweet', url: tweetUrlFull }]],
+      },
+    };
+
+    const maxRetries = 4;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await axios.post(telegramUrl, payload);
+        console.log(
+          `[_postTweet] Telegram notification sent on attempt ${attempt}`,
+        );
+        break;
+      } catch (error) {
+        const isLast = attempt === maxRetries;
+        console.error(
+          `[_postTweet] Telegram send failed (attempt ${attempt}/${maxRetries}):`,
+          error.response?.data || error,
+        );
+        if (isLast) {
+          console.error('[_postTweet] All retry attempts exhausted');
+        } else {
+          await new Promise((res) => setTimeout(res, 1000 * attempt));
+        }
+      }
+    }
+
+    console.log('[_postTweet] Closing browser');
+    await page.browser().close();
+
+    return {
+      message: 'Tweet sent successfully',
+      tweetUrl: tweetUrlFull,
+    };
+  }
+
+  async downloadImageToTmp(
+    imageUrl: string,
+    filename?: string,
+  ): Promise<string> {
+    const response = await axios.get(imageUrl, {
+      responseType: 'arraybuffer',
+    });
+    const buffer = Buffer.from(response.data, 'binary');
+    const tmpFilePath = filename
+      ? path.join(__dirname, '..', filename)
+      : path.join(__dirname, '..', `tmp-upload-${Date.now()}.png`);
+    fs.writeFileSync(tmpFilePath, buffer);
+    return tmpFilePath;
+  }
+
+  private async _recoverSessionViaGmail(
+    post_id: string,
+    userId: number,
+  ): Promise<{ message: string; tweetUrl: string }> {
+    console.log(
+      '[_recoverSessionViaGmail] Starting Gmail session recovery for Twitter',
+    );
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox'],
+    });
+
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1280, height: 800 });
+
+    const GMAIL = this.configService.get<string>('GMAIL_USERNAME');
+    const GMAIL_PASS = this.configService.get<string>('GMAIL_PASSWORD');
+
+    await page.goto(
+      'https://accounts.google.com/signin/v2/identifier?service=mail',
+      { waitUntil: 'networkidle2' },
+    );
+    await page
+      .type('input[type="email"]', GMAIL)
+      .catch((err) => console.error('Failed to type:', err));
+    await page.keyboard.press('Enter');
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    await page
+      .type('input[type="password"]', GMAIL_PASS)
+      .catch((err) => console.error('Failed to type:', err));
+    await page.keyboard.press('Enter');
+    await page.waitForNavigation({ waitUntil: 'domcontentloaded' });
+
+    await page.goto('https://mail.google.com/mail/u/0/#inbox', {
+      waitUntil: 'domcontentloaded',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 10000)); // Чекати на надходження листа з кодом (10 секунд)
+
+    const code = await page.evaluate(() => {
+      const spans = Array.from(document.querySelectorAll('span'));
+      for (const el of spans) {
+        const text = el.textContent || '';
+        if (/Your X confirmation code is/i.test(text)) {
+          const parts = text.split(' ');
+          const index = parts.findIndex((w) => w.toLowerCase() === 'is');
+          if (index !== -1 && parts[index + 1]) {
+            return parts[index + 1].trim();
+          }
+        }
+      }
+      return null;
+    });
+
+    if (!code) {
+      throw new Error('Confirmation code not found in Gmail');
+    }
+    // Save confirmation code for future reuse
+    const CONFIRMATION_CODE_PATH = path.resolve(
+      __dirname,
+      '..',
+      '..',
+      'public',
+      'twitter-confirmation-code.txt',
+    );
+    fs.writeFileSync(CONFIRMATION_CODE_PATH, code);
+
+    // After writing the code, close browser and restart tweet flow
+    await browser.close();
+    return await this.tweetImageViaPuppeteer(post_id, userId);
+  }
+}
