@@ -362,7 +362,7 @@ export class AuthService {
       user = this.userRepository.create({
         name: `${payload.firstName} ${payload.lastName}`,
         email: payload.email,
-        points: 3000,
+        points: this.configService.get('YEPS_PER_REGISTRATION'),
       });
       await this.userRepository.save(user);
     }
@@ -448,7 +448,7 @@ export class AuthService {
         telegramId,
         nickname: username,
         name: `${firstName} ${lastName}`.trim(),
-        points: 3000,
+        points: this.configService.get('YEPS_PER_REGISTRATION'),
         email: randomEmail,
         password: randomPassword,
       });
@@ -514,7 +514,7 @@ export class AuthService {
         nickname: profile.username,
         email: email,
         telegramId: null,
-        points: 3000,
+        points: this.configService.get('YEPS_PER_REGISTRATION'),
       });
 
       await this.userRepository.save(user);
