@@ -168,8 +168,8 @@ export class ImageGenerationService {
       });
 
       const serviceMapping: { [key in AIEnum]: string } = {
-        [AIEnum.AURA_FLOW]: 'fal-ai/aura-flow',
-        [AIEnum.FLUX]: 'fal-ai/flux/schnell',
+        [AIEnum.AURA_FLOW]: 'fal-ai/ideogram/v2',
+        [AIEnum.FLUX]: 'fal-ai/flux-lora/stream',
         [AIEnum.REALISTIC_VISION]: 'fal-ai/realistic-vision',
         [AIEnum.FLUX_PRO_FINE_TUNE]: 'fal-ai/flux-pro/v1.1-ultra-finetuned',
       };
@@ -215,11 +215,16 @@ export class ImageGenerationService {
       ) {
         inputParams.style = createPostDto.style;
       }
+      const start = Date.now();
 
       const result = await generateMethod({
         input: inputParams,
       });
 
+      const end = Date.now();
+      console.log(
+        `Fal AI (${createPostDto.ai_service}) responded in ${end - start} ms`,
+      );
       const uploadPromises = result.images.map(async (image) => {
         const dataUrl = image.url;
 
