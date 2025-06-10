@@ -15,7 +15,7 @@ import { PostEntity } from 'src/post/entities/post.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TagEntity } from 'src/tag/entities/tag.entity';
 import { StyleEntity } from 'src/post/entities/style.entity';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { getDimensionsForOrientation } from 'src/common/helpers/get.dimension.func';
 import { ColorEntity } from './entities/color.entity';
 import { AISettings } from './types/ai.settings.interface';
@@ -706,6 +706,33 @@ export class ImageGenerationService {
   calculateTotalCost(service: AIEnum, quantity: number): number {
     const costPerImage = this.getCostByService(service);
     return costPerImage * quantity;
+  }
+
+  async calculateRefundCredits(
+    userId: number,
+    posts: number[],
+    aiService: AIEnum,
+  ): Promise<{ success: boolean }> {
+    const user = await this.userEntity.findOne({ where: { id: userId } });
+    if (!user) throw new BadRequestException('User not found');
+
+    const foundPosts = await this.postEntity.find({
+      where: {
+        id: In(posts),
+        user: { id: userId },
+      },
+    });
+
+    if (foundPosts.length !== posts.length) {
+      throw new BadRequestException(
+        'Some posts not found or do not belong to user',
+      );
+    }
+
+    const totalRefund = this.getCostByService(aiService, posts.length);
+    user.points += totalRefund;
+    await this.userEntity.save(user);
+    return { success: true };
   }
 
   private async logActivityAndNotify(
