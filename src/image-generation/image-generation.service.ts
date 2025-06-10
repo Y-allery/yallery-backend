@@ -124,6 +124,7 @@ export class ImageGenerationService {
     generatedImages: string[];
     suggestedTags: { id: number; name: string }[];
   }> {
+    console.log(createPostDto);
     let token: AiServiceToken;
     let tag: TagEntity;
     try {
