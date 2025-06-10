@@ -1,10 +1,10 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class Initial1748956310064 implements MigrationInterface {
-    name = 'Initial1748956310064'
+  name = 'Initial1748956310064';
 
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
           CREATE TABLE IF NOT EXISTS "ai_service_tokens" (
             "id" int NOT NULL AUTO_INCREMENT,
             "ai_service" enum('aura_flow','flux','realistic_vision','flux_pro_fine_tune') NOT NULL,
@@ -17,7 +17,7 @@ export class Initial1748956310064 implements MigrationInterface {
           );
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
           CREATE TABLE IF NOT EXISTS "colors" (
             "id" int NOT NULL AUTO_INCREMENT,
             "name" varchar(255) NOT NULL,
@@ -25,7 +25,7 @@ export class Initial1748956310064 implements MigrationInterface {
           );
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
           CREATE TABLE IF NOT EXISTS "partnerships" (
             "id" int NOT NULL AUTO_INCREMENT,
             "partnerName" varchar(255) NOT NULL,
@@ -38,7 +38,7 @@ export class Initial1748956310064 implements MigrationInterface {
           );
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
           CREATE TABLE IF NOT EXISTS "partnership_activities" (
             "id" int NOT NULL AUTO_INCREMENT,
             "userId" int NOT NULL,
@@ -49,7 +49,7 @@ export class Initial1748956310064 implements MigrationInterface {
           );
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
           CREATE TABLE IF NOT EXISTS "payments" (
             "id" int NOT NULL AUTO_INCREMENT,
             "paymentIntentId" varchar(255) DEFAULT NULL,
@@ -64,7 +64,7 @@ export class Initial1748956310064 implements MigrationInterface {
           );
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
           CREATE TABLE IF NOT EXISTS "styles" (
             "id" int NOT NULL AUTO_INCREMENT,
             "name" varchar(100) NOT NULL,
@@ -74,7 +74,7 @@ export class Initial1748956310064 implements MigrationInterface {
           );
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
           CREATE TABLE IF NOT EXISTS "tags" (
             "id" int NOT NULL AUTO_INCREMENT,
             "name" varchar(255) NOT NULL,
@@ -85,7 +85,7 @@ export class Initial1748956310064 implements MigrationInterface {
           );
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
           CREATE TABLE IF NOT EXISTS "users" (
             "id" int NOT NULL AUTO_INCREMENT,
             "name" varchar(255) NOT NULL,
@@ -116,7 +116,7 @@ export class Initial1748956310064 implements MigrationInterface {
           );
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
           CREATE TABLE IF NOT EXISTS "contests" (
             "id" int NOT NULL AUTO_INCREMENT,
             "name" varchar(255) NOT NULL,
@@ -143,7 +143,7 @@ export class Initial1748956310064 implements MigrationInterface {
           );
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
           CREATE TABLE IF NOT EXISTS "posts" (
             "id" int NOT NULL AUTO_INCREMENT,
             "imageUrl" varchar(255) NOT NULL,
@@ -172,7 +172,7 @@ export class Initial1748956310064 implements MigrationInterface {
           );
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
           CREATE TABLE IF NOT EXISTS "contests_participants_users" (
             "contestsId" int NOT NULL,
             "usersId" int NOT NULL,
@@ -184,7 +184,7 @@ export class Initial1748956310064 implements MigrationInterface {
           );
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
           CREATE TABLE IF NOT EXISTS "users_tags_tags" (
             "usersId" int NOT NULL,
             "tagsId" int NOT NULL,
@@ -195,7 +195,7 @@ export class Initial1748956310064 implements MigrationInterface {
           );
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
           CREATE TABLE IF NOT EXISTS "likes" (
             "id" int NOT NULL AUTO_INCREMENT,
             "userId" int DEFAULT NULL,
@@ -210,7 +210,7 @@ export class Initial1748956310064 implements MigrationInterface {
           );
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
           CREATE TABLE IF NOT EXISTS "notification_preferences" (
             "id" int NOT NULL AUTO_INCREMENT,
             "activityType" enum('LIKE_EARN','LIKE_SPEND','IMAGE_GENERATE_SPEND','CONTEST_CLOSE','CONTEST_WIN','DAILY_REWARD','SHARE_REWARD','ADMIN_REPORT','ADMIN_CONTEST_REVIEW','ADMIN_REPORT_REVIEW','ADMIN_CONTEST_WON','TOP_POST_REWARD_AUTHOR','TOP_POST_REWARD_LIKER') NOT NULL,
@@ -221,7 +221,7 @@ export class Initial1748956310064 implements MigrationInterface {
           );
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
           CREATE TABLE IF NOT EXISTS "user_device_tokens" (
             "id" int NOT NULL AUTO_INCREMENT,
             "token" varchar(255) NOT NULL,
@@ -231,7 +231,7 @@ export class Initial1748956310064 implements MigrationInterface {
           );
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
           CREATE TABLE IF NOT EXISTS "referrals" (
             "id" int NOT NULL AUTO_INCREMENT,
             "code" varchar(255) NOT NULL,
@@ -244,7 +244,7 @@ export class Initial1748956310064 implements MigrationInterface {
           );
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
           CREATE TABLE IF NOT EXISTS "reports" (
             "id" int NOT NULL AUTO_INCREMENT,
             "createdAt" timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
@@ -263,7 +263,7 @@ export class Initial1748956310064 implements MigrationInterface {
           );
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
           CREATE TABLE IF NOT EXISTS "viewed_posts" (
             "id" int NOT NULL AUTO_INCREMENT,
             "userId" int DEFAULT NULL,
@@ -274,7 +274,7 @@ export class Initial1748956310064 implements MigrationInterface {
           );
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
           CREATE TABLE IF NOT EXISTS "activity" (
             "id" int NOT NULL AUTO_INCREMENT,
             "activityType" enum('LIKE_EARN','LIKE_SPEND','IMAGE_GENERATE_SPEND','CONTEST_CLOSE','CONTEST_OPEN','CONTEST_WIN','DAILY_REWARD','SHARE_REWARD','ADMIN_REPORT','ADMIN_CONTEST_REVIEW','ADMIN_REPORT_REVIEW','ADMIN_CONTEST_WON','TOP_POST_REWARD_AUTHOR','TOP_POST_REWARD_LIKER') NOT NULL DEFAULT 'LIKE_EARN',
@@ -298,27 +298,29 @@ export class Initial1748956310064 implements MigrationInterface {
             CONSTRAINT "FK_e67eeb490f1a183c27d92d06dfe" FOREIGN KEY ("to_user_id") REFERENCES "users" ("id") ON DELETE CASCADE
           );
         `);
-    }
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-      await queryRunner.query(`DROP TABLE IF EXISTS "activity";`);
-      await queryRunner.query(`DROP TABLE IF EXISTS "viewed_posts";`);
-      await queryRunner.query(`DROP TABLE IF EXISTS "reports";`);
-      await queryRunner.query(`DROP TABLE IF EXISTS "referrals";`);
-      await queryRunner.query(`DROP TABLE IF EXISTS "user_device_tokens";`);
-      await queryRunner.query(`DROP TABLE IF EXISTS "notification_preferences";`);
-      await queryRunner.query(`DROP TABLE IF EXISTS "likes";`);
-      await queryRunner.query(`DROP TABLE IF EXISTS "users_tags_tags";`);
-      await queryRunner.query(`DROP TABLE IF EXISTS "contests_participants_users";`);
-      await queryRunner.query(`DROP TABLE IF EXISTS "posts";`);
-      await queryRunner.query(`DROP TABLE IF EXISTS "contests";`);
-      await queryRunner.query(`DROP TABLE IF EXISTS "users";`);
-      await queryRunner.query(`DROP TABLE IF EXISTS "tags";`);
-      await queryRunner.query(`DROP TABLE IF EXISTS "styles";`);
-      await queryRunner.query(`DROP TABLE IF EXISTS "payments";`);
-      await queryRunner.query(`DROP TABLE IF EXISTS "partnership_activities";`);
-      await queryRunner.query(`DROP TABLE IF EXISTS "partnerships";`);
-      await queryRunner.query(`DROP TABLE IF EXISTS "colors";`);
-      await queryRunner.query(`DROP TABLE IF EXISTS "ai_service_tokens";`);
-    }
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DROP TABLE IF EXISTS "activity";`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "viewed_posts";`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "reports";`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "referrals";`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "user_device_tokens";`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "notification_preferences";`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "likes";`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "users_tags_tags";`);
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "contests_participants_users";`,
+    );
+    await queryRunner.query(`DROP TABLE IF EXISTS "posts";`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "contests";`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "users";`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "tags";`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "styles";`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "payments";`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "partnership_activities";`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "partnerships";`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "colors";`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "ai_service_tokens";`);
+  }
 }

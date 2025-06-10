@@ -118,7 +118,7 @@ export class UserEntity extends TimeStampEntity {
   )
   notificationPreferences: NotificationPreferenceEntity[];
 
-  @Column({ nullable: true, unique: true })
+  @Column({ nullable: true, unique: true, type: 'bigint' })
   telegramId: number;
 
   @OneToMany(() => ReferralEntity, (referral) => referral.user)

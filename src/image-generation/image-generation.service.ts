@@ -169,7 +169,7 @@ export class ImageGenerationService {
 
       const serviceMapping: { [key in AIEnum]: string } = {
         [AIEnum.AURA_FLOW]: 'fal-ai/ideogram/v2',
-        [AIEnum.FLUX]: 'fal-ai/flux-lora/stream',
+        [AIEnum.FLUX]: 'fal-ai/flux-pro/v1.1-ultra',
         [AIEnum.REALISTIC_VISION]: 'fal-ai/realistic-vision',
         [AIEnum.FLUX_PRO_FINE_TUNE]: 'fal-ai/flux-pro/v1.1-ultra-finetuned',
       };

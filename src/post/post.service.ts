@@ -636,15 +636,14 @@ export class PostService {
     }
 
     const SESSION_PATH = path.resolve(
-      __dirname,
-      '..',
-      '..',
+      process.cwd(),
+      'src',
       'public',
       'twitter-session.json',
     );
 
     const browser = await puppeteer.launch({
-      headless: true,
+      headless: false,
       args: ['--no-sandbox'],
     });
     const page = await browser.newPage();
@@ -939,7 +938,7 @@ export class PostService {
       '[_recoverSessionViaGmail] Starting Gmail session recovery for Twitter',
     );
     const browser = await puppeteer.launch({
-      headless: true,
+      headless: false,
       args: ['--no-sandbox'],
     });
 
