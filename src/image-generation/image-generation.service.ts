@@ -124,7 +124,6 @@ export class ImageGenerationService {
     generatedImages: string[];
     suggestedTags: { id: number; name: string }[];
   }> {
-    console.log(createPostDto);
     let token: AiServiceToken;
     let tag: TagEntity;
     try {
@@ -146,6 +145,7 @@ export class ImageGenerationService {
           imageUrl: tag.imageUrl,
         });
       }
+
       const otherTag = await this.tagEntity.findOne({
         where: { name: 'other' },
       });
@@ -210,12 +210,6 @@ export class ImageGenerationService {
         };
       }
 
-      if (
-        createPostDto.ai_service === AIEnum.AURA_FLOW &&
-        createPostDto.style
-      ) {
-        inputParams.style = createPostDto.style;
-      }
       const start = Date.now();
 
       const result = await generateMethod({
