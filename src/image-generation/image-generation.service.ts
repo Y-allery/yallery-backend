@@ -212,6 +212,7 @@ export class ImageGenerationService {
 
       const start = Date.now();
 
+      console.log(inputParams);
       const result = await generateMethod({
         input: inputParams,
       });
