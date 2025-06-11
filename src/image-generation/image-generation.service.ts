@@ -682,7 +682,7 @@ export class ImageGenerationService {
 
   getCostByService(service: AIEnum, quantity: number = 1): number {
     const pricing = {
-      [AIEnum.AURA_FLOW]: 11,
+      [AIEnum.AURA_FLOW]: 20,
       [AIEnum.FLUX]: 30,
       [AIEnum.REALISTIC_VISION]: 11,
       [AIEnum.FLUX_PRO_FINE_TUNE]: 100,
