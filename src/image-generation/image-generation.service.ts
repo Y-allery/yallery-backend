@@ -737,6 +737,7 @@ export class ImageGenerationService {
     const totalRefund = this.getCostByService(aiService, posts.length);
     user.points += totalRefund;
     await this.userEntity.save(user);
+    await this.notificationGateway.emitProfileUpdate(user.id.toString());
     return { success: true };
   }
 
