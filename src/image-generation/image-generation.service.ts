@@ -42,7 +42,7 @@ export class ImageGenerationService {
   private readonly contestRepository: Repository<ContestEntity>;
   private readonly aiDescription = [
     'Flux: A versatile model for abstract art, surreal designs, and conceptual visuals.',
-    'Aura: Specializes in soft, atmospheric, dream-like imagery, perfect for ethereal landscapes and mood-based scenes.',
+    'Ideogram: Specializes in soft, atmospheric, dream-like imagery, perfect for ethereal landscapes and mood-based scenes.',
     'Realistic Vision: Excels in detailed, photorealistic images, including lifelike portraits and realistic environments',
   ];
   private readonly defaultSettings: Record<string, any> = {
