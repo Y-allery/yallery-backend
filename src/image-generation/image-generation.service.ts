@@ -55,7 +55,7 @@ export class ImageGenerationService {
   private readonly aiSettings: Record<AIEnum, AISettings> = {
     [AIEnum.AURA_FLOW]: {
       id: 'aura_flow',
-      name: 'Aura AI',
+      name: 'Ideogram',
       allowedOrientations: ['horizontal', 'vertical'],
       minImages: 1,
       maxImages: 5,
