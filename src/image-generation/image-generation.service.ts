@@ -629,11 +629,11 @@ export class ImageGenerationService {
         'Post not found or you do not have permission to delete this post.',
       );
     }
-
-    await this.postEntity.remove(post);
-    if (post.contest.id) {
+    if (post?.contest?.id) {
       await this.removeParticipant(post.contest.id, userId);
     }
+    await this.postEntity.remove(post);
+
     return { message: 'Post deleted successfully' };
   }
 
