@@ -186,10 +186,14 @@ export class ImageGenerationService {
       let inputParams: any = {
         prompt: createPostDto.prompt,
         numImages: createPostDto.image_quantity,
-        image_size: {
-          width: createPostDto.width,
-          height: createPostDto.height,
-        },
+        aspect_ratio:
+          createPostDto.width === 1024 && createPostDto.height === 1024
+            ? '1:1'
+            : createPostDto.width === 768 && createPostDto.height === 1344
+              ? '3:4'
+              : createPostDto.width === 1344 && createPostDto.height === 768
+                ? '16:9'
+                : undefined,
         negativePrompt: 'Blurry photo, distortion, low-res, poor quality',
         num_images: createPostDto.image_quantity,
       };
