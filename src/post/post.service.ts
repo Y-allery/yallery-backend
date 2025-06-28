@@ -70,6 +70,7 @@ export class PostService {
       SELECT DISTINCT
         p.id, 
         p.imageUrl AS image_url, 
+        p.videoUrl AS image_url, 
         p.createdAt AS created_at,
         u.id AS user_id,
         t.id AS tag_id,
