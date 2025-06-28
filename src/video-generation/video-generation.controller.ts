@@ -1,5 +1,5 @@
 import { VideoGenerationService } from './video-generation.service';
-import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthenticatedRequest } from 'src/auth/types/auth.user.interface';
 import { GenerateVideoDto } from './dto/generate-video.dto';
 import { ApiTags } from '@nestjs/swagger';
@@ -12,6 +12,12 @@ export class VideoGenerationController {
   constructor(
     private readonly videoGenerationService: VideoGenerationService,
   ) {}
+
+  @Get('ai-settings')
+  getAllAISettings() {
+    return this.videoGenerationService.getAllAISettings();
+  }
+
   @Post('generate-video')
   async generateOctoAI(
     @Body() createVideoDto: GenerateVideoDto,

@@ -12,10 +12,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserEntity } from 'src/user/entities/user.entity';
 import { UserModule } from 'src/user/user.module';
 import { ActivityModule } from 'src/activity/activity.module';
+import { TagEntity } from 'src/tag/entities/tag.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([UserEntity]),
+    TypeOrmModule.forFeature([UserEntity, TagEntity]),
     UserModule,
     ActivityModule,
     NotificationModule,

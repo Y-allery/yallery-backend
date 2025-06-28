@@ -1,4 +1,3 @@
-import { GenerateImageDto } from './../image-generation/dto/generate.image.dto';
 import {
   BadRequestException,
   HttpException,
@@ -21,9 +20,13 @@ import { ActivityEnum } from 'src/activity/types/activity.enum';
 import { ActivityService } from 'src/activity/activity.service';
 import { UserService } from 'src/user/user.service';
 import { PostEntity } from 'src/post/entities/post.entity';
+import { TagEntity } from 'src/tag/entities/tag.entity';
+import OpenAI from 'openai';
 
 @Injectable()
 export class VideoGenerationService {
+  private openai;
+
   constructor(
     @InjectQueue(VideoAIEnum.BYTY_DANCE) private readonly bytyDance: Queue,
     private readonly serviceTokenService: ServiceTokenService,
@@ -35,9 +38,13 @@ export class VideoGenerationService {
     private userEntity: Repository<UserEntity>,
     @InjectRepository(UserEntity)
     private postRepository: Repository<PostEntity>,
+    @InjectRepository(TagEntity)
+    private tagRepository: Repository<TagEntity>,
 
     private readonly notificationGateway: NotificationGateway,
-  ) {}
+  ) {
+    this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
 
   private async verifyUserHasEnoughCredits(user: UserEntity) {
     const totalCost = 100;
@@ -46,6 +53,26 @@ export class VideoGenerationService {
     }
   }
 
+  async getAllAISettings() {
+    const defaultSettings = {
+      ai_service: VideoAIEnum.BYTY_DANCE,
+      cost: 100,
+    };
+
+    const aiSettings = [
+      {
+        ai_service: VideoAIEnum.BYTY_DANCE,
+        label: 'Byty Dance',
+        cost: 100,
+        description: 'Create animated videos from your image with BytyDance.',
+      },
+    ];
+
+    return {
+      defaultSettings,
+      aiSettings,
+    };
+  }
   async addVideoTaskToQueue(dto: GenerateVideoDto, userId: number) {
     try {
       const user = await this.userService.findById(userId);
@@ -80,32 +107,57 @@ export class VideoGenerationService {
     }
   }
 
-  async saveGeneratedVideo(
-    videoUrl: string,
-    dto: GenerateImageDto,
-    user: UserEntity,
-  ) {
-    const post = await this.createPostForVideo(videoUrl, user);
-
-    return {
-      videoUrl: post.videoUrl,
-      id: post.id,
-    };
-  }
-
   async createPostForVideo(
     videoUrl: string,
     user: UserEntity,
+    tag: TagEntity,
   ): Promise<PostEntity> {
     const post = this.postRepository.create({
       user: { id: user.id },
-      tag: { id: 1 },
+      tag: { id: tag.id },
       videoUrl,
       is_published: false,
       is_saved: false,
     });
 
     return await this.postRepository.save(post);
+  }
+
+  async findBestTagByImage(imageUrl: string): Promise<TagEntity> {
+    const tags = await this.tagRepository.find();
+    const tagNames = tags.map((t) => t.name);
+
+    const messages: any = [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'image_url',
+            image_url: { url: imageUrl, detail: 'auto' },
+          },
+          {
+            type: 'text',
+            text: `Given this image and the following list of tags: [${tagNames.join(', ')}], 
+  identify the single most relevant tag that best represents the subject or theme of the image. 
+  Return only the tag name.`,
+          },
+        ],
+      },
+    ];
+
+    const response = await this.openai.chat.completions.create({
+      model: 'gpt-4-vision-preview',
+      messages,
+      max_tokens: 20,
+      temperature: 0,
+    });
+
+    const tagName = response.choices?.[0]?.message?.content?.trim();
+    const selectedTag = tags.find(
+      (t) => t.name.toLowerCase() === tagName?.toLowerCase(),
+    );
+
+    return selectedTag ?? tags[0]; // fallback
   }
 
   async generateVideo(dto: GenerateVideoDto) {
