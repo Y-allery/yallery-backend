@@ -5,7 +5,6 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { AIEnum } from '../../common/enums/ai.enum';
 
 export enum TokenStatus {
   ACTIVE = 'active',
@@ -18,11 +17,8 @@ export class AiServiceToken {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({
-    type: 'enum',
-    enum: AIEnum,
-  })
-  ai_service: AIEnum;
+  @Column({ type: 'text' })
+  ai_service: string;
 
   @Column({ type: 'text' })
   token: string;

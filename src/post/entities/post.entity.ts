@@ -23,6 +23,10 @@ export class PostEntity extends TimeStampEntity {
   @Index()
   imageUrl: string;
 
+  @Column({ type: 'varchar', nullable: true })
+  @Index()
+  videoUrl: string | null;
+
   @ManyToOne(() => UserEntity, (user) => user.posts, { onDelete: 'CASCADE' })
   @Index()
   user: UserEntity;

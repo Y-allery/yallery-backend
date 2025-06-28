@@ -67,6 +67,29 @@ export class NotificationGateway {
     }
   }
 
+  async sendVideoNotification(
+    to_user_id: string,
+    video: any,
+    activity_type: ActivityEnum,
+  ) {
+    if (this.isUserConnected(to_user_id)) {
+      this.server.to(to_user_id).emit('videoGenerated', {
+        video,
+        activity_type,
+      });
+    } else {
+      if (video?.id) {
+        await this.postRepository.update(
+          { id: video.id },
+          { is_delivered: false },
+        );
+      }
+      console.log(
+        `User ${to_user_id} is not connected. Handling offline logic for video.`,
+      );
+    }
+  }
+
   async sendErrorNotification(to_user_id: string, errorMessage: string) {
     this.server.to(to_user_id).emit('error', {
       error: errorMessage,
@@ -82,6 +105,7 @@ export class NotificationGateway {
       console.log('User ID not found in socket data');
       return;
     }
+
     this.connectedUsers.set(userId, client);
     client.join(userId);
     console.log(`User ${userId} joined their room`);
@@ -91,29 +115,48 @@ export class NotificationGateway {
     });
 
     if (undeliveredPosts.length > 0) {
-      const images = undeliveredPosts.map((post) => ({
-        id: post.id,
-        imageUrl: post.imageUrl,
-      }));
+      const images = undeliveredPosts
+        .filter((post) => post.imageUrl && !post.videoUrl)
+        .map((post) => ({
+          id: post.id,
+          imageUrl: post.imageUrl,
+        }));
 
-      client.emit('undeliveredImages', {
-        images,
-      });
+      const videos = undeliveredPosts
+        .filter((post) => post.videoUrl)
+        .map((post) => ({
+          id: post.id,
+          videoUrl: post.videoUrl,
+        }));
 
+      // Emit undelivered images if any
+      if (images.length > 0 && client.connected) {
+        client.emit('undeliveredImages', { images });
+        console.log(`Sent undelivered images to user ${userId}`);
+      }
+
+      // Emit undelivered videos if any
+      for (const video of videos) {
+        if (client.connected) {
+          client.emit('undeliveredVideo', { video });
+          console.log(`Sent undelivered video ${video.id} to user ${userId}`);
+        }
+      }
+
+      // Update delivery status regardless of connection state
+      const allUndeliveredIds = undeliveredPosts.map((post) => post.id);
       await this.postRepository.update(
-        { id: In(undeliveredPosts.map((post) => post.id)) },
+        { id: In(allUndeliveredIds) },
         { is_delivered: true },
       );
-
       console.log(
-        `Sent undelivered images to user ${userId} and updated delivery status.`,
+        `Updated delivery status for undelivered posts for user ${userId}`,
       );
     }
-    user.emailVerified
-      ? await this.emitEmailVerifiedStatus(userId, true)
-      : await this.emitEmailVerifiedStatus(userId, false);
-  }
 
+    const isVerified = Boolean(user.emailVerified);
+    await this.emitEmailVerifiedStatus(userId, isVerified);
+  }
   handleConnection(@ConnectedSocket() client: Socket) {
     const userId = client.data.userId;
     if (userId) {

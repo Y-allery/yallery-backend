@@ -20,6 +20,11 @@ export function getNotificationMessage(activityType: ActivityEnum): {
         title: 'Image Generated!',
         body: 'You have successfully generated an image.',
       };
+    case ActivityEnum.VIDEO_GENERATE_SPEND:
+      return {
+        title: 'Video Generated!',
+        body: 'You have successfully generated a video.',
+      };
     case ActivityEnum.CONTEST_CLOSE:
       return {
         title: 'Contest Closed',

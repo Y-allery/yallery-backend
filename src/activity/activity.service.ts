@@ -32,7 +32,8 @@ export class ActivityService {
     const messages = {
       [ActivityEnum.LIKE_EARN]: `You earned ${this.configService.get('LIKE_EARN_YEPS')} YEPs for a like`,
       [ActivityEnum.LIKE_SPEND]: `You spent ${this.configService.get('LIKE_SPEND_YEPS')} YEPs on a like`,
-      [ActivityEnum.IMAGE_GENERATE_SPEND]: `You spent ${generationCost || this.configService.get('LIKE_SPEND_YEPS')} YEPs on image generation`,
+      [ActivityEnum.IMAGE_GENERATE_SPEND]: `You spent ${generationCost || this.configService.get('IMAGE_GENERATE_COST_YEPS')} YEPs on image generation`,
+      [ActivityEnum.VIDEO_GENERATE_SPEND]: `You spent ${generationCost || this.configService.get('VIDEO_GENERATE_COST_YEPS')} YEPs on video generation`,
       [ActivityEnum.CONTEST_OPEN]: `The contest ${contest?.name} is now open! Join us for an exciting challenge and show off your skills.`,
       [ActivityEnum.CONTEST_CLOSE]: `The contest is closed. Unfortunately, you didn't win a prize this time`,
       [ActivityEnum.CONTEST_WIN]: `Congratulations! You won first place in the ${contest?.name} contest and received a reward of ${generationCost} YEPs`,
@@ -60,7 +61,8 @@ export class ActivityService {
     generation_cost?: number,
   ) {
     const points =
-      type === ActivityEnum.IMAGE_GENERATE_SPEND && service
+      type === ActivityEnum.IMAGE_GENERATE_SPEND ||
+      type === ActivityEnum.VIDEO_GENERATE_SPEND
         ? generation_cost
         : this.getPointsForActivity(type, contest_reward);
 
