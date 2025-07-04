@@ -55,14 +55,14 @@ export class VideoGenerationService {
 
   async getAllAISettings() {
     const defaultSettings = {
-      ai_service: VideoAIEnum.BYTY_DANCE,
+      defaultAI: VideoAIEnum.BYTY_DANCE,
       cost: 100,
     };
 
     const aiSettings = [
       {
-        ai_service: VideoAIEnum.BYTY_DANCE,
-        label: 'Byty Dance',
+        id: VideoAIEnum.BYTY_DANCE,
+        name: 'Byty Dance',
         cost: 100,
         description: 'Create animated videos from your image with BytyDance.',
       },
