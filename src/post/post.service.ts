@@ -70,7 +70,7 @@ export class PostService {
       SELECT DISTINCT
         p.id, 
         p.imageUrl AS image_url, 
-        p.videoUrl AS image_url, 
+        p.videoUrl AS video_url, 
         p.createdAt AS created_at,
         u.id AS user_id,
         t.id AS tag_id,
@@ -102,7 +102,6 @@ export class PostService {
     `;
 
     const posts = await this.postEntity.query(query);
-
     const nextCursor = posts.length > 0 ? posts[posts.length - 1].id : null;
 
     return {
@@ -111,6 +110,7 @@ export class PostService {
       hasNextPage: posts.length === limit,
     };
   }
+
   async findPostsByTag(
     tagId: number,
     page: number,
