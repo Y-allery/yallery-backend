@@ -25,7 +25,7 @@ export class BytyDanceProcessor extends WorkerHost {
     const { dto, userId } = job.data;
     const response = await this.videoGenerationService.generateVideo(dto);
     const findRelatedTag = await this.videoGenerationService.findBestTagByImage(
-      response.uploadedVideoUrl,
+      dto.image_url,
     );
     console.log(findRelatedTag);
     const user = await this.userService.findById(userId);

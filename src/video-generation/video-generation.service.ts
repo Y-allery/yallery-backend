@@ -126,7 +126,7 @@ export class VideoGenerationService {
   async findBestTagByImage(imageUrl: string): Promise<TagEntity> {
     const tags = await this.tagRepository.find();
     const tagNames = tags.map((t) => t.name);
-
+    console.log(imageUrl);
     const messages: any = [
       {
         role: 'user',
@@ -146,7 +146,7 @@ export class VideoGenerationService {
     ];
 
     const response = await this.openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
+      model: 'o4-mini-2025-04-16',
       messages,
       max_tokens: 20,
       temperature: 0,
