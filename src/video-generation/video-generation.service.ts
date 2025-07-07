@@ -146,7 +146,7 @@ export class VideoGenerationService {
     ];
 
     const response = await this.openai.chat.completions.create({
-      model: 'gpt-4-vision-preview',
+      model: 'gpt-3.5-turbo',
       messages,
       max_tokens: 20,
       temperature: 0,
