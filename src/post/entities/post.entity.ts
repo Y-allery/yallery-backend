@@ -19,7 +19,7 @@ export class PostEntity extends TimeStampEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
+  @Column({ nullable: true })
   @Index()
   imageUrl: string;
 

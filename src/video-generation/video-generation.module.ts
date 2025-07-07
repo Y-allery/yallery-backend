@@ -13,10 +13,11 @@ import { UserEntity } from 'src/user/entities/user.entity';
 import { UserModule } from 'src/user/user.module';
 import { ActivityModule } from 'src/activity/activity.module';
 import { TagEntity } from 'src/tag/entities/tag.entity';
+import { PostEntity } from 'src/post/entities/post.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([UserEntity, TagEntity]),
+    TypeOrmModule.forFeature([UserEntity, TagEntity, PostEntity]),
     UserModule,
     ActivityModule,
     NotificationModule,

@@ -36,7 +36,7 @@ export class VideoGenerationService {
 
     @InjectRepository(UserEntity)
     private userEntity: Repository<UserEntity>,
-    @InjectRepository(UserEntity)
+    @InjectRepository(PostEntity)
     private postRepository: Repository<PostEntity>,
     @InjectRepository(TagEntity)
     private tagRepository: Repository<TagEntity>,
@@ -112,12 +112,12 @@ export class VideoGenerationService {
     user: UserEntity,
     tag: TagEntity,
   ): Promise<PostEntity> {
+    console.log(tag);
     const post = this.postRepository.create({
       user: { id: user.id },
-      tag: { id: tag.id },
+      tag,
       videoUrl,
       is_published: false,
-      imageUrl: null,
       is_saved: false,
     });
 
