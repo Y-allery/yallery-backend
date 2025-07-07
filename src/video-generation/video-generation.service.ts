@@ -112,11 +112,11 @@ export class VideoGenerationService {
     user: UserEntity,
     tag: TagEntity,
   ): Promise<PostEntity> {
-    console.log(tag);
     const post = this.postRepository.create({
       user: { id: user.id },
       tag,
       videoUrl,
+      imageUrl: null,
       is_published: false,
       is_saved: false,
     });
