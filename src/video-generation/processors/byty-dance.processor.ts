@@ -10,7 +10,7 @@ import { VideoGenerationService } from '../video-generation.service';
 @Injectable()
 @Processor(VideoAIEnum.BYTY_DANCE, {
   concurrency: 60,
-  lockDuration: 120000,
+  lockDuration: 180000,
 })
 export class BytyDanceProcessor extends WorkerHost {
   constructor(
@@ -27,30 +27,24 @@ export class BytyDanceProcessor extends WorkerHost {
     const findRelatedTag = await this.videoGenerationService.findBestTagByImage(
       dto.image_url,
     );
-    console.log('here1');
     const user = await this.userService.findById(userId);
-    console.log('here2');
 
     await this.videoGenerationService.createPostForVideo(
       response.uploadedVideoUrl,
       user,
       findRelatedTag,
     );
-    console.log('here3');
     await this.videoGenerationService.updateUserCredits(user);
-    console.log('here4');
     await this.userService.sendPushNotificationIfEnabled(
       userId,
       ActivityEnum.VIDEO_GENERATE_SPEND,
     );
-    console.log('here5');
     await this.videoGenerationService.logActivityAndNotify(
       userId,
       ActivityEnum.VIDEO_GENERATE_SPEND,
       AIEnum.AURA_FLOW,
       100,
     );
-    console.log('here6');
 
     return {
       generatedVideo: response.uploadedVideoUrl,
