@@ -117,6 +117,7 @@ export class VideoGenerationService {
       tag: { id: tag.id },
       videoUrl,
       is_published: false,
+      imageUrl: null,
       is_saved: false,
     });
 
@@ -126,7 +127,6 @@ export class VideoGenerationService {
   async findBestTagByImage(imageUrl: string): Promise<TagEntity> {
     const tags = await this.tagRepository.find();
     const tagNames = tags.map((t) => t.name);
-    console.log(imageUrl);
     const messages: any = [
       {
         role: 'user',
