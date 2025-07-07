@@ -148,8 +148,7 @@ export class VideoGenerationService {
     const response = await this.openai.chat.completions.create({
       model: 'o4-mini-2025-04-16',
       messages,
-      max_tokens: 20,
-      temperature: 0,
+      max_completion_tokens: 20,
     });
 
     const tagName = response.choices?.[0]?.message?.content?.trim();
