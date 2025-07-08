@@ -21,7 +21,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd /root/yallery-backend
-            git pull origin main
+            git pull origin development
             npm install --omit=dev
             npm run build
             pm2 restart yallery-backend
