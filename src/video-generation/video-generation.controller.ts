@@ -17,7 +17,7 @@ export class VideoGenerationController {
   getAllAISettings() {
     return this.videoGenerationService.getAllAISettings();
   }
-  //sdasdasdівів
+  //sdasdasdівівsdsd
   @Post('generate-video')
   async generateOctoAI(
     @Body() createVideoDto: GenerateVideoDto,
