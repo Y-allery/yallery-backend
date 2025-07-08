@@ -203,7 +203,7 @@ export class VideoGenerationService {
       fal.config({
         credentials: token.token,
       });
-
+      //123
       const serviceMapping: { [key in VideoAIEnum]: string } = {
         [VideoAIEnum.BYTY_DANCE]:
           'fal-ai/bytedance/seedance/v1/lite/image-to-video',
