@@ -52,7 +52,7 @@ async function bootstrap() {
       bearerFormat: 'JWT',
     })
     .addSecurityRequirements('bearer')
-    .build(); //sd
+    .build(); //sdів
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
