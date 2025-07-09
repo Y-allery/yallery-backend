@@ -6,7 +6,7 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "build": "nest build && cp -r public dist/",
+    "build": "node --max-old-space-size=4096 ./node_modules/.bin/nest build && cp -r public dist/",
     "start": "node dist/src/main.js",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
