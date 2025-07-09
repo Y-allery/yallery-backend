@@ -16,7 +16,7 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { AuthenticatedRequest } from 'src/auth/types/auth.user.interface';
 import { RefundCreditDto } from 'src/post/dto/refund.credit.dto';
 @ApiTags('Image Generation')
-@Controller('image-generation')
+@Controller('image-generation') //sd
 @UseGuards(JwtAuthGuard)
 export class ImageGenerationController {
   constructor(
