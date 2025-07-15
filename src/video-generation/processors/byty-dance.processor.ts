@@ -22,6 +22,7 @@ export class BytyDanceProcessor extends WorkerHost {
   }
 
   async process(job: Job<any, any, string>) {
+    console.log('wrok');
     const { dto, userId } = job.data;
     const response = await this.videoGenerationService.generateVideo(dto);
     const findRelatedTag = await this.videoGenerationService.findBestTagByImage(
@@ -29,7 +30,7 @@ export class BytyDanceProcessor extends WorkerHost {
     );
     const user = await this.userService.findById(userId);
 
-    await this.videoGenerationService.createPostForVideo(
+    const post = await this.videoGenerationService.createPostForVideo(
       response.uploadedVideoUrl,
       user,
       findRelatedTag,
@@ -39,6 +40,7 @@ export class BytyDanceProcessor extends WorkerHost {
       userId,
       ActivityEnum.VIDEO_GENERATE_SPEND,
     );
+
     await this.videoGenerationService.logActivityAndNotify(
       userId,
       ActivityEnum.VIDEO_GENERATE_SPEND,
@@ -48,16 +50,23 @@ export class BytyDanceProcessor extends WorkerHost {
 
     return {
       generatedVideo: response.uploadedVideoUrl,
+      post,
+      findRelatedTag,
     };
   }
 
   @OnWorkerEvent('completed')
   async onCompleted(job: Job) {
     const { userId } = job.data;
-    const generatedVideo = job.returnvalue;
+    const { generatedVideo, post, findRelatedTag } = job.returnvalue;
+    console.log(findRelatedTag);
     await this.notificationGateway.sendVideoNotification(
       userId.toString(),
-      generatedVideo,
+      {
+        uploadedVideoUrl: generatedVideo,
+        id: post.id,
+        suggestedTags: [{ id: findRelatedTag.id, name: findRelatedTag.name }],
+      },
       ActivityEnum.VIDEO_GENERATE_SPEND,
     );
 

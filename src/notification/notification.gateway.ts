@@ -66,24 +66,33 @@ export class NotificationGateway {
       );
     }
   }
-
   async sendVideoNotification(
     to_user_id: string,
-    video: any,
+    video: {
+      uploadedVideoUrl: string;
+      id: number;
+      suggestedTags: { id: number; name: string }[];
+    },
     activity_type: ActivityEnum,
   ) {
     if (this.isUserConnected(to_user_id)) {
       this.server.to(to_user_id).emit('videoGenerated', {
-        video,
+        video: {
+          data: [
+            {
+              videoUrl: video.uploadedVideoUrl,
+              id: video.id,
+            },
+          ],
+          suggestedTags: video.suggestedTags,
+        },
         activity_type,
       });
     } else {
-      if (video?.id) {
-        await this.postRepository.update(
-          { id: video.id },
-          { is_delivered: false },
-        );
-      }
+      await this.postRepository.update(
+        { id: video.id },
+        { is_delivered: false },
+      );
       console.log(
         `User ${to_user_id} is not connected. Handling offline logic for video.`,
       );
