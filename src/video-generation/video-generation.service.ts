@@ -127,6 +127,7 @@ export class VideoGenerationService {
   async findBestTagByImage(imageUrl: string): Promise<TagEntity> {
     const tags = await this.tagRepository.find();
     const tagNames = tags.map((t) => t.name);
+    console.log(tagNames);
     const messages: any = [
       {
         role: 'user',
@@ -151,8 +152,8 @@ export class VideoGenerationService {
       max_completion_tokens: 20,
     });
 
-    const tagName = response.choices?.[0]?.message?.content?.trim();
     console.log(tagName);
+    const tagName = response.choices?.[0]?.message?.content?.trim();
     const selectedTag = tags.find(
       (t) => t.name.toLowerCase() === tagName?.toLowerCase(),
     );
@@ -162,36 +163,7 @@ export class VideoGenerationService {
 
   async generateVideo(dto: GenerateVideoDto) {
     let token: AiServiceToken;
-    // let tag: TagEntity;
     try {
-      // const suggestedTags = [];
-      // if (createPostDto.auto_tag_select) {
-      //   tag = await this.findBestTag(createPostDto.prompt);
-      //   suggestedTags.push({
-      //     id: tag.id,
-      //     name: '#' + tag.name,
-      //     imageUrl: tag.imageUrl,
-      //   });
-      // } else {
-      //   tag = await this.tagEntity.findOne({
-      //     where: { id: createPostDto.tag_id },
-      //   });
-      //   suggestedTags.push({
-      //     id: tag.id,
-      //     name: '#' + tag.name,
-      //     imageUrl: tag.imageUrl,
-      //   });
-      // }
-
-      // const otherTag = await this.tagEntity.findOne({
-      //   where: { name: 'other' },
-      // });
-      // suggestedTags.push({
-      //   id: otherTag.id,
-      //   name: '#' + otherTag.name,
-      //   imageUrl: otherTag.imageUrl,
-      // });
-
       token = await this.serviceTokenService.getNextAvailableToken(
         dto.ai_service,
       );
@@ -204,7 +176,7 @@ export class VideoGenerationService {
       fal.config({
         credentials: token.token,
       });
-      //123
+
       const serviceMapping: { [key in VideoAIEnum]: string } = {
         [VideoAIEnum.BYTY_DANCE]:
           'fal-ai/bytedance/seedance/v1/lite/image-to-video',
