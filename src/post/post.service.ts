@@ -543,12 +543,32 @@ export class PostService {
     };
   }
 
-  async getPostImageWithWatermark(postId: number): Promise<Buffer> {
+  async getPostImageWithWatermark(
+    postId: number,
+  ): Promise<{ buffer: Buffer; contentType: string; filename: string }> {
     const post = await this.postEntity.findOne({ where: { id: postId } });
     if (!post) {
       throw new NotFoundException('Post not found');
     }
 
+    // Якщо є відео — повертаємо його без змін
+    if (post.videoUrl) {
+      try {
+        const response = await axios.get(post.videoUrl, {
+          responseType: 'arraybuffer',
+        });
+
+        return {
+          buffer: Buffer.from(response.data, 'binary'),
+          contentType: 'video/mp4',
+          filename: `post_${postId}.mp4`,
+        };
+      } catch (error) {
+        throw new NotFoundException('Error fetching video from URL');
+      }
+    }
+
+    // Інакше — зображення з ватермаркою
     let imageBuffer: Buffer;
     try {
       const response = await axios.get(post.imageUrl, {
@@ -574,20 +594,18 @@ export class PostService {
     let processedImageBuffer: Buffer;
     try {
       processedImageBuffer = await sharp(imageBuffer)
-        .composite([
-          {
-            input: watermarkBuffer,
-            gravity: 'southeast',
-          },
-        ])
+        .composite([{ input: watermarkBuffer, gravity: 'southeast' }])
         .toBuffer();
     } catch (error) {
       throw new Error('Error processing image');
     }
 
-    return processedImageBuffer;
+    return {
+      buffer: processedImageBuffer,
+      contentType: 'image/png',
+      filename: `post_${postId}.png`,
+    };
   }
-
   async share(
     userId: number,
   ): Promise<{ message: string; pointsAwarded: number }> {
