@@ -152,8 +152,9 @@ export class VideoGenerationService {
       max_completion_tokens: 20,
     });
 
-    console.log(tagName);
     const tagName = response.choices?.[0]?.message?.content?.trim();
+    console.log(tagName);
+
     const selectedTag = tags.find(
       (t) => t.name.toLowerCase() === tagName?.toLowerCase(),
     );
