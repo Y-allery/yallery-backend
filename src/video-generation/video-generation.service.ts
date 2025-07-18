@@ -152,11 +152,12 @@ export class VideoGenerationService {
     });
 
     const tagName = response.choices?.[0]?.message?.content?.trim();
+    console.log(tagName);
     const selectedTag = tags.find(
       (t) => t.name.toLowerCase() === tagName?.toLowerCase(),
     );
 
-    return selectedTag ?? tags[0]; // fallback
+    return selectedTag ?? tags[0];
   }
 
   async generateVideo(dto: GenerateVideoDto) {

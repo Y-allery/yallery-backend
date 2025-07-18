@@ -59,13 +59,15 @@ export class BytyDanceProcessor extends WorkerHost {
   async onCompleted(job: Job) {
     const { userId } = job.data;
     const { generatedVideo, post, findRelatedTag } = job.returnvalue;
-    console.log(findRelatedTag);
     await this.notificationGateway.sendVideoNotification(
       userId.toString(),
       {
         uploadedVideoUrl: generatedVideo,
         id: post.id,
-        suggestedTags: [{ id: findRelatedTag.id, name: findRelatedTag.name }],
+        suggestedTags: [
+          { id: findRelatedTag.id, name: `#${findRelatedTag.name}` },
+          { id: 48, name: '#other' },
+        ],
       },
       ActivityEnum.VIDEO_GENERATE_SPEND,
     );
