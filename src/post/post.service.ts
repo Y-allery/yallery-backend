@@ -126,6 +126,7 @@ export class PostService {
       .select([
         'post.id AS post_id',
         'post.imageUrl AS post_imageUrl',
+        'post.videoUrl AS post_videoUrl',
         'post.createdAt AS post_createdAt',
         'user.id AS user_id',
         'tag.id AS tag_id',
