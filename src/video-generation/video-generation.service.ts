@@ -128,19 +128,22 @@ export class VideoGenerationService {
     const tags = await this.tagRepository.find();
     const tagNames = tags.map((t) => t.name);
     console.log(tagNames);
-    const messages: any = [
+    console.log(imageUrl);
+    const messages = [
       {
         role: 'user',
         content: [
           {
             type: 'image_url',
-            image_url: { url: imageUrl, detail: 'auto' },
+            image_url: {
+              url: imageUrl,
+              detail: 'auto',
+            },
           },
           {
             type: 'text',
             text: `Given this image and the following list of tags: [${tagNames.join(', ')}], 
-  identify the single most relevant tag that best represents the subject or theme of the image. 
-  Return only the tag name.`,
+    please return only the most relevant tag name.`,
           },
         ],
       },
@@ -149,9 +152,10 @@ export class VideoGenerationService {
     const response = await this.openai.chat.completions.create({
       model: 'o4-mini-2025-04-16',
       messages,
-      max_completion_tokens: 20,
+      max_completion_tokens: 10000,
     });
 
+    console.log(response.choices?.[0]);
     const tagName = response.choices?.[0]?.message?.content?.trim();
     console.log(tagName);
 

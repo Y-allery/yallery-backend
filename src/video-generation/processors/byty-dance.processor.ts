@@ -23,6 +23,7 @@ export class BytyDanceProcessor extends WorkerHost {
 
   async process(job: Job<any, any, string>) {
     const { dto, userId } = job.data;
+    console.log('work');
     const response = await this.videoGenerationService.generateVideo(dto);
     const findRelatedTag = await this.videoGenerationService.findBestTagByImage(
       dto.image_url,
