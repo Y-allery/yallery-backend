@@ -12,6 +12,7 @@ import { UserService } from 'src/user/user.service';
 import { In, Repository } from 'typeorm';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { InjectRepository } from '@nestjs/typeorm';
+import { TagEntity } from 'src/tag/entities/tag.entity';
 
 @WebSocketGateway({
   cors: {
@@ -27,6 +28,8 @@ export class NotificationGateway {
     private readonly userService: UserService,
     @InjectRepository(PostEntity)
     private readonly postRepository: Repository<PostEntity>,
+    @InjectRepository(TagEntity)
+    private readonly tagRepository: Repository<TagEntity>,
   ) {}
 
   @WebSocketServer()
@@ -91,10 +94,7 @@ export class NotificationGateway {
     } else {
       await this.postRepository.update(
         { id: video.id },
-        { is_delivered: false },
-      );
-      console.log(
-        `User ${to_user_id} is not connected. Handling offline logic for video.`,
+        { is_delivered: false, tag: {id:video.suggestedTags[0].id || null} },
       );
     }
   }
@@ -121,35 +121,97 @@ export class NotificationGateway {
 
     const undeliveredPosts = await this.postRepository.find({
       where: { user: { id: userId }, is_delivered: false },
+      relations: ['tag'],
     });
 
     if (undeliveredPosts.length > 0) {
+      const OTHER_TAG = {
+        id: 48,
+        name: '#other',
+        imageUrl:
+          'https://res.cloudinary.com/dsypundib/image/upload/v1732808917/other_tag-min_qd9y0c.png',
+      };
+
+      // Images
       const images = undeliveredPosts
         .filter((post) => post.imageUrl && !post.videoUrl)
         .map((post) => ({
           id: post.id,
           imageUrl: post.imageUrl,
+          tagId: post.tag?.id,
         }));
 
+      // Videos
       const videos = undeliveredPosts
         .filter((post) => post.videoUrl)
         .map((post) => ({
           id: post.id,
           videoUrl: post.videoUrl,
+          tagId: post.tag?.id,
         }));
 
-      // Emit undelivered images if any
+      // Collect all unique tagIds from images and videos (excluding 48)
+      const allTagIds = [
+        ...images.map((img) => img.tagId),
+        ...videos.map((vid) => vid.tagId),
+      ]
+        .filter((id) => id && id !== 48)
+        .filter((id, idx, arr) => arr.indexOf(id) === idx);
+
+      let tagEntities: TagEntity[] = [];
+      if (allTagIds.length > 0) {
+        tagEntities = await this.tagRepository.findBy({ id: In(allTagIds) });
+      }
+
       if (images.length > 0 && client.connected) {
-        client.emit('undeliveredImages', { images });
+        // Збираємо всі унікальні теги для images
+        let suggestedTags = [OTHER_TAG];
+        const imageTagIds = images
+          .map((img) => img.tagId)
+          .filter((id) => id && id !== 48)
+          .filter((id, idx, arr) => arr.indexOf(id) === idx);
+        for (const tagId of imageTagIds) {
+          const foundTag = tagEntities.find((t) => t.id === tagId);
+          if (foundTag && !suggestedTags.find((t) => t.id === foundTag.id)) {
+            suggestedTags.push({
+              id: foundTag.id,
+              name: foundTag.name,
+              imageUrl: foundTag.imageUrl,
+            });
+          }
+        }
+        client.emit('undeliveredImages', {
+          images: {
+            data: images.map(({ id, imageUrl }) => ({ id, imageUrl })),
+            suggestedTags,
+          },
+        });
         console.log(`Sent undelivered images to user ${userId}`);
       }
 
-      // Emit undelivered videos if any
-      for (const video of videos) {
-        if (client.connected) {
-          client.emit('undeliveredVideo', { video });
-          console.log(`Sent undelivered video ${video.id} to user ${userId}`);
+      if (videos.length > 0 && client.connected) {
+        let suggestedTags = [OTHER_TAG];
+        const videoTagIds = videos
+          .map((vid) => vid.tagId)
+          .filter((id) => id && id !== 48)
+          .filter((id, idx, arr) => arr.indexOf(id) === idx);
+        for (const tagId of videoTagIds) {
+          const foundTag = tagEntities.find((t) => t.id === tagId);
+          if (foundTag && !suggestedTags.find((t) => t.id === foundTag.id)) {
+            suggestedTags.push({
+              id: foundTag.id,
+              name: foundTag.name,
+              imageUrl: foundTag.imageUrl,
+            });
+          }
         }
+        client.emit('undeliveredVideo', {
+          video: {
+            data: videos.map(({ id, videoUrl }) => ({ id, videoUrl })),
+            suggestedTags,
+          },
+        });
+        console.log(`Sent undelivered videos to user ${userId}`);
       }
 
       // Update delivery status regardless of connection state

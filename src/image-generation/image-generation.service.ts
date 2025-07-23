@@ -215,16 +215,11 @@ export class ImageGenerationService {
       }
 
       const start = Date.now();
-
-      console.log(inputParams);
       const result = await generateMethod({
         input: inputParams,
       });
 
       const end = Date.now();
-      console.log(
-        `Fal AI (${createPostDto.ai_service}) responded in ${end - start} ms`,
-      );
       const uploadPromises = result.images.map(async (image) => {
         const dataUrl = image.url;
 
@@ -316,25 +311,18 @@ export class ImageGenerationService {
     try {
       parsedResponse = JSON.parse(response.choices[0].message.content.trim());
     } catch (error) {
-      console.log('Error parsing response:', error);
       return tags[0];
     }
 
     let tagId = parsedResponse?.tag_id;
 
     if (!tagId || isNaN(tagId)) {
-      console.log(
-        "Couldn't determine the best tag. Falling back to default tag.",
-      );
       tagId = tags[0]?.id || null;
     }
 
     const bestTag = tags.find((tag) => tag.id === tagId);
 
     if (!bestTag) {
-      console.log(
-        `Tag with ID ${tagId} not found in the database. Returning the first tag.`,
-      );
       return tags[0];
     }
 
@@ -411,7 +399,6 @@ export class ImageGenerationService {
         jobOptions,
       );
     } catch (error) {
-      console.log(error);
     }
   }
 
