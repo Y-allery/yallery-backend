@@ -12,11 +12,11 @@ import {
 import { ImageGenerationService } from './image-generation.service';
 import { GenerateImageDto } from './dto/generate.image.dto';
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { AuthenticatedRequest } from 'src/auth/types/auth.user.interface';
 import { RefundCreditDto } from 'src/post/dto/refund.credit.dto';
+import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 @ApiTags('Image Generation')
-@Controller('image-generation')
+@Controller('image-generation') //sd
 @UseGuards(JwtAuthGuard)
 export class ImageGenerationController {
   constructor(

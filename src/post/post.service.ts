@@ -70,6 +70,7 @@ export class PostService {
       SELECT DISTINCT
         p.id, 
         p.imageUrl AS image_url, 
+        p.videoUrl AS video_url, 
         p.createdAt AS created_at,
         u.id AS user_id,
         t.id AS tag_id,
@@ -101,7 +102,6 @@ export class PostService {
     `;
 
     const posts = await this.postEntity.query(query);
-
     const nextCursor = posts.length > 0 ? posts[posts.length - 1].id : null;
 
     return {
@@ -110,6 +110,7 @@ export class PostService {
       hasNextPage: posts.length === limit,
     };
   }
+
   async findPostsByTag(
     tagId: number,
     page: number,
@@ -125,6 +126,7 @@ export class PostService {
       .select([
         'post.id AS post_id',
         'post.imageUrl AS post_imageUrl',
+        'post.videoUrl AS post_videoUrl',
         'post.createdAt AS post_createdAt',
         'user.id AS user_id',
         'tag.id AS tag_id',
@@ -541,12 +543,32 @@ export class PostService {
     };
   }
 
-  async getPostImageWithWatermark(postId: number): Promise<Buffer> {
+  async getPostImageWithWatermark(
+    postId: number,
+  ): Promise<{ buffer: Buffer; contentType: string; filename: string }> {
     const post = await this.postEntity.findOne({ where: { id: postId } });
     if (!post) {
       throw new NotFoundException('Post not found');
     }
 
+    // Якщо є відео — повертаємо його без змін
+    if (post.videoUrl) {
+      try {
+        const response = await axios.get(post.videoUrl, {
+          responseType: 'arraybuffer',
+        });
+
+        return {
+          buffer: Buffer.from(response.data, 'binary'),
+          contentType: 'video/mp4',
+          filename: `post_${postId}.mp4`,
+        };
+      } catch (error) {
+        throw new NotFoundException('Error fetching video from URL');
+      }
+    }
+
+    // Інакше — зображення з ватермаркою
     let imageBuffer: Buffer;
     try {
       const response = await axios.get(post.imageUrl, {
@@ -572,20 +594,18 @@ export class PostService {
     let processedImageBuffer: Buffer;
     try {
       processedImageBuffer = await sharp(imageBuffer)
-        .composite([
-          {
-            input: watermarkBuffer,
-            gravity: 'southeast',
-          },
-        ])
+        .composite([{ input: watermarkBuffer, gravity: 'southeast' }])
         .toBuffer();
     } catch (error) {
       throw new Error('Error processing image');
     }
 
-    return processedImageBuffer;
+    return {
+      buffer: processedImageBuffer,
+      contentType: 'image/png',
+      filename: `post_${postId}.png`,
+    };
   }
-
   async share(
     userId: number,
   ): Promise<{ message: string; pointsAwarded: number }> {

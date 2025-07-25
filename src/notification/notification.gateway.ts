@@ -12,6 +12,7 @@ import { UserService } from 'src/user/user.service';
 import { In, Repository } from 'typeorm';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { InjectRepository } from '@nestjs/typeorm';
+import { TagEntity } from 'src/tag/entities/tag.entity';
 
 @WebSocketGateway({
   cors: {
@@ -27,6 +28,8 @@ export class NotificationGateway {
     private readonly userService: UserService,
     @InjectRepository(PostEntity)
     private readonly postRepository: Repository<PostEntity>,
+    @InjectRepository(TagEntity)
+    private readonly tagRepository: Repository<TagEntity>,
   ) {}
 
   @WebSocketServer()
@@ -66,6 +69,35 @@ export class NotificationGateway {
       );
     }
   }
+  async sendVideoNotification(
+    to_user_id: string,
+    video: {
+      uploadedVideoUrl: string;
+      id: number;
+      suggestedTags: { id: number; name: string }[];
+    },
+    activity_type: ActivityEnum,
+  ) {
+    if (this.isUserConnected(to_user_id)) {
+      this.server.to(to_user_id).emit('videoGenerated', {
+        video: {
+          data: [
+            {
+              videoUrl: video.uploadedVideoUrl,
+              id: video.id,
+            },
+          ],
+          suggestedTags: video.suggestedTags,
+        },
+        activity_type,
+      });
+    } else {
+      await this.postRepository.update(
+        { id: video.id },
+        { is_delivered: false, tag: {id:video.suggestedTags[0].id || null} },
+      );
+    }
+  }
 
   async sendErrorNotification(to_user_id: string, errorMessage: string) {
     this.server.to(to_user_id).emit('error', {
@@ -82,38 +114,120 @@ export class NotificationGateway {
       console.log('User ID not found in socket data');
       return;
     }
+
     this.connectedUsers.set(userId, client);
     client.join(userId);
     console.log(`User ${userId} joined their room`);
 
     const undeliveredPosts = await this.postRepository.find({
       where: { user: { id: userId }, is_delivered: false },
+      relations: ['tag'],
     });
 
     if (undeliveredPosts.length > 0) {
-      const images = undeliveredPosts.map((post) => ({
-        id: post.id,
-        imageUrl: post.imageUrl,
-      }));
+      const OTHER_TAG = {
+        id: 48,
+        name: '#other',
+        imageUrl:
+          'https://res.cloudinary.com/dsypundib/image/upload/v1732808917/other_tag-min_qd9y0c.png',
+      };
 
-      client.emit('undeliveredImages', {
-        images,
-      });
+      // Images
+      const images = undeliveredPosts
+        .filter((post) => post.imageUrl && !post.videoUrl)
+        .map((post) => ({
+          id: post.id,
+          imageUrl: post.imageUrl,
+          tagId: post.tag?.id,
+        }));
 
+      // Videos
+      const videos = undeliveredPosts
+        .filter((post) => post.videoUrl)
+        .map((post) => ({
+          id: post.id,
+          videoUrl: post.videoUrl,
+          tagId: post.tag?.id,
+        }));
+
+      // Collect all unique tagIds from images and videos (excluding 48)
+      const allTagIds = [
+        ...images.map((img) => img.tagId),
+        ...videos.map((vid) => vid.tagId),
+      ]
+        .filter((id) => id && id !== 48)
+        .filter((id, idx, arr) => arr.indexOf(id) === idx);
+
+      let tagEntities: TagEntity[] = [];
+      if (allTagIds.length > 0) {
+        tagEntities = await this.tagRepository.findBy({ id: In(allTagIds) });
+      }
+
+      if (images.length > 0 && client.connected) {
+        // Збираємо всі унікальні теги для images
+        let suggestedTags = [OTHER_TAG];
+        const imageTagIds = images
+          .map((img) => img.tagId)
+          .filter((id) => id && id !== 48)
+          .filter((id, idx, arr) => arr.indexOf(id) === idx);
+        for (const tagId of imageTagIds) {
+          const foundTag = tagEntities.find((t) => t.id === tagId);
+          if (foundTag && !suggestedTags.find((t) => t.id === foundTag.id)) {
+            suggestedTags.push({
+              id: foundTag.id,
+              name: foundTag.name,
+              imageUrl: foundTag.imageUrl,
+            });
+          }
+        }
+        client.emit('undeliveredImages', {
+          images: {
+            data: images.map(({ id, imageUrl }) => ({ id, imageUrl })),
+            suggestedTags,
+          },
+        });
+        console.log(`Sent undelivered images to user ${userId}`);
+      }
+
+      if (videos.length > 0 && client.connected) {
+        let suggestedTags = [OTHER_TAG];
+        const videoTagIds = videos
+          .map((vid) => vid.tagId)
+          .filter((id) => id && id !== 48)
+          .filter((id, idx, arr) => arr.indexOf(id) === idx);
+        for (const tagId of videoTagIds) {
+          const foundTag = tagEntities.find((t) => t.id === tagId);
+          if (foundTag && !suggestedTags.find((t) => t.id === foundTag.id)) {
+            suggestedTags.push({
+              id: foundTag.id,
+              name: foundTag.name,
+              imageUrl: foundTag.imageUrl,
+            });
+          }
+        }
+        client.emit('undeliveredVideo', {
+          video: {
+            data: videos.map(({ id, videoUrl }) => ({ id, videoUrl })),
+            suggestedTags,
+          },
+        });
+        console.log(`Sent undelivered videos to user ${userId}`);
+      }
+
+      // Update delivery status regardless of connection state
+      const allUndeliveredIds = undeliveredPosts.map((post) => post.id);
       await this.postRepository.update(
-        { id: In(undeliveredPosts.map((post) => post.id)) },
+        { id: In(allUndeliveredIds) },
         { is_delivered: true },
       );
-
       console.log(
-        `Sent undelivered images to user ${userId} and updated delivery status.`,
+        `Updated delivery status for undelivered posts for user ${userId}`,
       );
     }
-    user.emailVerified
-      ? await this.emitEmailVerifiedStatus(userId, true)
-      : await this.emitEmailVerifiedStatus(userId, false);
-  }
 
+    const isVerified = Boolean(user.emailVerified);
+    await this.emitEmailVerifiedStatus(userId, isVerified);
+  }
   handleConnection(@ConnectedSocket() client: Socket) {
     const userId = client.data.userId;
     if (userId) {

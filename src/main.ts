@@ -52,7 +52,7 @@ async function bootstrap() {
       bearerFormat: 'JWT',
     })
     .addSecurityRequirements('bearer')
-    .build();
+    .build(); //sdівsdsdsd
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
@@ -95,6 +95,7 @@ async function bootstrap() {
   app.use(passport.session()); //TEST TO MAINsd
 
   const port = process.env.PORT || 8000;
+  await app.listen(port, '0.0.0.0');
   await app.listen(port, '0.0.0.0');
 }
 bootstrap();

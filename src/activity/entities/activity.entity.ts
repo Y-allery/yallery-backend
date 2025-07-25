@@ -30,11 +30,7 @@ export class ActivityEntity {
   @JoinColumn({ name: 'to_user_id' })
   toUser: UserEntity;
 
-  @Column({
-    type: 'enum',
-    enum: ActivityEnum,
-    default: ActivityEnum.LIKE_EARN,
-  })
+  @Column({ type: 'varchar' })
   activityType: ActivityEnum;
 
   @Column({ nullable: true, default: 0 })

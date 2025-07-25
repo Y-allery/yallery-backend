@@ -4,3 +4,7 @@ export enum AIEnum {
   REALISTIC_VISION = 'realistic_vision',
   FLUX_PRO_FINE_TUNE = 'flux_pro_fine_tune',
 }
+
+export enum VideoAIEnum {
+  BYTY_DANCE = 'byty_dance',
+}

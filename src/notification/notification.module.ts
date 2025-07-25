@@ -8,11 +8,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { NotificationPreferenceEntity } from './entity/notification.preferences.entity';
 import { UserModule } from 'src/user/user.module';
 import { PostEntity } from 'src/post/entities/post.entity';
+import { TagEntity } from 'src/tag/entities/tag.entity';
 
 @Module({
   imports: [
     DatabaseModule,
-    TypeOrmModule.forFeature([NotificationPreferenceEntity, PostEntity]),
+    TypeOrmModule.forFeature([NotificationPreferenceEntity, PostEntity,TagEntity]),
     forwardRef(() => UserModule),
   ],
   controllers: [NotificationController],

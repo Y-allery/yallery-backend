@@ -124,16 +124,17 @@ export class PostController {
 
   @Get('download/:id')
   @ApiParam({ name: 'id', required: true })
-  @ApiOperation({ summary: 'Download post image with watermark' })
+  @ApiOperation({ summary: 'Download post image or video' })
   async downloadPostImage(@Param('id') id: number, @Res() res: Response) {
-    const imageBuffer = await this.postService.getPostImageWithWatermark(id);
+    const { buffer, contentType, filename } =
+      await this.postService.getPostImageWithWatermark(id);
 
     res.set({
-      'Content-Type': 'image/png',
-      'Content-Disposition': `attachment; filename="post_${id}.png"`,
+      'Content-Type': contentType,
+      'Content-Disposition': `attachment; filename="${filename}"`,
     });
 
-    res.send(imageBuffer);
+    res.send(buffer);
   }
 
   @Post('share')

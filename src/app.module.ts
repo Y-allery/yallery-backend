@@ -25,6 +25,8 @@ import { ExpressAdapter } from '@bull-board/express';
 import { PaymentModule } from './payment/payment.module';
 import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import { APP_FILTER } from '@nestjs/core';
+import { VideoGenerationController } from './video-generation/video-generation.controller';
+import { VideoGenerationModule } from './video-generation/video-generation.module';
 
 @Module({
   imports: [
@@ -68,8 +70,9 @@ import { APP_FILTER } from '@nestjs/core';
     AdminModule,
     ServiceTokenModule,
     PaymentModule,
+    VideoGenerationModule,
   ],
-  controllers: [],
+  controllers: [VideoGenerationController],
   providers: [
     {
       provide: APP_FILTER,

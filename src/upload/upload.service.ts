@@ -44,6 +44,25 @@ export class UploadService {
     });
   }
 
+  async uploadVideoByUrl(videoUrl: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      cloudinary.uploader.upload(
+        videoUrl,
+        {
+          resource_type: 'video',
+          folder: 'octoai_videos',
+        },
+        (error, result) => {
+          if (error) {
+            reject(error);
+          } else {
+            resolve(result.secure_url);
+          }
+        },
+      );
+    });
+  }
+
   async uploadByUrl(imageUrl: string): Promise<string> {
     return new Promise((resolve, reject) => {
       cloudinary.uploader.upload(

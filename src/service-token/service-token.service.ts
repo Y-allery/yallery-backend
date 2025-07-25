@@ -1,11 +1,12 @@
 import { RATE_LIMITS } from 'src/common/constants/rate.limit.contants';
 import { AiServiceToken, TokenStatus } from './entities/service-token.entity';
-import { AIEnum } from 'src/common/enums/ai.enum';
+import { AIEnum, VideoAIEnum } from 'src/common/enums/ai.enum';
 import { Injectable, Logger } from '@nestjs/common';
 import { LessThan, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { NotificationGateway } from 'src/notification/notification.gateway';
 import { Cron, CronExpression } from '@nestjs/schedule';
+const DEFAULT_WINDOW = 60;
 
 @Injectable()
 export class ServiceTokenService {
@@ -17,7 +18,7 @@ export class ServiceTokenService {
   ) {}
 
   async getNextAvailableToken(
-    aiService: AIEnum,
+    aiService: AIEnum | VideoAIEnum,
   ): Promise<AiServiceToken | null> {
     try {
       const token = await this.tokenRepository.findOne({
@@ -38,10 +39,17 @@ export class ServiceTokenService {
       throw error;
     }
   }
-  async markTokenAsRateLimited(token: AiServiceToken, aiService: AIEnum) {
-    const { window } = RATE_LIMITS[aiService];
+
+  async markTokenAsRateLimited(
+    token: AiServiceToken,
+    aiService: AIEnum | VideoAIEnum,
+  ) {
+    const rateLimit = RATE_LIMITS[aiService as AIEnum];
+    const window = rateLimit?.window ?? DEFAULT_WINDOW;
+
     token.status = TokenStatus.RATE_LIMITED;
     token.rate_limit_reset_time = new Date(Date.now() + window * 1000);
+
     await this.tokenRepository.save(token);
   }
 
