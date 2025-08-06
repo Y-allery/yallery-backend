@@ -22,6 +22,10 @@ const SUPPORTED_RESOLUTIONS: Record<AIEnum, Record<string, Dimension>> = {
     vertical: { width: 576, height: 1024 },
     horizontal: { width: 1344, height: 768 },
   },
+  [AIEnum.BYTEDANCE_EDIT]: {
+    vertical: { width: 768, height: 1344 },
+    horizontal: { width: 1344, height: 768 },
+  },
 };
 
 export function getDimensionsForOrientation(

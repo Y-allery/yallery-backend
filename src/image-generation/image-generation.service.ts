@@ -10,6 +10,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { UploadService } from 'src/upload/upload.service';
 import { GenerateImageDto } from './dto/generate.image.dto';
+import { EditImageDto } from './dto/edit-image.dto';
 import { AIEnum } from 'src/common/enums/ai.enum';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -89,6 +90,15 @@ export class ImageGenerationService {
       maxPromptLength: 1000,
       sizes: ['1024x1024', '1536x640', '768x1344'],
     },
+    [AIEnum.BYTEDANCE_EDIT]: {
+      id: 'bytedance_edit',
+      name: 'Bytedance Edit',
+      allowedOrientations: ['horizontal', 'vertical'],
+      minImages: 1,
+      maxImages: 1,
+      maxPromptLength: 1000,
+      sizes: ['1024x1024', '1536x640', '768x1344'],
+    },
   };
   private openai;
   constructor(
@@ -116,8 +126,117 @@ export class ImageGenerationService {
     private readonly turboDiffusionQueue: Queue,
     @InjectQueue(AIEnum.FLUX_PRO_FINE_TUNE)
     private readonly fluxProFineTune: Queue,
+    @InjectQueue(AIEnum.BYTEDANCE_EDIT)
+    private readonly bytedanceEditQueue: Queue,
   ) {
     this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+
+  async generateBytedanceEdit(editImageDto: EditImageDto): Promise<{
+    generatedImages: string[];
+    suggestedTags: { id: number; name: string }[];
+  }> {
+    let token: AiServiceToken;
+    let tag: TagEntity;
+    try {
+      const suggestedTags = [];
+      
+      // For edit operations, we'll use a default tag
+      tag = await this.tagEntity.findOne({
+        where: { name: 'other' },
+      });
+      suggestedTags.push({
+        id: tag.id,
+        name: '#' + tag.name,
+        imageUrl: tag.imageUrl,
+      });
+
+      token = await this.serviceTokenService.getNextAvailableToken(
+        AIEnum.BYTEDANCE_EDIT,
+      );
+
+      if (!token) {
+        throw new BadRequestException(
+          'No tokens available for the selected AI service',
+        );
+      }
+      fal.config({
+        credentials: token.token,
+      });
+
+      const generateMethod = fal.run.bind(fal, 'fal-ai/bytedance/seededit/v3/edit-image');
+
+      const inputParams = {
+        image_url: editImageDto.image_url,
+        prompt: editImageDto.prompt,
+        guidance_scale: 0.5,
+      };
+
+      console.log('🔍 Bytedance Edit Debug - Input params:', JSON.stringify(inputParams, null, 2));
+      console.log('🔍 Bytedance Edit Debug - Token used:', token.token.substring(0, 10) + '...');
+      
+      const start = Date.now();
+      const result = await generateMethod({
+        input: inputParams,
+      });
+
+      const end = Date.now();
+      console.log('🔍 Bytedance Edit Debug - Raw result:', JSON.stringify(result, null, 2));
+      console.log('🔍 Bytedance Edit Debug - Result type:', typeof result);
+      console.log('🔍 Bytedance Edit Debug - Result keys:', Object.keys(result));
+      
+      if (result.image) {
+        console.log('🔍 Bytedance Edit Debug - Result.image type:', typeof result.image);
+        console.log('🔍 Bytedance Edit Debug - Result.image is array:', Array.isArray(result.image));
+        console.log('🔍 Bytedance Edit Debug - Result.image length:', result.image?.length);
+      }
+      
+      // Обробляємо результат - API повертає об'єкт, а не масив
+      let imagesToProcess = [];
+      if (Array.isArray(result.image)) {
+        console.log('🔍 Bytedance Edit Debug - Processing result.image as array');
+        imagesToProcess = result.image;
+      } else if (result.image && typeof result.image === 'object' && result.image.url) {
+        console.log('🔍 Bytedance Edit Debug - Processing result.image as single object');
+        // Якщо result.image є об'єктом з URL, обгортаємо його в масив
+        imagesToProcess = [result.image];
+      } else {
+        console.error('❌ Bytedance Edit Debug - Invalid result.image:', result.image);
+        throw new Error(`Invalid result format: expected image object or array, got ${typeof result.image}`);
+      }
+      
+      console.log('🔍 Bytedance Edit Debug - Images to process:', imagesToProcess.length);
+      
+      const uploadPromises = imagesToProcess.map(async (image) => {
+        const dataUrl = image.url;
+        const uploadResponse = await this.uploadService.uploadByUrl(dataUrl);
+        return uploadResponse;
+      });
+
+      const uploadResponses = await Promise.all(uploadPromises);
+
+      return { generatedImages: uploadResponses, suggestedTags };
+    } catch (error) {
+      console.error('❌ Bytedance Edit Debug - Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+        code: error.code,
+        status: error.status,
+        statusCode: error.statusCode,
+        response: error.response?.data,
+        fullError: JSON.stringify(error, null, 2)
+      });
+      
+      if (token?.token) {
+        await this.serviceTokenService.markTokenAsRateLimited(
+          token,
+          AIEnum.BYTEDANCE_EDIT,
+        );
+      }
+
+      throw new Error(`Failed to edit image: ${error.message}`);
+    }
   }
 
   async generateFalAi(createPostDto: GenerateImageDto): Promise<{
@@ -173,6 +292,7 @@ export class ImageGenerationService {
         [AIEnum.FLUX]: 'fal-ai/flux-pro/v1.1-ultra',
         [AIEnum.REALISTIC_VISION]: 'fal-ai/realistic-vision',
         [AIEnum.FLUX_PRO_FINE_TUNE]: 'fal-ai/flux-pro/v1.1-ultra-finetuned',
+        [AIEnum.BYTEDANCE_EDIT]: 'fal-ai/bytedance/seededit/v3/edit-image',
       };
 
       const serviceName = serviceMapping[createPostDto.ai_service];
@@ -241,6 +361,20 @@ export class ImageGenerationService {
 
       throw new Error(`Failed to generate images: ${error.message}`);
     }
+  }
+
+  async editImage(editImageDto: EditImageDto, userId: number) {
+    const user = await this.getUser(userId);
+    
+    // Create a temporary DTO for credit verification
+    const tempDto = {
+      ai_service: AIEnum.BYTEDANCE_EDIT,
+      image_quantity: 1,
+    } as any;
+    
+    await this.verifyUserHasEnoughCredits(user, tempDto);
+
+    return await this.editImageUsingService(editImageDto, userId);
   }
 
   async generateImages(createPostDto: GenerateImageDto, userId: number) {
@@ -360,6 +494,30 @@ export class ImageGenerationService {
     return { style, color };
   }
 
+  async editImageUsingService(
+    editImageDto: EditImageDto,
+    userId: number,
+  ): Promise<any> {
+    try {
+      const jobOptions = {
+        attempts: 3,
+        backoff: 15000,
+        removeOnComplete: true,
+        removeOnFail: false,
+      };
+
+      return await this.addJobToQueue(
+        this.bytedanceEditQueue,
+        AIEnum.BYTEDANCE_EDIT,
+        editImageDto,
+        userId,
+        jobOptions,
+      );
+    } catch (error) {
+      throw new Error(`Failed to add edit image job to queue: ${error.message}`);
+    }
+  }
+
   async generateImagesUsingService(
     createPostDto: GenerateImageDto,
     userId: number,
@@ -405,11 +563,15 @@ export class ImageGenerationService {
   private async addJobToQueue(
     queue: any,
     aiService: AIEnum,
-    createPostDto: GenerateImageDto,
+    dto: any,
     userId: number,
     jobOptions: any,
   ): Promise<any> {
-    return await queue.add(aiService, { createPostDto, userId }, jobOptions);
+    const jobData = aiService === AIEnum.BYTEDANCE_EDIT 
+      ? { editImageDto: dto, userId }
+      : { createPostDto: dto, userId };
+    
+    return await queue.add(aiService, jobData, jobOptions);
   }
   async notifyUserOfImageGeneration(userId: number) {
     const user = await this.userEntity.findOne({ where: { id: userId } });
@@ -464,25 +626,29 @@ export class ImageGenerationService {
 
   async saveGeneratedImages(
     generatedImages: string[],
-    createPostDto: GenerateImageDto,
+    dto: GenerateImageDto | EditImageDto,
     user: UserEntity,
     service: AIEnum,
   ) {
     const posts = await Promise.all(
       generatedImages.map(async (imageUrl) => {
-        return await this.createPostForImage(createPostDto, imageUrl, user);
+        if (service === AIEnum.BYTEDANCE_EDIT) {
+          return await this.createPostForEditImage(dto as EditImageDto, imageUrl, user);
+        } else {
+          return await this.createPostForImage(dto as GenerateImageDto, imageUrl, user);
+        }
       }),
     );
 
     const generationCost = this.getCostByService(
       service,
-      createPostDto.image_quantity,
+      service === AIEnum.BYTEDANCE_EDIT ? 1 : (dto as GenerateImageDto).image_quantity,
     );
 
     await this.logActivityAndNotify(
       user.id,
       ActivityEnum.IMAGE_GENERATE_SPEND,
-      createPostDto.ai_service,
+      service,
       generationCost,
     );
 
@@ -493,6 +659,28 @@ export class ImageGenerationService {
       };
     });
   }
+  private async createPostForEditImage(
+    editImageDto: EditImageDto,
+    imageUrl: string,
+    user: UserEntity,
+  ) {
+    // Create a temporary DTO for post creation
+    const tempDto = {
+      prompt: editImageDto.prompt,
+      ai_service: AIEnum.BYTEDANCE_EDIT,
+      orientation: 'horizontal' as const,
+      image_quantity: 1,
+      auto_tag_select: true,
+    } as any;
+    
+    return await this.postService.savePost(
+      tempDto,
+      imageUrl,
+      user.id,
+      null,
+    );
+  }
+
   private async createPostForImage(
     createPostDto: GenerateImageDto,
     imageUrl: string,
@@ -506,11 +694,24 @@ export class ImageGenerationService {
     );
   }
 
-  async updateUserCredits(user: UserEntity, createPostDto: GenerateImageDto) {
-    user.points -= this.calculateTotalCost(
-      createPostDto.ai_service,
-      createPostDto.image_quantity,
-    );
+  async updateUserCredits(user: UserEntity, dto: GenerateImageDto | EditImageDto) {
+    let cost: number;
+    
+    if ('ai_service' in dto && 'image_quantity' in dto) {
+      // This is GenerateImageDto
+      cost = this.calculateTotalCost(
+        dto.ai_service,
+        dto.image_quantity,
+      );
+    } else {
+      // This is EditImageDto
+      cost = this.calculateTotalCost(
+        AIEnum.BYTEDANCE_EDIT,
+        1,
+      );
+    }
+    
+    user.points -= cost;
     await this.userEntity.save(user);
     await this.notificationGateway.emitProfileUpdate(user.id.toString());
   }
@@ -673,6 +874,7 @@ export class ImageGenerationService {
       [AIEnum.FLUX]: 30,
       [AIEnum.REALISTIC_VISION]: 11,
       [AIEnum.FLUX_PRO_FINE_TUNE]: 100,
+      [AIEnum.BYTEDANCE_EDIT]: 25,
     };
 
     return pricing[service] * quantity || 0;

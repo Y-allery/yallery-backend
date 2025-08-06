@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ImageGenerationService } from './image-generation.service';
 import { GenerateImageDto } from './dto/generate.image.dto';
+import { EditImageDto } from './dto/edit-image.dto';
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AuthenticatedRequest } from 'src/auth/types/auth.user.interface';
 import { RefundCreditDto } from 'src/post/dto/refund.credit.dto';
@@ -35,6 +36,78 @@ export class ImageGenerationController {
 
     return {
       message: 'Image generation task has been added to the queue.',
+    };
+  }
+
+  @Post('edit-image')
+  @ApiOperation({ 
+    summary: 'Edit an existing image using Bytedance SeedEdit AI',
+    description: `Edit an existing image using Bytedance's SeedEdit 3.0 model. This AI excels in accurately following editing instructions and effectively preserving image content, especially for real images.
+
+**Features:**
+- Uses Bytedance SeedEdit 3.0 model
+- Preserves original image content while applying edits
+- Supports detailed editing instructions
+- Returns high-quality edited images
+
+**Process:**
+1. Uploads the task to a background queue
+2. Processes the image using AI
+3. Saves the result to your gallery
+4. Sends notification when complete
+
+**Cost:** 1 credit per edit
+
+**Supported formats:** JPG, PNG, WebP (via URL)`
+  })
+  @ApiBody({ 
+    type: EditImageDto,
+    description: 'Image editing parameters including the source image URL and editing prompt'
+  })
+  @ApiResponse({ 
+    status: 201, 
+    description: 'Image editing task has been successfully added to the queue. The edited image will be processed in the background and saved to your gallery.',
+    schema: {
+      type: 'object',
+      properties: {
+        message: {
+          type: 'string',
+          example: 'Image editing task has been added to the queue.'
+        }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Invalid request - check your input parameters or insufficient credits',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 400 },
+        message: { type: 'string', example: 'Insufficient credits or invalid parameters' },
+        error: { type: 'string', example: 'Bad Request' }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 401, 
+    description: 'Unauthorized - invalid or missing JWT token'
+  })
+  @ApiResponse({ 
+    status: 403, 
+    description: 'Forbidden - user account issues or service unavailable'
+  })
+  async editImage(
+    @Body() editImageDto: EditImageDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    await this.imageGenerationService.editImage(
+      editImageDto,
+      req.user.id,
+    );
+
+    return {
+      message: 'Image editing task has been added to the queue.',
     };
   }
 

@@ -71,3 +71,59 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 ## License
 
 Nest is [MIT licensed](LICENSE).
+
+# Y'allery Backend
+
+## Image Generation API
+
+### Edit Image Endpoint
+
+**POST** `/image-generation/edit-image`
+
+Редагує існуюче зображення за допомогою AI моделі `fal-ai/bytedance/seededit/v3/edit-image`.
+
+#### Request Body
+
+```json
+{
+  "image_url": "https://example.com/image.jpg",
+  "prompt": "Make the sky more blue and add clouds"
+}
+```
+
+#### Parameters
+
+- `image_url` (string, required) - URL зображення для редагування
+- `prompt` (string, required) - Текстовий опис змін, які потрібно внести до зображення
+
+#### Response
+
+```json
+{
+  "message": "Image editing task has been added to the queue."
+}
+```
+
+#### Features
+
+- Використовує черги для асинхронної обробки
+- Автоматично створює пост з відредагованим зображенням
+- Прив'язує пост до користувача
+- Списує кредити (25 кредитів за редагування)
+- Відправляє повідомлення про завершення
+
+#### Authentication
+
+Потрібен JWT токен в заголовку `Authorization: Bearer <token>`
+
+#### Example Usage
+
+```bash
+curl -X POST http://localhost:8000/image-generation/edit-image \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "image_url": "https://example.com/image.jpg",
+    "prompt": "Change the background to a sunset"
+  }'
+```
