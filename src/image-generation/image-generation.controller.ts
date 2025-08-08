@@ -25,6 +25,72 @@ export class ImageGenerationController {
   ) {}
 
   @Post('generate-image')
+  @ApiOperation({ 
+    summary: 'Generate images using various AI models',
+    description: `Generate high-quality images using multiple AI models including Aura Flow, Flux, Realistic Vision, and Flux Pro Fine-tune. Each model offers unique capabilities for different artistic styles and use cases.
+
+**Available AI Models:**
+- **Aura Flow**: Creates artistic and stylized images with unique visual effects
+- **Flux**: Generates high-quality images with balanced realism and creativity
+- **Realistic Vision**: Produces photorealistic images with exceptional detail
+- **Flux Pro Fine-tune**: Advanced model with enhanced customization options
+- **Bytedance Edit**: Specialized for image editing (use edit-image endpoint)
+
+**Features:**
+- Multiple AI model options for different artistic styles
+- Customizable orientation (horizontal/vertical)
+- Optional style and color customization
+- Batch generation (1-10 images per request)
+- Automatic tag selection capability
+- Contest and tag integration
+
+**Process:**
+1. Uploads the generation task to a background queue
+2. Processes the request using the selected AI model
+3. Saves generated images to your gallery
+4. Sends notification when complete
+
+**Cost:** Varies by AI model (typically 1-3 credits per image)
+
+**Supported formats:** Generated as high-quality JPG/PNG images`
+  })
+  @ApiBody({ 
+    type: GenerateImageDto,
+    description: 'Image generation parameters including prompt, AI model, orientation, and quantity'
+  })
+  @ApiResponse({ 
+    status: 201, 
+    description: 'Image generation task has been successfully added to the queue. The generated images will be processed in the background and saved to your gallery.',
+    schema: {
+      type: 'object',
+      properties: {
+        message: {
+          type: 'string',
+          example: 'Image generation task has been added to the queue.'
+        }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Invalid request - check your input parameters or insufficient credits',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 400 },
+        message: { type: 'string', example: 'Insufficient credits or invalid parameters' },
+        error: { type: 'string', example: 'Bad Request' }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 401, 
+    description: 'Unauthorized - invalid or missing JWT token'
+  })
+  @ApiResponse({ 
+    status: 403, 
+    description: 'Forbidden - user account issues or service unavailable'
+  })
   async generateOctoAI(
     @Body() createPostDto: GenerateImageDto,
     @Req() req: AuthenticatedRequest,
