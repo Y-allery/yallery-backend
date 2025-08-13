@@ -523,6 +523,10 @@ export class UserService {
       await this.activityService.countUnreadContestActivities(userId);
     const unreadCollabsActivity =
       await this.activityService.countUnreadCollabsActivities(userId);
+    
+    const hasReceivedDailyRewardToday = 
+      await this.activityService.hasReceivedDailyRewardToday(userId);
+    
     const { password, refreshToken, avatar, ...userData } = user;
 
     return {
@@ -537,6 +541,7 @@ export class UserService {
       unreadCount,
       unreadContestActivity,
       unreadCollabsActivity,
+      hasReceivedDailyRewardToday,
     };
   }
 

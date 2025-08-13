@@ -394,4 +394,34 @@ export class ActivityService {
       })
       .getCount();
   }
+
+  async hasReceivedDailyRewardToday(userId: number): Promise<boolean> {
+    const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
+    const todayEnd = new Date(new Date().setHours(23, 59, 59, 999));
+
+    console.log(`🔍 Checking daily reward for user ${userId}:`, {
+      todayStart: todayStart.toISOString(),
+      todayEnd: todayEnd.toISOString(),
+    });
+
+    const dailyRewardActivity = await this.activityRepository.findOne({
+      where: {
+        toUser: { id: userId },
+        activityType: ActivityEnum.DAILY_REWARD,
+        createdAt: Between(todayStart, todayEnd),
+      },
+    });
+
+    const hasReceived = !!dailyRewardActivity;
+    console.log(`🔍 User ${userId} daily reward status:`, {
+      hasReceived,
+      activityFound: dailyRewardActivity ? {
+        id: dailyRewardActivity.id,
+        createdAt: dailyRewardActivity.createdAt,
+        points: dailyRewardActivity.points,
+      } : null,
+    });
+
+    return hasReceived;
+  }
 }
