@@ -98,6 +98,7 @@ export class ImageGenerationService {
       maxImages: 1,
       maxPromptLength: 1000,
       sizes: ['1024x1024', '1536x640', '768x1344'],
+      is_artem: true,  // Тільки для edit функціональності
     },
   };
   private openai;
