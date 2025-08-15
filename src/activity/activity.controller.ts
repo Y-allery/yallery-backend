@@ -1,10 +1,11 @@
-import { Controller, Get, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Put, Query, Req, UseGuards, Post } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { ActivityService } from './activity.service';
 import { AuthenticatedRequest } from 'src/auth/types/auth.user.interface';
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ActivityEntity } from './entities/activity.entity';
 import { ActivityEnum } from './types/activity.enum';
+import { ClaimDailyRewardResponseDto } from './dto/claim-daily-reward.dto';
 
 @Controller('activity')
 @ApiTags('Activity')
@@ -118,5 +119,18 @@ export class ActivityController {
       ActivityEnum.LIKE_EARN,
       ActivityEnum.LIKE_SPEND,
     ]);
+  }
+
+  @Post('claim-daily-reward')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Claim daily reward' })
+  @ApiResponse({
+    status: 200,
+    description: 'Daily reward claimed successfully or already claimed today',
+    type: ClaimDailyRewardResponseDto
+  })
+  async claimDailyReward(@Req() req: AuthenticatedRequest): Promise<ClaimDailyRewardResponseDto> {
+    const userId = req.user.id;
+    return await this.activityService.claimDailyReward(userId);
   }
 }

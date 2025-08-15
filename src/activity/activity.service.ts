@@ -424,4 +424,36 @@ export class ActivityService {
 
     return hasReceived;
   }
+
+  async claimDailyReward(userId: number): Promise<{ success: boolean; message: string; pointsAwarded: number }> {
+    // Перевіряємо, чи користувач вже отримав нагороду сьогодні
+    const hasReceivedToday = await this.hasReceivedDailyRewardToday(userId);
+    
+    if (hasReceivedToday) {
+      return {
+        success: false,
+        message: 'You have already received your daily reward today. Come back tomorrow!',
+        pointsAwarded: 0
+      };
+    }
+
+    // Отримуємо кількість YEPs за щоденну нагороду
+    const dailyRewardPoints = this.getPointsForActivity(ActivityEnum.DAILY_REWARD);
+    
+    // Створюємо активність щоденної нагороди
+    await this.createActivities(
+      null, // fromUserId - null для системних активностей
+      [userId], // toUserIds
+      ActivityEnum.DAILY_REWARD
+    );
+
+    // Оновлюємо профіль користувача через WebSocket
+    await this.notificationGateway.emitProfileUpdate(userId.toString());
+
+    return {
+      success: true,
+      message: `Successfully claimed daily reward of ${dailyRewardPoints} YEPs!`,
+      pointsAwarded: dailyRewardPoints
+    };
+  }
 }
