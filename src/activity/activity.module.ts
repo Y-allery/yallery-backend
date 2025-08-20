@@ -5,10 +5,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ActivityEntity } from './entities/activity.entity';
 import { NotificationPreferenceEntity } from 'src/notification/entity/notification.preferences.entity';
 import { NotificationModule } from 'src/notification/notification.module';
+import { UserEntity } from 'src/user/entities/user.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([ActivityEntity, NotificationPreferenceEntity]),
+    TypeOrmModule.forFeature([ActivityEntity, NotificationPreferenceEntity,UserEntity]),
     NotificationModule,
   ],
   providers: [ActivityService],

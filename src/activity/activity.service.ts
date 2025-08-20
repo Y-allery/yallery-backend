@@ -12,12 +12,15 @@ import { PaginatioDto } from 'src/common/dto/pagination.dto';
 import { AIEnum } from 'src/common/enums/ai.enum';
 import { ContestTypeEnum } from 'src/contest/types/contest.status.enum';
 import { NotificationGateway } from 'src/notification/notification.gateway';
+import { UserEntity } from 'src/user/entities/user.entity';
 
 @Injectable()
 export class ActivityService {
   constructor(
     @InjectRepository(ActivityEntity)
     private activityRepository: Repository<ActivityEntity>,
+    @InjectRepository(UserEntity)
+    private userRepository: Repository<UserEntity>,
     private readonly configService: ConfigService,
     @InjectRepository(NotificationPreferenceEntity)
     private notificationPreferenceRepository: Repository<NotificationPreferenceEntity>,
@@ -439,6 +442,7 @@ export class ActivityService {
         pointsAwarded: 0
       };
     }
+    const dailyRewardAmount = this.configService.get('DAILY_REWARD_YEPS');
 
     // Отримуємо кількість YEPs за щоденну нагороду
     const dailyRewardPoints = this.getPointsForActivity(ActivityEnum.DAILY_REWARD);
@@ -450,6 +454,7 @@ export class ActivityService {
       ActivityEnum.DAILY_REWARD
     );
 
+    await this.userRepository.increment({ id: userId }, 'points', dailyRewardAmount);
     // Оновлюємо профіль користувача через WebSocket
     await this.notificationGateway.emitProfileUpdate(userId.toString());
 
