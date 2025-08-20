@@ -52,11 +52,13 @@ export class NotificationGateway {
     to_user_id: string,
     images: any,
     activity_type: ActivityEnum,
+    isEdit: boolean = false,
   ) {
     if (this.isUserConnected(to_user_id)) {
       this.server.to(to_user_id).emit('imageGenerated', {
         images,
         activity_type,
+        isEdit,
       });
     } else {
       const postIds = images.data.map((img) => img.id);

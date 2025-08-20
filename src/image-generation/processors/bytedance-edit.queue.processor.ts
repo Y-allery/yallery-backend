@@ -44,6 +44,7 @@ export class BytedanceEditProcessor extends WorkerHost {
       userId.toString(),
       generatedImages,
       ActivityEnum.IMAGE_GENERATE_SPEND,
+      true, // isEdit = true for edit operations
     );
 
     console.log(`Job ${job.id} for Bytedance Edit completed successfully.`);

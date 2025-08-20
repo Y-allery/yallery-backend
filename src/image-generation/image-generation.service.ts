@@ -98,6 +98,7 @@ export class ImageGenerationService {
       maxImages: 1,
       maxPromptLength: 1000,
       sizes: ['1024x1024', '1536x640', '768x1344'],
+      is_artem: true,  // Тільки для edit функціональності
     },
   };
   private openai;
@@ -141,15 +142,31 @@ export class ImageGenerationService {
     try {
       const suggestedTags = [];
       
-      // For edit operations, we'll use a default tag
-      tag = await this.tagEntity.findOne({
+      // Always add "other" tag first
+      const otherTag = await this.tagEntity.findOne({
         where: { name: 'other' },
       });
       suggestedTags.push({
-        id: tag.id,
-        name: '#' + tag.name,
-        imageUrl: tag.imageUrl,
+        id: otherTag.id,
+        name: '#' + otherTag.name,
+        imageUrl: otherTag.imageUrl,
       });
+
+      // Try to find a better tag using AI based on the edit prompt
+      try {
+        tag = await this.findBestTag(editImageDto.prompt);
+        // Only add AI tag if it's different from "other"
+        if (tag.id !== otherTag.id) {
+          suggestedTags.push({
+            id: tag.id,
+            name: '#' + tag.name,
+            imageUrl: tag.imageUrl,
+          });
+        }
+      } catch (aiError) {
+        console.log('AI tag generation failed, using only "other" tag:', aiError.message);
+        // If AI fails, we still have "other" tag
+      }
 
       token = await this.serviceTokenService.getNextAvailableToken(
         AIEnum.BYTEDANCE_EDIT,

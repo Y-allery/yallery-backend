@@ -30,15 +30,15 @@ export class ActivityService {
     contest?: ContestEntity,
   ): string {
     const messages = {
-      [ActivityEnum.LIKE_EARN]: `You earned ${this.configService.get('LIKE_EARN_YEPS')} YEPs for a like`,
-      [ActivityEnum.LIKE_SPEND]: `You spent ${this.configService.get('LIKE_SPEND_YEPS')} YEPs on a like`,
+      [ActivityEnum.LIKE_EARN]: `You earned ${generationCost || this.configService.get('LIKE_EARN_YEPS')} YEPs for a like`,
+      [ActivityEnum.LIKE_SPEND]: `You spent ${generationCost || this.configService.get('LIKE_SPEND_YEPS')} YEPs on a like`,
       [ActivityEnum.IMAGE_GENERATE_SPEND]: `You spent ${generationCost || this.configService.get('IMAGE_GENERATE_COST_YEPS')} YEPs on image generation`,
       [ActivityEnum.VIDEO_GENERATE_SPEND]: `You spent ${generationCost || this.configService.get('VIDEO_GENERATE_COST_YEPS')} YEPs on video generation`,
       [ActivityEnum.CONTEST_OPEN]: `The contest ${contest?.name} is now open! Join us for an exciting challenge and show off your skills.`,
       [ActivityEnum.CONTEST_CLOSE]: `The contest is closed. Unfortunately, you didn't win a prize this time`,
       [ActivityEnum.CONTEST_WIN]: `Congratulations! You won first place in the ${contest?.name} contest and received a reward of ${generationCost} YEPs`,
-      [ActivityEnum.DAILY_REWARD]: `You received a daily reward of ${this.configService.get('DAILY_REWARD_YEPS')} YEPs`,
-      [ActivityEnum.SHARE_REWARD]: `You received a reward of ${this.configService.get('SHARING_REWARD_YEPS')} YEPs for invite new users`,
+      [ActivityEnum.DAILY_REWARD]: `You received a daily reward of ${generationCost || this.configService.get('DAILY_REWARD_YEPS')} YEPs`,
+      [ActivityEnum.SHARE_REWARD]: `You received a reward of ${generationCost || this.configService.get('SHARE_REWARD_YEPS')} YEPs for invite new users`,
       [ActivityEnum.ADMIN_REPORT]: `A new report has been submitted for review`,
       [ActivityEnum.ADMIN_CONTEST_REVIEW]: `A contest review has been initiated`,
       [ActivityEnum.ADMIN_REPORT_REVIEW]: `A report review has been completed`,
@@ -66,7 +66,10 @@ export class ActivityService {
         ? generation_cost
         : this.getPointsForActivity(type, contest_reward);
 
-    const description = this.getActivityMessage(type, points, contest);
+    // Передаємо points як generationCost для правильного відображення в повідомленні
+    const messageGenerationCost = points;
+    
+    const description = this.getActivityMessage(type, messageGenerationCost, contest);
     const activities = toUserIds.map((toUserId) =>
       this.activityRepository.create({
         fromUser: fromUserId ? { id: fromUserId } : null,
@@ -393,5 +396,67 @@ export class ActivityService {
         contestType: ContestTypeEnum.FINE_TUNE,
       })
       .getCount();
+  }
+
+  async hasReceivedDailyRewardToday(userId: number): Promise<boolean> {
+    const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
+    const todayEnd = new Date(new Date().setHours(23, 59, 59, 999));
+
+    console.log(`🔍 Checking daily reward for user ${userId}:`, {
+      todayStart: todayStart.toISOString(),
+      todayEnd: todayEnd.toISOString(),
+    });
+
+    const dailyRewardActivity = await this.activityRepository.findOne({
+      where: {
+        toUser: { id: userId },
+        activityType: ActivityEnum.DAILY_REWARD,
+        createdAt: Between(todayStart, todayEnd),
+      },
+    });
+
+    const hasReceived = !!dailyRewardActivity;
+    console.log(`🔍 User ${userId} daily reward status:`, {
+      hasReceived,
+      activityFound: dailyRewardActivity ? {
+        id: dailyRewardActivity.id,
+        createdAt: dailyRewardActivity.createdAt,
+        points: dailyRewardActivity.points,
+      } : null,
+    });
+
+    return hasReceived;
+  }
+
+  async claimDailyReward(userId: number): Promise<{ success: boolean; message: string; pointsAwarded: number }> {
+    // Перевіряємо, чи користувач вже отримав нагороду сьогодні
+    const hasReceivedToday = await this.hasReceivedDailyRewardToday(userId);
+    
+    if (hasReceivedToday) {
+      return {
+        success: false,
+        message: 'You have already received your daily reward today. Come back tomorrow!',
+        pointsAwarded: 0
+      };
+    }
+
+    // Отримуємо кількість YEPs за щоденну нагороду
+    const dailyRewardPoints = this.getPointsForActivity(ActivityEnum.DAILY_REWARD);
+    
+    // Створюємо активність щоденної нагороди
+    await this.createActivities(
+      null, // fromUserId - null для системних активностей
+      [userId], // toUserIds
+      ActivityEnum.DAILY_REWARD
+    );
+
+    // Оновлюємо профіль користувача через WebSocket
+    await this.notificationGateway.emitProfileUpdate(userId.toString());
+
+    return {
+      success: true,
+      message: `Successfully claimed daily reward of ${dailyRewardPoints} YEPs!`,
+      pointsAwarded: dailyRewardPoints
+    };
   }
 }

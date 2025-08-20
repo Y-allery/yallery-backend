@@ -44,6 +44,7 @@ export class SDProcessor extends WorkerHost {
       userId.toString(),
       generatedImages,
       ActivityEnum.IMAGE_GENERATE_SPEND,
+      false, // isEdit = false for generation operations
     );
 
     console.log(`Job ${job.id} for OctoAI completed successfully.`);
