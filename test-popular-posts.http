@@ -1,0 +1,29 @@
+### Get Popular Posts (only published posts)
+GET http://localhost:3000/activity/popular-posts
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+Content-Type: application/json
+
+### Expected response format:
+# {
+#   "posts": [
+#     {
+#       "id": 123,
+#       "imageUrl": "https://example.com/image.jpg",
+#       "videoUrl": null,
+#       "likeCount": 25,
+#       "viewCount": 150,
+#       "createdAt": "2024-01-15T10:30:00.000Z",
+#       "userId": 456,
+#       "username": "john_doe",
+#       "tagName": "portrait",
+#       "isPublished": true,  // ← Always true (only published posts)
+#       "isBlocked": false,   // ← Always false (not blocked)
+#       "isRejected": false   // ← Always false (not rejected)
+#     }
+#   ],
+#   "period": "today" | "yesterday" | "all_time",
+#   "totalCount": 1
+# }
+
+### Variables for testing
+# Replace YOUR_JWT_TOKEN_HERE with actual JWT token

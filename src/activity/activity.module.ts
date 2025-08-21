@@ -6,10 +6,11 @@ import { ActivityEntity } from './entities/activity.entity';
 import { NotificationPreferenceEntity } from 'src/notification/entity/notification.preferences.entity';
 import { NotificationModule } from 'src/notification/notification.module';
 import { UserEntity } from 'src/user/entities/user.entity';
+import { PostEntity } from 'src/post/entities/post.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([ActivityEntity, NotificationPreferenceEntity,UserEntity]),
+    TypeOrmModule.forFeature([ActivityEntity, NotificationPreferenceEntity, UserEntity, PostEntity]),
     NotificationModule,
   ],
   providers: [ActivityService],

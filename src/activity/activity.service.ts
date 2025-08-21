@@ -13,6 +13,7 @@ import { AIEnum } from 'src/common/enums/ai.enum';
 import { ContestTypeEnum } from 'src/contest/types/contest.status.enum';
 import { NotificationGateway } from 'src/notification/notification.gateway';
 import { UserEntity } from 'src/user/entities/user.entity';
+import { PopularPostsResponse } from './types/popular-post.interface';
 
 @Injectable()
 export class ActivityService {
@@ -21,6 +22,8 @@ export class ActivityService {
     private activityRepository: Repository<ActivityEntity>,
     @InjectRepository(UserEntity)
     private userRepository: Repository<UserEntity>,
+    @InjectRepository(PostEntity)
+    private postRepository: Repository<PostEntity>,
     private readonly configService: ConfigService,
     @InjectRepository(NotificationPreferenceEntity)
     private notificationPreferenceRepository: Repository<NotificationPreferenceEntity>,
@@ -463,5 +466,173 @@ export class ActivityService {
       message: `Successfully claimed daily reward of ${dailyRewardPoints} YEPs!`,
       pointsAwarded: dailyRewardPoints
     };
+  }
+
+  async getPopularPosts(): Promise<PopularPostsResponse> {
+    try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    console.log('🔍 Searching for popular posts today...');
+    console.log('📅 Date range:', { today: today.toISOString(), tomorrow: tomorrow.toISOString() });
+    
+    // Спочатку перевіримо, чи взагалі є пости в БД
+    const totalPosts = await this.postRepository.count();
+    const publishedPosts = await this.postRepository.count({
+      where: {
+        is_published: true,
+        is_blocked: false,
+        is_rejected: false
+      }
+    });
+    console.log('📊 Database stats:', { totalPosts, publishedPosts });
+    console.log('🔍 Filters applied: is_published=true, is_blocked=false, is_rejected=false, has media');
+    
+    // Спочатку шукаємо пости за сьогодні
+    let posts = await this.postRepository
+      .createQueryBuilder('post')
+      .leftJoinAndSelect('post.user', 'user')
+      .leftJoinAndSelect('post.tag', 'tag')
+      .leftJoin('post.likes', 'likes')
+      .leftJoin('post.viewedBy', 'viewedBy')
+      .where('post.createdAt >= :today', { today })
+      .andWhere('post.createdAt < :tomorrow', { tomorrow })
+      .andWhere('post.is_published = :isPublished', { isPublished: true })
+      .andWhere('post.is_blocked = :isBlocked', { isBlocked: false })
+      .andWhere('post.is_rejected = :isRejected', { isRejected: false })
+      .andWhere('(post.imageUrl IS NOT NULL OR post.videoUrl IS NOT NULL)')
+      .addSelect('COUNT(DISTINCT likes.id)', 'likeCount')
+      .addSelect('COUNT(DISTINCT viewedBy.id)', 'viewCount')
+      .groupBy('post.id, user.id, user.name, user.nickname, user.email, tag.id, tag.name, post.imageUrl, post.videoUrl, post.createdAt, post.is_published, post.is_blocked, post.is_rejected')
+      .orderBy('COUNT(DISTINCT likes.id)', 'DESC')
+      .addOrderBy('COUNT(DISTINCT viewedBy.id)', 'DESC')
+      .limit(3)
+      .getRawAndEntities();
+
+    let period: 'today' | 'yesterday' | 'all_time' = 'today';
+    let totalCount = posts.entities.length;
+
+    // Якщо за сьогодні немає постів, шукаємо за вчора
+    if (posts.entities.length === 0) {
+      console.log('🔍 No posts found today, searching for yesterday...');
+
+      posts = await this.postRepository
+        .createQueryBuilder('post')
+        .leftJoinAndSelect('post.user', 'user')
+        .leftJoinAndSelect('post.tag', 'tag')
+        .leftJoin('post.likes', 'likes')
+        .leftJoin('post.viewedBy', 'viewedBy')
+        .where('post.createdAt >= :yesterday', { yesterday })
+        .andWhere('post.createdAt < :today', { today })
+        .andWhere('post.is_published = :isPublished', { isPublished: true })
+        .andWhere('post.is_blocked = :isBlocked', { isBlocked: false })
+        .andWhere('post.is_rejected = :isRejected', { isRejected: false })
+        .andWhere('(post.imageUrl IS NOT NULL OR post.videoUrl IS NOT NULL)')
+        .addSelect('COUNT(DISTINCT likes.id)', 'likeCount')
+        .addSelect('COUNT(DISTINCT viewedBy.id)', 'viewCount')
+        .groupBy('post.id, user.id, user.name, user.nickname, user.email, tag.id, tag.name, post.imageUrl, post.videoUrl, post.createdAt, post.is_published, post.is_blocked, post.is_rejected')
+        .orderBy('COUNT(DISTINCT likes.id)', 'DESC')
+        .addOrderBy('COUNT(DISTINCT viewedBy.id)', 'DESC')
+        .limit(3)
+        .getRawAndEntities();
+
+      period = 'yesterday';
+      totalCount = posts.entities.length;
+    }
+
+    // Якщо за вчора теж немає, шукаємо за всі часи
+    if (posts.entities.length === 0) {
+      console.log('🔍 No posts found yesterday, searching for all time...');
+      
+      // Спростимо запит - спочатку просто отримаємо всі пости
+      const allPosts = await this.postRepository.find({
+        where: {
+          is_published: true,
+          is_blocked: false,
+          is_rejected: false,
+        },
+        relations: ['user', 'tag', 'likes', 'viewedBy'],
+        take: 50 // Обмежимо для початку
+      });
+      
+      console.log('📋 Found posts in all time:', allPosts.length);
+      
+      // Фільтруємо пости з зображеннями або відео
+      const postsWithMedia = allPosts.filter(post => post.imageUrl || post.videoUrl);
+      console.log('📋 Posts with media:', postsWithMedia.length);
+      
+      // Сортуємо за кількістю лайків та переглядів
+      const sortedPosts = postsWithMedia
+        .map(post => ({
+          ...post,
+          likeCount: post.likes?.length || 0,
+          viewCount: post.viewedBy?.length || 0
+        }))
+        .sort((a, b) => {
+          if (b.likeCount !== a.likeCount) {
+            return b.likeCount - a.likeCount;
+          }
+          return b.viewCount - a.viewCount;
+        })
+        .slice(0, 3);
+
+      // Конвертуємо в формат, який очікує наш код
+      posts = {
+        entities: sortedPosts,
+        raw: sortedPosts.map(post => ({
+          likeCount: post.likeCount.toString(),
+          viewCount: post.viewCount.toString()
+        }))
+      };
+
+      period = 'all_time';
+      totalCount = posts.entities.length;
+    }
+
+    console.log(`✅ Found ${posts.entities.length} posts for period: ${period}`);
+    
+    // Додаткова перевірка - всі пости мають бути опубліковані
+    const unpublishedCount = posts.entities.filter(post => !post.is_published).length;
+    if (unpublishedCount > 0) {
+      console.warn(`⚠️ Warning: Found ${unpublishedCount} unpublished posts in results!`);
+    }
+    
+    // Форматуємо результат з отриманими даними
+    const formattedPosts = posts.entities.map((post, index) => {
+      const rawData = posts.raw[index];
+      return {
+        id: post.id,
+        imageUrl: post.imageUrl,
+        videoUrl: post.videoUrl,
+        likeCount: parseInt(rawData.likeCount) || 0,
+        viewCount: parseInt(rawData.viewCount) || 0,
+        createdAt: post.createdAt,
+        userId: post.user.id,
+        username: post.user.nickname || post.user.name || post.user.email || 'Unknown User',
+        tagName: post.tag?.name || null,
+        isPublished: post.is_published,
+        isBlocked: post.is_blocked,
+        isRejected: post.is_rejected,
+      };
+    });
+
+    return {
+      posts: formattedPosts,
+      period,
+      totalCount,
+    };
+    } catch (error) {
+      console.error('Error getting popular posts:', error);
+      return {
+        posts: [],
+        period: 'all_time',
+        totalCount: 0,
+      };
+    }
   }
 }

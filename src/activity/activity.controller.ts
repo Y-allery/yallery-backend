@@ -6,6 +6,7 @@ import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ActivityEntity } from './entities/activity.entity';
 import { ActivityEnum } from './types/activity.enum';
 import { ClaimDailyRewardResponseDto } from './dto/claim-daily-reward.dto';
+import { PopularPostsResponseDto } from './dto/popular-posts.dto';
 
 @Controller('activity')
 @ApiTags('Activity')
@@ -132,5 +133,17 @@ export class ActivityController {
   async claimDailyReward(@Req() req: AuthenticatedRequest): Promise<ClaimDailyRewardResponseDto> {
     const userId = req.user.id;
     return await this.activityService.claimDailyReward(userId);
+  }
+
+  @Get('popular-posts')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Get 3 most popular posts' })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns 3 most popular posts by likes and views',
+    type: PopularPostsResponseDto
+  })
+  async getPopularPosts(): Promise<PopularPostsResponseDto> {
+    return await this.activityService.getPopularPosts();
   }
 }
