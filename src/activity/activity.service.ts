@@ -615,6 +615,7 @@ export class ActivityService {
         userId: post.user.id,
         username: post.user.nickname || post.user.name || post.user.email || 'Unknown User',
         tagName: post.tag?.name || null,
+        tagId: post.tag?.id || null,
         isPublished: post.is_published,
         isBlocked: post.is_blocked,
         isRejected: post.is_rejected,

@@ -29,6 +29,9 @@ export class PopularPostDto implements PopularPost {
   @ApiProperty({ description: 'Tag name', nullable: true })
   tagName: string | null;
 
+  @ApiProperty({ description: 'Tag ID', nullable: true })
+  tagId: number | null;
+
   @ApiProperty({ description: 'Is post published' })
   isPublished: boolean;
 

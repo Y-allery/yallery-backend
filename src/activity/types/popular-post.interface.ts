@@ -8,6 +8,7 @@ export interface PopularPost {
   userId: number;
   username: string;
   tagName: string | null;
+  tagId: number | null;
   isPublished: boolean;
   isBlocked: boolean;
   isRejected: boolean;
