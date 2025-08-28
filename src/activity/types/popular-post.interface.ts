@@ -17,6 +17,6 @@ export interface PopularPost {
 
 export interface PopularPostsResponse {
   posts: PopularPost[];
-  period: 'today' | 'yesterday' | 'all_time';
+  period: 'today' | 'yesterday' | 'all_time' | 'mixed';
   totalCount: number;
 }

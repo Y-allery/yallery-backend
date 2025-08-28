@@ -478,23 +478,11 @@ export class ActivityService {
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
 
-    console.log('🔍 Searching for popular posts today...');
-    console.log('📅 Date range:', { today: today.toISOString(), tomorrow: tomorrow.toISOString() });
-    
-    // Спочатку перевіримо, чи взагалі є пости в БД
-    const totalPosts = await this.postRepository.count();
-    const publishedPosts = await this.postRepository.count({
-      where: {
-        is_published: true,
-        is_blocked: false,
-        is_rejected: false
-      }
-    });
-    console.log('📊 Database stats:', { totalPosts, publishedPosts });
-    console.log('🔍 Filters applied: is_published=true, is_blocked=false, is_rejected=false, has media');
+    let allFoundPosts = [];
+    let period: 'today' | 'yesterday' | 'all_time' | 'mixed' = 'today';
     
     // Спочатку шукаємо пости за сьогодні
-    let posts = await this.postRepository
+    let todayPosts = await this.postRepository
       .createQueryBuilder('post')
       .leftJoinAndSelect('post.user', 'user')
       .leftJoinAndSelect('post.tag', 'tag')
@@ -514,58 +502,18 @@ export class ActivityService {
       .limit(3)
       .getRawAndEntities();
 
-    console.log('🔍 Today search result:', posts.entities.length, 'posts found');
-    if (posts.entities.length === 0) {
-      console.log('🔍 No posts found today, checking why...');
-      // Перевіримо чи є взагалі пости за сьогодні
-      const todayPostsCount = await this.postRepository.count({
-        where: {
-          createdAt: Between(today, tomorrow)
-        }
-      });
-      console.log('📊 Posts created today (total):', todayPostsCount);
-      
-      // Перевіримо чи є опубліковані пости за сьогодні
-      const todayPublishedCount = await this.postRepository.count({
-        where: {
-          createdAt: Between(today, tomorrow),
-          is_published: true,
-          is_blocked: false,
-          is_rejected: false
-        }
-      });
-      console.log('📊 Posts created today (published):', todayPublishedCount);
-      
-      // Перевіримо чи є пости з медіа за сьогодні
-      const todayWithMediaCount = await this.postRepository.count({
-        where: [
-          {
-            createdAt: Between(today, tomorrow),
-            is_published: true,
-            is_blocked: false,
-            is_rejected: false,
-            imageUrl: Not('')
-          },
-          {
-            createdAt: Between(today, tomorrow),
-            is_published: true,
-            is_blocked: false,
-            is_rejected: false,
-            videoUrl: Not('')
-          }
-        ]
-      });
-      console.log('📊 Posts created today (with media):', todayWithMediaCount);
+    if (todayPosts.entities.length > 0) {
+      allFoundPosts.push(...todayPosts.entities.map((post, index) => ({
+        post,
+        rawData: todayPosts.raw[index],
+        period: 'today'
+      })));
+      period = 'today';
     }
 
-    let period: 'today' | 'yesterday' | 'all_time' = 'today';
-    let totalCount = posts.entities.length;
-
-    // Якщо за сьогодні немає постів, шукаємо за вчора
-    if (posts.entities.length === 0) {
-      console.log('🔍 No posts found today, searching for yesterday...');
-
-      posts = await this.postRepository
+    // Якщо за сьогодні немає постів або їх менше 3, шукаємо за вчора
+    if (allFoundPosts.length < 3) {
+      const yesterdayPosts = await this.postRepository
         .createQueryBuilder('post')
         .leftJoinAndSelect('post.user', 'user')
         .leftJoinAndSelect('post.tag', 'tag')
@@ -582,76 +530,22 @@ export class ActivityService {
         .groupBy('post.id, user.id, user.name, user.nickname, user.email, tag.id, tag.name, post.imageUrl, post.videoUrl, post.createdAt, post.is_published, post.is_blocked, post.is_rejected')
         .orderBy('COUNT(DISTINCT likes.id)', 'DESC')
         .addOrderBy('COUNT(DISTINCT viewedBy.id)', 'DESC')
-        .limit(3)
+        .limit(3 - allFoundPosts.length)
         .getRawAndEntities();
 
-      console.log('🔍 Yesterday search result:', posts.entities.length, 'posts found');
-      if (posts.entities.length === 0) {
-        console.log('🔍 No posts found yesterday, checking why...');
-        // Перевіримо чи є взагалі пости за вчора
-        const yesterdayPostsCount = await this.postRepository.count({
-          where: {
-            createdAt: Between(yesterday, today)
-          }
-        });
-        console.log('📊 Posts created yesterday (total):', yesterdayPostsCount);
-        
-        // Перевіримо чи є опубліковані пости за вчора
-        const yesterdayPublishedCount = await this.postRepository.count({
-          where: {
-            createdAt: Between(yesterday, today),
-            is_published: true,
-            is_blocked: false,
-            is_rejected: false
-          }
-        });
-        console.log('📊 Posts created yesterday (published):', yesterdayPublishedCount);
-        
-        // Перевіримо чи є пости з медіа за вчора
-        const yesterdayWithMediaCount = await this.postRepository.count({
-          where: [
-            {
-              createdAt: Between(yesterday, today),
-              is_published: true,
-              is_blocked: false,
-              is_rejected: false,
-              imageUrl: Not('')
-            },
-            {
-              createdAt: Between(yesterday, today),
-              is_published: true,
-              is_blocked: false,
-              is_rejected: false,
-              videoUrl: Not('')
-            }
-          ]
-        });
-        console.log('📊 Posts created yesterday (with media):', yesterdayWithMediaCount);
+      if (yesterdayPosts.entities.length > 0) {
+        allFoundPosts.push(...yesterdayPosts.entities.map((post, index) => ({
+          post,
+          rawData: yesterdayPosts.raw[index],
+          period: 'yesterday'
+        })));
+        if (period === 'today') period = 'mixed';
+        else period = 'yesterday';
       }
-
-      period = 'yesterday';
-      totalCount = posts.entities.length;
     }
 
-    // Якщо за вчора теж немає, шукаємо за всі часи
-    if (posts.entities.length === 0) {
-      console.log('🔍 No posts found yesterday, searching for all time...');
-      
-      // Спочатку перевіримо загальну кількість постів
-      const totalAllPosts = await this.postRepository.count();
-      console.log('📊 Total posts in database:', totalAllPosts);
-      
-      // Перевіримо кількість опублікованих постів
-      const publishedPostsCount = await this.postRepository.count({
-        where: {
-          is_published: true,
-          is_blocked: false,
-          is_rejected: false,
-        }
-      });
-      console.log('📊 Published posts count:', publishedPostsCount);
-      
-      // Спростимо запит - спочатку просто отримаємо всі пости
+    // Якщо все ще немає 3 постів, шукаємо за всі часи
+    if (allFoundPosts.length < 3) {
       const allPosts = await this.postRepository.find({
         where: {
           is_published: true,
@@ -659,40 +553,17 @@ export class ActivityService {
           is_rejected: false,
         },
         relations: ['user', 'tag', 'likes', 'viewedBy'],
-        // Убираємо обмеження take для діагностики
       });
       
-      console.log('📋 Found posts in all time:', allPosts.length);
-      
-      // Фільтруємо пости з зображеннями або відео
       const postsWithMedia = allPosts.filter(post => post.imageUrl || post.videoUrl);
-      console.log('📋 Posts with media:', postsWithMedia.length);
       
-      // Додаткова діагностика - перевіримо перші кілька постів
-      if (allPosts.length > 0) {
-        console.log('🔍 First few posts sample:');
-        allPosts.slice(0, 3).forEach((post, index) => {
-          console.log(`  Post ${index + 1}:`, {
-            id: post.id,
-            hasImage: !!post.imageUrl,
-            hasVideo: !!post.videoUrl,
-            isPublished: post.is_published,
-            isBlocked: post.is_blocked,
-            isRejected: post.is_rejected,
-            likesCount: post.likes?.length || 0,
-            viewsCount: post.viewedBy?.length || 0
-          });
-        });
-      }
-      
-      // Сортуємо за кількістю лайків та переглядів
       const sortedPosts = postsWithMedia
         .map(post => ({
-          ...post,
+          post,
           likeCount: post.likes?.length || 0,
           viewCount: post.viewedBy?.length || 0,
-          // Перевіряємо, чи лайкнув поточний користувач цей пост
-          isLiked: post.likes?.some(like => like.user?.id === userId) || false
+          isLiked: post.likes?.some(like => like.user?.id === userId) || false,
+          period: 'all_time'
         }))
         .sort((a, b) => {
           if (b.likeCount !== a.likeCount) {
@@ -700,75 +571,74 @@ export class ActivityService {
           }
           return b.viewCount - a.viewCount;
         })
-        .slice(0, 3);
+        .slice(0, 3 - allFoundPosts.length);
 
-      console.log('📋 Sorted posts with media:', sortedPosts.length);
+      allFoundPosts.push(...sortedPosts.map(item => ({
+        post: item.post,
+        rawData: { likeCount: item.likeCount.toString(), viewCount: item.viewCount.toString() },
+        period: item.period,
+        isLiked: item.isLiked
+      })));
       
-      // Конвертуємо в формат, який очікує наш код
-      posts = {
-        entities: sortedPosts,
-        raw: sortedPosts.map(post => ({
-          likeCount: post.likeCount.toString(),
-          viewCount: post.viewCount.toString()
-        }))
-      };
-
-      period = 'all_time';
-      totalCount = posts.entities.length;
+      if (period !== 'mixed') period = 'all_time';
     }
 
-    console.log(`✅ Found ${posts.entities.length} posts for period: ${period}`);
-    
-    // Додаткова перевірка - всі пости мають бути опубліковані
-    const unpublishedCount = posts.entities.filter(post => !post.is_published).length;
-    if (unpublishedCount > 0) {
-      console.warn(`⚠️ Warning: Found ${unpublishedCount} unpublished posts in results!`);
-    }
-    
-    // Форматуємо результат з отриманими даними
-    const formattedPosts = posts.entities.map(async (post, index) => {
-      const rawData = posts.raw[index];
+    // Сортуємо всі знайдені пости за популярністю
+    allFoundPosts.sort((a, b) => {
+      const aLikes = parseInt(a.rawData.likeCount) || 0;
+      const bLikes = parseInt(b.rawData.likeCount) || 0;
+      const aViews = parseInt(a.rawData.viewCount) || 0;
+      const bViews = parseInt(b.rawData.viewCount) || 0;
       
-      // Перевіряємо, чи лайкнув поточний користувач цей пост
+      if (bLikes !== aLikes) {
+        return bLikes - aLikes;
+      }
+      return bViews - aViews;
+    });
+
+    // Беремо топ 3 пости
+    const topPosts = allFoundPosts.slice(0, 3);
+    
+    // Форматуємо результат
+    const formattedPosts = topPosts.map(async (item) => {
       let isLiked = false;
       
-      if (period === 'all_time') {
-        // Для випадку all_time isLiked вже обчислено
-        isLiked = (post as any).isLiked;
+      if (item.isLiked !== undefined) {
+        // Для all_time isLiked вже обчислено
+        isLiked = item.isLiked;
       } else {
         // Для today і yesterday завантажуємо лайки окремо
         const postWithLikes = await this.postRepository.findOne({
-          where: { id: post.id },
+          where: { id: item.post.id },
           relations: ['likes', 'likes.user'],
         });
         isLiked = postWithLikes?.likes?.some(like => like.user?.id === userId) || false;
       }
       
       return {
-        id: post.id,
-        imageUrl: post.imageUrl,
-        videoUrl: post.videoUrl,
-        likeCount: parseInt(rawData.likeCount) || 0,
-        viewCount: parseInt(rawData.viewCount) || 0,
-        createdAt: post.createdAt,
-        userId: post.user.id,
-        username: post.user.nickname || post.user.name || post.user.email || 'Unknown User',
-        tagName: post.tag?.name || null,
-        tagId: post.tag?.id || null,
-        isPublished: post.is_published,
-        isBlocked: post.is_blocked,
-        isRejected: post.is_rejected,
+        id: item.post.id,
+        imageUrl: item.post.imageUrl,
+        videoUrl: item.post.videoUrl,
+        likeCount: parseInt(item.rawData.likeCount) || 0,
+        viewCount: parseInt(item.rawData.viewCount) || 0,
+        createdAt: item.post.createdAt,
+        userId: item.post.user.id,
+        username: item.post.user.nickname || item.post.user.name || item.post.user.email || 'Unknown User',
+        tagName: item.post.tag?.name || null,
+        tagId: item.post.tag?.id || null,
+        isPublished: item.post.is_published,
+        isBlocked: item.post.is_blocked,
+        isRejected: item.post.is_rejected,
         isLiked,
       };
     });
 
-    // Очікуємо завершення всіх асинхронних операцій
     const resolvedPosts = await Promise.all(formattedPosts);
 
     return {
       posts: resolvedPosts,
       period,
-      totalCount,
+      totalCount: resolvedPosts.length,
     };
     } catch (error) {
       console.error('Error getting popular posts:', error);

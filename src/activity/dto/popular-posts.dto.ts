@@ -50,7 +50,7 @@ export class PopularPostsResponseDto implements PopularPostsResponse {
   posts: PopularPostDto[];
 
   @ApiProperty({ description: 'Period for which posts were fetched' })
-  period: 'today' | 'yesterday' | 'all_time';
+  period: 'today' | 'yesterday' | 'all_time' | 'mixed';
 
   @ApiProperty({ description: 'Total count of posts found' })
   totalCount: number;
