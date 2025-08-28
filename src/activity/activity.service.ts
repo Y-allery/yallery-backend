@@ -468,7 +468,7 @@ export class ActivityService {
     };
   }
 
-  async getPopularPosts(): Promise<PopularPostsResponse> {
+  async getPopularPosts(userId: number): Promise<PopularPostsResponse> {
     try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -498,7 +498,8 @@ export class ActivityService {
       .createQueryBuilder('post')
       .leftJoinAndSelect('post.user', 'user')
       .leftJoinAndSelect('post.tag', 'tag')
-      .leftJoin('post.likes', 'likes')
+      .leftJoinAndSelect('post.likes', 'likes')
+      .leftJoinAndSelect('likes.user', 'likesUser')
       .leftJoin('post.viewedBy', 'viewedBy')
       .where('post.createdAt >= :today', { today })
       .andWhere('post.createdAt < :tomorrow', { tomorrow })
@@ -525,7 +526,8 @@ export class ActivityService {
         .createQueryBuilder('post')
         .leftJoinAndSelect('post.user', 'user')
         .leftJoinAndSelect('post.tag', 'tag')
-        .leftJoin('post.likes', 'likes')
+        .leftJoinAndSelect('post.likes', 'likes')
+        .leftJoinAndSelect('likes.user', 'likesUser')
         .leftJoin('post.viewedBy', 'viewedBy')
         .where('post.createdAt >= :yesterday', { yesterday })
         .andWhere('post.createdAt < :today', { today })
@@ -571,7 +573,9 @@ export class ActivityService {
         .map(post => ({
           ...post,
           likeCount: post.likes?.length || 0,
-          viewCount: post.viewedBy?.length || 0
+          viewCount: post.viewedBy?.length || 0,
+          // Перевіряємо, чи лайкнув поточний користувач цей пост
+          isLiked: post.likes?.some(like => like.user?.id === userId) || false
         }))
         .sort((a, b) => {
           if (b.likeCount !== a.likeCount) {
@@ -605,6 +609,13 @@ export class ActivityService {
     // Форматуємо результат з отриманими даними
     const formattedPosts = posts.entities.map((post, index) => {
       const rawData = posts.raw[index];
+      
+      // Перевіряємо, чи лайкнув поточний користувач цей пост
+      // Для випадку all_time isLiked вже обчислено
+      const isLiked = period === 'all_time' 
+        ? (post as any).isLiked 
+        : post.likes?.some(like => like.user?.id === userId) || false;
+      
       return {
         id: post.id,
         imageUrl: post.imageUrl,
@@ -619,6 +630,7 @@ export class ActivityService {
         isPublished: post.is_published,
         isBlocked: post.is_blocked,
         isRejected: post.is_rejected,
+        isLiked,
       };
     });
 

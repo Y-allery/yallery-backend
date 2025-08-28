@@ -12,6 +12,7 @@ export interface PopularPost {
   isPublished: boolean;
   isBlocked: boolean;
   isRejected: boolean;
+  isLiked: boolean;
 }
 
 export interface PopularPostsResponse {

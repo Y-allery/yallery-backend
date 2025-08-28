@@ -143,7 +143,8 @@ export class ActivityController {
     description: 'Returns 3 most popular posts by likes and views',
     type: PopularPostsResponseDto
   })
-  async getPopularPosts(): Promise<PopularPostsResponseDto> {
-    return await this.activityService.getPopularPosts();
+  async getPopularPosts(@Req() req: AuthenticatedRequest): Promise<PopularPostsResponseDto> {
+    const userId = req.user.id;
+    return await this.activityService.getPopularPosts(userId);
   }
 }
