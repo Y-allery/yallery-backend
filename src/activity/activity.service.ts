@@ -498,8 +498,7 @@ export class ActivityService {
       .createQueryBuilder('post')
       .leftJoinAndSelect('post.user', 'user')
       .leftJoinAndSelect('post.tag', 'tag')
-      .leftJoinAndSelect('post.likes', 'likes')
-      .leftJoinAndSelect('likes.user', 'likesUser')
+      .leftJoin('post.likes', 'likes')
       .leftJoin('post.viewedBy', 'viewedBy')
       .where('post.createdAt >= :today', { today })
       .andWhere('post.createdAt < :tomorrow', { tomorrow })
@@ -570,8 +569,7 @@ export class ActivityService {
         .createQueryBuilder('post')
         .leftJoinAndSelect('post.user', 'user')
         .leftJoinAndSelect('post.tag', 'tag')
-        .leftJoinAndSelect('post.likes', 'likes')
-        .leftJoinAndSelect('likes.user', 'likesUser')
+        .leftJoin('post.likes', 'likes')
         .leftJoin('post.viewedBy', 'viewedBy')
         .where('post.createdAt >= :yesterday', { yesterday })
         .andWhere('post.createdAt < :today', { today })
@@ -728,14 +726,23 @@ export class ActivityService {
     }
     
     // Форматуємо результат з отриманими даними
-    const formattedPosts = posts.entities.map((post, index) => {
+    const formattedPosts = posts.entities.map(async (post, index) => {
       const rawData = posts.raw[index];
       
       // Перевіряємо, чи лайкнув поточний користувач цей пост
-      // Для випадку all_time isLiked вже обчислено
-      const isLiked = period === 'all_time' 
-        ? (post as any).isLiked 
-        : post.likes?.some(like => like.user?.id === userId) || false;
+      let isLiked = false;
+      
+      if (period === 'all_time') {
+        // Для випадку all_time isLiked вже обчислено
+        isLiked = (post as any).isLiked;
+      } else {
+        // Для today і yesterday завантажуємо лайки окремо
+        const postWithLikes = await this.postRepository.findOne({
+          where: { id: post.id },
+          relations: ['likes', 'likes.user'],
+        });
+        isLiked = postWithLikes?.likes?.some(like => like.user?.id === userId) || false;
+      }
       
       return {
         id: post.id,
@@ -755,8 +762,11 @@ export class ActivityService {
       };
     });
 
+    // Очікуємо завершення всіх асинхронних операцій
+    const resolvedPosts = await Promise.all(formattedPosts);
+
     return {
-      posts: formattedPosts,
+      posts: resolvedPosts,
       period,
       totalCount,
     };
