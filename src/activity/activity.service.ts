@@ -515,6 +515,50 @@ export class ActivityService {
       .limit(3)
       .getRawAndEntities();
 
+    console.log('🔍 Today search result:', posts.entities.length, 'posts found');
+    if (posts.entities.length === 0) {
+      console.log('🔍 No posts found today, checking why...');
+      // Перевіримо чи є взагалі пости за сьогодні
+      const todayPostsCount = await this.postRepository.count({
+        where: {
+          createdAt: Between(today, tomorrow)
+        }
+      });
+      console.log('📊 Posts created today (total):', todayPostsCount);
+      
+      // Перевіримо чи є опубліковані пости за сьогодні
+      const todayPublishedCount = await this.postRepository.count({
+        where: {
+          createdAt: Between(today, tomorrow),
+          is_published: true,
+          is_blocked: false,
+          is_rejected: false
+        }
+      });
+      console.log('📊 Posts created today (published):', todayPublishedCount);
+      
+      // Перевіримо чи є пости з медіа за сьогодні
+      const todayWithMediaCount = await this.postRepository.count({
+        where: [
+          {
+            createdAt: Between(today, tomorrow),
+            is_published: true,
+            is_blocked: false,
+            is_rejected: false,
+            imageUrl: Not('')
+          },
+          {
+            createdAt: Between(today, tomorrow),
+            is_published: true,
+            is_blocked: false,
+            is_rejected: false,
+            videoUrl: Not('')
+          }
+        ]
+      });
+      console.log('📊 Posts created today (with media):', todayWithMediaCount);
+    }
+
     let period: 'today' | 'yesterday' | 'all_time' = 'today';
     let totalCount = posts.entities.length;
 
@@ -543,6 +587,50 @@ export class ActivityService {
         .limit(3)
         .getRawAndEntities();
 
+      console.log('🔍 Yesterday search result:', posts.entities.length, 'posts found');
+      if (posts.entities.length === 0) {
+        console.log('🔍 No posts found yesterday, checking why...');
+        // Перевіримо чи є взагалі пости за вчора
+        const yesterdayPostsCount = await this.postRepository.count({
+          where: {
+            createdAt: Between(yesterday, today)
+          }
+        });
+        console.log('📊 Posts created yesterday (total):', yesterdayPostsCount);
+        
+        // Перевіримо чи є опубліковані пости за вчора
+        const yesterdayPublishedCount = await this.postRepository.count({
+          where: {
+            createdAt: Between(yesterday, today),
+            is_published: true,
+            is_blocked: false,
+            is_rejected: false
+          }
+        });
+        console.log('📊 Posts created yesterday (published):', yesterdayPublishedCount);
+        
+        // Перевіримо чи є пости з медіа за вчора
+        const yesterdayWithMediaCount = await this.postRepository.count({
+          where: [
+            {
+              createdAt: Between(yesterday, today),
+              is_published: true,
+              is_blocked: false,
+              is_rejected: false,
+              imageUrl: Not('')
+            },
+            {
+              createdAt: Between(yesterday, today),
+              is_published: true,
+              is_blocked: false,
+              is_rejected: false,
+              videoUrl: Not('')
+            }
+          ]
+        });
+        console.log('📊 Posts created yesterday (with media):', yesterdayWithMediaCount);
+      }
+
       period = 'yesterday';
       totalCount = posts.entities.length;
     }
@@ -550,6 +638,20 @@ export class ActivityService {
     // Якщо за вчора теж немає, шукаємо за всі часи
     if (posts.entities.length === 0) {
       console.log('🔍 No posts found yesterday, searching for all time...');
+      
+      // Спочатку перевіримо загальну кількість постів
+      const totalAllPosts = await this.postRepository.count();
+      console.log('📊 Total posts in database:', totalAllPosts);
+      
+      // Перевіримо кількість опублікованих постів
+      const publishedPostsCount = await this.postRepository.count({
+        where: {
+          is_published: true,
+          is_blocked: false,
+          is_rejected: false,
+        }
+      });
+      console.log('📊 Published posts count:', publishedPostsCount);
       
       // Спростимо запит - спочатку просто отримаємо всі пости
       const allPosts = await this.postRepository.find({
@@ -559,7 +661,7 @@ export class ActivityService {
           is_rejected: false,
         },
         relations: ['user', 'tag', 'likes', 'viewedBy'],
-        take: 50 // Обмежимо для початку
+        // Убираємо обмеження take для діагностики
       });
       
       console.log('📋 Found posts in all time:', allPosts.length);
@@ -567,6 +669,23 @@ export class ActivityService {
       // Фільтруємо пости з зображеннями або відео
       const postsWithMedia = allPosts.filter(post => post.imageUrl || post.videoUrl);
       console.log('📋 Posts with media:', postsWithMedia.length);
+      
+      // Додаткова діагностика - перевіримо перші кілька постів
+      if (allPosts.length > 0) {
+        console.log('🔍 First few posts sample:');
+        allPosts.slice(0, 3).forEach((post, index) => {
+          console.log(`  Post ${index + 1}:`, {
+            id: post.id,
+            hasImage: !!post.imageUrl,
+            hasVideo: !!post.videoUrl,
+            isPublished: post.is_published,
+            isBlocked: post.is_blocked,
+            isRejected: post.is_rejected,
+            likesCount: post.likes?.length || 0,
+            viewsCount: post.viewedBy?.length || 0
+          });
+        });
+      }
       
       // Сортуємо за кількістю лайків та переглядів
       const sortedPosts = postsWithMedia
@@ -585,6 +704,8 @@ export class ActivityService {
         })
         .slice(0, 3);
 
+      console.log('📋 Sorted posts with media:', sortedPosts.length);
+      
       // Конвертуємо в формат, який очікує наш код
       posts = {
         entities: sortedPosts,
