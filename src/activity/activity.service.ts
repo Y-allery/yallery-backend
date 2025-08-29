@@ -408,11 +408,6 @@ export class ActivityService {
     const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
     const todayEnd = new Date(new Date().setHours(23, 59, 59, 999));
 
-    console.log(`🔍 Checking daily reward for user ${userId}:`, {
-      todayStart: todayStart.toISOString(),
-      todayEnd: todayEnd.toISOString(),
-    });
-
     const dailyRewardActivity = await this.activityRepository.findOne({
       where: {
         toUser: { id: userId },
@@ -422,14 +417,6 @@ export class ActivityService {
     });
 
     const hasReceived = !!dailyRewardActivity;
-    console.log(`🔍 User ${userId} daily reward status:`, {
-      hasReceived,
-      activityFound: dailyRewardActivity ? {
-        id: dailyRewardActivity.id,
-        createdAt: dailyRewardActivity.createdAt,
-        points: dailyRewardActivity.points,
-      } : null,
-    });
 
     return hasReceived;
   }
@@ -482,66 +469,96 @@ export class ActivityService {
     let period: 'today' | 'yesterday' | 'all_time' | 'mixed' = 'today';
     
     // Спочатку шукаємо пости за сьогодні
-    let todayPosts = await this.postRepository
-      .createQueryBuilder('post')
-      .leftJoinAndSelect('post.user', 'user')
-      .leftJoinAndSelect('post.tag', 'tag')
-      .leftJoinAndSelect('post.likes', 'likes')
-      .leftJoinAndSelect('likes.user', 'likesUser')
-      .leftJoin('post.viewedBy', 'viewedBy')
-      .where('post.createdAt >= :today', { today })
-      .andWhere('post.createdAt < :tomorrow', { tomorrow })
-      .andWhere('post.is_published = :isPublished', { isPublished: true })
-      .andWhere('post.is_blocked = :isBlocked', { isBlocked: false })
-      .andWhere('post.is_rejected = :isRejected', { isRejected: false })
-      .andWhere('(post.imageUrl IS NOT NULL OR post.videoUrl IS NOT NULL)')
-      .addSelect('COUNT(DISTINCT likes.id)', 'likeCount')
-      .addSelect('COUNT(DISTINCT viewedBy.id)', 'viewCount')
-      .groupBy('post.id, user.id, user.name, user.nickname, user.email, tag.id, tag.name, post.imageUrl, post.videoUrl, post.createdAt, post.is_published, post.is_blocked, post.is_rejected')
-      .orderBy('COUNT(DISTINCT likes.id)', 'DESC')
-      .addOrderBy('COUNT(DISTINCT viewedBy.id)', 'DESC')
-      .limit(3)
-      .getRawAndEntities();
+    const todayQuery = `
+      SELECT DISTINCT
+        p.id, 
+        p.imageUrl AS image_url, 
+        p.videoUrl AS video_url, 
+        p.createdAt AS created_at,
+        u.id AS user_id,
+        u.nickname AS username,
+        t.id AS tag_id,
+        t.name AS tag_name,
+        p.is_published,
+        p.is_blocked,
+        p.is_rejected,
+        (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS like_count,
+        (SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id) AS view_count,
+        CASE 
+          WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ${userId}) 
+          THEN TRUE 
+          ELSE FALSE 
+        END AS is_liked
+      FROM 
+        posts p
+        JOIN users u ON p.userId = u.id
+        LEFT JOIN tags t ON p.tagId = t.id
+      WHERE 
+        p.createdAt >= '${today.toISOString()}' 
+        AND p.createdAt < '${tomorrow.toISOString()}'
+        AND p.is_published = true 
+        AND p.is_blocked = false
+        AND p.is_rejected = false
+        AND (p.imageUrl IS NOT NULL OR p.videoUrl IS NOT NULL)
+      ORDER BY 
+        like_count DESC, view_count DESC
+      LIMIT 3;
+    `;
 
-    if (todayPosts.entities.length > 0) {
-      allFoundPosts.push(...todayPosts.entities.map((post, index) => ({
+    const todayPosts = await this.postRepository.query(todayQuery);
+    
+    if (todayPosts.length > 0) {
+      allFoundPosts.push(...todayPosts.map(post => ({
         post,
-        rawData: todayPosts.raw[index],
-        period: 'today',
-        isLiked: post.likes?.some(like => like.user?.id === userId) || false
+        period: 'today'
       })));
       period = 'today';
     }
 
     // Якщо за сьогодні немає постів або їх менше 3, шукаємо за вчора
     if (allFoundPosts.length < 3) {
-      const yesterdayPosts = await this.postRepository
-        .createQueryBuilder('post')
-        .leftJoinAndSelect('post.user', 'user')
-        .leftJoinAndSelect('post.tag', 'tag')
-        .leftJoinAndSelect('post.likes', 'likes')
-        .leftJoinAndSelect('likes.user', 'likesUser')
-        .leftJoin('post.viewedBy', 'viewedBy')
-        .where('post.createdAt >= :yesterday', { yesterday })
-        .andWhere('post.createdAt < :today', { today })
-        .andWhere('post.is_published = :isPublished', { isPublished: true })
-        .andWhere('post.is_blocked = :isBlocked', { isBlocked: false })
-        .andWhere('post.is_rejected = :isRejected', { isRejected: false })
-        .andWhere('(post.imageUrl IS NOT NULL OR post.videoUrl IS NOT NULL)')
-        .addSelect('COUNT(DISTINCT likes.id)', 'likeCount')
-        .addSelect('COUNT(DISTINCT viewedBy.id)', 'viewCount')
-        .groupBy('post.id, user.id, user.name, user.nickname, user.email, tag.id, tag.name, post.imageUrl, post.videoUrl, post.createdAt, post.is_published, post.is_blocked, post.is_rejected')
-        .orderBy('COUNT(DISTINCT likes.id)', 'DESC')
-        .addOrderBy('COUNT(DISTINCT viewedBy.id)', 'DESC')
-        .limit(3 - allFoundPosts.length)
-        .getRawAndEntities();
+      const yesterdayQuery = `
+        SELECT DISTINCT
+          p.id, 
+          p.imageUrl AS image_url, 
+          p.videoUrl AS video_url, 
+          p.createdAt AS created_at,
+          u.id AS user_id,
+          u.nickname AS username,
+          t.id AS tag_id,
+          t.name AS tag_name,
+          p.is_published,
+          p.is_blocked,
+          p.is_rejected,
+          (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS like_count,
+          (SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id) AS view_count,
+          CASE 
+            WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ${userId}) 
+            THEN TRUE 
+            ELSE FALSE 
+          END AS is_liked
+        FROM 
+          posts p
+          JOIN users u ON p.userId = u.id
+          LEFT JOIN tags t ON p.tagId = t.id
+        WHERE 
+          p.createdAt >= '${yesterday.toISOString()}' 
+          AND p.createdAt < '${today.toISOString()}'
+          AND p.is_published = true 
+          AND p.is_blocked = false
+          AND p.is_rejected = false
+          AND (p.imageUrl IS NOT NULL OR p.videoUrl IS NOT NULL)
+        ORDER BY 
+          like_count DESC, view_count DESC
+        LIMIT ${3 - allFoundPosts.length};
+      `;
 
-      if (yesterdayPosts.entities.length > 0) {
-        allFoundPosts.push(...yesterdayPosts.entities.map((post, index) => ({
+      const yesterdayPosts = await this.postRepository.query(yesterdayQuery);
+      
+      if (yesterdayPosts.length > 0) {
+        allFoundPosts.push(...yesterdayPosts.map(post => ({
           post,
-          rawData: yesterdayPosts.raw[index],
-          period: 'yesterday',
-          isLiked: post.likes?.some(like => like.user?.id === userId) || false
+          period: 'yesterday'
         })));
         if (period === 'today') period = 'mixed';
         else period = 'yesterday';
@@ -550,63 +567,45 @@ export class ActivityService {
 
     // Якщо все ще немає 3 постів, шукаємо за всі часи
     if (allFoundPosts.length < 3) {
-      // Використовуємо QueryBuilder для правильної загрузки лайків
-      const allPostsQuery = this.postRepository
-        .createQueryBuilder('post')
-        .leftJoinAndSelect('post.user', 'user')
-        .leftJoinAndSelect('post.tag', 'tag')
-        .leftJoinAndSelect('post.likes', 'likes')
-        .leftJoinAndSelect('likes.user', 'likesUser')
-        .leftJoin('post.viewedBy', 'viewedBy')
-        .where('post.is_published = :isPublished', { isPublished: true })
-        .andWhere('post.is_blocked = :isBlocked', { isBlocked: false })
-        .andWhere('post.is_rejected = :isRejected', { isRejected: false })
-        .andWhere('(post.imageUrl IS NOT NULL OR post.videoUrl IS NOT NULL)')
-        .addSelect('COUNT(DISTINCT likes.id)', 'likeCount')
-        .addSelect('COUNT(DISTINCT viewedBy.id)', 'viewCount')
-        .groupBy('post.id, user.id, user.name, user.nickname, user.email, tag.id, tag.name, post.imageUrl, post.videoUrl, post.createdAt, post.is_published, post.is_blocked, post.is_rejected')
-        .orderBy('COUNT(DISTINCT likes.id)', 'DESC')
-        .addOrderBy('COUNT(DISTINCT viewedBy.id)', 'DESC')
-        .limit(50); // Завантажуємо більше постів для сортування
+      const allTimeQuery = `
+        SELECT DISTINCT
+          p.id, 
+          p.imageUrl AS image_url, 
+          p.videoUrl AS video_url, 
+          p.createdAt AS created_at,
+          u.id AS user_id,
+          u.nickname AS username,
+          t.id AS tag_id,
+          t.name AS tag_name,
+          p.is_published,
+          p.is_blocked,
+          p.is_rejected,
+          (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS like_count,
+          (SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id) AS view_count,
+          CASE 
+            WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ${userId}) 
+            THEN TRUE 
+            ELSE FALSE 
+          END AS is_liked
+        FROM 
+          posts p
+          JOIN users u ON p.userId = u.id
+          LEFT JOIN tags t ON p.tagId = t.id
+        WHERE 
+          p.is_published = true 
+          AND p.is_blocked = false
+          AND p.is_rejected = false
+          AND (p.imageUrl IS NOT NULL OR p.videoUrl IS NOT NULL)
+        ORDER BY 
+          like_count DESC, view_count DESC
+        LIMIT ${3 - allFoundPosts.length};
+      `;
 
-      const allPostsResult = await allPostsQuery.getRawAndEntities();
-      const allPosts = allPostsResult.entities;
+      const allTimePosts = await this.postRepository.query(allTimeQuery);
       
-      const postsWithMedia = allPosts.filter(post => post.imageUrl || post.videoUrl);
-      
-      const sortedPosts = postsWithMedia
-        .map((post, index) => {
-          const rawData = allPostsResult.raw[index];
-          const isLiked = post.likes?.some(like => like.user?.id === userId) || false;
-          console.log(`🔍 Post ${post.id}:`, {
-            likesCount: post.likes?.length || 0,
-            likes: post.likes?.map(like => ({ likeId: like.id, userId: like.user?.id, currentUserId: userId })),
-            isLiked,
-            hasLikes: !!post.likes,
-            hasLikesUser: post.likes?.every(like => !!like.user)
-          });
-          
-          return {
-            post,
-            likeCount: parseInt(rawData.likeCount) || 0,
-            viewCount: parseInt(rawData.viewCount) || 0,
-            isLiked,
-            period: 'all_time'
-          };
-        })
-        .sort((a, b) => {
-          if (b.likeCount !== a.likeCount) {
-            return b.likeCount - a.likeCount;
-          }
-          return b.viewCount - a.viewCount;
-        })
-        .slice(0, 3 - allFoundPosts.length);
-
-      allFoundPosts.push(...sortedPosts.map(item => ({
-        post: item.post,
-        rawData: { likeCount: item.likeCount.toString(), viewCount: item.viewCount.toString() },
-        period: item.period,
-        isLiked: item.isLiked
+      allFoundPosts.push(...allTimePosts.map(post => ({
+        post,
+        period: 'all_time'
       })));
       
       if (period !== 'mixed') period = 'all_time';
@@ -614,10 +613,10 @@ export class ActivityService {
 
     // Сортуємо всі знайдені пости за популярністю
     allFoundPosts.sort((a, b) => {
-      const aLikes = parseInt(a.rawData.likeCount) || 0;
-      const bLikes = parseInt(b.rawData.likeCount) || 0;
-      const aViews = parseInt(a.rawData.viewCount) || 0;
-      const bViews = parseInt(b.rawData.viewCount) || 0;
+      const aLikes = parseInt(a.post.like_count) || 0;
+      const bLikes = parseInt(b.post.like_count) || 0;
+      const aViews = parseInt(a.post.view_count) || 0;
+      const bViews = parseInt(b.post.view_count) || 0;
       
       if (bLikes !== aLikes) {
         return bLikes - aLikes;
@@ -629,34 +628,29 @@ export class ActivityService {
     const topPosts = allFoundPosts.slice(0, 3);
     
     // Форматуємо результат
-    const formattedPosts = topPosts.map(async (item) => {
-      // isLiked вже обчислено для всіх випадків
-      const isLiked = item.isLiked || false;
-      
+    const formattedPosts = topPosts.map((item) => {
       return {
         id: item.post.id,
-        imageUrl: item.post.imageUrl,
-        videoUrl: item.post.videoUrl,
-        likeCount: parseInt(item.rawData.likeCount) || 0,
-        viewCount: parseInt(item.rawData.viewCount) || 0,
-        createdAt: item.post.createdAt,
-        userId: item.post.user.id,
-        username: item.post.user.nickname || item.post.user.name || item.post.user.email || 'Unknown User',
-        tagName: item.post.tag?.name || null,
-        tagId: item.post.tag?.id || null,
+        imageUrl: item.post.image_url,
+        videoUrl: item.post.video_url,
+        likeCount: parseInt(item.post.like_count) || 0,
+        viewCount: parseInt(item.post.view_count) || 0,
+        createdAt: new Date(item.post.created_at),
+        userId: item.post.user_id,
+        username: item.post.username || 'Unknown User',
+        tagName: item.post.tag_name ? `#${item.post.tag_name}` : null,
+        tagId: item.post.tag_id,
         isPublished: item.post.is_published,
         isBlocked: item.post.is_blocked,
         isRejected: item.post.is_rejected,
-        isLiked,
+        isLiked: item.post.is_liked,
       };
     });
 
-    const resolvedPosts = await Promise.all(formattedPosts);
-
     return {
-      posts: resolvedPosts,
+      posts: formattedPosts,
       period,
-      totalCount: resolvedPosts.length,
+      totalCount: formattedPosts.length,
     };
     } catch (error) {
       console.error('Error getting popular posts:', error);
