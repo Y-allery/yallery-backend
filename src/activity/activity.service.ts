@@ -562,13 +562,24 @@ export class ActivityService {
       const postsWithMedia = allPosts.filter(post => post.imageUrl || post.videoUrl);
       
       const sortedPosts = postsWithMedia
-        .map(post => ({
-          post,
-          likeCount: post.likes?.length || 0,
-          viewCount: post.viewedBy?.length || 0,
-          isLiked: post.likes?.some(like => like.user?.id === userId) || false,
-          period: 'all_time'
-        }))
+        .map(post => {
+          const isLiked = post.likes?.some(like => like.user?.id === userId) || false;
+          console.log(`🔍 Post ${post.id}:`, {
+            likesCount: post.likes?.length || 0,
+            likes: post.likes?.map(like => ({ likeId: like.id, userId: like.user?.id, currentUserId: userId })),
+            isLiked,
+            hasLikes: !!post.likes,
+            hasLikesUser: post.likes?.every(like => !!like.user)
+          });
+          
+          return {
+            post,
+            likeCount: post.likes?.length || 0,
+            viewCount: post.viewedBy?.length || 0,
+            isLiked,
+            period: 'all_time'
+          };
+        })
         .sort((a, b) => {
           if (b.likeCount !== a.likeCount) {
             return b.likeCount - a.likeCount;
