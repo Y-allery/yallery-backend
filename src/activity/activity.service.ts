@@ -550,19 +550,33 @@ export class ActivityService {
 
     // Якщо все ще немає 3 постів, шукаємо за всі часи
     if (allFoundPosts.length < 3) {
-      const allPosts = await this.postRepository.find({
-        where: {
-          is_published: true,
-          is_blocked: false,
-          is_rejected: false,
-        },
-        relations: ['user', 'tag', 'likes', 'likes.user', 'viewedBy'],
-      });
+      // Використовуємо QueryBuilder для правильної загрузки лайків
+      const allPostsQuery = this.postRepository
+        .createQueryBuilder('post')
+        .leftJoinAndSelect('post.user', 'user')
+        .leftJoinAndSelect('post.tag', 'tag')
+        .leftJoinAndSelect('post.likes', 'likes')
+        .leftJoinAndSelect('likes.user', 'likesUser')
+        .leftJoin('post.viewedBy', 'viewedBy')
+        .where('post.is_published = :isPublished', { isPublished: true })
+        .andWhere('post.is_blocked = :isBlocked', { isBlocked: false })
+        .andWhere('post.is_rejected = :isRejected', { isRejected: false })
+        .andWhere('(post.imageUrl IS NOT NULL OR post.videoUrl IS NOT NULL)')
+        .addSelect('COUNT(DISTINCT likes.id)', 'likeCount')
+        .addSelect('COUNT(DISTINCT viewedBy.id)', 'viewCount')
+        .groupBy('post.id, user.id, user.name, user.nickname, user.email, tag.id, tag.name, post.imageUrl, post.videoUrl, post.createdAt, post.is_published, post.is_blocked, post.is_rejected')
+        .orderBy('COUNT(DISTINCT likes.id)', 'DESC')
+        .addOrderBy('COUNT(DISTINCT viewedBy.id)', 'DESC')
+        .limit(50); // Завантажуємо більше постів для сортування
+
+      const allPostsResult = await allPostsQuery.getRawAndEntities();
+      const allPosts = allPostsResult.entities;
       
       const postsWithMedia = allPosts.filter(post => post.imageUrl || post.videoUrl);
       
       const sortedPosts = postsWithMedia
-        .map(post => {
+        .map((post, index) => {
+          const rawData = allPostsResult.raw[index];
           const isLiked = post.likes?.some(like => like.user?.id === userId) || false;
           console.log(`🔍 Post ${post.id}:`, {
             likesCount: post.likes?.length || 0,
@@ -574,8 +588,8 @@ export class ActivityService {
           
           return {
             post,
-            likeCount: post.likes?.length || 0,
-            viewCount: post.viewedBy?.length || 0,
+            likeCount: parseInt(rawData.likeCount) || 0,
+            viewCount: parseInt(rawData.viewCount) || 0,
             isLiked,
             period: 'all_time'
           };
