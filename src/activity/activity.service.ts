@@ -556,7 +556,7 @@ export class ActivityService {
           is_blocked: false,
           is_rejected: false,
         },
-        relations: ['user', 'tag', 'likes', 'viewedBy'],
+        relations: ['user', 'tag', 'likes', 'likes.user', 'viewedBy'],
       });
       
       const postsWithMedia = allPosts.filter(post => post.imageUrl || post.videoUrl);
