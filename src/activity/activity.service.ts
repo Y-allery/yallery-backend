@@ -486,7 +486,8 @@ export class ActivityService {
       .createQueryBuilder('post')
       .leftJoinAndSelect('post.user', 'user')
       .leftJoinAndSelect('post.tag', 'tag')
-      .leftJoin('post.likes', 'likes')
+      .leftJoinAndSelect('post.likes', 'likes')
+      .leftJoinAndSelect('likes.user', 'likesUser')
       .leftJoin('post.viewedBy', 'viewedBy')
       .where('post.createdAt >= :today', { today })
       .andWhere('post.createdAt < :tomorrow', { tomorrow })
@@ -506,7 +507,8 @@ export class ActivityService {
       allFoundPosts.push(...todayPosts.entities.map((post, index) => ({
         post,
         rawData: todayPosts.raw[index],
-        period: 'today'
+        period: 'today',
+        isLiked: post.likes?.some(like => like.user?.id === userId) || false
       })));
       period = 'today';
     }
@@ -517,7 +519,8 @@ export class ActivityService {
         .createQueryBuilder('post')
         .leftJoinAndSelect('post.user', 'user')
         .leftJoinAndSelect('post.tag', 'tag')
-        .leftJoin('post.likes', 'likes')
+        .leftJoinAndSelect('post.likes', 'likes')
+        .leftJoinAndSelect('likes.user', 'likesUser')
         .leftJoin('post.viewedBy', 'viewedBy')
         .where('post.createdAt >= :yesterday', { yesterday })
         .andWhere('post.createdAt < :today', { today })
@@ -537,7 +540,8 @@ export class ActivityService {
         allFoundPosts.push(...yesterdayPosts.entities.map((post, index) => ({
           post,
           rawData: yesterdayPosts.raw[index],
-          period: 'yesterday'
+          period: 'yesterday',
+          isLiked: post.likes?.some(like => like.user?.id === userId) || false
         })));
         if (period === 'today') period = 'mixed';
         else period = 'yesterday';
@@ -601,19 +605,8 @@ export class ActivityService {
     
     // Форматуємо результат
     const formattedPosts = topPosts.map(async (item) => {
-      let isLiked = false;
-      
-      if (item.isLiked !== undefined) {
-        // Для all_time isLiked вже обчислено
-        isLiked = item.isLiked;
-      } else {
-        // Для today і yesterday завантажуємо лайки окремо
-        const postWithLikes = await this.postRepository.findOne({
-          where: { id: item.post.id },
-          relations: ['likes', 'likes.user'],
-        });
-        isLiked = postWithLikes?.likes?.some(like => like.user?.id === userId) || false;
-      }
+      // isLiked вже обчислено для всіх випадків
+      const isLiked = item.isLiked || false;
       
       return {
         id: item.post.id,
