@@ -1,4 +1,4 @@
-// src/activity/entities/activity.entity.ts
+
 import {
   Entity,
   PrimaryGeneratedColumn,

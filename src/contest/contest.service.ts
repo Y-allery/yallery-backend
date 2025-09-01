@@ -789,7 +789,7 @@ export class ContestService {
 
     return contests.map((contest) => ({
       ...contest,
-      endTime: contest.endTime.toISOString().slice(0, 10), // Format the date as YYYY-MM-DD
+              endTime: contest.endTime.toISOString().slice(0, 10),
     }));
   }
 

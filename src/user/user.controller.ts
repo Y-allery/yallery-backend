@@ -278,14 +278,5 @@ export class UserController {
     await this.userService.processTopLikedPostRewards();
   }
 
-  @Get('test')
-  @ApiOperation({ summary: 'Test endpoint' })
-  @ApiResponse({ status: 200, description: 'Test endpoint working' })
-  async testEndpoint() {
-    return {
-      message: 'Test endpoint is working!',
-      timestamp: new Date().toISOString(),
-      status: 'success'
-    };
-  }
+
 }

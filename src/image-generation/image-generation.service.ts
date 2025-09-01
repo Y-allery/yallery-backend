@@ -142,7 +142,7 @@ export class ImageGenerationService {
     try {
       const suggestedTags = [];
       
-      // Always add "other" tag first
+      
       const otherTag = await this.tagEntity.findOne({
         where: { name: 'other' },
       });
@@ -152,10 +152,10 @@ export class ImageGenerationService {
         imageUrl: otherTag.imageUrl,
       });
 
-      // Try to find a better tag using AI based on the edit prompt
+      
       try {
         tag = await this.findBestTag(editImageDto.prompt);
-        // Only add AI tag if it's different from "other"
+
         if (tag.id !== otherTag.id) {
           suggestedTags.push({
             id: tag.id,
@@ -165,7 +165,7 @@ export class ImageGenerationService {
         }
       } catch (aiError) {
         console.log('AI tag generation failed, using only "other" tag:', aiError.message);
-        // If AI fails, we still have "other" tag
+
       }
 
       token = await this.serviceTokenService.getNextAvailableToken(
@@ -383,7 +383,7 @@ export class ImageGenerationService {
   async editImage(editImageDto: EditImageDto, userId: number) {
     const user = await this.getUser(userId);
     
-    // Create a temporary DTO for credit verification
+    
     const tempDto = {
       ai_service: AIEnum.BYTEDANCE_EDIT,
       image_quantity: 1,
@@ -681,7 +681,7 @@ export class ImageGenerationService {
     imageUrl: string,
     user: UserEntity,
   ) {
-    // Create a temporary DTO for post creation
+    
     const tempDto = {
       prompt: editImageDto.prompt,
       ai_service: AIEnum.BYTEDANCE_EDIT,
@@ -715,13 +715,13 @@ export class ImageGenerationService {
     let cost: number;
     
     if ('ai_service' in dto && 'image_quantity' in dto) {
-      // This is GenerateImageDto
+      
       cost = this.calculateTotalCost(
         dto.ai_service,
         dto.image_quantity,
       );
     } else {
-      // This is EditImageDto
+      
       cost = this.calculateTotalCost(
         AIEnum.BYTEDANCE_EDIT,
         1,

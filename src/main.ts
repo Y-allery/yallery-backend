@@ -92,7 +92,7 @@ async function bootstrap() {
   );
   expressApp.set('trust proxy', 1);
   app.use(passport.initialize());
-  app.use(passport.session()); //TEST TO MAINsd
+  app.use(passport.session());
 
   const port = process.env.PORT || 8000;
   await app.listen(port, '0.0.0.0');

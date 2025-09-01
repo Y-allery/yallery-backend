@@ -134,7 +134,7 @@ export class NotificationGateway {
           'https://res.cloudinary.com/dsypundib/image/upload/v1732808917/other_tag-min_qd9y0c.png',
       };
 
-      // Images
+      
       const images = undeliveredPosts
         .filter((post) => post.imageUrl && !post.videoUrl)
         .map((post) => ({
@@ -143,7 +143,7 @@ export class NotificationGateway {
           tagId: post.tag?.id,
         }));
 
-      // Videos
+      
       const videos = undeliveredPosts
         .filter((post) => post.videoUrl)
         .map((post) => ({
@@ -152,7 +152,7 @@ export class NotificationGateway {
           tagId: post.tag?.id,
         }));
 
-      // Collect all unique tagIds from images and videos (excluding 48)
+      
       const allTagIds = [
         ...images.map((img) => img.tagId),
         ...videos.map((vid) => vid.tagId),
@@ -216,7 +216,7 @@ export class NotificationGateway {
         console.log(`Sent undelivered videos to user ${userId}`);
       }
 
-      // Update delivery status regardless of connection state
+      
       const allUndeliveredIds = undeliveredPosts.map((post) => post.id);
       await this.postRepository.update(
         { id: In(allUndeliveredIds) },

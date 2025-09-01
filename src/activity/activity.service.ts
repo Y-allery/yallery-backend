@@ -204,8 +204,8 @@ export class ActivityService {
         ]),
       },
       relations: { contest: true, post: { user: true } },
-      skip: (page - 1) * limit, // Skip the records to get to the correct page
-      take: limit, // Limit the number of results per page
+      skip: (page - 1) * limit,
+      take: limit,
     });
 
     return {
@@ -237,8 +237,8 @@ export class ActivityService {
         ]),
       },
       relations: { contest: true, post: true },
-      skip: (page - 1) * limit, // Skip the records to get to the correct page
-      take: limit, // Limit the number of results per page
+      skip: (page - 1) * limit,
+      take: limit,
     });
 
     return {

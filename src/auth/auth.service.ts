@@ -255,7 +255,7 @@ export class AuthService {
     const user = await this.userRepository.findOne({ where: { email } });
     if (!user) throw new NotFoundException('User not found');
     user.resetToken = uuidv4();
-    user.resetTokenExpiration = new Date(Date.now() + 3600000); // 1 hour expiry
+    user.resetTokenExpiration = new Date(Date.now() + 3600000);
     await this.userRepository.save(user);
     const resetUrl = `${this.configService.get('HOME_URL')}/auth/reset-password?token=${user.resetToken}`;
     await this.mailService.sendResetPasswordEmail(email, resetUrl);
@@ -308,7 +308,7 @@ export class AuthService {
     if (!user) throw new NotFoundException('User not found');
 
     user.resetToken = uuidv4();
-    user.resetTokenExpiration = new Date(Date.now() + 3600000); // 1 hour expiry
+    user.resetTokenExpiration = new Date(Date.now() + 3600000);
     await this.userRepository.save(user);
 
     const changeEmailUrl = `${this.configService.get('HOME_URL')}/auth/confirm-change-email?token=${user.resetToken}`;
