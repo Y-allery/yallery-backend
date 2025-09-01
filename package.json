@@ -7,6 +7,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "build": "npm run build:direct",
+    "build:prod": "npm run build:direct",
     "build:fallback": "npx tsc && cp -r public dist/",
     "build:direct": "npx tsc && cp -r public dist/",
     "start": "node dist/src/main.js",
