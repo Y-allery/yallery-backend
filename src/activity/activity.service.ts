@@ -72,7 +72,7 @@ export class ActivityService {
         ? generation_cost
         : this.getPointsForActivity(type, contest_reward);
 
-    // Передаємо points як generationCost для правильного відображення в повідомленні
+
     const messageGenerationCost = points;
     
     const description = this.getActivityMessage(type, messageGenerationCost, contest);
@@ -422,7 +422,7 @@ export class ActivityService {
   }
 
   async claimDailyReward(userId: number): Promise<{ success: boolean; message: string; pointsAwarded: number }> {
-    // Перевіряємо, чи користувач вже отримав нагороду сьогодні
+
     const hasReceivedToday = await this.hasReceivedDailyRewardToday(userId);
     
     if (hasReceivedToday) {
@@ -434,18 +434,18 @@ export class ActivityService {
     }
     const dailyRewardAmount = this.configService.get('DAILY_REWARD_YEPS');
 
-    // Отримуємо кількість YEPs за щоденну нагороду
+
     const dailyRewardPoints = this.getPointsForActivity(ActivityEnum.DAILY_REWARD);
     
-    // Створюємо активність щоденної нагороди
+
     await this.createActivities(
-      null, // fromUserId - null для системних активностей
+      null,
       [userId], // toUserIds
       ActivityEnum.DAILY_REWARD
     );
 
     await this.userRepository.increment({ id: userId }, 'points', dailyRewardAmount);
-    // Оновлюємо профіль користувача через WebSocket
+
     await this.notificationGateway.emitProfileUpdate(userId.toString());
 
     return {
@@ -468,7 +468,7 @@ export class ActivityService {
     let allFoundPosts = [];
     let period: 'today' | 'yesterday' | 'all_time' | 'mixed' = 'today';
     
-    // Спочатку шукаємо пости за сьогодні
+
     const todayQuery = `
       SELECT DISTINCT
         p.id, 
@@ -515,7 +515,7 @@ export class ActivityService {
       period = 'today';
     }
 
-    // Якщо за сьогодні немає постів або їх менше 3, шукаємо за вчора
+
     if (allFoundPosts.length < 3) {
       const yesterdayQuery = `
         SELECT DISTINCT
@@ -565,7 +565,7 @@ export class ActivityService {
       }
     }
 
-    // Якщо все ще немає 3 постів, шукаємо за всі часи
+
     if (allFoundPosts.length < 3) {
       const allTimeQuery = `
         SELECT DISTINCT
@@ -611,7 +611,7 @@ export class ActivityService {
       if (period !== 'mixed') period = 'all_time';
     }
 
-    // Сортуємо всі знайдені пости за популярністю
+
     allFoundPosts.sort((a, b) => {
       const aLikes = parseInt(a.post.like_count) || 0;
       const bLikes = parseInt(b.post.like_count) || 0;
@@ -624,10 +624,10 @@ export class ActivityService {
       return bViews - aViews;
     });
 
-    // Беремо топ 3 пости
+
     const topPosts = allFoundPosts.slice(0, 3);
     
-    // Форматуємо результат
+
     const formattedPosts = topPosts.map((item) => {
       return {
         id: item.post.id,

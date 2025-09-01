@@ -166,7 +166,7 @@ export class NotificationGateway {
       }
 
       if (images.length > 0 && client.connected) {
-        // Збираємо всі унікальні теги для images
+    
         let suggestedTags = [OTHER_TAG];
         const imageTagIds = images
           .map((img) => img.tagId)

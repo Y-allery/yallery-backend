@@ -192,7 +192,7 @@ export class AdminService {
     const res = await axios.get(url, {
       headers: {
         Accept: 'application/json',
-        'User-Agent': 'NestJS TwitterScore Client', // ← Додано критично важливий заголовок
+        'User-Agent': 'NestJS TwitterScore Client',
       },
     });
     return res.data.data;
@@ -203,7 +203,7 @@ export class AdminService {
     const res = await axios.get(url, {
       headers: {
         Accept: 'application/json',
-        'User-Agent': 'NestJS TwitterScore Client', // ← критично важливо
+        'User-Agent': 'NestJS TwitterScore Client',
       },
     });
     return res.data.data;
@@ -214,7 +214,7 @@ export class AdminService {
     const res = await axios.get(url, {
       headers: {
         Accept: 'application/json',
-        'User-Agent': 'NestJS TwitterScore Client', // ← критично важливо
+        'User-Agent': 'NestJS TwitterScore Client',
       },
     });
     return res.data.data;

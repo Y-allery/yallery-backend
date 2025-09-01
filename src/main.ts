@@ -35,10 +35,10 @@ async function bootstrap() {
       resave: false,
       saveUninitialized: false,
       cookie: {
-        secure: process.env.NODE_ENV === 'production', // true якщо ви на HTTPS
+        secure: process.env.NODE_ENV === 'production',
         httpOnly: true,
-        maxAge: 3600000, // 1 година
-        // sameSite: 'none', // якщо фронт/бекенд на різних доменах і потрібен cross-site
+        maxAge: 3600000,
+
       },
     }),
   );
@@ -52,7 +52,7 @@ async function bootstrap() {
       bearerFormat: 'JWT',
     })
     .addSecurityRequirements('bearer')
-    .build(); //sdівsdsdsd
+    .build();
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
@@ -83,7 +83,7 @@ async function bootstrap() {
       resave: false,
       saveUninitialized: false,
       cookie: {
-        secure: process.env.NODE_ENV === 'production' ? true : false, // Використовуйте HTTPS у production
+        secure: process.env.NODE_ENV === 'production' ? true : false,
         httpOnly: true,
         maxAge: 3600000,
         sameSite: 'none',

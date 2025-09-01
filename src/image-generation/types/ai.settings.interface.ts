@@ -8,5 +8,5 @@ export interface AISettings {
   sizes: string[];
   styles?: string[];
   id: string;
-  is_artem?: boolean;  // Опціональне поле для edit функціональності
+  is_artem?: boolean;
 }

@@ -551,7 +551,7 @@ export class PostService {
       throw new NotFoundException('Post not found');
     }
 
-    // Якщо є відео — повертаємо його без змін
+
     if (post.videoUrl) {
       try {
         const response = await axios.get(post.videoUrl, {
@@ -568,7 +568,7 @@ export class PostService {
       }
     }
 
-    // Інакше — зображення з ватермаркою
+
     let imageBuffer: Buffer;
     try {
       const response = await axios.get(post.imageUrl, {
@@ -841,7 +841,7 @@ export class PostService {
     });
     console.log('[_postTweet] Successfully navigated to Twitter compose page');
     
-    // Додаємо детальне логування всіх елементів на сторінці
+
 
 
     const tweetText = post.contest && post.contest.tag 
@@ -1056,7 +1056,7 @@ export class PostService {
     await page.goto('https://mail.google.com/mail/u/0/#inbox', {
       waitUntil: 'domcontentloaded',
     });
-    await new Promise((resolve) => setTimeout(resolve, 10000)); // Чекати на надходження листа з кодом (10 секунд)
+    await new Promise((resolve) => setTimeout(resolve, 10000));
 
     const code = await page.evaluate(() => {
       const spans = Array.from(document.querySelectorAll('span'));

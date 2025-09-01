@@ -98,7 +98,7 @@ export class ImageGenerationService {
       maxImages: 1,
       maxPromptLength: 1000,
       sizes: ['1024x1024', '1536x640', '768x1344'],
-      is_artem: true,  // Тільки для edit функціональності
+      is_artem: true,
     },
   };
   private openai;
@@ -208,14 +208,14 @@ export class ImageGenerationService {
         console.log('🔍 Bytedance Edit Debug - Result.image length:', result.image?.length);
       }
       
-      // Обробляємо результат - API повертає об'єкт, а не масив
+  
       let imagesToProcess = [];
       if (Array.isArray(result.image)) {
         console.log('🔍 Bytedance Edit Debug - Processing result.image as array');
         imagesToProcess = result.image;
       } else if (result.image && typeof result.image === 'object' && result.image.url) {
         console.log('🔍 Bytedance Edit Debug - Processing result.image as single object');
-        // Якщо result.image є об'єктом з URL, обгортаємо його в масив
+    
         imagesToProcess = [result.image];
       } else {
         console.error('❌ Bytedance Edit Debug - Invalid result.image:', result.image);
