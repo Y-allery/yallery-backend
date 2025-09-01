@@ -1,2 +1,0 @@
-Test build commit #1
-This is a test file to verify the build process works correctly.
