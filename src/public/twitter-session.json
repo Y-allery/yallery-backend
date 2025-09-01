@@ -1,0 +1,47 @@
+[
+  {
+    "name": "ct0",
+    "value": "bc071a281a29f078061b7a8d7916be21286336b4a9c976bb14fde4b38c8b293826eeb6f5136097a05508fd5f568196993fe42ee801a55161f5cc6df09e010a1d7f74f8e95611dfe6d2104119476c99ac",
+    "domain": ".x.com",
+    "path": "/",
+    "expires": 1791281608.841321,
+    "size": 163,
+    "httpOnly": false,
+    "secure": true,
+    "session": false,
+    "sameSite": "Lax",
+    "priority": "Medium",
+    "sameParty": false,
+    "sourceScheme": "Secure"
+  },
+  {
+    "name": "att",
+    "value": "1-tiPIn3SMaZIgejvpEN2TqnjAEUB47M5bseUTa2Xg",
+    "domain": ".x.com",
+    "path": "/",
+    "expires": 1756808009.134987,
+    "size": 45,
+    "httpOnly": true,
+    "secure": true,
+    "session": false,
+    "sameSite": "None",
+    "priority": "Medium",
+    "sameParty": false,
+    "sourceScheme": "Secure"
+  },
+  {
+    "name": "auth_token",
+    "value": "83b07274de3e4430969a4989cf2e8b272ec91b45",
+    "domain": ".x.com",
+    "path": "/",
+    "expires": 1791281608.590051,
+    "size": 50,
+    "httpOnly": true,
+    "secure": true,
+    "session": false,
+    "sameSite": "None",
+    "priority": "Medium",
+    "sameParty": false,
+    "sourceScheme": "Secure"
+  }
+]

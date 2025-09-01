@@ -78,6 +78,8 @@ export class ContestController {
     await this.contestService.updateContestStatuses();
   }
 
+
+
   @Get(':id')
   @ApiParam({
     name: 'id',
