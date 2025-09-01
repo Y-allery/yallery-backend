@@ -24,6 +24,6 @@ jobs:
             git reset --hard HEAD
             git clean -fd
             git pull origin main
-            npm install --omit=dev
-            npx tsc && cp -r public dist/
+            npm install
+            npm run build
             pm2 restart yallery-backend
