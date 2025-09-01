@@ -21,8 +21,10 @@ jobs:
           key: ${{ secrets.PROD_DEPLOY_KEY }}
           script: |
             cd /root/yallery-backend
+            git reset --hard HEAD
+            git clean -fd
             git pull origin main
-            npm install --omit=dev
-            npm run build:prod
+            npm install
+            npm run build
             npm run migration:run
             pm2 restart yallery-backend
