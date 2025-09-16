@@ -43,6 +43,9 @@ export class PopularPostDto implements PopularPost {
 
   @ApiProperty({ description: 'Is post liked by current user' })
   isLiked: boolean;
+
+  @ApiProperty({ description: 'Is post viewed by current user' })
+  isViewed: boolean;
 }
 
 export class PopularPostsResponseDto implements PopularPostsResponse {

@@ -14,6 +14,7 @@ import { ContestTypeEnum } from 'src/contest/types/contest.status.enum';
 import { NotificationGateway } from 'src/notification/notification.gateway';
 import { UserEntity } from 'src/user/entities/user.entity';
 import { PopularPostsResponse } from './types/popular-post.interface';
+import { ViewedPostEntity } from 'src/post/entities/viwed.entity';
 
 @Injectable()
 export class ActivityService {
@@ -27,6 +28,8 @@ export class ActivityService {
     private readonly configService: ConfigService,
     @InjectRepository(NotificationPreferenceEntity)
     private notificationPreferenceRepository: Repository<NotificationPreferenceEntity>,
+    @InjectRepository(ViewedPostEntity)
+    private viewedPostRepository: Repository<ViewedPostEntity>,
     private readonly notificationGateway: NotificationGateway,
   ) {}
 
@@ -488,7 +491,12 @@ export class ActivityService {
           WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ${userId}) 
           THEN TRUE 
           ELSE FALSE 
-        END AS is_liked
+        END AS is_liked,
+        CASE 
+          WHEN EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ${userId}) 
+          THEN TRUE 
+          ELSE FALSE 
+        END AS is_viewed
       FROM 
         posts p
         JOIN users u ON p.userId = u.id
@@ -536,7 +544,12 @@ export class ActivityService {
             WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ${userId}) 
             THEN TRUE 
             ELSE FALSE 
-          END AS is_liked
+          END AS is_liked,
+          CASE 
+            WHEN EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ${userId}) 
+            THEN TRUE 
+            ELSE FALSE 
+          END AS is_viewed
         FROM 
           posts p
           JOIN users u ON p.userId = u.id
@@ -586,7 +599,12 @@ export class ActivityService {
             WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ${userId}) 
             THEN TRUE 
             ELSE FALSE 
-          END AS is_liked
+          END AS is_liked,
+          CASE 
+            WHEN EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ${userId}) 
+            THEN TRUE 
+            ELSE FALSE 
+          END AS is_viewed
         FROM 
           posts p
           JOIN users u ON p.userId = u.id
@@ -644,6 +662,7 @@ export class ActivityService {
         isBlocked: item.post.is_blocked,
         isRejected: item.post.is_rejected,
         isLiked: item.post.is_liked,
+        isViewed: item.post.is_viewed,
       };
     });
 
@@ -660,5 +679,68 @@ export class ActivityService {
         totalCount: 0,
       };
     }
+  }
+
+  async markPostsAsViewed(postIds: number[], userId: number) {
+    const posts = await this.postRepository.find({
+      where: { id: In(postIds) },
+    });
+
+    const foundIds = posts.map((post) => post.id);
+    const notFoundIds = postIds.filter((id) => !foundIds.includes(id));
+
+    if (posts.length === 0) {
+      return {
+        message: 'No posts were marked as viewed.',
+        markedCount: 0,
+        notFoundIds,
+      };
+    }
+
+    const existingViewedPosts = await this.viewedPostRepository.find({
+      where: {
+        post: { id: In(foundIds) },
+        user: { id: userId },
+      },
+      relations: { post: true },
+      select: ['post'],
+    });
+
+    const viewedPostIds = existingViewedPosts.map((vp) => vp.post.id);
+
+    const newViewedPostIds = foundIds.filter(
+      (id) => !viewedPostIds.includes(id),
+    );
+
+    if (newViewedPostIds.length === 0) {
+      return {
+        message: 'All existing posts have already been marked as viewed.',
+        markedCount: 0,
+        notFoundIds,
+      };
+    }
+
+    const newViewedPosts = newViewedPostIds
+      .map((id) => {
+        const post = posts.find((p) => p.id === id);
+        if (!post) return null;
+        return this.viewedPostRepository.create({
+          post,
+          user: { id: userId },
+        });
+      })
+      .filter((item) => item !== null);
+    await this.viewedPostRepository.save(newViewedPosts);
+
+    const response = {
+      message:
+        notFoundIds.length > 0
+          ? 'Some posts were marked as viewed, but some posts were not found.'
+          : 'All posts were successfully marked as viewed.',
+      markedCount: newViewedPosts.length,
+      notFoundIds,
+    };
+
+    return response;
   }
 }

@@ -13,6 +13,7 @@ export interface PopularPost {
   isBlocked: boolean;
   isRejected: boolean;
   isLiked: boolean;
+  isViewed: boolean;
 }
 
 export interface PopularPostsResponse {

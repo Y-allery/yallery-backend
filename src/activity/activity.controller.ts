@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Query, Req, UseGuards, Post } from '@nestjs/common';
+import { Controller, Get, Put, Query, Req, UseGuards, Post, Patch, Body } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { ActivityService } from './activity.service';
 import { AuthenticatedRequest } from 'src/auth/types/auth.user.interface';
@@ -7,6 +7,7 @@ import { ActivityEntity } from './entities/activity.entity';
 import { ActivityEnum } from './types/activity.enum';
 import { ClaimDailyRewardResponseDto } from './dto/claim-daily-reward.dto';
 import { PopularPostsResponseDto } from './dto/popular-posts.dto';
+import { MarkViewedDto } from '../post/dto/mark.viewed.dto';
 
 @Controller('activity')
 @ApiTags('Activity')
@@ -146,5 +147,20 @@ export class ActivityController {
   async getPopularPosts(@Req() req: AuthenticatedRequest): Promise<PopularPostsResponseDto> {
     const userId = req.user.id;
     return await this.activityService.getPopularPosts(userId);
+  }
+
+  @Patch('mark-posts-viewed')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Mark posts as viewed' })
+  @ApiResponse({
+    status: 200,
+    description: 'Posts marked as viewed successfully',
+  })
+  async markPostsAsViewed(
+    @Req() req: AuthenticatedRequest,
+    @Body() markViewedDto: MarkViewedDto,
+  ) {
+    const userId = req.user.id;
+    return await this.activityService.markPostsAsViewed(markViewedDto.ids, userId);
   }
 }
