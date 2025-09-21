@@ -396,4 +396,60 @@ export class AdminService {
 
     return results;
   }
+
+  async forceStartContest(contestId: number) {
+    try {
+      // Знаходимо контест
+      const contest = await this.contestService.findContestById(contestId);
+      
+      if (!contest) {
+        return {
+          success: false,
+          message: 'Contest not found',
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      // Перевіряємо, чи контест не вже активний
+      if (contest.status === ContestStatusEnum.OPEN) {
+        return {
+          success: false,
+          message: 'Contest is already active',
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      // Форсуємо запуск контесту
+      const currentTime = new Date();
+      contest.status = ContestStatusEnum.OPEN;
+      contest.startTime = currentTime;
+      contest.is_approved = false;
+
+      // Зберігаємо контест
+      await this.contestService.updateContest(contestId, {
+        status: ContestStatusEnum.OPEN,
+        start_time: currentTime,
+        end_time: contest.endTime,
+      });
+
+      // Запускаємо логіку нотифікацій (як в крон-завданні)
+      await this.contestService.updateContestStatuses();
+
+      return {
+        success: true,
+        message: `Contest "${contest.name}" has been force started successfully`,
+        contestId: contest.id,
+        contestName: contest.name,
+        startTime: currentTime.toISOString(),
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: 'Failed to force start contest',
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
 }

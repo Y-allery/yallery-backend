@@ -35,6 +35,7 @@ import { CreateStyleDto } from 'src/post/dto/create.style.dto';
 import { ContestStatusEnum } from 'src/contest/types/contest.status.enum';
 import { PaginatioDto } from 'src/common/dto/pagination.dto';
 import { CreatePartnershipDto } from './dto/create.refferal.dto';
+import { ForceStartContestDto } from './dto/force-start-contest.dto';
 @Controller('admin')
 @ApiTags('Admin')
 @UseGuards(JwtAuthGuard, RoleGuard)
@@ -297,5 +298,30 @@ export class AdminController {
   @ApiResponse({ status: 200, description: 'List of partnerships returned' })
   async getAllPartnerships() {
     return this.adminService.getAllPartnershipsWithStats();
+  }
+
+  @Post('force-start-contest')
+  @ApiOperation({ summary: 'Force start a specific contest immediately' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Contest force started successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        message: { type: 'string' },
+        contestId: { type: 'number' },
+        contestName: { type: 'string' },
+        startTime: { type: 'string' },
+        timestamp: { type: 'string' },
+        error: { type: 'string' }
+      },
+      required: ['success', 'message', 'timestamp']
+    }
+  })
+  @ApiResponse({ status: 400, description: 'Bad request - contest not found or already active' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
+  async forceStartContest(@Body() dto: ForceStartContestDto) {
+    return this.adminService.forceStartContest(dto.contestId);
   }
 }
