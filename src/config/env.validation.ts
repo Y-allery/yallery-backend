@@ -124,7 +124,7 @@ export function validate(config: Record<string, unknown>) {
 
   if (errors.length > 0) {
     const missingVars = errors
-      .map((error) => Object.keys(error.constraints || {}).join(', '))
+      .map((error) => `${error.property}: ${Object.keys(error.constraints || {}).join(', ')}`)
       .join(', ');
     
     throw new Error(
