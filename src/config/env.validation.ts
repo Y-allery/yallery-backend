@@ -4,20 +4,20 @@ import { IsString, IsOptional, IsNumber, IsBoolean, validateSync } from 'class-v
 export class EnvironmentVariables {
   // Database
   @IsString()
-  DB_HOST: string;
+  DATABASE_HOST: string;
 
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10))
-  DB_PORT: number;
+  DATABASE_PORT: number;
 
   @IsString()
-  DB_USERNAME: string;
+  DATABASE_USER: string;
 
   @IsString()
-  DB_PASSWORD: string;
+  DATABASE_PASSWORD: string;
 
   @IsString()
-  DB_DATABASE: string;
+  DATABASE_NAME: string;
 
   // Redis
   @IsString()
@@ -111,6 +111,15 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   API_URL?: string;
+
+  @IsString()
+  HOME_URL: string;
+
+  @IsString()
+  BRANCH_KEY: string;
+
+  @IsString()
+  APPLE_CLIENT_ID: string;
 }
 
 export function validate(config: Record<string, unknown>) {
