@@ -809,6 +809,7 @@ export class ContestService {
       .select([
         'contest.imageUrl',
         'contest.id',
+        'contest.name',
         'contest.endTime',
         'contest.reward',
         'contest.status',
@@ -837,9 +838,10 @@ export class ContestService {
 
     return contests.map((contest) => ({
       id: contest.contest_id,
+      name: contest.contest_name,
       imageUrl: contest.contest_imageUrl,
-      endTime: contest.contest_endTime?.slice(0, 10),
-      startTime: contest.contest_startTime?.slice(0, 10),
+      endTime: contest.contest_endTime,
+      startTime: contest.contest_startTime,
       description: contest.contest_description,
       reward: contest.contest_reward,
       status: contest.contest_status,
