@@ -810,11 +810,11 @@ export class ContestService {
         'contest.imageUrl',
         'contest.id',
         'contest.name',
-        'contest.endTime',
+        'contest.endTime AS end_time',
         'contest.reward',
         'contest.status',
         'contest.description',
-        'contest.startTime',
+        'contest.startTime AS start_time',
         'tag.name AS tagName',
       ])
       .leftJoin('contest.tag', 'tag')
@@ -835,13 +835,18 @@ export class ContestService {
     }
 
     const contests = await query.getRawMany();
+    
+    // Логування для дебагу
+    if (contests.length > 0) {
+      console.log('Raw contest data:', contests[0]);
+    }
 
     return contests.map((contest) => ({
       id: contest.contest_id,
       name: contest.contest_name,
       imageUrl: contest.contest_imageUrl,
-      endTime: contest.contest_endTime,
-      startTime: contest.contest_startTime,
+      endTime: contest.end_time,
+      startTime: contest.start_time,
       description: contest.contest_description,
       reward: contest.contest_reward,
       status: contest.contest_status,
