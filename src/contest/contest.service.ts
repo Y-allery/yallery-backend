@@ -308,6 +308,9 @@ export class ContestService {
         const title = 'Join the contest!';
         const body = `The ${contest.name} contest is now live! Join now for a chance to win points!`;
 
+        console.log(`🎯 Contest "${contest.name}" started - sending notifications to ${users.length} users`);
+        console.log(`📱 Users with device tokens: ${users.filter(u => u.deviceTokens.length > 0).length}`);
+
         const notificationPromises = users.map(async (user) => {
           await this.activityService.createActivities(
             null,
@@ -317,13 +320,17 @@ export class ContestService {
             false,
             contest,
           );
-          user.deviceTokens.map((deviceToken) =>
+          
+          // Fix: Add await for device token notifications
+          const deviceTokenPromises = user.deviceTokens.map((deviceToken) =>
             this.firebaseService.sendNotification(
               deviceToken.token,
               title,
               body,
             ),
           );
+          await Promise.all(deviceTokenPromises);
+          
           await this.notificationGateway.emitProfileUpdate(user.id.toString());
         });
 
