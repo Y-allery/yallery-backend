@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from './database/database.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { validate } from './config/env.validation';
 import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
 import { MailModule } from './mail/mail.module';
@@ -48,6 +49,11 @@ import { VideoGenerationModule } from './video-generation/video-generation.modul
     }),
     ConfigModule.forRoot({
       isGlobal: true,
+      validate,
+      validationOptions: {
+        allowUnknown: true,
+        abortEarly: true,
+      },
     }),
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', '..', '..', 'client', 'build'),

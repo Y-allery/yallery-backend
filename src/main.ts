@@ -30,7 +30,7 @@ async function bootstrap() {
   app.use(
     session({
       store: redisStore,
-      secret: process.env.SESSION_SECRET || 'your_secret_key',
+      secret: process.env.SESSION_SECRET,
       name: 'sid',
       resave: false,
       saveUninitialized: false,
@@ -78,7 +78,7 @@ async function bootstrap() {
 
   app.use(
     session({
-      secret: process.env.SESSION_SECRET || 'your_secret_key',
+      secret: process.env.SESSION_SECRET,
       key: 'sid',
       resave: false,
       saveUninitialized: false,

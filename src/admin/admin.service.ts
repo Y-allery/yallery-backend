@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { CreateContestDto } from './dto/create-contest.dto';
 import { ContestService } from 'src/contest/contest.service';
 import { ContestRunDto } from './dto/contest.run.dto';
@@ -32,13 +33,14 @@ import { PartnershipActivityEntity } from './entities/partnership-activity.entit
 
 @Injectable()
 export class AdminService {
-  private readonly apiKey = '07f21f9a-74c5-4991-91f0-030e62380d6c';
-  private readonly apiUrl = 'https://api.tweetscout.io/v2';
-  private readonly accountName = 'y_allery';
-  private twitterScoreKey = '5ca9113c28c1cc2fe04ab7803244efc9';
-  private twitterScoreUrl = 'https://twitterscore.io/api/v1';
-  private readonly twitterId = '1912510240014364675';
+  private readonly apiKey: string;
+  private readonly apiUrl: string;
+  private readonly accountName: string;
+  private readonly twitterScoreKey: string;
+  private readonly twitterScoreUrl: string;
+  private readonly twitterId: string;
   constructor(
+    private readonly configService: ConfigService,
     private readonly contestService: ContestService,
     private readonly userService: UserService,
     private readonly postService: PostService,
@@ -48,7 +50,14 @@ export class AdminService {
     private readonly partnerShipRepo: Repository<PartnershipEntity>,
     @InjectRepository(PartnershipActivityEntity)
     private readonly partnerShipActivityRepository: Repository<PartnershipActivityEntity>,
-  ) {}
+  ) {
+    this.apiKey = this.configService.get<string>('TWEETSCOUT_API_KEY');
+    this.apiUrl = this.configService.get<string>('TWEETSCOUT_API_URL', 'https://api.tweetscout.io/v2');
+    this.accountName = this.configService.get<string>('TWITTER_ACCOUNT_NAME', 'y_allery');
+    this.twitterScoreKey = this.configService.get<string>('TWITTER_SCORE_API_KEY');
+    this.twitterScoreUrl = this.configService.get<string>('TWITTER_SCORE_API_URL', 'https://twitterscore.io/api/v1');
+    this.twitterId = this.configService.get<string>('TWITTER_ACCOUNT_ID');
+  }
   async createAdminContest(data: CreateContestDto) {
     return this.contestService.createAdminContest(data);
   }

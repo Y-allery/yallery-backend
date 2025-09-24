@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { ContestEntity } from './entity/contest.entity';
@@ -30,7 +31,10 @@ import * as https from 'https';
 
 @Injectable()
 export class ContestService {
+  private readonly tweetscoutApiKey: string;
+
   constructor(
+    private readonly configService: ConfigService,
     @InjectRepository(ContestEntity)
     private readonly contestRepository: Repository<ContestEntity>,
     @InjectRepository(UserEntity)
@@ -43,7 +47,9 @@ export class ContestService {
     private readonly activityService: ActivityService,
     private readonly firebaseService: FirebaseService,
     private readonly notificationGateway: NotificationGateway,
-  ) {}
+  ) {
+    this.tweetscoutApiKey = this.configService.get<string>('TWEETSCOUT_API_KEY');
+  }
 
   async getAllContests(userId: number, type?: ContestTypeEnum) {
     let whereCondition = {};
@@ -389,7 +395,7 @@ export class ContestService {
             },
             {
               headers: {
-                ApiKey: '07f21f9a-74c5-4991-91f0-030e62380d6c',
+                ApiKey: this.tweetscoutApiKey,
                 'Content-Type': 'application/json',
                 Accept: 'application/json',
               },
@@ -736,7 +742,7 @@ export class ContestService {
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
-        ApiKey: '07f21f9a-74c5-4991-91f0-030e62380d6c',
+        ApiKey: this.tweetscoutApiKey,
       },
     };
 
