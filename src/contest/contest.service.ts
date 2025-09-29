@@ -518,7 +518,7 @@ export class ContestService {
           console.log(`👤 Processing user ${userIndex + 1}/${users.length} (ID: ${user.id})`);
           
           // Create activity
-          await this.createActivities(
+          await this.activityService.createActivities(
             null,
             [user.id],
             ActivityEnum.CONTEST_OPEN,
