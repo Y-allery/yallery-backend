@@ -13,7 +13,6 @@ import { PostEntity } from 'src/post/entities/post.entity';
 import { UserService } from 'src/user/user.service';
 import { CreateContestDto } from 'src/admin/dto/create-contest.dto';
 import { TagEntity } from 'src/tag/entities/tag.entity';
-import { ContestRunDto } from 'src/admin/dto/contest.run.dto';
 import {
   ContestStatusEnum,
   ContestTypeEnum,
@@ -725,50 +724,6 @@ export class ContestService {
     }
   }
 
-  async forceContestRun(data: ContestRunDto) {
-    console.log(`🚀 FORCE CONTEST RUN: Starting for contest ID ${data.contest_id}`);
-    
-    const contest = await this.contestRepository.findOne({
-      where: { id: data.contest_id },
-      relations: {
-        winner: true,
-        tag: true,
-      },
-      loadRelationIds: { relations: ['posts'], disableMixedMap: true },
-    });
-    
-    if (!contest) {
-      console.log(`❌ FORCE CONTEST RUN: Contest with ID ${data.contest_id} not found`);
-      throw new BadRequestException('Contest not found');
-    }
-
-    console.log(`🎯 FORCE CONTEST RUN: Found contest "${contest.name}" (ID: ${contest.id})`);
-    console.log(`   Current status: ${contest.status}, Start: ${contest.startTime?.toISOString()}, End: ${contest.endTime?.toISOString()}`);
-
-    contest.status = ContestStatusEnum.OPEN;
-    contest.startTime = new Date();
-    contest.is_approved = false;
-    
-    console.log(`💾 FORCE CONTEST RUN: Saving contest with new status OPEN`);
-    await this.contestRepository.save(contest);
-    
-    console.log(`🔄 FORCE CONTEST RUN: Calling updateContestStatuses to send notifications`);
-    try {
-      await this.updateContestStatuses();
-      console.log(`✅ FORCE CONTEST RUN: Notifications sent successfully`);
-    } catch (error) {
-      console.error(`❌ FORCE CONTEST RUN: Error sending notifications:`, error.message);
-      throw error;
-    }
-    
-    return {
-      success: true,
-      message: 'Contest run successfully and notifications sent',
-      contestId: contest.id,
-      contestName: contest.name,
-      startTime: contest.startTime.toISOString(),
-    };
-  }
 
   async getPendingReviewPosts() {
     const contests = await this.contestRepository.find({

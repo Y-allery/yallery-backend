@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CreateContestDto } from './dto/create-contest.dto';
 import { ContestService } from 'src/contest/contest.service';
-import { ContestRunDto } from './dto/contest.run.dto';
 import { BlockUserDto } from './dto/block.user.dto';
 import { UserService } from 'src/user/user.service';
 import { BlockPostDto } from './dto/block.post.dto';
@@ -62,17 +61,6 @@ export class AdminService {
     return this.contestService.createAdminContest(data);
   }
 
-  async forceContestRun(data: ContestRunDto) {
-    console.log(`👨‍💼 ADMIN: Force contest run requested for contest ID ${data.contest_id}`);
-    try {
-      const result = await this.contestService.forceContestRun(data);
-      console.log(`✅ ADMIN: Force contest run completed successfully:`, result);
-      return result;
-    } catch (error) {
-      console.error(`❌ ADMIN: Force contest run failed:`, error.message);
-      throw error;
-    }
-  }
 
   async blockUser({ user_id }: BlockUserDto) {
     await this.userService.deleteUserAccount(user_id);
@@ -415,11 +403,13 @@ export class AdminService {
   }
 
   async forceStartContest(contestId: number) {
+    console.log(`🚀 FORCE START CONTEST: Starting for contest ID ${contestId}`);
     try {
       // Знаходимо контест
       const contest = await this.contestService.findContestById(contestId);
       
       if (!contest) {
+        console.log(`❌ FORCE START CONTEST: Contest with ID ${contestId} not found`);
         return {
           success: false,
           message: 'Contest not found',
@@ -427,8 +417,12 @@ export class AdminService {
         };
       }
 
+      console.log(`🎯 FORCE START CONTEST: Found contest "${contest.name}" (ID: ${contest.id})`);
+      console.log(`   Current status: ${contest.status}, Start: ${contest.startTime?.toISOString()}, End: ${contest.endTime?.toISOString()}`);
+
       // Перевіряємо, чи контест не вже активний
       if (contest.status === ContestStatusEnum.OPEN) {
+        console.log(`⚠️ FORCE START CONTEST: Contest is already active`);
         return {
           success: false,
           message: 'Contest is already active',
@@ -442,6 +436,7 @@ export class AdminService {
       contest.startTime = currentTime;
       contest.is_approved = false;
 
+      console.log(`💾 FORCE START CONTEST: Updating contest with new status OPEN`);
       // Зберігаємо контест
       await this.contestService.updateContest(contestId, {
         status: ContestStatusEnum.OPEN,
@@ -449,9 +444,12 @@ export class AdminService {
         end_time: contest.endTime,
       });
 
+      console.log(`🔄 FORCE START CONTEST: Calling updateContestStatuses to send notifications`);
       // Запускаємо логіку нотифікацій (як в крон-завданні)
       await this.contestService.updateContestStatuses();
+      console.log(`✅ FORCE START CONTEST: Notifications sent successfully`);
 
+      console.log(`🎉 FORCE START CONTEST: Successfully completed for contest "${contest.name}"`);
       return {
         success: true,
         message: `Contest "${contest.name}" has been force started successfully`,
@@ -461,6 +459,7 @@ export class AdminService {
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
+      console.error(`❌ FORCE START CONTEST: Error occurred:`, error.message);
       return {
         success: false,
         message: 'Failed to force start contest',

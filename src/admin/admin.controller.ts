@@ -24,7 +24,6 @@ import { RoleGuard } from 'src/auth/guards/role.guard';
 import { RoleEnum } from 'src/user/types/role.enum';
 import { CreateContestDto } from './dto/create-contest.dto';
 import { AdminService } from './admin.service';
-import { ContestRunDto } from './dto/contest.run.dto';
 import { BlockUserDto } from './dto/block.user.dto';
 import { BlockPostDto } from './dto/block.post.dto';
 import { SetContestWinnerDto } from './dto/set.contest.winner.dto';
@@ -84,10 +83,6 @@ export class AdminController {
     return this.adminService.deleteContest(id);
   }
 
-  @Post('force-contest-run')
-  async forceContestRun(@Body() dto: ContestRunDto) {
-    return this.adminService.forceContestRun(dto);
-  }
 
   @Post('block-user')
   async blockUser(@Body() dto: BlockUserDto) {
