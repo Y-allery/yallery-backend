@@ -289,10 +289,14 @@ export class ContestService {
       where: { role: RoleEnum.ADMIN },
       select: { id: true },
     });
+    console.log(`👨‍💼 Found ${admins.length} admin users`);
+    
     const users = await this.userRepository.find({
       where: { is_deleted: false, emailVerified: true },
       relations: { deviceTokens: true },
     });
+    console.log(`👥 Found ${users.length} active users with verified emails`);
+    console.log(`📱 Users with device tokens: ${users.filter(u => u.deviceTokens && u.deviceTokens.length > 0).length}`);
 
     const updatedContests = [];
 
@@ -467,17 +471,31 @@ export class ContestService {
     }
 
     if (updatedContests.length > 0) {
+      console.log(`💾 Saving ${updatedContests.length} updated contests to database`);
+      await this.contestRepository.save(updatedContests);
+      console.log(`✅ Successfully saved updated contests`);
+      
+      console.log(`🔄 Emitting profile updates to ${users.length} users`);
       users.map((user) => {
         this.notificationGateway.emitProfileUpdate(user.id.toString());
       });
-      await this.contestRepository.save(updatedContests);
+      console.log(`✅ Profile updates emitted to all users`);
+    } else {
+      console.log(`ℹ️ No contests were updated - no profile updates needed`);
     }
+    
+    console.log(`🏁 Contest status update check completed at ${new Date().toISOString()}`);
   }
 
   async setAutomaticContestWinner(contest: ContestEntity) {
+    console.log(`🏆 Starting automatic winner selection for contest "${contest.name}" (ID: ${contest.id})`);
+    
     if (contest.contestType === ContestTypeEnum.FINE_TUNE) {
+      console.log(`   🎯 Contest type: FINE_TUNE, Tag: ${contest.tag.name}`);
+      
       if (contest.tag.name) {
         try {
+          console.log(`   📡 Fetching tweets from Twitter API for tag #${contest.tag.name}`);
           const response = await axios.post(
             'https://api.tweetscout.io/v2/user-tweets',
             {
@@ -493,6 +511,7 @@ export class ContestService {
           );
 
           const tweets = response.data?.tweets || [];
+          console.log(`   📊 Received ${tweets.length} tweets from API`);
 
           const filtered = [];
           for (const t of tweets) {
@@ -514,8 +533,10 @@ export class ContestService {
               }
             }
           }
+          console.log(`   🔍 Filtered ${filtered.length} tweets matching tag #${contest.tag.name}`);
 
           if (filtered.length > 0) {
+            console.log(`   🏆 Selecting winner from ${filtered.length} valid tweets`);
             const topTweet = filtered.reduce((max, t) => {
               const score =
                 t.favorite_count +
@@ -537,47 +558,71 @@ export class ContestService {
 
             const match = topTweet.full_text.match(/@(\w{1,15})/);
             const twitterHandle = match ? '@' + match[1] : null;
+            console.log(`   🐦 Top tweet: ${topTweet.full_text.substring(0, 100)}...`);
+            console.log(`   📝 Extracted post ID: ${postId}, Twitter handle: ${twitterHandle}`);
 
             if (twitterHandle) {
+              console.log(`   🔍 Looking for user with Twitter handle: ${twitterHandle}`);
               const user = await this.userRepository.findOne({
                 where: { twitterUsername: twitterHandle },
               });
 
               if (user) {
+                console.log(`   ✅ Found winner user: ${user.id} (${user.nickname || user.email})`);
                 contest.winner = user;
                 contest.postWinner = matchedPost || null;
                 contest.is_approved = false;
                 contest.status = ContestStatusEnum.PENDING_REVIEW;
-                return await this.contestRepository.save(contest);
+                const savedContest = await this.contestRepository.save(contest);
+                console.log(`   💾 Contest updated with winner - status: PENDING_REVIEW`);
+                return savedContest;
+              } else {
+                console.log(`   ❌ No user found with Twitter handle: ${twitterHandle}`);
               }
+            } else {
+              console.log(`   ❌ No Twitter handle found in top tweet`);
             }
           }
 
+          console.log(`   ❌ No valid tweets found - closing contest without winner`);
           contest.winner = null;
           contest.postWinner = null;
           contest.is_approved = true;
           contest.status = ContestStatusEnum.CLOSED;
-          return await this.contestRepository.save(contest);
+          const savedContest = await this.contestRepository.save(contest);
+          console.log(`   💾 Contest closed without winner - status: CLOSED`);
+          return savedContest;
         } catch (error) {
+          console.error(`   ❌ Error in automatic winner selection:`, error.message);
           console.error(
             'TweetScout error:',
             error.response?.data || error.message,
           );
+          console.log(`   ❌ Error occurred - closing contest without winner`);
           contest.status = ContestStatusEnum.CLOSED;
           contest.is_approved = true;
           contest.winner = null;
           contest.postWinner = null;
-          return await this.contestRepository.save(contest);
+          const savedContest = await this.contestRepository.save(contest);
+          console.log(`   💾 Contest closed due to error - status: CLOSED`);
+          return savedContest;
         }
+      } else {
+        console.log(`   ❌ No tag name provided for FINE_TUNE contest`);
       }
 
+      console.log(`   ❌ Contest type is not FINE_TUNE or no tag - closing without winner`);
       contest.status = ContestStatusEnum.CLOSED;
       contest.is_approved = true;
       contest.winner = null;
       contest.postWinner = null;
-      return await this.contestRepository.save(contest);
+      const savedContest = await this.contestRepository.save(contest);
+      console.log(`   💾 Contest closed - status: CLOSED`);
+      return savedContest;
     }
 
+    console.log(`   🎯 Contest type: DEFAULT - selecting winner by likes`);
+    
     const eligiblePosts = await this.postRepository
       .createQueryBuilder('post')
       .select('post.id')
@@ -591,7 +636,10 @@ export class ContestService {
       .orderBy('likeCount', 'DESC')
       .getRawMany();
 
+    console.log(`   📊 Found ${eligiblePosts.length} eligible posts for contest`);
+
     if (eligiblePosts.length > 0) {
+      console.log(`   🏆 Selecting winner from ${eligiblePosts.length} eligible posts`);
       const winnerPostId = eligiblePosts[0].post_id;
       const winnerPost = await this.postRepository.findOne({
         where: { id: winnerPostId },
@@ -599,19 +647,30 @@ export class ContestService {
       });
 
       if (winnerPost) {
+        console.log(`   ✅ Found winner post: ${winnerPostId} by user ${winnerPost.user.id} (${winnerPost.user.nickname || winnerPost.user.email})`);
+        console.log(`   📊 Winner post has ${eligiblePosts[0].likeCount} likes`);
         contest.winner = winnerPost.user;
         contest.postWinner = winnerPost;
         contest.is_approved = false;
         contest.status = ContestStatusEnum.PENDING_REVIEW;
-        return await this.contestRepository.save(contest);
+        const savedContest = await this.contestRepository.save(contest);
+        console.log(`   💾 Contest updated with winner - status: PENDING_REVIEW`);
+        return savedContest;
+      } else {
+        console.log(`   ❌ Winner post not found in database`);
       }
+    } else {
+      console.log(`   ❌ No eligible posts found for contest`);
     }
 
+    console.log(`   ❌ No winner found - closing contest without winner`);
     contest.status = ContestStatusEnum.CLOSED;
     contest.is_approved = true;
     contest.winner = null;
     contest.postWinner = null;
-    return await this.contestRepository.save(contest);
+    const savedContest = await this.contestRepository.save(contest);
+    console.log(`   💾 Contest closed without winner - status: CLOSED`);
+    return savedContest;
   }
 
   private extractPostIdFromTweetText(text: string): string | null {
