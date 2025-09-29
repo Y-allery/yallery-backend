@@ -267,7 +267,6 @@ export class ContestService {
 
   async updateContestStatuses() {
     const currentDate = new Date();
-    console.log(`🔄 Starting contest status update check at ${currentDate.toISOString()}`);
 
     const contests = await this.contestRepository.find({
       relations: {
@@ -276,11 +275,8 @@ export class ContestService {
       },
       loadRelationIds: { relations: ['posts'], disableMixedMap: true },
     });
-
-    console.log(`📋 Found ${contests.length} contests to check`);
     
     if (!contests.length) {
-      console.log(`ℹ️ No contests found - exiting`);
       return;
     }
 
@@ -288,25 +284,18 @@ export class ContestService {
       where: { role: RoleEnum.ADMIN },
       select: { id: true },
     });
-    console.log(`👨‍💼 Found ${admins.length} admin users`);
     
     const users = await this.userRepository.find({
       where: { is_deleted: false, emailVerified: true },
       relations: { deviceTokens: true },
     });
-    console.log(`👥 Found ${users.length} active users with verified emails`);
-    console.log(`📱 Users with device tokens: ${users.filter(u => u.deviceTokens && u.deviceTokens.length > 0).length}`);
 
     const updatedContests = [];
 
     for (let contest of contests) {
       const postsCount = contest.posts.length;
-      console.log(`🔍 Checking contest "${contest.name}" (ID: ${contest.id})`);
-      console.log(`   Status: ${contest.status}, Start: ${contest.startTime.toISOString()}, End: ${contest.endTime.toISOString()}`);
-      console.log(`   Posts count: ${postsCount}, Is approved: ${contest.is_approved}`);
 
       if (contest.status === ContestStatusEnum.CLOSED && contest.is_approved) {
-        console.log(`   ⏭️ Skipping - contest is already closed and approved`);
         continue;
       }
 
@@ -321,18 +310,10 @@ export class ContestService {
         const title = 'Join the contest!';
         const body = `The ${contest.name} contest is now live! Join now for a chance to win points!`;
 
-        console.log(`🎯 Contest "${contest.name}" started - sending notifications to ${users.length} users`);
-        console.log(`📱 Users with device tokens: ${users.filter(u => u.deviceTokens.length > 0).length}`);
-        console.log(`📝 Notification details: Title="${title}", Body="${body}"`);
+        console.log(`🎯 Contest "${contest.name}" started - sending notifications`);
 
-        let successCount = 0;
-        let errorCount = 0;
-        const errors = [];
-
-        const notificationPromises = users.map(async (user, userIndex) => {
+        const notificationPromises = users.map(async (user) => {
           try {
-            console.log(`👤 Processing user ${userIndex + 1}/${users.length} (ID: ${user.id})`);
-            
             // Create activity
             await this.activityService.createActivities(
               null,
@@ -342,82 +323,37 @@ export class ContestService {
               false,
               contest,
             );
-            console.log(`✅ Activity created for user ${user.id}`);
             
             // Send push notifications
             if (user.deviceTokens && user.deviceTokens.length > 0) {
-              console.log(`📱 Sending push notifications to ${user.deviceTokens.length} device(s) for user ${user.id}`);
-              
-              const deviceTokenPromises = user.deviceTokens.map(async (deviceToken, tokenIndex) => {
+              const deviceTokenPromises = user.deviceTokens.map(async (deviceToken) => {
                 try {
-                  console.log(`📲 Sending notification to device ${tokenIndex + 1}/${user.deviceTokens.length} (token: ${deviceToken.token.substring(0, 20)}...)`);
-                  
-                  const result = await this.firebaseService.sendNotification(
+                  await this.firebaseService.sendNotification(
                     deviceToken.token,
                     title,
                     body,
                   );
-                  
-                  console.log(`✅ Push notification sent successfully to device ${tokenIndex + 1} for user ${user.id}`);
-                  return { success: true, deviceToken: deviceToken.token, result };
+                  return { success: true };
                 } catch (deviceError) {
-                  console.error(`❌ Failed to send push notification to device ${tokenIndex + 1} for user ${user.id}:`, deviceError.message);
-                  return { success: false, deviceToken: deviceToken.token, error: deviceError.message };
+                  console.error(`❌ Push notification failed for user ${user.id}:`, deviceError.message);
+                  return { success: false };
                 }
               });
               
-              const deviceResults = await Promise.all(deviceTokenPromises);
-              const deviceSuccesses = deviceResults.filter(r => r.success).length;
-              const deviceErrors = deviceResults.filter(r => !r.success);
-              
-              console.log(`📊 Device notifications for user ${user.id}: ${deviceSuccesses} success, ${deviceErrors.length} failed`);
-              
-              if (deviceErrors.length > 0) {
-                errors.push({
-                  userId: user.id,
-                  type: 'device_notification',
-                  errors: deviceErrors.map(e => e.error)
-                });
-              }
-              
-              successCount += deviceSuccesses;
-              errorCount += deviceErrors.length;
-            } else {
-              console.log(`⚠️ User ${user.id} has no device tokens - skipping push notification`);
+              await Promise.all(deviceTokenPromises);
             }
             
             // Emit profile update
             await this.notificationGateway.emitProfileUpdate(user.id.toString());
-            console.log(`🔄 Profile update emitted for user ${user.id}`);
             
           } catch (userError) {
             console.error(`❌ Error processing user ${user.id}:`, userError.message);
-            errors.push({
-              userId: user.id,
-              type: 'user_processing',
-              error: userError.message
-            });
-            errorCount++;
           }
         });
 
         await Promise.all(notificationPromises);
-        
-        // Final summary
-        console.log(`📊 Contest notification summary for "${contest.name}":`);
-        console.log(`✅ Total successful notifications: ${successCount}`);
-        console.log(`❌ Total failed notifications: ${errorCount}`);
-        console.log(`👥 Total users processed: ${users.length}`);
-        
-        if (errors.length > 0) {
-          console.log(`🚨 Errors encountered:`);
-          errors.forEach((error, index) => {
-            console.log(`  ${index + 1}. User ${error.userId} (${error.type}): ${error.error || JSON.stringify(error.errors)}`);
-          });
-        }
         updatedContests.push(contest);
       } else if (contest.endTime < currentDate && postsCount === 0) {
-        console.log(`   🔒 Closing contest "${contest.name}" - no posts submitted`);
         contest.status = ContestStatusEnum.CLOSED;
         contest.is_approved = true;
         updatedContests.push(contest);
@@ -427,7 +363,6 @@ export class ContestService {
         postsCount > 0 &&
         contest.status !== ContestStatusEnum.PENDING_REVIEW
       ) {
-        console.log(`   🏆 Setting automatic winner for contest "${contest.name}"`);
         await this.activityService.createActivities(
           null,
           admins.map((e) => e.id),
@@ -444,7 +379,6 @@ export class ContestService {
         !contest.is_approved &&
         contest.status !== ContestStatusEnum.PENDING_REVIEW
       ) {
-        console.log(`   ⏳ Setting contest "${contest.name}" to pending review`);
         await this.activityService.createActivities(
           null,
           admins.map((e) => e.id),
@@ -461,33 +395,21 @@ export class ContestService {
         contest.is_approved &&
         contest.status !== ContestStatusEnum.CLOSED
       ) {
-        console.log(`   ✅ Closing approved contest "${contest.name}"`);
         contest.status = ContestStatusEnum.CLOSED;
         updatedContests.push(contest);
-      } else {
-        console.log(`   ℹ️ No action needed for contest "${contest.name}"`);
       }
     }
 
     if (updatedContests.length > 0) {
-      console.log(`💾 Saving ${updatedContests.length} updated contests to database`);
       await this.contestRepository.save(updatedContests);
-      console.log(`✅ Successfully saved updated contests`);
-      
-      console.log(`🔄 Emitting profile updates to ${users.length} users`);
       users.map((user) => {
         this.notificationGateway.emitProfileUpdate(user.id.toString());
       });
-      console.log(`✅ Profile updates emitted to all users`);
-    } else {
-      console.log(`ℹ️ No contests were updated - no profile updates needed`);
     }
-    
-    console.log(`🏁 Contest status update check completed at ${new Date().toISOString()}`);
   }
 
   async sendContestStartNotifications(contest: ContestEntity) {
-    console.log(`📢 SENDING CONTEST NOTIFICATIONS: Starting for contest "${contest.name}" (ID: ${contest.id})`);
+    console.log(`📢 Sending contest notifications for "${contest.name}"`);
     
     try {
       // Отримуємо всіх активних користувачів
@@ -495,9 +417,6 @@ export class ContestService {
         where: { is_deleted: false, emailVerified: true },
         relations: { deviceTokens: true },
       });
-
-      console.log(`👥 Found ${users.length} active users with verified emails`);
-      console.log(`📱 Users with device tokens: ${users.filter(u => u.deviceTokens && u.deviceTokens.length > 0).length}`);
 
       if (users.length === 0) {
         console.log(`⚠️ No users found - skipping notifications`);
@@ -507,16 +426,11 @@ export class ContestService {
       const title = 'Join the contest!';
       const body = `The ${contest.name} contest is now live! Join now for a chance to win points!`;
 
-      console.log(`📝 Notification details: Title="${title}", Body="${body}"`);
-
       let successCount = 0;
       let errorCount = 0;
-      const errors = [];
 
-      const notificationPromises = users.map(async (user, userIndex) => {
+      const notificationPromises = users.map(async (user) => {
         try {
-          console.log(`👤 Processing user ${userIndex + 1}/${users.length} (ID: ${user.id})`);
-          
           // Create activity
           await this.activityService.createActivities(
             null,
@@ -526,27 +440,20 @@ export class ContestService {
             false,
             contest,
           );
-          console.log(`✅ Activity created for user ${user.id}`);
           
           // Send push notifications
           if (user.deviceTokens && user.deviceTokens.length > 0) {
-            console.log(`📱 Sending push notifications to ${user.deviceTokens.length} device(s) for user ${user.id}`);
-            
-            const deviceTokenPromises = user.deviceTokens.map(async (deviceToken, tokenIndex) => {
+            const deviceTokenPromises = user.deviceTokens.map(async (deviceToken) => {
               try {
-                console.log(`📲 Sending notification to device ${tokenIndex + 1}/${user.deviceTokens.length} (token: ${deviceToken.token.substring(0, 20)}...)`);
-                
-                const result = await this.firebaseService.sendNotification(
+                await this.firebaseService.sendNotification(
                   deviceToken.token,
                   title,
                   body,
                 );
-                
-                console.log(`✅ Push notification sent successfully to device ${tokenIndex + 1} for user ${user.id}`);
-                return { success: true, deviceToken: deviceToken.token, result };
+                return { success: true };
               } catch (deviceError) {
-                console.error(`❌ Failed to send push notification to device ${tokenIndex + 1} for user ${user.id}:`, deviceError.message);
-                return { success: false, deviceToken: deviceToken.token, error: deviceError.message };
+                console.error(`❌ Push notification failed for user ${user.id}:`, deviceError.message);
+                return { success: false, error: deviceError.message };
               }
             });
             
@@ -554,33 +461,15 @@ export class ContestService {
             const deviceSuccesses = deviceResults.filter(r => r.success).length;
             const deviceErrors = deviceResults.filter(r => !r.success);
             
-            console.log(`📊 Device notifications for user ${user.id}: ${deviceSuccesses} success, ${deviceErrors.length} failed`);
-            
-            if (deviceErrors.length > 0) {
-              errors.push({
-                userId: user.id,
-                type: 'device_notification',
-                errors: deviceErrors.map(e => e.error)
-              });
-            }
-            
             successCount += deviceSuccesses;
             errorCount += deviceErrors.length;
-          } else {
-            console.log(`⚠️ User ${user.id} has no device tokens - skipping push notification`);
           }
           
           // Emit profile update
           await this.notificationGateway.emitProfileUpdate(user.id.toString());
-          console.log(`🔄 Profile update emitted for user ${user.id}`);
           
         } catch (userError) {
           console.error(`❌ Error processing user ${user.id}:`, userError.message);
-          errors.push({
-            userId: user.id,
-            type: 'user_processing',
-            error: userError.message
-          });
           errorCount++;
         }
       });
@@ -588,22 +477,10 @@ export class ContestService {
       await Promise.all(notificationPromises);
       
       // Final summary
-      console.log(`📊 Contest notification summary for "${contest.name}":`);
-      console.log(`✅ Total successful notifications: ${successCount}`);
-      console.log(`❌ Total failed notifications: ${errorCount}`);
-      console.log(`👥 Total users processed: ${users.length}`);
-      
-      if (errors.length > 0) {
-        console.log(`🚨 Errors encountered:`);
-        errors.forEach((error, index) => {
-          console.log(`  ${index + 1}. User ${error.userId} (${error.type}): ${error.error || JSON.stringify(error.errors)}`);
-        });
-      }
-
-      console.log(`✅ SENDING CONTEST NOTIFICATIONS: Completed for contest "${contest.name}"`);
+      console.log(`📊 Contest notifications: ${successCount} sent, ${errorCount} failed, ${users.length} users processed`);
       
     } catch (error) {
-      console.error(`❌ SENDING CONTEST NOTIFICATIONS: Error occurred:`, error.message);
+      console.error(`❌ Contest notification error:`, error.message);
       throw error;
     }
   }
