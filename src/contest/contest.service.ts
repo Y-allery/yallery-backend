@@ -268,6 +268,7 @@ export class ContestService {
 
   async updateContestStatuses() {
     const currentDate = new Date();
+    console.log(`🔄 Starting contest status update check at ${currentDate.toISOString()}`);
 
     const contests = await this.contestRepository.find({
       relations: {
@@ -277,7 +278,12 @@ export class ContestService {
       loadRelationIds: { relations: ['posts'], disableMixedMap: true },
     });
 
-    if (!contests.length) return;
+    console.log(`📋 Found ${contests.length} contests to check`);
+    
+    if (!contests.length) {
+      console.log(`ℹ️ No contests found - exiting`);
+      return;
+    }
 
     const admins = await this.userRepository.find({
       where: { role: RoleEnum.ADMIN },
@@ -292,8 +298,12 @@ export class ContestService {
 
     for (let contest of contests) {
       const postsCount = contest.posts.length;
+      console.log(`🔍 Checking contest "${contest.name}" (ID: ${contest.id})`);
+      console.log(`   Status: ${contest.status}, Start: ${contest.startTime.toISOString()}, End: ${contest.endTime.toISOString()}`);
+      console.log(`   Posts count: ${postsCount}, Is approved: ${contest.is_approved}`);
 
       if (contest.status === ContestStatusEnum.CLOSED && contest.is_approved) {
+        console.log(`   ⏭️ Skipping - contest is already closed and approved`);
         continue;
       }
 
@@ -310,33 +320,101 @@ export class ContestService {
 
         console.log(`🎯 Contest "${contest.name}" started - sending notifications to ${users.length} users`);
         console.log(`📱 Users with device tokens: ${users.filter(u => u.deviceTokens.length > 0).length}`);
+        console.log(`📝 Notification details: Title="${title}", Body="${body}"`);
 
-        const notificationPromises = users.map(async (user) => {
-          await this.activityService.createActivities(
-            null,
-            [user.id],
-            ActivityEnum.CONTEST_OPEN,
-            undefined,
-            false,
-            contest,
-          );
-          
-          // Fix: Add await for device token notifications
-          const deviceTokenPromises = user.deviceTokens.map((deviceToken) =>
-            this.firebaseService.sendNotification(
-              deviceToken.token,
-              title,
-              body,
-            ),
-          );
-          await Promise.all(deviceTokenPromises);
-          
-          await this.notificationGateway.emitProfileUpdate(user.id.toString());
+        let successCount = 0;
+        let errorCount = 0;
+        const errors = [];
+
+        const notificationPromises = users.map(async (user, userIndex) => {
+          try {
+            console.log(`👤 Processing user ${userIndex + 1}/${users.length} (ID: ${user.id})`);
+            
+            // Create activity
+            await this.activityService.createActivities(
+              null,
+              [user.id],
+              ActivityEnum.CONTEST_OPEN,
+              undefined,
+              false,
+              contest,
+            );
+            console.log(`✅ Activity created for user ${user.id}`);
+            
+            // Send push notifications
+            if (user.deviceTokens && user.deviceTokens.length > 0) {
+              console.log(`📱 Sending push notifications to ${user.deviceTokens.length} device(s) for user ${user.id}`);
+              
+              const deviceTokenPromises = user.deviceTokens.map(async (deviceToken, tokenIndex) => {
+                try {
+                  console.log(`📲 Sending notification to device ${tokenIndex + 1}/${user.deviceTokens.length} (token: ${deviceToken.token.substring(0, 20)}...)`);
+                  
+                  const result = await this.firebaseService.sendNotification(
+                    deviceToken.token,
+                    title,
+                    body,
+                  );
+                  
+                  console.log(`✅ Push notification sent successfully to device ${tokenIndex + 1} for user ${user.id}`);
+                  return { success: true, deviceToken: deviceToken.token, result };
+                } catch (deviceError) {
+                  console.error(`❌ Failed to send push notification to device ${tokenIndex + 1} for user ${user.id}:`, deviceError.message);
+                  return { success: false, deviceToken: deviceToken.token, error: deviceError.message };
+                }
+              });
+              
+              const deviceResults = await Promise.all(deviceTokenPromises);
+              const deviceSuccesses = deviceResults.filter(r => r.success).length;
+              const deviceErrors = deviceResults.filter(r => !r.success);
+              
+              console.log(`📊 Device notifications for user ${user.id}: ${deviceSuccesses} success, ${deviceErrors.length} failed`);
+              
+              if (deviceErrors.length > 0) {
+                errors.push({
+                  userId: user.id,
+                  type: 'device_notification',
+                  errors: deviceErrors.map(e => e.error)
+                });
+              }
+              
+              successCount += deviceSuccesses;
+              errorCount += deviceErrors.length;
+            } else {
+              console.log(`⚠️ User ${user.id} has no device tokens - skipping push notification`);
+            }
+            
+            // Emit profile update
+            await this.notificationGateway.emitProfileUpdate(user.id.toString());
+            console.log(`🔄 Profile update emitted for user ${user.id}`);
+            
+          } catch (userError) {
+            console.error(`❌ Error processing user ${user.id}:`, userError.message);
+            errors.push({
+              userId: user.id,
+              type: 'user_processing',
+              error: userError.message
+            });
+            errorCount++;
+          }
         });
 
         await Promise.all(notificationPromises);
+        
+        // Final summary
+        console.log(`📊 Contest notification summary for "${contest.name}":`);
+        console.log(`✅ Total successful notifications: ${successCount}`);
+        console.log(`❌ Total failed notifications: ${errorCount}`);
+        console.log(`👥 Total users processed: ${users.length}`);
+        
+        if (errors.length > 0) {
+          console.log(`🚨 Errors encountered:`);
+          errors.forEach((error, index) => {
+            console.log(`  ${index + 1}. User ${error.userId} (${error.type}): ${error.error || JSON.stringify(error.errors)}`);
+          });
+        }
         updatedContests.push(contest);
       } else if (contest.endTime < currentDate && postsCount === 0) {
+        console.log(`   🔒 Closing contest "${contest.name}" - no posts submitted`);
         contest.status = ContestStatusEnum.CLOSED;
         contest.is_approved = true;
         updatedContests.push(contest);
@@ -346,6 +424,7 @@ export class ContestService {
         postsCount > 0 &&
         contest.status !== ContestStatusEnum.PENDING_REVIEW
       ) {
+        console.log(`   🏆 Setting automatic winner for contest "${contest.name}"`);
         await this.activityService.createActivities(
           null,
           admins.map((e) => e.id),
@@ -362,6 +441,7 @@ export class ContestService {
         !contest.is_approved &&
         contest.status !== ContestStatusEnum.PENDING_REVIEW
       ) {
+        console.log(`   ⏳ Setting contest "${contest.name}" to pending review`);
         await this.activityService.createActivities(
           null,
           admins.map((e) => e.id),
@@ -378,8 +458,11 @@ export class ContestService {
         contest.is_approved &&
         contest.status !== ContestStatusEnum.CLOSED
       ) {
+        console.log(`   ✅ Closing approved contest "${contest.name}"`);
         contest.status = ContestStatusEnum.CLOSED;
         updatedContests.push(contest);
+      } else {
+        console.log(`   ℹ️ No action needed for contest "${contest.name}"`);
       }
     }
 
