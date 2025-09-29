@@ -63,7 +63,15 @@ export class AdminService {
   }
 
   async forceContestRun(data: ContestRunDto) {
-    return this.contestService.forceContestRun(data);
+    console.log(`👨‍💼 ADMIN: Force contest run requested for contest ID ${data.contest_id}`);
+    try {
+      const result = await this.contestService.forceContestRun(data);
+      console.log(`✅ ADMIN: Force contest run completed successfully:`, result);
+      return result;
+    } catch (error) {
+      console.error(`❌ ADMIN: Force contest run failed:`, error.message);
+      throw error;
+    }
   }
 
   async blockUser({ user_id }: BlockUserDto) {

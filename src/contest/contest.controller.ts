@@ -75,7 +75,14 @@ export class ContestController {
 
   @Cron(CronExpression.EVERY_10_MINUTES)
   async handleContests() {
-    await this.contestService.updateContestStatuses();
+    console.log(`⏰ CRON JOB: Starting contest status update at ${new Date().toISOString()}`);
+    try {
+      await this.contestService.updateContestStatuses();
+      console.log(`✅ CRON JOB: Contest status update completed successfully`);
+    } catch (error) {
+      console.error(`❌ CRON JOB: Error in contest status update:`, error.message);
+      console.error(`❌ CRON JOB: Full error:`, error);
+    }
   }
 
 
