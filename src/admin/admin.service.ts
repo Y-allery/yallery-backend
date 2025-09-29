@@ -444,9 +444,9 @@ export class AdminService {
         end_time: contest.endTime,
       });
 
-      console.log(`🔄 FORCE START CONTEST: Calling updateContestStatuses to send notifications`);
-      // Запускаємо логіку нотифікацій (як в крон-завданні)
-      await this.contestService.updateContestStatuses();
+      console.log(`🔄 FORCE START CONTEST: Sending notifications for this specific contest`);
+      // Відправляємо нотифікації для цього конкретного контесту
+      await this.contestService.sendContestStartNotifications(contest);
       console.log(`✅ FORCE START CONTEST: Notifications sent successfully`);
 
       console.log(`🎉 FORCE START CONTEST: Successfully completed for contest "${contest.name}"`);
