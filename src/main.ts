@@ -96,5 +96,8 @@ async function bootstrap() {
 
   const port = process.env.PORT || 8000;
   await app.listen(port, '0.0.0.0');
+  console.log(`🚀 Application is running on: http://0.0.0.0:${port}`);
+  console.log(`📚 Swagger documentation: http://0.0.0.0:${port}/api`);
+  console.log(`⏰ Cron jobs are enabled and will run every 10 minutes`);
 }
 bootstrap();
