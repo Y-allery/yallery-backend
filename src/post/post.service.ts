@@ -670,8 +670,19 @@ export class PostService {
     );
 
     const browser = await puppeteer.launch({
-      headless: false,
-      args: ['--no-sandbox'],
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+        '--disable-gpu',
+        '--disable-web-security',
+        '--disable-features=VizDisplayCompositor'
+      ],
     });
     const page = await browser.newPage();
     await page.setUserAgent(
@@ -1028,8 +1039,19 @@ export class PostService {
       '[_recoverSessionViaGmail] Starting Gmail session recovery for Twitter',
     );
     const browser = await puppeteer.launch({
-      headless: false,
-      args: ['--no-sandbox'],
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+        '--disable-gpu',
+        '--disable-web-security',
+        '--disable-features=VizDisplayCompositor'
+      ],
     });
 
     const page = await browser.newPage();
