@@ -59,7 +59,6 @@ import { VideoGenerationModule } from './video-generation/video-generation.modul
       rootPath: join(__dirname, '..', '..', 'public'),
       exclude: ['/api*'],
       serveRoot: '/',
-      index: false,
     }),
     DatabaseModule,
     UserModule,
