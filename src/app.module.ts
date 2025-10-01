@@ -58,6 +58,8 @@ import { VideoGenerationModule } from './video-generation/video-generation.modul
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', '..', 'public'),
       exclude: ['/api*'],
+      serveRoot: '/',
+      index: false,
     }),
     DatabaseModule,
     UserModule,

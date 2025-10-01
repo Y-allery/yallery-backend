@@ -12,6 +12,7 @@ import {
 import { AuthService } from './auth.service';
 import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
+import { join } from 'path';
 import { SignInDto } from './dto/sign-in.dto';
 import { SignUpDto } from './dto/sign-up.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
@@ -186,5 +187,10 @@ export class AuthController {
   @UseGuards(AuthGuard('twitter'))
   async twitterLoginCallback(@Req() req, @Res() res: Response) {
     res.redirect('https://t.me/yallery_mini_bot?startapp');
+  }
+
+  @Get()
+  async index(@Res() res: Response) {
+    res.sendFile(join(__dirname, '..', '..', '..', 'public', 'index.html'));
   }
 }
