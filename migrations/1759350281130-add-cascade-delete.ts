@@ -4,6 +4,19 @@ export class AddCascadeDelete1759350281130 implements MigrationInterface {
     name = 'AddCascadeDelete1759350281130'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
+        // Clean up orphaned records first
+        await queryRunner.query(`
+            DELETE vp FROM viewed_posts vp 
+            LEFT JOIN posts p ON vp.postId = p.id 
+            WHERE p.id IS NULL
+        `);
+        
+        await queryRunner.query(`
+            DELETE vp FROM viewed_posts vp 
+            LEFT JOIN users u ON vp.userId = u.id 
+            WHERE u.id IS NULL
+        `);
+        
         // Check and drop existing foreign key constraints if they exist
         const constraints = await queryRunner.query(`
             SELECT CONSTRAINT_NAME 
