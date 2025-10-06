@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
+import { PartnerController } from './partner.controller';
 import { ContestModule } from 'src/contest/contest.module';
 import { UserModule } from 'src/user/user.module';
 import { PostModule } from 'src/post/post.module';
@@ -25,6 +26,6 @@ import { PartnerUserLinkEntity } from './entities/partner-user-link.entity';
     ActivityModule,
   ],
   providers: [AdminService],
-  controllers: [AdminController],
+  controllers: [AdminController, PartnerController],
 })
 export class AdminModule {}
