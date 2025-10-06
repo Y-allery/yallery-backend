@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
-import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 
 @Controller('partner')
@@ -36,6 +36,17 @@ export class PartnerController {
     description:
       'Marks a referral activity flag for a linked user.\n' +
       'Flags: posted_to_twitter, first_purchase, completed_profile.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        ref: { type: 'string', description: 'Referral token from partnership', example: '7d4b2eec...' },
+        puid: { type: 'string', description: 'Partner user id from external partner', example: 'partner-12345' },
+        flag: { type: 'string', description: 'Activity flag to set', example: 'posted_to_twitter' },
+      },
+      required: ['ref', 'puid', 'flag'],
+    },
   })
   @ApiResponse({ status: 200, description: 'Flag set or already set' })
   async setReferralFlag(
