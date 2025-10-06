@@ -83,7 +83,6 @@ export class AdminController {
     return this.adminService.deleteContest(id);
   }
 
-
   @Post('block-user')
   async blockUser(@Body() dto: BlockUserDto) {
     return this.adminService.blockUser(dto);
@@ -234,9 +233,9 @@ export class AdminController {
   @ApiResponse({ status: 404, description: 'Style not found.' })
   async updateStyle(
     @Param('id', ParseIntPipe) id: number,
-    @Body() updateStyleDto: CreateStyleDto,
+    @Body() updateTagDto: CreateStyleDto,
   ) {
-    return this.adminService.updateStyle(id, updateStyleDto);
+    return this.adminService.updateStyle(id, updateTagDto);
   }
 
   @Delete('styles/:id')
@@ -255,28 +254,6 @@ export class AdminController {
     return this.adminService.getPostById(postId);
   }
 
-  @Delete('reject-complaint/:id')
-  @ApiOperation({ summary: 'Reject a complaint by ID' })
-  async rejectComplaint(@Param('id', ParseIntPipe) complaintId: number) {
-    return this.adminService.rejectComplaint(complaintId);
-  }
-  @Get('export-twitter-data')
-  @ApiOperation({
-    summary:
-      'Export Twitter top followers and followings as CSV and get account score',
-  })
-  async exportTwitterData(@Res() res) {
-    const { zipBuffer } =
-      await this.adminService.exportTwitterDataWithFollowers();
-
-    res.set({
-      'Content-Type': 'application/zip',
-      'Content-Disposition': `attachment; filename=y_allery_twitter_data.zip`,
-    });
-
-    res.end(zipBuffer);
-  }
-
   @Post('create-partnership')
   @ApiOperation({ summary: 'Create a new partnership' })
   @ApiResponse({
@@ -293,6 +270,29 @@ export class AdminController {
   @ApiResponse({ status: 200, description: 'List of partnerships returned' })
   async getAllPartnerships() {
     return this.adminService.getAllPartnershipsWithStats();
+  }
+
+  @Get('referral-status')
+  @ApiOperation({
+    summary: 'Check referral user flag status',
+    description:
+      'Checks whether a user (by partnerUserId) linked via referralToken has a specific activity flag.\n' +
+      'Flags: posted_to_twitter (tweet successfully published), first_purchase, completed_profile.'
+  })
+  @ApiQuery({ name: 'ref', required: true, description: 'Referral token from partnership' })
+  @ApiQuery({ name: 'puid', required: true, description: 'Partner user id provided by external partner' })
+  @ApiQuery({ name: 'flag', required: true, description: 'Activity flag to check, e.g., posted_to_twitter' })
+  @ApiResponse({ status: 200, description: 'Flag status returned' })
+  async checkReferralStatus(
+    @Query('ref') ref: string,
+    @Query('puid') puid: string,
+    @Query('flag') flag: string,
+  ) {
+    return this.adminService.checkReferralFlag({
+      referralToken: ref,
+      partnerUserId: puid,
+      flag,
+    });
   }
 
   @Post('force-start-contest')

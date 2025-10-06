@@ -29,6 +29,8 @@ import axios from 'axios';
 import puppeteer from 'puppeteer';
 import { ConfigService } from '@nestjs/config';
 import { NotificationGateway } from 'src/notification/notification.gateway';
+import { PartnershipActivityEntity } from 'src/admin/entities/partnership-activity.entity';
+import { PartnerUserLinkEntity } from 'src/admin/entities/partner-user-link.entity';
 
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 const randomSleep = async () =>
@@ -61,6 +63,10 @@ export class PostService {
     private readonly configService: ConfigService,
     @Inject(forwardRef(() => NotificationGateway))
     private readonly notificationGateway: NotificationGateway,
+    @InjectRepository(PartnershipActivityEntity)
+    private readonly partnershipActivityRepo: Repository<PartnershipActivityEntity>,
+    @InjectRepository(PartnerUserLinkEntity)
+    private readonly partnerUserLinkRepo: Repository<PartnerUserLinkEntity>,
   ) {}
 
   async getPosts(cursor: number | null, limit: number, userId: number) {
@@ -973,6 +979,29 @@ export class PostService {
     const tweetUrlFull = `https://twitter.com/${twitterUsername}/status/${tweetId}`;
 
     post.tweetLink = tweetUrlFull;
+    // Log referral activity flag when tweet is successfully posted
+    try {
+      if (post.user?.id) {
+        const links = await this.partnerUserLinkRepo.find({ where: { userId: post.user.id } });
+        for (const link of links) {
+          const exists = await this.partnershipActivityRepo.findOne({
+            where: {
+              partnershipId: link.partnershipId,
+              userId: post.user.id,
+              activity: 'posted_to_twitter',
+            },
+          });
+          if (!exists) {
+            const rec = this.partnershipActivityRepo.create({
+              partnershipId: link.partnershipId,
+              userId: post.user.id,
+              activity: 'posted_to_twitter',
+            });
+            await this.partnershipActivityRepo.save(rec);
+          }
+        }
+      }
+    } catch {}
     await this.postEntity.save(post);
 
     const telegramUrl = `https://api.telegram.org/bot${this.configService.get('TELEGRAM_BOT_TOKEN')}/sendPhoto`;

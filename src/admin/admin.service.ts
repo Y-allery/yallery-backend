@@ -29,6 +29,7 @@ import {
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { PartnershipActivityEntity } from './entities/partnership-activity.entity';
+import { PartnerUserLinkEntity } from './entities/partner-user-link.entity';
 
 @Injectable()
 export class AdminService {
@@ -49,6 +50,8 @@ export class AdminService {
     private readonly partnerShipRepo: Repository<PartnershipEntity>,
     @InjectRepository(PartnershipActivityEntity)
     private readonly partnerShipActivityRepository: Repository<PartnershipActivityEntity>,
+    @InjectRepository(PartnerUserLinkEntity)
+    private readonly partnerUserLinkRepository: Repository<PartnerUserLinkEntity>,
   ) {
     this.apiKey = this.configService.get<string>('TWEETSCOUT_API_KEY');
     this.apiUrl = this.configService.get<string>('TWEETSCOUT_API_URL', 'https://api.tweetscout.io/v2');
@@ -375,6 +378,37 @@ export class AdminService {
     return this.partnerShipRepo.find({
       order: { createdAt: 'DESC' },
     });
+  }
+
+  async checkReferralFlag(params: {
+    referralToken: string;
+    partnerUserId: string;
+    flag: string; // e.g. 'posted_to_twitter'
+  }): Promise<{ status: boolean }> {
+    const { referralToken, partnerUserId, flag } = params;
+    const partnership = await this.partnerShipRepo.findOne({
+      where: { referralToken },
+    });
+    if (!partnership) {
+      return { status: false };
+    }
+    const link = await this.partnerUserLinkRepository.findOne({
+      where: {
+        partnershipId: partnership.id,
+        partnerUserId,
+      },
+    });
+    if (!link || !link.userId) {
+      return { status: false };
+    }
+    const activity = await this.partnerShipActivityRepository.findOne({
+      where: {
+        partnershipId: partnership.id,
+        userId: link.userId,
+        activity: flag,
+      },
+    });
+    return { status: !!activity };
   }
 
   async getAllPartnershipsWithStats() {

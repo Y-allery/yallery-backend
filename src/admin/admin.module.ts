@@ -9,10 +9,15 @@ import { ActivityModule } from 'src/activity/activity.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PartnershipEntity } from './entities/partner.entity';
 import { PartnershipActivityEntity } from './entities/partnership-activity.entity';
+import { PartnerUserLinkEntity } from './entities/partner-user-link.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([PartnershipEntity, PartnershipActivityEntity]),
+    TypeOrmModule.forFeature([
+      PartnershipEntity,
+      PartnershipActivityEntity,
+      PartnerUserLinkEntity,
+    ]),
     ContestModule,
     UserModule,
     PostModule,
