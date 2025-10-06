@@ -30,6 +30,8 @@ import verifyAppleToken from 'apple-signin-auth';
 import { RoleEnum } from 'src/user/types/role.enum';
 import * as crypto from 'crypto';
 import { NotificationGateway } from 'src/notification/notification.gateway';
+import { PartnershipEntity } from 'src/admin/entities/partner.entity';
+import { PartnerUserLinkEntity } from 'src/admin/entities/partner-user-link.entity';
 @Injectable()
 export class AuthService {
   private client: OAuth2Client;
@@ -42,6 +44,10 @@ export class AuthService {
     private readonly configService: ConfigService,
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
+    @InjectRepository(PartnershipEntity)
+    private readonly partnershipRepo: Repository<PartnershipEntity>,
+    @InjectRepository(PartnerUserLinkEntity)
+    private readonly partnerUserLinkRepo: Repository<PartnerUserLinkEntity>,
     @Inject(NotificationGateway)
     private readonly notificationGateway: NotificationGateway,
   ) {
@@ -120,6 +126,32 @@ export class AuthService {
     const verificationToken = this.generateVerificationToken();
     newUser.verificationToken = verificationToken;
     await this.userRepository.save(newUser);
+
+    // Link to partnership if referral data provided
+    if (dto.ref && dto.puid) {
+      const partnership = await this.partnershipRepo.findOne({
+        where: { referralToken: dto.ref },
+      });
+      if (partnership) {
+        const existing = await this.partnerUserLinkRepo.findOne({
+          where: {
+            partnershipId: partnership.id,
+            partnerUserId: dto.puid,
+          },
+        });
+        if (!existing) {
+          const link = this.partnerUserLinkRepo.create({
+            partnershipId: partnership.id,
+            partnerUserId: dto.puid,
+            userId: newUser.id,
+          });
+          await this.partnerUserLinkRepo.save(link);
+        } else if (!existing.userId) {
+          existing.userId = newUser.id;
+          await this.partnerUserLinkRepo.save(existing);
+        }
+      }
+    }
 
     const accessToken = await this.generateAccessToken(newUser);
     const refreshToken = await this.generateRefreshToken(newUser);

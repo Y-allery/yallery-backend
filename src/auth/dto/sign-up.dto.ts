@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsString, Length, Matches } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEmail, IsOptional, IsString, Length, Matches } from 'class-validator';
 
 export class SignUpDto {
   @ApiProperty({ description: 'The name of the user', example: 'John Doe' })
@@ -36,4 +36,14 @@ export class SignUpDto {
       'Password must include one uppercase, one lowercase, one number, and one special character',
   })
   password: string;
+
+  @ApiPropertyOptional({ description: 'Referral token from partnership link', example: '7d4b2eec...' })
+  @IsOptional()
+  @IsString()
+  ref?: string;
+
+  @ApiPropertyOptional({ description: 'Partner user id from external partner', example: 'partner-12345' })
+  @IsOptional()
+  @IsString()
+  puid?: string;
 }

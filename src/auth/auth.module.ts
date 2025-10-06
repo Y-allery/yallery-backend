@@ -11,6 +11,8 @@ import { MailModule } from 'src/mail/mail.module';
 import { GoogleStrategy } from './strategies/google.auth.strategy';
 import { AppleStrategy } from './strategies/apple.auth.strategy';
 import { NotificationPreferenceEntity } from 'src/notification/entity/notification.preferences.entity';
+import { PartnershipEntity } from 'src/admin/entities/partner.entity';
+import { PartnerUserLinkEntity } from 'src/admin/entities/partner-user-link.entity';
 import { NotificationModule } from 'src/notification/notification.module';
 import { TwitterStrategy } from './strategies/twitter.auth.strategy';
 
@@ -26,7 +28,12 @@ import { TwitterStrategy } from './strategies/twitter.auth.strategy';
     }),
     UserModule,
     MailModule,
-    TypeOrmModule.forFeature([UserEntity, NotificationPreferenceEntity]),
+    TypeOrmModule.forFeature([
+      UserEntity,
+      NotificationPreferenceEntity,
+      PartnershipEntity,
+      PartnerUserLinkEntity,
+    ]),
     NotificationModule,
   ],
   controllers: [AuthController],
