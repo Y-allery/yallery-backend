@@ -8,7 +8,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { PartnershipEntity } from './partner.entity';
-import { UserEntity } from 'src/user/entities/user.entity';
+import { UserEntity } from '../../user/entities/user.entity';
 
 @Entity('partner_user_links')
 @Index(['partnershipId', 'partnerUserId'], { unique: true })
