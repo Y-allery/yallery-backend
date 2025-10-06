@@ -8,6 +8,7 @@ import {
 export enum PartnershipSource {
   MINI_APP = 'mini app',
   REGULAR_APP = 'regular app',
+  WEB_APP = 'web app',
 }
 
 @Entity('partnerships')

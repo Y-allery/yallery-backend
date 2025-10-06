@@ -332,6 +332,9 @@ export class AdminService {
     let referralLink: string;
     if (source === PartnershipSource.MINI_APP) {
       referralLink = `https://t.me/yallery_bot?start=${referralToken}`;
+    } else if (source === PartnershipSource.WEB_APP) {
+      const baseUrl = this.configService.get<string>('WEB_APP_URL_PROD') || 'https://yallery.web.app';
+      referralLink = `${baseUrl}/?ref=${referralToken}`;
     } else {
       const branchPayload = {
         branch_key: process.env.BRANCH_KEY,

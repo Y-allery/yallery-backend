@@ -120,6 +120,15 @@ export class EnvironmentVariables {
 
   @IsString()
   APPLE_CLIENT_ID: string;
+
+  // Web App URLs for partner referrals
+  @IsOptional()
+  @IsString()
+  WEB_APP_URL_PROD?: string; // e.g. https://yallery.web.app
+
+  @IsOptional()
+  @IsString()
+  WEB_APP_URL_DEV?: string; // e.g. https://yallery-dev.web.app
 }
 
 export function validate(config: Record<string, unknown>) {
