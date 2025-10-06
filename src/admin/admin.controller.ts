@@ -295,6 +295,26 @@ export class AdminController {
     });
   }
 
+  @Post('referral-flag')
+  @ApiOperation({
+    summary: 'Set referral user flag (idempotent)',
+    description:
+      'Marks a referral activity flag for a linked user.\n' +
+      'Flags: posted_to_twitter, first_purchase, completed_profile.'
+  })
+  @ApiResponse({ status: 200, description: 'Flag set or already set' })
+  async setReferralFlag(
+    @Body('ref') ref: string,
+    @Body('puid') puid: string,
+    @Body('flag') flag: string,
+  ) {
+    return this.adminService.setReferralFlag({
+      referralToken: ref,
+      partnerUserId: puid,
+      flag,
+    });
+  }
+
   @Post('force-start-contest')
   @ApiOperation({ summary: 'Force start a specific contest immediately' })
   @ApiResponse({ 

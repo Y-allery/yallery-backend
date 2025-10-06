@@ -411,6 +411,39 @@ export class AdminService {
     return { status: !!activity };
   }
 
+  async setReferralFlag(params: {
+    referralToken: string;
+    partnerUserId: string;
+    flag: string; // e.g. 'posted_to_twitter'
+  }): Promise<{ status: boolean }>
+  {
+    const { referralToken, partnerUserId, flag } = params;
+    const partnership = await this.partnerShipRepo.findOne({ where: { referralToken } });
+    if (!partnership) return { status: false };
+
+    const link = await this.partnerUserLinkRepository.findOne({
+      where: { partnershipId: partnership.id, partnerUserId },
+    });
+    if (!link || !link.userId) return { status: false };
+
+    const exists = await this.partnerShipActivityRepository.findOne({
+      where: {
+        partnershipId: partnership.id,
+        userId: link.userId,
+        activity: flag,
+      },
+    });
+    if (exists) return { status: true };
+
+    const rec = this.partnerShipActivityRepository.create({
+      partnershipId: partnership.id,
+      userId: link.userId,
+      activity: flag,
+    });
+    await this.partnerShipActivityRepository.save(rec);
+    return { status: true };
+  }
+
   async getAllPartnershipsWithStats() {
     const partnerships = await this.partnerShipRepo.find({
       order: { createdAt: 'DESC' },
