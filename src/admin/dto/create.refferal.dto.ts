@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 import { PartnershipSource } from '../entities/partner.entity';
 
 export class CreatePartnershipDto {
@@ -12,4 +12,9 @@ export class CreatePartnershipDto {
 
   @IsEnum(PartnershipSource)
   source: PartnershipSource;
+
+  // Used only when source === WEB_APP. If provided, link will target the contest page
+  @IsOptional()
+  @IsNumber()
+  contestId?: number;
 }

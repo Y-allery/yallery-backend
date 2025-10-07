@@ -329,7 +329,7 @@ export class AdminService {
   }
 
   async createPartnership(data: CreatePartnershipDto) {
-    const { partnerName, companyName, source } = data;
+    const { partnerName, companyName, source, contestId } = data;
     const referralToken = uuidv4();
 
     let referralLink: string;
@@ -337,7 +337,11 @@ export class AdminService {
       referralLink = `https://t.me/yallery_bot?start=${referralToken}`;
     } else if (source === PartnershipSource.WEB_APP) {
       const baseUrl = this.configService.get<string>('WEB_APP_URL') || 'https://yallery.web.app';
-      referralLink = `${baseUrl}/?ref=${referralToken}`;
+      if (contestId && Number(contestId) > 0) {
+        referralLink = `${baseUrl.replace(/\/$/, '')}/contest/${contestId}?ref=${referralToken}`;
+      } else {
+        referralLink = `${baseUrl.replace(/\/$/, '')}/?ref=${referralToken}`;
+      }
     } else {
       const branchPayload = {
         branch_key: process.env.BRANCH_KEY,
