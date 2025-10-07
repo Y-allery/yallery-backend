@@ -398,17 +398,20 @@ export class AdminService {
         partnerUserId,
       },
     });
+    console.log(link)
     if (!link || !link.userId) {
       return { status: false };
     }
-    const activity = await this.partnerShipActivityRepository.findOne({
-      where: {
-        partnershipId: partnership.id,
-        userId: link.userId,
-        activity: flag,
-      },
-    });
-    return { status: !!activity };
+    const normalizedFlag = (flag || '').trim();
+    const userIdNum = Number(link.userId);
+    const exists = await this.partnerShipActivityRepository
+      .createQueryBuilder('pa')
+      .where('pa.partnershipId = :pid', { pid: partnership.id })
+      .andWhere('pa.userId = :uid', { uid: userIdNum })
+      .andWhere('pa.activity = :flag', { flag: normalizedFlag })
+      .limit(1)
+      .getOne();
+    return { status: !!exists };
   }
 
   async setReferralFlag(params: {
