@@ -411,6 +411,7 @@ export class AdminService {
       .andWhere('pa.activity = :flag', { flag: normalizedFlag })
       .limit(1)
       .getOne();
+    console.log(exists)
     return { status: !!exists };
   }
 
