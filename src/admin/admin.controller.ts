@@ -265,6 +265,25 @@ export class AdminController {
     return this.adminService.createPartnership(dto);
   }
 
+  @Delete('partnership/:id')
+  @ApiOperation({ summary: 'Delete partnership and all related data' })
+  @ApiResponse({
+    status: 200,
+    description: 'Partnership deleted successfully.',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        message: { type: 'string' },
+      },
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Partnership not found.' })
+  @ApiResponse({ status: 500, description: 'Failed to delete partnership.' })
+  async deletePartnership(@Param('id', ParseIntPipe) id: number) {
+    return this.adminService.deletePartnership(id);
+  }
+
   @Get('partnerships')
   @ApiOperation({ summary: 'Get all partnerships with activity stats' })
   @ApiResponse({ status: 200, description: 'List of partnerships returned' })

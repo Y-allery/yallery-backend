@@ -480,6 +480,30 @@ export class AdminService {
     return results;
   }
 
+  async deletePartnership(partnershipId: number): Promise<{ success: boolean; message: string }> {
+    try {
+      const partnership = await this.partnerShipRepo.findOne({ where: { id: partnershipId } });
+      if (!partnership) {
+        return { success: false, message: 'Partnership not found' };
+      }
+
+      // Delete related data in correct order to avoid foreign key constraints
+      // 1. Delete partnership activities first
+      await this.partnerShipActivityRepository.delete({ partnershipId });
+      
+      // 2. Delete partner user links
+      await this.partnerUserLinkRepository.delete({ partnershipId });
+      
+      // 3. Finally delete the partnership
+      await this.partnerShipRepo.delete(partnershipId);
+
+      return { success: true, message: 'Partnership and all related data deleted successfully' };
+    } catch (error) {
+      console.error('Error deleting partnership:', error);
+      return { success: false, message: 'Failed to delete partnership' };
+    }
+  }
+
   async forceStartContest(contestId: number) {
     console.log(`🚀 Force starting contest ID ${contestId}`);
     try {
