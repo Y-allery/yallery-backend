@@ -981,20 +981,21 @@ export class PostService {
     post.tweetLink = tweetUrlFull;
     // Log referral activity flag when tweet is successfully posted
     try {
-      if (post.user?.id) {
-        const links = await this.partnerUserLinkRepo.find({ where: { userId: post.user.id } });
+      const effectiveUserId = post.user?.id ?? userId;
+      if (effectiveUserId) {
+        const links = await this.partnerUserLinkRepo.find({ where: { userId: effectiveUserId } });
         for (const link of links) {
           const exists = await this.partnershipActivityRepo.findOne({
             where: {
               partnershipId: link.partnershipId,
-              userId: post.user.id,
+              userId: effectiveUserId,
               activity: 'posted_to_twitter',
             },
           });
           if (!exists) {
             const rec = this.partnershipActivityRepo.create({
               partnershipId: link.partnershipId,
-              userId: post.user.id,
+              userId: effectiveUserId,
               activity: 'posted_to_twitter',
             });
             await this.partnershipActivityRepo.save(rec);
@@ -1038,7 +1039,7 @@ export class PostService {
 
 
     await page.browser().close();
-
+    
     return {
       message: 'Tweet sent successfully',
       tweetUrl: tweetUrlFull,
