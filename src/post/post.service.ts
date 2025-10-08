@@ -675,9 +675,20 @@ export class PostService {
       'twitter-session.json',
     );
 
+    // Try system Chromium first, fallback to bundled Chrome
+    let executablePath = '/usr/bin/chromium-browser';
+    try {
+      const fs = require('fs');
+      if (!fs.existsSync(executablePath)) {
+        executablePath = undefined; // Use bundled Chrome
+      }
+    } catch (error) {
+      executablePath = undefined; // Use bundled Chrome
+    }
+
     const browser = await puppeteer.launch({
       headless: true,
-      executablePath: '/usr/bin/chromium-browser',
+      executablePath: executablePath,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -1068,9 +1079,20 @@ export class PostService {
     console.log(
       '[_recoverSessionViaGmail] Starting Gmail session recovery for Twitter',
     );
+    // Try system Chromium first, fallback to bundled Chrome
+    let executablePath = '/usr/bin/chromium-browser';
+    try {
+      const fs = require('fs');
+      if (!fs.existsSync(executablePath)) {
+        executablePath = undefined; // Use bundled Chrome
+      }
+    } catch (error) {
+      executablePath = undefined; // Use bundled Chrome
+    }
+
     const browser = await puppeteer.launch({
       headless: true,
-      executablePath: '/usr/bin/chromium-browser',
+      executablePath: executablePath,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
