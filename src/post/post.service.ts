@@ -684,22 +684,27 @@ export class PostService {
       '/snap/bin/chromium'
     ];
     
-    let executablePath = undefined;
-    try {
-      const fs = require('fs');
-      for (const path of possiblePaths) {
-        if (fs.existsSync(path)) {
-          executablePath = path;
-          console.log(`[Puppeteer] Using system browser: ${path}`);
-          break;
+    // Try environment variable first, then different browser paths
+    let executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    
+    if (!executablePath) {
+      try {
+        const fs = require('fs');
+        for (const path of possiblePaths) {
+          if (fs.existsSync(path)) {
+            executablePath = path;
+            break;
+          }
         }
+      } catch (error) {
+        // Ignore error, will use bundled Chrome
       }
-      if (!executablePath) {
-        console.log('[Puppeteer] No system browser found, using bundled Chrome');
-      }
-    } catch (error) {
-      console.log('[Puppeteer] Error checking system browsers, using bundled Chrome');
-      executablePath = undefined; // Use bundled Chrome
+    }
+    
+    if (executablePath) {
+      console.log(`[Puppeteer] Using system browser: ${executablePath}`);
+    } else {
+      console.log('[Puppeteer] No system browser found, using bundled Chrome');
     }
 
     const browser = await puppeteer.launch({
@@ -1107,22 +1112,27 @@ export class PostService {
       '/snap/bin/chromium'
     ];
     
-    let executablePath = undefined;
-    try {
-      const fs = require('fs');
-      for (const path of possiblePaths) {
-        if (fs.existsSync(path)) {
-          executablePath = path;
-          console.log(`[Puppeteer] Using system browser: ${path}`);
-          break;
+    // Try environment variable first, then different browser paths
+    let executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    
+    if (!executablePath) {
+      try {
+        const fs = require('fs');
+        for (const path of possiblePaths) {
+          if (fs.existsSync(path)) {
+            executablePath = path;
+            break;
+          }
         }
+      } catch (error) {
+        // Ignore error, will use bundled Chrome
       }
-      if (!executablePath) {
-        console.log('[Puppeteer] No system browser found, using bundled Chrome');
-      }
-    } catch (error) {
-      console.log('[Puppeteer] Error checking system browsers, using bundled Chrome');
-      executablePath = undefined; // Use bundled Chrome
+    }
+    
+    if (executablePath) {
+      console.log(`[Puppeteer] Using system browser: ${executablePath}`);
+    } else {
+      console.log('[Puppeteer] No system browser found, using bundled Chrome');
     }
 
     const browser = await puppeteer.launch({

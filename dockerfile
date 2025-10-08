@@ -29,11 +29,13 @@ RUN apt-get update && apt-get install -y \
     libgtk-3-0 \
     libgdk-pixbuf2.0-0 \
     xdg-utils \
+    chromium-browser \
     --no-install-recommends && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Puppeteer: дозвіл на завантаження Chromium
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false
+# Puppeteer: використовуємо системний Chromium
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 WORKDIR /app
 
