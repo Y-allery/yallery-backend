@@ -338,7 +338,7 @@ export class AdminService {
     } else if (source === PartnershipSource.WEB_APP) {
       const baseUrl = this.configService.get<string>('WEB_APP_URL') || 'https://yallery.web.app';
       if (contestId && Number(contestId) > 0) {
-        referralLink = `${baseUrl.replace(/\/$/, '')}/contest/${contestId}?ref=${referralToken}`;
+        referralLink = `${baseUrl.replace(/\/$/, '')}/contests/${contestId}?ref=${referralToken}`;
       } else {
         referralLink = `${baseUrl.replace(/\/$/, '')}/?ref=${referralToken}`;
       }
