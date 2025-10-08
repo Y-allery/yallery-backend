@@ -675,14 +675,30 @@ export class PostService {
       'twitter-session.json',
     );
 
-    // Try system Chromium first, fallback to bundled Chrome
-    let executablePath = '/usr/bin/chromium-browser';
+    // Try different browser paths
+    const possiblePaths = [
+      '/usr/bin/chromium-browser',
+      '/usr/bin/chromium',
+      '/usr/bin/google-chrome',
+      '/usr/bin/google-chrome-stable',
+      '/snap/bin/chromium'
+    ];
+    
+    let executablePath = undefined;
     try {
       const fs = require('fs');
-      if (!fs.existsSync(executablePath)) {
-        executablePath = undefined; // Use bundled Chrome
+      for (const path of possiblePaths) {
+        if (fs.existsSync(path)) {
+          executablePath = path;
+          console.log(`[Puppeteer] Using system browser: ${path}`);
+          break;
+        }
+      }
+      if (!executablePath) {
+        console.log('[Puppeteer] No system browser found, using bundled Chrome');
       }
     } catch (error) {
+      console.log('[Puppeteer] Error checking system browsers, using bundled Chrome');
       executablePath = undefined; // Use bundled Chrome
     }
 
@@ -699,7 +715,10 @@ export class PostService {
         '--single-process',
         '--disable-gpu',
         '--disable-web-security',
-        '--disable-features=VizDisplayCompositor'
+        '--disable-features=VizDisplayCompositor',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding'
       ],
     });
     const page = await browser.newPage();
@@ -1079,14 +1098,30 @@ export class PostService {
     console.log(
       '[_recoverSessionViaGmail] Starting Gmail session recovery for Twitter',
     );
-    // Try system Chromium first, fallback to bundled Chrome
-    let executablePath = '/usr/bin/chromium-browser';
+    // Try different browser paths
+    const possiblePaths = [
+      '/usr/bin/chromium-browser',
+      '/usr/bin/chromium',
+      '/usr/bin/google-chrome',
+      '/usr/bin/google-chrome-stable',
+      '/snap/bin/chromium'
+    ];
+    
+    let executablePath = undefined;
     try {
       const fs = require('fs');
-      if (!fs.existsSync(executablePath)) {
-        executablePath = undefined; // Use bundled Chrome
+      for (const path of possiblePaths) {
+        if (fs.existsSync(path)) {
+          executablePath = path;
+          console.log(`[Puppeteer] Using system browser: ${path}`);
+          break;
+        }
+      }
+      if (!executablePath) {
+        console.log('[Puppeteer] No system browser found, using bundled Chrome');
       }
     } catch (error) {
+      console.log('[Puppeteer] Error checking system browsers, using bundled Chrome');
       executablePath = undefined; // Use bundled Chrome
     }
 
@@ -1103,7 +1138,10 @@ export class PostService {
         '--single-process',
         '--disable-gpu',
         '--disable-web-security',
-        '--disable-features=VizDisplayCompositor'
+        '--disable-features=VizDisplayCompositor',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding'
       ],
     });
 
