@@ -1015,11 +1015,29 @@ export class PostService {
     const tweetUrlFull = `https://twitter.com/${twitterUsername}/status/${tweetId}`;
 
     post.tweetLink = tweetUrlFull;
+    console.log(
+      `[_postTweet] Tweet published. userId=${user.id} tweetUrl=${tweetUrlFull}`,
+    );
     // Log referral activity flag when tweet is successfully posted
     try {
-      if (user.id) {
-        const links = await this.partnerUserLinkRepo.find({ where: { userId: user.id } });
+      if (!user.id) {
+        console.warn(
+          '[_postTweet] Cannot log partnership activity: missing user.id',
+        );
+      } else {
+        console.log(
+          `[_postTweet] Attempting to record partnership activity 'posted_to_twitter' for userId=${user.id}`,
+        );
+        const links = await this.partnerUserLinkRepo.find({
+          where: { userId: user.id },
+        });
+        console.log(
+          `[_postTweet] Found ${links.length} partner links for userId=${user.id}`,
+        );
         for (const link of links) {
+          console.log(
+            `[_postTweet] Checking existing activity for partnershipId=${link.partnershipId} userId=${user.id}`,
+          );
           const exists = await this.partnershipActivityRepo.findOne({
             where: {
               partnershipId: link.partnershipId,
@@ -1027,51 +1045,30 @@ export class PostService {
               activity: 'posted_to_twitter',
             },
           });
-          if (!exists) {
-            const rec = this.partnershipActivityRepo.create({
-              partnershipId: link.partnershipId,
-              userId: user.id,
-              activity: 'posted_to_twitter',
-            });
-            await this.partnershipActivityRepo.save(rec);
+          if (exists) {
+            console.log(
+              `[_postTweet] Activity already exists for partnershipId=${link.partnershipId} userId=${user.id}`,
+            );
+            continue;
           }
+          const rec = this.partnershipActivityRepo.create({
+            partnershipId: link.partnershipId,
+            userId: user.id,
+            activity: 'posted_to_twitter',
+          });
+          await this.partnershipActivityRepo.save(rec);
+          console.log(
+            `[_postTweet] Activity created for partnershipId=${link.partnershipId} userId=${user.id}`,
+          );
         }
       }
-    } catch {}
-    await this.postEntity.save(post);
-
-    const telegramUrl = `https://api.telegram.org/bot${this.configService.get('TELEGRAM_BOT_TOKEN')}/sendPhoto`;
-    const payload = {
-      chat_id: user.telegramId,
-      photo: post.imageUrl,
-      caption: `🎉 Your tweet is live! Repost your tweet to secure your spot in the contest`,
-      reply_markup: {
-        inline_keyboard: [[{ text: 'See tweet', url: tweetUrlFull }]],
-      },
-    };
-
-    const maxRetries = 4;
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        await axios.post(telegramUrl, payload);
-        console.log(
-          `[_postTweet] Telegram notification sent on attempt ${attempt}`,
-        );
-        break;
-      } catch (error) {
-        const isLast = attempt === maxRetries;
-        console.error(
-          `[_postTweet] Telegram send failed (attempt ${attempt}/${maxRetries}):`,
-          error.response?.data || error,
-        );
-        if (isLast) {
-          console.error('[_postTweet] All retry attempts exhausted');
-        } else {
-          await new Promise((res) => setTimeout(res, 1000 * attempt));
-        }
-      }
+    } catch (error) {
+      console.error(
+        '[_postTweet] Failed to log partnership activity posted_to_twitter:',
+        error?.stack || error,
+      );
     }
-
+    await this.postEntity.save(post);
 
     await page.browser().close();
     
