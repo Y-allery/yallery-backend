@@ -403,10 +403,16 @@ export class AuthService {
 
       // Link to partnership if referral data provided (same logic as register)
       if (extras?.ref && extras?.puid) {
+        console.log(
+          `[OAuth] New user created via OAuth. Attempting partnership link ref=${extras.ref} puid=${extras.puid} userId=${user.id}`,
+        );
         const partnership = await this.partnershipRepo.findOne({
           where: { referralToken: extras.ref },
         });
         if (partnership) {
+          console.log(
+            `[OAuth] Partnership found id=${partnership.id} for ref=${extras.ref}`,
+          );
           const existing = await this.partnerUserLinkRepo.findOne({
             where: {
               partnershipId: partnership.id,
@@ -420,10 +426,71 @@ export class AuthService {
               userId: user.id,
             });
             await this.partnerUserLinkRepo.save(link);
+            console.log(
+              `[OAuth] Partner link created partnershipId=${partnership.id} puid=${extras.puid} userId=${user.id}`,
+            );
           } else if (!existing.userId) {
             existing.userId = user.id;
             await this.partnerUserLinkRepo.save(existing);
+            console.log(
+              `[OAuth] Partner link updated with userId partnershipId=${partnership.id} puid=${extras.puid} userId=${user.id}`,
+            );
+          } else {
+            console.log(
+              `[OAuth] Partner link already exists and bound to userId=${existing.userId}`,
+            );
           }
+        } else {
+          console.warn(
+            `[OAuth] Partnership not found for ref=${extras.ref}. Skipping link`,
+          );
+        }
+      }
+    } else {
+      // Existing user logging in via OAuth: attempt to link partnership if referral extras provided
+      if (extras?.ref && extras?.puid) {
+        try {
+          console.log(
+            `[OAuth] Existing user login. Attempting partnership link ref=${extras.ref} puid=${extras.puid} userId=${user.id}`,
+          );
+          const partnership = await this.partnershipRepo.findOne({
+            where: { referralToken: extras.ref },
+          });
+          if (!partnership) {
+            console.warn(
+              `[OAuth] Partnership not found for ref=${extras.ref}.`,
+            );
+          } else {
+            const existing = await this.partnerUserLinkRepo.findOne({
+              where: {
+                partnershipId: partnership.id,
+                partnerUserId: extras.puid,
+              },
+            });
+            if (!existing) {
+              const link = this.partnerUserLinkRepo.create({
+                partnershipId: partnership.id,
+                partnerUserId: extras.puid,
+                userId: user.id,
+              });
+              await this.partnerUserLinkRepo.save(link);
+              console.log(
+                `[OAuth] Partner link created for existing user partnershipId=${partnership.id} puid=${extras.puid} userId=${user.id}`,
+              );
+            } else if (!existing.userId) {
+              existing.userId = user.id;
+              await this.partnerUserLinkRepo.save(existing);
+              console.log(
+                `[OAuth] Partner link updated (existing -> attach user) partnershipId=${partnership.id} puid=${extras.puid} userId=${user.id}`,
+              );
+            } else {
+              console.log(
+                `[OAuth] Partner link already bound to userId=${existing.userId}; no changes`,
+              );
+            }
+          }
+        } catch (err) {
+          console.error('[OAuth] Failed to link partnership for existing user:', err?.stack || err);
         }
       }
     }
