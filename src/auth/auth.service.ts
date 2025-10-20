@@ -385,7 +385,10 @@ export class AuthService {
     }
   }
 
-  async signUpWithOAuth(payload: OAuthPayload) {
+  async signUpWithOAuth(
+    payload: OAuthPayload,
+    extras?: { ref?: string; puid?: string },
+  ) {
     let user = await this.userRepository.findOne({
       where: { email: payload.email },
     });
@@ -397,6 +400,32 @@ export class AuthService {
         points: this.configService.get('YEPS_PER_REGISTRATION'),
       });
       await this.userRepository.save(user);
+
+      // Link to partnership if referral data provided (same logic as register)
+      if (extras?.ref && extras?.puid) {
+        const partnership = await this.partnershipRepo.findOne({
+          where: { referralToken: extras.ref },
+        });
+        if (partnership) {
+          const existing = await this.partnerUserLinkRepo.findOne({
+            where: {
+              partnershipId: partnership.id,
+              partnerUserId: extras.puid,
+            },
+          });
+          if (!existing) {
+            const link = this.partnerUserLinkRepo.create({
+              partnershipId: partnership.id,
+              partnerUserId: extras.puid,
+              userId: user.id,
+            });
+            await this.partnerUserLinkRepo.save(link);
+          } else if (!existing.userId) {
+            existing.userId = user.id;
+            await this.partnerUserLinkRepo.save(existing);
+          }
+        }
+      }
     }
 
     const accessToken = await this.generateAccessToken(user);
