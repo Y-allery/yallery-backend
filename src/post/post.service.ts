@@ -1030,6 +1030,7 @@ export class PostService {
         );
         const links = await this.partnerUserLinkRepo.find({
           where: { userId: user.id },
+          relations: ['partnership'],
         });
         console.log(
           `[_postTweet] Found ${links.length} partner links for userId=${user.id}`,
