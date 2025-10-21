@@ -12,11 +12,11 @@ export class PartnerController {
     summary: 'Check referral user flag status (public)',
     description:
       'Checks whether a user (by partnerUserId) linked via referralToken has a specific activity flag.\n' +
-      'Flags: posted_to_twitter (tweet successfully published), first_purchase, completed_profile.',
+      'Flags: retweet (user retweeted latest post), posted_to_twitter (tweet successfully published), first_purchase, completed_profile.',
   })
   @ApiQuery({ name: 'ref', required: true, description: 'Referral token from partnership' })
   @ApiQuery({ name: 'puid', required: true, description: 'Partner user id provided by external partner' })
-  @ApiQuery({ name: 'flag', required: true, description: 'Activity flag to check, e.g., posted_to_twitter' })
+  @ApiQuery({ name: 'flag', required: true, description: 'Activity flag to check, e.g., retweet' })
   @ApiResponse({ status: 200, description: 'Flag status returned' })
   async checkReferralStatus(
     @Query('ref') ref: string,
