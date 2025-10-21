@@ -158,7 +158,6 @@ export class AuthService {
               activity: 'registered',
             });
             await this.partnershipActivityRepo.save(activity);
-            console.log(`[Register] Registered activity logged for userId=${newUser.id} partnershipId=${partnership.id}`);
           } catch (error) {
             console.error(`[Register] Failed to log registered activity:`, error.message);
           }
@@ -174,7 +173,6 @@ export class AuthService {
               activity: 'registered',
             });
             await this.partnershipActivityRepo.save(activity);
-            console.log(`[Register] Registered activity logged for userId=${newUser.id} partnershipId=${partnership.id} (link updated)`);
           } catch (error) {
             console.error(`[Register] Failed to log registered activity (link updated):`, error.message);
           }
@@ -522,7 +520,6 @@ export class AuthService {
               activity: 'registered',
             });
             await this.partnershipActivityRepo.save(activity);
-            console.log(`[OAuth] Registered activity logged for userId=${user.id} partnershipId=${partnership.id}`);
           } catch (error) {
             console.error(`[OAuth] Failed to log registered activity:`, error.message);
           }
@@ -572,7 +569,6 @@ export class AuthService {
                   activity: 'registered',
                 });
                 await this.partnershipActivityRepo.save(activity);
-                console.log(`[OAuth] Registered activity logged for existing user userId=${user.id} partnershipId=${partnership.id}`);
               } catch (error) {
                 console.error(`[OAuth] Failed to log registered activity for existing user:`, error.message);
               }
@@ -591,7 +587,6 @@ export class AuthService {
                   activity: 'registered',
                 });
                 await this.partnershipActivityRepo.save(activity);
-                console.log(`[OAuth] Registered activity logged for existing user (link updated) userId=${user.id} partnershipId=${partnership.id}`);
               } catch (error) {
                 console.error(`[OAuth] Failed to log registered activity for existing user (link updated):`, error.message);
               }
