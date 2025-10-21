@@ -149,9 +149,35 @@ export class AuthService {
             userId: newUser.id,
           });
           await this.partnerUserLinkRepo.save(link);
+          
+          // Log registered activity for new user
+          try {
+            const activity = this.partnershipActivityRepo.create({
+              partnershipId: partnership.id,
+              userId: newUser.id,
+              activity: 'registered',
+            });
+            await this.partnershipActivityRepo.save(activity);
+            console.log(`[Register] Registered activity logged for userId=${newUser.id} partnershipId=${partnership.id}`);
+          } catch (error) {
+            console.error(`[Register] Failed to log registered activity:`, error.message);
+          }
         } else if (!existing.userId) {
           existing.userId = newUser.id;
           await this.partnerUserLinkRepo.save(existing);
+          
+          // Log registered activity for new user
+          try {
+            const activity = this.partnershipActivityRepo.create({
+              partnershipId: partnership.id,
+              userId: newUser.id,
+              activity: 'registered',
+            });
+            await this.partnershipActivityRepo.save(activity);
+            console.log(`[Register] Registered activity logged for userId=${newUser.id} partnershipId=${partnership.id} (link updated)`);
+          } catch (error) {
+            console.error(`[Register] Failed to log registered activity (link updated):`, error.message);
+          }
         }
         
         // Log partnership activity 'registered'
