@@ -440,8 +440,21 @@ export class AuthService {
             );
           } else {
             console.log(
-              `[OAuth] Partner link already exists and bound to userId=${existing.userId}`,
+              `[OAuth] Partner link already exists and bound to userId=${user.id}`,
             );
+          }
+          
+          // Log registered activity for new OAuth user
+          try {
+            const activity = this.partnershipActivityRepo.create({
+              partnershipId: partnership.id,
+              userId: user.id,
+              activity: 'registered',
+            });
+            await this.partnershipActivityRepo.save(activity);
+            console.log(`[OAuth] Registered activity logged for userId=${user.id} partnershipId=${partnership.id}`);
+          } catch (error) {
+            console.error(`[OAuth] Failed to log registered activity:`, error.message);
           }
         } else {
           console.warn(
@@ -480,12 +493,38 @@ export class AuthService {
               console.log(
                 `[OAuth] Partner link created for existing user partnershipId=${partnership.id} puid=${extras.puid} userId=${user.id}`,
               );
+              
+              // Log registered activity for existing user linking to partnership
+              try {
+                const activity = this.partnershipActivityRepo.create({
+                  partnershipId: partnership.id,
+                  userId: user.id,
+                  activity: 'registered',
+                });
+                await this.partnershipActivityRepo.save(activity);
+                console.log(`[OAuth] Registered activity logged for existing user userId=${user.id} partnershipId=${partnership.id}`);
+              } catch (error) {
+                console.error(`[OAuth] Failed to log registered activity for existing user:`, error.message);
+              }
             } else if (!existing.userId) {
               existing.userId = user.id;
               await this.partnerUserLinkRepo.save(existing);
               console.log(
                 `[OAuth] Partner link updated (existing -> attach user) partnershipId=${partnership.id} puid=${extras.puid} userId=${user.id}`,
               );
+              
+              // Log registered activity for existing user linking to partnership
+              try {
+                const activity = this.partnershipActivityRepo.create({
+                  partnershipId: partnership.id,
+                  userId: user.id,
+                  activity: 'registered',
+                });
+                await this.partnershipActivityRepo.save(activity);
+                console.log(`[OAuth] Registered activity logged for existing user (link updated) userId=${user.id} partnershipId=${partnership.id}`);
+              } catch (error) {
+                console.error(`[OAuth] Failed to log registered activity for existing user (link updated):`, error.message);
+              }
             } else {
               console.log(
                 `[OAuth] Partner link already bound to userId=${existing.userId}; no changes`,
