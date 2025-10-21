@@ -397,21 +397,10 @@ export class AdminService {
     flag: string; // e.g. 'posted_to_twitter'
   }): Promise<{ status: boolean }> {
     const { referralToken, partnerUserId, flag } = params;
-    console.log(`[checkReferralFlag] Starting check:`, {
-      referralToken,
-      partnerUserId,
-      flag,
-      normalizedFlag: (flag || '').trim()
-    });
     
     const partnership = await this.partnerShipRepo.findOne({
       where: { referralToken },
     });
-    console.log(`[checkReferralFlag] Partnership found:`, {
-      partnershipExists: !!partnership,
-      partnershipId: partnership?.id
-    });
-    
     if (!partnership) {
       return { status: false };
     }
@@ -421,13 +410,6 @@ export class AdminService {
         partnerUserId,
       },
     });
-    console.log(`[checkReferralFlag] User link found:`, {
-      linkExists: !!link,
-      userId: link?.userId,
-      partnershipId: partnership.id,
-      partnerUserId
-    });
-    
     if (!link || !link.userId) {
       return { status: false };
     }
@@ -436,22 +418,13 @@ export class AdminService {
     
     // Special handling for retweet flag - check retweet
     if (normalizedFlag === 'retweet') {
-      console.log(`[checkReferralFlag] Starting retweet check for user ${userIdNum}`);
       try {
         // Find the user to get their Twitter username
         const user = await this.userRepository.findOne({
           where: { id: userIdNum },
         });
         
-        console.log(`[checkReferralFlag] User found:`, {
-          userId: userIdNum,
-          userExists: !!user,
-          twitterUsername: user?.twitterUsername,
-          hasTwitterUsername: !!(user?.twitterUsername)
-        });
-        
         if (!user || !user.twitterUsername) {
-          console.log(`[checkReferralFlag] User ${userIdNum} not found or no Twitter username`);
           return { status: false };
         }
         
@@ -464,21 +437,9 @@ export class AdminService {
           order: { createdAt: 'DESC' }
         });
         
-        console.log(`[checkReferralFlag] Latest post found:`, {
-          userId: userIdNum,
-          postExists: !!latestPost,
-          postId: latestPost?.id,
-          tweetLink: latestPost?.tweetLink,
-          hasTweetLink: !!(latestPost?.tweetLink),
-          createdAt: latestPost?.createdAt
-        });
-        
         if (!latestPost || !latestPost.tweetLink) {
-          console.log(`[checkReferralFlag] No tweet found for user ${userIdNum}`);
           return { status: false };
         }
-        
-        console.log(`[checkReferralFlag] Checking retweet for user ${user.twitterUsername}, tweet: ${latestPost.tweetLink}`);
         
         // Check if user retweeted the latest post
         const retweetCheck = await this.checkRetweet(
@@ -486,22 +447,10 @@ export class AdminService {
           user.twitterUsername.replace(/^@/, ''),
         );
         
-        console.log(`[checkReferralFlag] Retweet check result:`, {
-          tweetLink: latestPost.tweetLink,
-          userHandle: user.twitterUsername.replace(/^@/, ''),
-          retweetResult: retweetCheck,
-          retweetValue: retweetCheck?.retweet,
-          retweetType: typeof retweetCheck?.retweet
-        });
-        
         return { status: retweetCheck.retweet };
         
       } catch (error) {
-        console.error(`[checkReferralFlag] Error checking retweet:`, {
-          userId: userIdNum,
-          error: error.message,
-          stack: error.stack
-        });
+        console.error(`[checkReferralFlag] Error checking retweet:`, error.message);
         return { status: false };
       }
     }
@@ -514,7 +463,6 @@ export class AdminService {
       .andWhere('pa.activity = :flag', { flag: normalizedFlag })
       .limit(1)
       .getOne();
-    console.log(exists)
     return { status: !!exists };
   }
 
@@ -668,12 +616,6 @@ export class AdminService {
     tweetLink: string,
     userHandle: string,
   ): Promise<{ retweet: boolean }> {
-    console.log(`[checkRetweet] Starting retweet check:`, {
-      tweetLink,
-      userHandle,
-      apiKey: this.apiKey ? 'present' : 'missing'
-    });
-
     const options = {
       method: 'POST',
       hostname: 'api.tweetscout.io',
@@ -690,32 +632,17 @@ export class AdminService {
       user_handle: userHandle,
     });
 
-    console.log(`[checkRetweet] Request body:`, {
-      tweet_link: tweetLink,
-      user_handle: userHandle
-    });
-
     return new Promise((resolve, reject) => {
       const req = https.request(options, (res) => {
-        console.log(`[checkRetweet] Response status:`, res.statusCode);
-        console.log(`[checkRetweet] Response headers:`, res.headers);
-        
         const chunks: Uint8Array[] = [];
         res.on('data', (chunk) => chunks.push(chunk));
         res.on('end', () => {
           const responseBody = Buffer.concat(chunks).toString();
-          console.log(`[checkRetweet] Raw response body:`, responseBody);
-          
           try {
             const parsed = JSON.parse(responseBody);
-            console.log(`[checkRetweet] Parsed response:`, parsed);
-            console.log(`[checkRetweet] Retweet value:`, parsed.retweet, `Type:`, typeof parsed.retweet);
-            
             if (typeof parsed.retweet === 'boolean') {
-              console.log(`[checkRetweet] Returning boolean result:`, parsed.retweet);
               resolve({ retweet: parsed.retweet });
             } else {
-              console.log(`[checkRetweet] Retweet value is not boolean, returning false`);
               resolve({ retweet: false });
             }
           } catch (error) {
