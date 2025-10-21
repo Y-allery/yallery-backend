@@ -16,6 +16,8 @@ import { UserModule } from 'src/user/user.module';
 import { ContestEntity } from 'src/contest/entity/contest.entity';
 import { BullModule } from '@nestjs/bullmq';
 import { ServiceTokenModule } from 'src/service-token/service-token.module';
+import { PartnershipActivityEntity } from 'src/admin/entities/partnership-activity.entity';
+import { PartnerUserLinkEntity } from 'src/admin/entities/partner-user-link.entity';
 import { BullBoardModule } from '@bull-board/nestjs';
 import { SDXLProcessor } from './processors/realistic-vision.queue.processor';
 import { AIEnum } from 'src/common/enums/ai.enum';
@@ -64,6 +66,8 @@ import { BytedanceEditProcessor } from './processors/bytedance-edit.queue.proces
       ColorEntity,
       UserEntity,
       ContestEntity,
+      PartnershipActivityEntity,
+      PartnerUserLinkEntity,
     ]),
     ActivityModule,
     NotificationModule,

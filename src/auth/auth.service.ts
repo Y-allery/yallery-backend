@@ -32,6 +32,7 @@ import * as crypto from 'crypto';
 import { NotificationGateway } from 'src/notification/notification.gateway';
 import { PartnershipEntity } from 'src/admin/entities/partner.entity';
 import { PartnerUserLinkEntity } from 'src/admin/entities/partner-user-link.entity';
+import { PartnershipActivityEntity } from 'src/admin/entities/partnership-activity.entity';
 @Injectable()
 export class AuthService {
   private client: OAuth2Client;
@@ -48,6 +49,8 @@ export class AuthService {
     private readonly partnershipRepo: Repository<PartnershipEntity>,
     @InjectRepository(PartnerUserLinkEntity)
     private readonly partnerUserLinkRepo: Repository<PartnerUserLinkEntity>,
+    @InjectRepository(PartnershipActivityEntity)
+    private readonly partnershipActivityRepo: Repository<PartnershipActivityEntity>,
     @Inject(NotificationGateway)
     private readonly notificationGateway: NotificationGateway,
   ) {
@@ -149,6 +152,28 @@ export class AuthService {
         } else if (!existing.userId) {
           existing.userId = newUser.id;
           await this.partnerUserLinkRepo.save(existing);
+        }
+        
+        // Log partnership activity 'registered'
+        try {
+          const activityExists = await this.partnershipActivityRepo.findOne({
+            where: {
+              partnershipId: partnership.id,
+              userId: newUser.id,
+              activity: 'registered',
+            },
+          });
+          if (!activityExists) {
+            const activity = this.partnershipActivityRepo.create({
+              partnershipId: partnership.id,
+              userId: newUser.id,
+              activity: 'registered',
+            });
+            await this.partnershipActivityRepo.save(activity);
+            console.log(`[register] Partnership activity 'registered' created for userId=${newUser.id} partnershipId=${partnership.id}`);
+          }
+        } catch (error) {
+          console.error('[register] Failed to log partnership activity registered:', error?.stack || error);
         }
       }
     }
@@ -429,6 +454,28 @@ export class AuthService {
             console.log(
               `[OAuth] Partner link created partnershipId=${partnership.id} puid=${extras.puid} userId=${user.id}`,
             );
+            
+            // Log partnership activity 'registered' for new OAuth user
+            try {
+              const activityExists = await this.partnershipActivityRepo.findOne({
+                where: {
+                  partnershipId: partnership.id,
+                  userId: user.id,
+                  activity: 'registered',
+                },
+              });
+              if (!activityExists) {
+                const activity = this.partnershipActivityRepo.create({
+                  partnershipId: partnership.id,
+                  userId: user.id,
+                  activity: 'registered',
+                });
+                await this.partnershipActivityRepo.save(activity);
+                console.log(`[OAuth] Partnership activity 'registered' created for userId=${user.id} partnershipId=${partnership.id}`);
+              }
+            } catch (error) {
+              console.error('[OAuth] Failed to log partnership activity registered:', error?.stack || error);
+            }
           } else if (!existing.userId) {
             existing.userId = user.id;
             await this.partnerUserLinkRepo.save(existing);

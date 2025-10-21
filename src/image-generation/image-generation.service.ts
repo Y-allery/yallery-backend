@@ -28,6 +28,8 @@ import { ActivityEnum } from 'src/activity/types/activity.enum';
 import { UserService } from 'src/user/user.service';
 import { SdxlStyles } from '@octoai/sdk/api/resources/imageGen';
 import { ContestEntity } from 'src/contest/entity/contest.entity';
+import { PartnershipActivityEntity } from 'src/admin/entities/partnership-activity.entity';
+import { PartnerUserLinkEntity } from 'src/admin/entities/partner-user-link.entity';
 import { Queue } from 'bullmq';
 import { InjectQueue } from '@nestjs/bullmq';
 import { AiServiceToken } from 'src/service-token/entities/service-token.entity';
@@ -121,6 +123,10 @@ export class ImageGenerationService {
     private colorEntity: Repository<ColorEntity>,
     @InjectRepository(UserEntity)
     private userEntity: Repository<UserEntity>,
+    @InjectRepository(PartnershipActivityEntity)
+    private partnershipActivityRepo: Repository<PartnershipActivityEntity>,
+    @InjectRepository(PartnerUserLinkEntity)
+    private partnerUserLinkRepo: Repository<PartnerUserLinkEntity>,
     @InjectQueue(AIEnum.FLUX) private readonly fluxQueue: Queue,
     @InjectQueue(AIEnum.AURA_FLOW) private readonly auraQueue: Queue,
     @InjectQueue(AIEnum.REALISTIC_VISION)
@@ -668,6 +674,53 @@ export class ImageGenerationService {
       service,
       generationCost,
     );
+
+    // Log partnership activity 'image_generated'
+    try {
+      if (user.id) {
+        console.log(
+          `[saveGeneratedImages] Attempting to record partnership activity 'image_generated' for userId=${user.id}`,
+        );
+        const links = await this.partnerUserLinkRepo.find({
+          where: { userId: user.id },
+        });
+        console.log(
+          `[saveGeneratedImages] Found ${links.length} partner links for userId=${user.id}`,
+        );
+        for (const link of links) {
+          console.log(
+            `[saveGeneratedImages] Checking existing activity for partnershipId=${link.partnershipId} userId=${user.id}`,
+          );
+          const exists = await this.partnershipActivityRepo.findOne({
+            where: {
+              partnershipId: link.partnershipId,
+              userId: user.id,
+              activity: 'image_generated',
+            },
+          });
+          if (exists) {
+            console.log(
+              `[saveGeneratedImages] Activity already exists for partnershipId=${link.partnershipId} userId=${user.id}`,
+            );
+            continue;
+          }
+          const rec = this.partnershipActivityRepo.create({
+            partnershipId: link.partnershipId,
+            userId: user.id,
+            activity: 'image_generated',
+          });
+          await this.partnershipActivityRepo.save(rec);
+          console.log(
+            `[saveGeneratedImages] Activity created for partnershipId=${link.partnershipId} userId=${user.id}`,
+          );
+        }
+      }
+    } catch (error) {
+      console.error(
+        '[saveGeneratedImages] Failed to log partnership activity image_generated:',
+        error?.stack || error,
+      );
+    }
 
     return posts.map((e) => {
       return {
