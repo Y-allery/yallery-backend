@@ -163,6 +163,8 @@ export class PostService {
   }
 
   async publishPost(postId: number, userId: number) {
+    console.log(`[publishPost] Starting publish for postId=${postId}, userId=${userId}`);
+    
     const post = await this.postEntity.findOne({
       where: { id: postId, user: { id: userId }, is_published: false },
       relations: { user: true, contest: true, tag: true },
@@ -173,28 +175,59 @@ export class PostService {
         tag: { id: true },
       },
     });
+    
+    console.log(`[publishPost] Post found:`, {
+      postId,
+      userId,
+      postExists: !!post,
+      isPublished: post?.is_published,
+      hasContest: !!post?.contest,
+      hasTag: !!post?.tag
+    });
+    
     const user = await this.userEntity.findOne({
       where: { id: userId },
       relations: { tags: true },
     });
 
     if (!post) {
+      console.error(`[publishPost] Post not found or already published:`, { postId, userId });
       throw new NotFoundException('Post not found or already published');
     }
 
     if (post.user.id !== userId) {
+      console.error(`[publishPost] User not allowed to publish:`, { postId, userId, postUserId: post.user.id });
       throw new ForbiddenException('You are not allowed to publish this post');
     }
 
-    if (!post?.tag?.id) throw new BadRequestException('Select tag first');
-
-    post.is_published = true;
-    if (post.contest) {
-      await this.contestService.participateInContest(post.contest.id, userId);
+    if (!post?.tag?.id) {
+      console.error(`[publishPost] No tag selected:`, { postId, userId });
+      throw new BadRequestException('Select tag first');
     }
 
-    await this.tagService.checkAndSubscribeToTag(user, post.tag.id);
-    return this.postEntity.save(post);
+    try {
+      post.is_published = true;
+      
+      if (post.contest) {
+        console.log(`[publishPost] Participating in contest:`, { postId, userId, contestId: post.contest.id });
+        await this.contestService.participateInContest(post.contest.id, userId);
+      }
+
+      console.log(`[publishPost] Checking and subscribing to tag:`, { postId, userId, tagId: post.tag.id });
+      await this.tagService.checkAndSubscribeToTag(user, post.tag.id);
+      
+      const savedPost = await this.postEntity.save(post);
+      console.log(`[publishPost] Post published successfully:`, { postId, userId });
+      
+      return savedPost;
+    } catch (error) {
+      console.error(`[publishPost] Error publishing post:`, {
+        postId,
+        userId,
+        error: error.message
+      });
+      throw error;
+    }
   }
   async getUnpublishedPosts(userId: number) {
     const query = `

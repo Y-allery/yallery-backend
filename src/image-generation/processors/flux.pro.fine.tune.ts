@@ -45,12 +45,12 @@ export class FluxProProcessor extends WorkerHost {
       ActivityEnum.IMAGE_GENERATE_SPEND,
     );
 
-    console.log(`Job ${job.id} for AuraFlow completed successfully.`);
+    console.log(`Job ${job.id} for Flux Pro fine tune completed successfully.`);
   }
 
   @OnWorkerEvent('failed')
   async onFailed(job: Job, err: Error) {
-    console.error(`Job ${job.id} for AuraFlow failed: ${err.message}`);
+    console.error(`Job ${job.id} for Flux Pro fine tune failed: ${err.message}`);
 
     const attemptsMade = job.attemptsMade;
     const maxAttempts = job.opts.attempts ?? 1;
