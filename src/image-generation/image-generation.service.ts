@@ -395,19 +395,62 @@ export class ImageGenerationService {
   }
 
   async generateImages(createPostDto: GenerateImageDto, userId: number) {
-    const user = await this.getUser(userId);
-    await this.verifyUserHasEnoughCredits(user, createPostDto);
+    console.log(`[generateImages] Starting image generation process for user ${userId}:`, {
+      ai_service: createPostDto.ai_service,
+      prompt: createPostDto.prompt,
+      orientation: createPostDto.orientation,
+      image_quantity: createPostDto.image_quantity,
+      style_id: createPostDto.style_id,
+      color_id: createPostDto.color_id,
+      tag_id: createPostDto.tag_id,
+      contest_id: createPostDto.contest_id
+    });
 
-    await this.ensureUserCanParticipateInContest(
-      user.id,
-      createPostDto.contest_id,
-    );
+    try {
+      const user = await this.getUser(userId);
+      console.log(`[generateImages] User found:`, {
+        userId: user.id,
+        email: user.email,
+        points: user.points
+      });
 
-    const { style, color } = await this.fetchAndValidateEntities(createPostDto);
+      await this.verifyUserHasEnoughCredits(user, createPostDto);
+      console.log(`[generateImages] User has enough credits`);
 
-    await this.prepareDtoForGeneration(createPostDto, style, color);
+      await this.ensureUserCanParticipateInContest(
+        user.id,
+        createPostDto.contest_id,
+      );
+      console.log(`[generateImages] User can participate in contest`);
 
-    return await this.generateImagesUsingService(createPostDto, userId);
+      const { style, color } = await this.fetchAndValidateEntities(createPostDto);
+      console.log(`[generateImages] Entities fetched:`, {
+        styleId: style?.id,
+        styleName: style?.name,
+        colorId: color?.id,
+        colorName: color?.name
+      });
+
+      await this.prepareDtoForGeneration(createPostDto, style, color);
+      console.log(`[generateImages] DTO prepared for generation`);
+
+      const result = await this.generateImagesUsingService(createPostDto, userId);
+      console.log(`[generateImages] Image generation service completed:`, {
+        userId,
+        result: result?.id ? { jobId: result.id } : 'no job id'
+      });
+
+      return result;
+    } catch (error) {
+      console.error(`[generateImages] Error in image generation process:`, {
+        userId,
+        aiService: createPostDto.ai_service,
+        prompt: createPostDto.prompt,
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
   }
 
   async findBestTag(prompt: string): Promise<TagEntity> {
@@ -539,6 +582,17 @@ export class ImageGenerationService {
     createPostDto: GenerateImageDto,
     userId: number,
   ): Promise<any> {
+    console.log(`[generateImagesUsingService] Starting generation for user ${userId}:`, {
+      ai_service: createPostDto.ai_service,
+      prompt: createPostDto.prompt,
+      orientation: createPostDto.orientation,
+      image_quantity: createPostDto.image_quantity,
+      style_id: createPostDto.style_id,
+      color_id: createPostDto.color_id,
+      tag_id: createPostDto.tag_id,
+      auto_tag_select: createPostDto.auto_tag_select
+    });
+
     try {
       const jobOptions = {
         attempts: 3,
@@ -547,33 +601,57 @@ export class ImageGenerationService {
         removeOnFail: false,
       };
 
+      console.log(`[generateImagesUsingService] Job options:`, jobOptions);
+
       let queue;
       switch (createPostDto.ai_service) {
         case AIEnum.AURA_FLOW:
           queue = this.auraQueue;
+          console.log(`[generateImagesUsingService] Selected AURA_FLOW queue`);
           break;
         case AIEnum.FLUX:
           queue = this.fluxQueue;
+          console.log(`[generateImagesUsingService] Selected FLUX queue`);
           break;
         case AIEnum.REALISTIC_VISION:
           queue = this.turboDiffusionQueue;
+          console.log(`[generateImagesUsingService] Selected REALISTIC_VISION queue`);
           break;
         case AIEnum.FLUX_PRO_FINE_TUNE:
           queue = this.fluxProFineTune;
+          console.log(`[generateImagesUsingService] Selected FLUX_PRO_FINE_TUNE queue`);
           break;
 
         default:
+          console.error(`[generateImagesUsingService] Invalid AI service: ${createPostDto.ai_service}`);
           throw new HttpException('Invalid AI service', HttpStatus.BAD_REQUEST);
       }
 
-      return await this.addJobToQueue(
+      console.log(`[generateImagesUsingService] Adding job to queue for user ${userId}`);
+      const result = await this.addJobToQueue(
         queue,
         createPostDto.ai_service,
         createPostDto,
         userId,
         jobOptions,
       );
+      
+      console.log(`[generateImagesUsingService] Job added successfully:`, {
+        jobId: result?.id,
+        userId,
+        aiService: createPostDto.ai_service
+      });
+      
+      return result;
     } catch (error) {
+      console.error(`[generateImagesUsingService] Error generating images:`, {
+        userId,
+        aiService: createPostDto.ai_service,
+        prompt: createPostDto.prompt,
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
     }
   }
 
@@ -584,11 +662,43 @@ export class ImageGenerationService {
     userId: number,
     jobOptions: any,
   ): Promise<any> {
+    console.log(`[addJobToQueue] Preparing job data:`, {
+      aiService,
+      userId,
+      jobOptions,
+      dtoKeys: Object.keys(dto)
+    });
+
     const jobData = aiService === AIEnum.BYTEDANCE_EDIT 
       ? { editImageDto: dto, userId }
       : { createPostDto: dto, userId };
     
-    return await queue.add(aiService, jobData, jobOptions);
+    console.log(`[addJobToQueue] Job data prepared:`, {
+      aiService,
+      userId,
+      jobDataType: aiService === AIEnum.BYTEDANCE_EDIT ? 'editImageDto' : 'createPostDto',
+      jobDataKeys: Object.keys(jobData)
+    });
+
+    try {
+      const result = await queue.add(aiService, jobData, jobOptions);
+      console.log(`[addJobToQueue] Job added to queue successfully:`, {
+        jobId: result?.id,
+        aiService,
+        userId,
+        queueName: queue.name
+      });
+      return result;
+    } catch (error) {
+      console.error(`[addJobToQueue] Failed to add job to queue:`, {
+        aiService,
+        userId,
+        error: error.message,
+        stack: error.stack,
+        queueName: queue?.name
+      });
+      throw error;
+    }
   }
   async notifyUserOfImageGeneration(userId: number) {
     const user = await this.userEntity.findOne({ where: { id: userId } });
