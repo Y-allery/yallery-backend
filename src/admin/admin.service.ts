@@ -26,10 +26,13 @@ import {
   PartnershipEntity,
   PartnershipSource,
 } from './entities/partner.entity';
-import { Repository } from 'typeorm';
+import { Repository, Not } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { PartnershipActivityEntity } from './entities/partnership-activity.entity';
 import { PartnerUserLinkEntity } from './entities/partner-user-link.entity';
+import { PostEntity } from 'src/post/entities/post.entity';
+import { UserEntity } from 'src/user/entities/user.entity';
+import * as https from 'https';
 
 @Injectable()
 export class AdminService {
@@ -52,6 +55,10 @@ export class AdminService {
     private readonly partnerShipActivityRepository: Repository<PartnershipActivityEntity>,
     @InjectRepository(PartnerUserLinkEntity)
     private readonly partnerUserLinkRepository: Repository<PartnerUserLinkEntity>,
+    @InjectRepository(PostEntity)
+    private readonly postRepository: Repository<PostEntity>,
+    @InjectRepository(UserEntity)
+    private readonly userRepository: Repository<UserEntity>,
   ) {
     this.apiKey = this.configService.get<string>('TWEETSCOUT_API_KEY');
     this.apiUrl = this.configService.get<string>('TWEETSCOUT_API_URL', 'https://api.tweetscout.io/v2');
@@ -408,6 +415,52 @@ export class AdminService {
     }
     const normalizedFlag = (flag || '').trim();
     const userIdNum = Number(link.userId);
+    
+    // Special handling for posted_to_twitter flag - check retweet
+    if (normalizedFlag === 'posted_to_twitter') {
+      try {
+        // Find the user to get their Twitter username
+        const user = await this.userRepository.findOne({
+          where: { id: userIdNum },
+        });
+        
+        if (!user || !user.twitterUsername) {
+          console.log(`[checkReferralFlag] User ${userIdNum} not found or no Twitter username`);
+          return { status: false };
+        }
+        
+        // Find the latest post with tweetLink for this user
+        const latestPost = await this.postRepository.findOne({
+          where: { 
+            user: { id: userIdNum },
+            tweetLink: Not('')
+          },
+          order: { createdAt: 'DESC' }
+        });
+        
+        if (!latestPost || !latestPost.tweetLink) {
+          console.log(`[checkReferralFlag] No tweet found for user ${userIdNum}`);
+          return { status: false };
+        }
+        
+        console.log(`[checkReferralFlag] Checking retweet for user ${user.twitterUsername}, tweet: ${latestPost.tweetLink}`);
+        
+        // Check if user retweeted the latest post
+        const retweetCheck = await this.checkRetweet(
+          latestPost.tweetLink,
+          user.twitterUsername.replace(/^@/, ''),
+        );
+        
+        console.log(`[checkReferralFlag] Retweet check result:`, retweetCheck);
+        return { status: retweetCheck.retweet };
+        
+      } catch (error) {
+        console.error(`[checkReferralFlag] Error checking retweet:`, error);
+        return { status: false };
+      }
+    }
+    
+    // For other flags, check partnership activity as before
     const exists = await this.partnerShipActivityRepository
       .createQueryBuilder('pa')
       .where('pa.partnershipId = :pid', { pid: partnership.id })
@@ -563,5 +616,53 @@ export class AdminService {
         timestamp: new Date().toISOString(),
       };
     }
+  }
+
+  private async checkRetweet(
+    tweetLink: string,
+    userHandle: string,
+  ): Promise<{ retweet: boolean }> {
+    const options = {
+      method: 'POST',
+      hostname: 'api.tweetscout.io',
+      path: '/v2/check-retweet',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ApiKey: this.apiKey,
+      },
+    };
+
+    const body = JSON.stringify({
+      tweet_link: tweetLink,
+      user_handle: userHandle,
+    });
+
+    return new Promise((resolve, reject) => {
+      const req = https.request(options, (res) => {
+        const chunks: Uint8Array[] = [];
+        res.on('data', (chunk) => chunks.push(chunk));
+        res.on('end', () => {
+          const responseBody = Buffer.concat(chunks).toString();
+          try {
+            const parsed = JSON.parse(responseBody);
+            if (typeof parsed.retweet === 'boolean') {
+              resolve({ retweet: parsed.retweet });
+            } else {
+              resolve({ retweet: false });
+            }
+          } catch (error) {
+            resolve({ retweet: false });
+          }
+        });
+      });
+
+      req.on('error', (e) => {
+        resolve({ retweet: false });
+      });
+
+      req.write(body);
+      req.end();
+    });
   }
 }
