@@ -32,6 +32,7 @@ import * as crypto from 'crypto';
 import { NotificationGateway } from 'src/notification/notification.gateway';
 import { PartnershipEntity } from 'src/admin/entities/partner.entity';
 import { PartnerUserLinkEntity } from 'src/admin/entities/partner-user-link.entity';
+import { PartnershipActivityEntity } from 'src/admin/entities/partnership-activity.entity';
 @Injectable()
 export class AuthService {
   private client: OAuth2Client;
@@ -48,6 +49,8 @@ export class AuthService {
     private readonly partnershipRepo: Repository<PartnershipEntity>,
     @InjectRepository(PartnerUserLinkEntity)
     private readonly partnerUserLinkRepo: Repository<PartnerUserLinkEntity>,
+    @InjectRepository(PartnershipActivityEntity)
+    private readonly partnershipActivityRepo: Repository<PartnershipActivityEntity>,
     @Inject(NotificationGateway)
     private readonly notificationGateway: NotificationGateway,
   ) {

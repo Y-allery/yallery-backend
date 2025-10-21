@@ -13,6 +13,7 @@ import { AppleStrategy } from './strategies/apple.auth.strategy';
 import { NotificationPreferenceEntity } from 'src/notification/entity/notification.preferences.entity';
 import { PartnershipEntity } from 'src/admin/entities/partner.entity';
 import { PartnerUserLinkEntity } from 'src/admin/entities/partner-user-link.entity';
+import { PartnershipActivityEntity } from 'src/admin/entities/partnership-activity.entity';
 import { NotificationModule } from 'src/notification/notification.module';
 import { TwitterStrategy } from './strategies/twitter.auth.strategy';
 
@@ -33,6 +34,7 @@ import { TwitterStrategy } from './strategies/twitter.auth.strategy';
       NotificationPreferenceEntity,
       PartnershipEntity,
       PartnerUserLinkEntity,
+      PartnershipActivityEntity,
     ]),
     NotificationModule,
   ],
