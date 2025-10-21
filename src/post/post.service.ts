@@ -29,7 +29,6 @@ import axios from 'axios';
 import puppeteer from 'puppeteer';
 import { ConfigService } from '@nestjs/config';
 import { NotificationGateway } from 'src/notification/notification.gateway';
-import { PartnershipActivityEntity } from 'src/admin/entities/partnership-activity.entity';
 import { PartnerUserLinkEntity } from 'src/admin/entities/partner-user-link.entity';
 
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
@@ -63,8 +62,6 @@ export class PostService {
     private readonly configService: ConfigService,
     @Inject(forwardRef(() => NotificationGateway))
     private readonly notificationGateway: NotificationGateway,
-    @InjectRepository(PartnershipActivityEntity)
-    private readonly partnershipActivityRepo: Repository<PartnershipActivityEntity>,
     @InjectRepository(PartnerUserLinkEntity)
     private readonly partnerUserLinkRepo: Repository<PartnerUserLinkEntity>,
   ) {}
@@ -1018,57 +1015,6 @@ export class PostService {
     console.log(
       `[_postTweet] Tweet published. userId=${user.id} tweetUrl=${tweetUrlFull}`,
     );
-    // Log referral activity flag when tweet is successfully posted
-    try {
-      if (!user.id) {
-        console.warn(
-          '[_postTweet] Cannot log partnership activity: missing user.id',
-        );
-      } else {
-        console.log(
-          `[_postTweet] Attempting to record partnership activity 'posted_to_twitter' for userId=${user.id}`,
-        );
-        const links = await this.partnerUserLinkRepo.find({
-          where: { userId: user.id },
-          relations: ['partnership'],
-        });
-        console.log(
-          `[_postTweet] Found ${links.length} partner links for userId=${user.id}`,
-        );
-        for (const link of links) {
-          console.log(
-            `[_postTweet] Checking existing activity for partnershipId=${link.partnershipId} userId=${user.id}`,
-          );
-          const exists = await this.partnershipActivityRepo.findOne({
-            where: {
-              partnershipId: link.partnershipId,
-              userId: user.id,
-              activity: 'posted_to_twitter',
-            },
-          });
-          if (exists) {
-            console.log(
-              `[_postTweet] Activity already exists for partnershipId=${link.partnershipId} userId=${user.id}`,
-            );
-            continue;
-          }
-          const rec = this.partnershipActivityRepo.create({
-            partnershipId: link.partnershipId,
-            userId: user.id,
-            activity: 'posted_to_twitter',
-          });
-          await this.partnershipActivityRepo.save(rec);
-          console.log(
-            `[_postTweet] Activity created for partnershipId=${link.partnershipId} userId=${user.id}`,
-          );
-        }
-      }
-    } catch (error) {
-      console.error(
-        '[_postTweet] Failed to log partnership activity posted_to_twitter:',
-        error?.stack || error,
-      );
-    }
     await this.postEntity.save(post);
 
     await page.browser().close();
