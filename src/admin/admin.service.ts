@@ -416,8 +416,8 @@ export class AdminService {
     const normalizedFlag = (flag || '').trim();
     const userIdNum = Number(link.userId);
     
-    // Special handling for posted_to_twitter flag - check retweet
-    if (normalizedFlag === 'posted_to_twitter') {
+    // Special handling for retweet flag - check retweet
+    if (normalizedFlag === 'retweet') {
       try {
         // Find the user to get their Twitter username
         const user = await this.userRepository.findOne({
