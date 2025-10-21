@@ -295,12 +295,19 @@ export class AdminController {
   @ApiOperation({
     summary: 'Check referral user flag status',
     description:
-      'Checks whether a user (by partnerUserId) linked via referralToken has a specific activity flag.\n' +
-      'Flags: retweet (user retweeted latest post), posted_to_twitter (tweet successfully published), first_purchase, completed_profile.'
+      'Checks whether a user (by partnerUserId) linked via referralToken has a specific activity flag.\n\n' +
+      '**Available flags:**\n' +
+      '- `retweet` - User retweeted the latest post (real-time check via TweetScout API)\n' +
+      '- `registered` - User registered via referral link\n' +
+      '- `image_generated` - User generated an image\n' +
+      '- `posted_to_twitter` - User successfully published a tweet\n' +
+      '- `first_purchase` - User made their first purchase\n' +
+      '- `completed_profile` - User completed their profile\n\n' +
+      '**Note:** `retweet` flag performs real-time verification, while other flags check database records.'
   })
   @ApiQuery({ name: 'ref', required: true, description: 'Referral token from partnership' })
   @ApiQuery({ name: 'puid', required: true, description: 'Partner user id provided by external partner' })
-  @ApiQuery({ name: 'flag', required: true, description: 'Activity flag to check, e.g., retweet' })
+  @ApiQuery({ name: 'flag', required: true, description: 'Activity flag to check. Available: retweet, registered, image_generated, posted_to_twitter, first_purchase, completed_profile' })
   @ApiResponse({ status: 200, description: 'Flag status returned' })
   async checkReferralStatus(
     @Query('ref') ref: string,
