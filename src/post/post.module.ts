@@ -15,7 +15,6 @@ import { NotificationModule } from 'src/notification/notification.module';
 import { TagModule } from 'src/tag/tag.module';
 import { BullModule } from '@nestjs/bullmq';
 import { TweetProcessor } from './processors/tweet.processor';
-import { PartnershipActivityEntity } from 'src/admin/entities/partnership-activity.entity';
 import { PartnerUserLinkEntity } from 'src/admin/entities/partner-user-link.entity';
 
 @Module({
@@ -31,7 +30,6 @@ import { PartnerUserLinkEntity } from 'src/admin/entities/partner-user-link.enti
       ViewedPostEntity,
       UserEntity,
       ReportPostEntity,
-      PartnershipActivityEntity,
       PartnerUserLinkEntity,
     ]),
     forwardRef(() => ImageGenerationModule),
