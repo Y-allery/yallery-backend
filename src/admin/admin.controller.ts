@@ -300,14 +300,12 @@ export class AdminController {
       '- `retweet` - User retweeted the latest post (real-time check via TweetScout API)\n' +
       '- `registered` - User registered via referral link\n' +
       '- `image_generated` - User generated an image\n' +
-      '- `posted_to_twitter` - User successfully published a tweet\n' +
-      '- `first_purchase` - User made their first purchase\n' +
-      '- `completed_profile` - User completed their profile\n\n' +
+      '- `posted_to_twitter` - User successfully published a tweet\n\n' +
       '**Note:** `retweet` flag performs real-time verification, while other flags check database records.'
   })
   @ApiQuery({ name: 'ref', required: true, description: 'Referral token from partnership' })
   @ApiQuery({ name: 'puid', required: true, description: 'Partner user id provided by external partner' })
-  @ApiQuery({ name: 'flag', required: true, description: 'Activity flag to check. Available: retweet, registered, image_generated, posted_to_twitter, first_purchase, completed_profile' })
+  @ApiQuery({ name: 'flag', required: true, description: 'Activity flag to check. Available: retweet, registered, image_generated, posted_to_twitter' })
   @ApiResponse({ status: 200, description: 'Flag status returned' })
   async checkReferralStatus(
     @Query('ref') ref: string,
