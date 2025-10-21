@@ -11,6 +11,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { PartnershipEntity } from './entities/partner.entity';
 import { PartnershipActivityEntity } from './entities/partnership-activity.entity';
 import { PartnerUserLinkEntity } from './entities/partner-user-link.entity';
+import { PostEntity } from 'src/post/entities/post.entity';
+import { UserEntity } from 'src/user/entities/user.entity';
 
 @Module({
   imports: [
@@ -18,6 +20,8 @@ import { PartnerUserLinkEntity } from './entities/partner-user-link.entity';
       PartnershipEntity,
       PartnershipActivityEntity,
       PartnerUserLinkEntity,
+      PostEntity,
+      UserEntity,
     ]),
     ContestModule,
     UserModule,
