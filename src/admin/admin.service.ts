@@ -395,14 +395,14 @@ export class AdminService {
     referralToken: string;
     partnerUserId: string;
     flag: string; // e.g. 'posted_to_twitter'
-  }): Promise<{ status: boolean }> {
+  }): Promise<{ status: string }> {
     const { referralToken, partnerUserId, flag } = params;
     
     const partnership = await this.partnerShipRepo.findOne({
       where: { referralToken },
     });
     if (!partnership) {
-      return { status: false };
+      return { status: "false" };
     }
     const link = await this.partnerUserLinkRepository.findOne({
       where: {
@@ -411,7 +411,7 @@ export class AdminService {
       },
     });
     if (!link || !link.userId) {
-      return { status: false };
+      return { status: "false" };
     }
     const normalizedFlag = (flag || '').trim();
     const userIdNum = Number(link.userId);
@@ -425,7 +425,7 @@ export class AdminService {
         });
         
         if (!user || !user.twitterUsername) {
-          return { status: false };
+          return { status: "false" };
         }
         
         // Find the latest post with tweetLink for this user
@@ -438,7 +438,7 @@ export class AdminService {
         });
         
         if (!latestPost || !latestPost.tweetLink) {
-          return { status: false };
+          return { status: "false" };
         }
         
         // Check if user retweeted the latest post
@@ -447,11 +447,11 @@ export class AdminService {
           user.twitterUsername.replace(/^@/, ''),
         );
         
-        return { status: retweetCheck.retweet };
+        return { status: retweetCheck.retweet ? "true" : "false" };
         
       } catch (error) {
         console.error(`[checkReferralFlag] Error checking retweet:`, error.message);
-        return { status: false };
+        return { status: "false" };
       }
     }
     
@@ -463,7 +463,7 @@ export class AdminService {
       .andWhere('pa.activity = :flag', { flag: normalizedFlag })
       .limit(1)
       .getOne();
-    return { status: !!exists };
+    return { status: !!exists ? "true" : "false" };
   }
 
   async setReferralFlag(params: {
