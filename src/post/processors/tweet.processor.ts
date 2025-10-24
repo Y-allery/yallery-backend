@@ -7,7 +7,7 @@ import { PostService } from 'src/post/post.service';
 @Processor('tweet-queue', {
   concurrency: 1,
   limiter: {
-    max: 10,
+    max: 4,
     duration: 60000,
   },
 })
