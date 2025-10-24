@@ -166,7 +166,7 @@ export class PostService {
     console.log(`[publishPost] Starting publish for postId=${postId}, userId=${userId}`);
     
     const post = await this.postEntity.findOne({
-      where: { id: postId, user: { id: userId }, is_published: false },
+      where: { id: postId, user: { id: userId } },
       relations: { user: true, contest: true, tag: true },
       select: {
         id: true,
