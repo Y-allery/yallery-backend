@@ -5,14 +5,14 @@ export class UpdateTwitterUsernameDto {
   @ApiProperty({
     example: 'crypto_enthusiast',
     description:
-      'Twitter username without @, only letters, numbers, and underscores. Max 15 characters.',
+      'Twitter username without @, only letters, numbers, and underscores. Max 50 characters.',
   })
   @IsString()
   @MinLength(1, {
     message: 'Twitter username must be at least 1 character long.',
   })
-  @MaxLength(15, {
-    message: 'Twitter username cannot be longer than 15 characters.',
+  @MaxLength(50, {
+    message: 'Twitter username cannot be longer than 50 characters.',
   })
   twitterUsername: string;
 }
