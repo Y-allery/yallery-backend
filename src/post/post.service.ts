@@ -758,12 +758,37 @@ export class PostService {
         '--disable-features=VizDisplayCompositor',
         '--disable-background-timer-throttling',
         '--disable-backgrounding-occluded-windows',
-        '--disable-renderer-backgrounding'
+        '--disable-renderer-backgrounding',
+        '--disable-blink-features=AutomationControlled',
+        '--disable-features=site-per-process',
+        '--no-default-browser-check',
+        '--disable-default-apps',
+        '--disable-popup-blocking',
+        '--disable-translate',
+        '--disable-client-side-phishing-detection',
+        '--disable-sync',
+        '--disable-extensions',
+        '--disable-plugins',
+        '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       ],
     });
     const page = await browser.newPage();
+    
+    // Обхід детекції ботів
+    await page.evaluateOnNewDocument(() => {
+      Object.defineProperty(navigator, 'webdriver', {
+        get: () => undefined,
+      });
+      Object.defineProperty(navigator, 'plugins', {
+        get: () => [1, 2, 3, 4, 5],
+      });
+      Object.defineProperty(navigator, 'languages', {
+        get: () => ['en-US', 'en'],
+      });
+    });
+    
     await page.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     );
     await page.setViewport({ width: 1280, height: 800 });
 
@@ -812,6 +837,13 @@ export class PostService {
     }
 
     await page.goto('https://twitter.com/login', { waitUntil: 'networkidle2' });
+
+    // Перевірка на чорний екран або блокування
+    await new Promise((res) => setTimeout(res, 5000));
+    const bodyText = await page.evaluate(() => document.body.innerText);
+    if (!bodyText || bodyText.trim() === '' || bodyText.includes('Just a moment')) {
+      throw new Error('Twitter page appears to be blocked or empty (black screen detected)');
+    }
 
     await page.waitForSelector('input[name="text"]', { timeout: 10000 });
     await page.type('input[name="text"]', TWITTER_USERNAME);
@@ -1185,7 +1217,18 @@ export class PostService {
         '--disable-features=VizDisplayCompositor',
         '--disable-background-timer-throttling',
         '--disable-backgrounding-occluded-windows',
-        '--disable-renderer-backgrounding'
+        '--disable-renderer-backgrounding',
+        '--disable-blink-features=AutomationControlled',
+        '--disable-features=site-per-process',
+        '--no-default-browser-check',
+        '--disable-default-apps',
+        '--disable-popup-blocking',
+        '--disable-translate',
+        '--disable-client-side-phishing-detection',
+        '--disable-sync',
+        '--disable-extensions',
+        '--disable-plugins',
+        '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       ],
     });
 
