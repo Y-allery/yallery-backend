@@ -14,7 +14,7 @@ export class ReportPostEntity extends TimeStampEntity {
   @ManyToOne(() => UserEntity, (user) => user.id)
   reportedUser: UserEntity;
 
-  @ManyToOne(() => PostEntity, (post) => post.id)
+  @ManyToOne(() => PostEntity, (post) => post.id, { onDelete: 'CASCADE' })
   post: PostEntity;
 
   @Column({ type: 'text' })
