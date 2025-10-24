@@ -165,6 +165,7 @@ export class PostService {
   async publishPost(postId: number, userId: number) {
     console.log(`[publishPost] Starting publish for postId=${postId}, userId=${userId}`);
     
+    console.log(postId, userId)
     const post = await this.postEntity.findOne({
       where: { id: postId, user: { id: userId } },
       relations: { user: true, contest: true, tag: true },
@@ -191,6 +192,7 @@ export class PostService {
     });
 
     if (!post) {
+      
       console.error(`[publishPost] Post not found or already published:`, { postId, userId });
       throw new NotFoundException('Post not found or already published');
     }
