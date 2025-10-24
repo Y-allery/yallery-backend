@@ -157,8 +157,8 @@ export class PostController {
       'tweet',
       { postId: dto.post_id, userId: req.user.id },
       {
-        attempts: 3,
-        backoff: 5000,
+        attempts: 4,
+        backoff: 15000,
         removeOnComplete: true,
         removeOnFail: false,
       },
