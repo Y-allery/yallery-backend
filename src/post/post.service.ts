@@ -685,9 +685,9 @@ export class PostService {
     console.log('[tweetImageViaPuppeteer] Starting tweet process for post:', post_id, 'user:', userId);
     
     const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user) {
-      console.log('[tweetImageViaPuppeteer] ERROR: User not found');
-      throw new NotFoundException('User not found');
+    if (!user || !user.twitterUsername) {
+      console.log('[tweetImageViaPuppeteer] ERROR: User not found or has no twitter username:', user?.twitterUsername || 'null');
+      throw new NotFoundException('User not found or has no twitter username');
     }
     console.log('[tweetImageViaPuppeteer] User found:', user.twitterUsername);
 
@@ -776,10 +776,10 @@ export class PostService {
       if (isLoggedIn) {
         return await this._postTweet(page, post, user, TWITTER_USERNAME);
       } else {
-        // Skip if user is null
-        if (!user) {
-          console.log('[tweetImageViaPuppeteer] SKIPPING: User is null, cannot proceed');
-          return { message: 'Skipped: User not found', tweetUrl: '' };
+        // Skip if user is null or has no twitter username
+        if (!user || !user.twitterUsername) {
+          console.log('[tweetImageViaPuppeteer] SKIPPING: User is null or has no twitter username:', user?.twitterUsername || 'null');
+          return { message: 'Skipped: User not found or no twitter username', tweetUrl: '' };
         }
       }
     }
@@ -913,10 +913,10 @@ export class PostService {
     console.log('[_postTweet] User:', user?.twitterUsername || 'null');
     console.log('[_postTweet] Image URL:', post.imageUrl);
     
-    // Skip posting if user is null
-    if (!user) {
-      console.log('[_postTweet] SKIPPING: User is null, cannot post');
-      return { message: 'Skipped: User not found', tweetUrl: '' };
+    // Skip posting if user is null or has no twitter username
+    if (!user || !user.twitterUsername) {
+      console.log('[_postTweet] SKIPPING: User is null or has no twitter username:', user?.twitterUsername || 'null');
+      return { message: 'Skipped: User not found or no twitter username', tweetUrl: '' };
     }
     
     console.log('[_postTweet] Navigating to Twitter compose page...');
