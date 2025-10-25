@@ -779,6 +779,11 @@ export class PostService {
       if (isLoggedIn) {
         return await this._postTweet(page, post, user, TWITTER_USERNAME);
       } else {
+        // Skip if user is null
+        if (!user) {
+          console.log('[tweetImageViaPuppeteer] SKIPPING: User is null, cannot proceed');
+          return { message: 'Skipped: User not found', tweetUrl: '' };
+        }
       }
     }
 
@@ -891,6 +896,12 @@ export class PostService {
     );
     fs.writeFileSync(SESSION_PATH, JSON.stringify(requiredCookies, null, 2));
 
+    // Skip if user is null
+    if (!user) {
+      console.log('[tweetImageViaPuppeteer] SKIPPING: User is null, cannot proceed');
+      return { message: 'Skipped: User not found', tweetUrl: '' };
+    }
+
     return await this._postTweet(page, post, user, TWITTER_USERNAME);
   }
 
@@ -902,8 +913,14 @@ export class PostService {
   ): Promise<{ message: string; tweetUrl: string }> {
     console.log('[_postTweet] Starting tweet process...');
     console.log('[_postTweet] Post ID:', post.id);
-    console.log('[_postTweet] User:', user.twitterUsername);
+    console.log('[_postTweet] User:', user?.twitterUsername || 'null');
     console.log('[_postTweet] Image URL:', post.imageUrl);
+    
+    // Skip posting if user is null
+    if (!user) {
+      console.log('[_postTweet] SKIPPING: User is null, cannot post');
+      return { message: 'Skipped: User not found', tweetUrl: '' };
+    }
     
     console.log('[_postTweet] Navigating to Twitter compose page...');
     await page.goto('https://twitter.com/compose/tweet', {
