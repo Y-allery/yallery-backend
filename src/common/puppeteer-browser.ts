@@ -11,6 +11,65 @@ let cleanupTimer: NodeJS.Timeout | null = null;
 const BROWSER_TIMEOUT = 50000; // 50 секунд
 const CLEANUP_INTERVAL = 10000; // Перевірка кожні 10 секунд
 
+// Рандомні User-Agent та Viewport
+const getUserAgent = () => {
+  const userAgents = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+  ];
+  return userAgents[Math.floor(Math.random() * userAgents.length)];
+};
+
+const getViewport = () => {
+  const viewports = [
+    { width: 1920, height: 1080 },
+    { width: 1366, height: 768 },
+    { width: 1440, height: 900 },
+    { width: 1536, height: 864 },
+    { width: 1280, height: 720 }
+  ];
+  return viewports[Math.floor(Math.random() * viewports.length)];
+};
+
+// Рандомні дії користувача
+const performRandomActions = async (page: any) => {
+  try {
+    // Рандомний скрол
+    await page.evaluate(() => {
+      window.scrollBy(0, Math.random() * 200 - 100);
+    });
+    await randomDelay(500, 1500);
+
+    // Рандомний рух миші
+    await page.mouse.move(
+      Math.random() * 800 + 100,
+      Math.random() * 600 + 100,
+      { steps: Math.floor(Math.random() * 10) + 5 }
+    );
+    await randomDelay(300, 800);
+
+    // Рандомний клік в безпечному місці
+    await page.click('body', { 
+      button: 'left',
+      clickCount: 1,
+      delay: Math.random() * 100 + 50
+    });
+    await randomDelay(200, 600);
+
+    // Рандомне натискання клавіш
+    const keys = ['Tab', 'Escape', 'ArrowUp', 'ArrowDown'];
+    const randomKey = keys[Math.floor(Math.random() * keys.length)];
+    await page.keyboard.press(randomKey);
+    await randomDelay(200, 500);
+
+  } catch (error) {
+    // Ігноруємо помилки рандомних дій
+  }
+};
+
 /**
  * Отримує спільний браузер або створює новий
  */
@@ -61,7 +120,7 @@ export async function getBrowser(): Promise<puppeteer.Browser> {
       '--disable-ipc-flooding-protection',
       '--disable-prompt-on-repost',
       '--disable-domain-reliability',
-      '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      `--user-agent=${getUserAgent()}`
     ],
   });
 
@@ -145,3 +204,107 @@ export function getBrowserStatus(): {
     lastActivity: lastActivityTime
   };
 }
+
+/**
+ * Налаштовує сторінку з рандомними параметрами
+ */
+export const setupPage = async (page: any) => {
+  const viewport = getViewport();
+  await page.setViewport(viewport);
+  
+  // Додаткові налаштування для обходу детекції
+  await page.evaluateOnNewDocument(() => {
+    Object.defineProperty(navigator, 'webdriver', {
+      get: () => undefined,
+    });
+    
+    Object.defineProperty(navigator, 'plugins', {
+      get: () => [1, 2, 3, 4, 5],
+    });
+    
+    Object.defineProperty(navigator, 'languages', {
+      get: () => ['en-US', 'en'],
+    });
+    
+    Object.defineProperty(navigator, 'permissions', {
+      get: () => ({
+        query: () => Promise.resolve({ state: 'granted' }),
+      }),
+    });
+    
+    Object.defineProperty(navigator, 'platform', {
+      get: () => 'Win32',
+    });
+    
+    Object.defineProperty(navigator, 'hardwareConcurrency', {
+      get: () => 8,
+    });
+    
+    Object.defineProperty(navigator, 'deviceMemory', {
+      get: () => 8,
+    });
+    
+    Object.defineProperty(navigator, 'maxTouchPoints', {
+      get: () => 0,
+    });
+    
+    // Видаляємо автоматизаційні глобальні змінні
+    delete (window as any).chrome;
+    delete (window as any).__nightmare;
+    delete (window as any).__puppeteer;
+    delete (window as any).callPhantom;
+    delete (window as any)._phantom;
+    delete (window as any).phantom;
+  });
+};
+
+/**
+ * Перевіряє чи сторінка заблокована
+ */
+export const checkForBlocking = async (page: any): Promise<boolean> => {
+  try {
+    // Перевіряємо на чорний екран або "Just a moment"
+    const blockingTexts = [
+      'Just a moment',
+      'Please wait',
+      'Checking your browser',
+      'Security check',
+      'Access denied',
+      'Blocked',
+      'Suspended'
+    ];
+    
+    const pageContent = await page.content();
+    const hasBlockingText = blockingTexts.some(text => 
+      pageContent.toLowerCase().includes(text.toLowerCase())
+    );
+    
+    if (hasBlockingText) {
+      console.log('[Anti-Detection] Blocking detected, waiting...');
+      await randomDelay(5000, 10000);
+      return true;
+    }
+    
+    // Перевіряємо на відсутність основних елементів Twitter
+    const hasTwitterElements = await page.evaluate(() => {
+      return document.querySelector('[data-testid="primaryColumn"]') !== null ||
+             document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]') !== null ||
+             document.querySelector('input[name="text"]') !== null;
+    });
+    
+    if (!hasTwitterElements) {
+      console.log('[Anti-Detection] Twitter elements not found, possible blocking');
+      return true;
+    }
+    
+    return false;
+  } catch (error) {
+    console.log('[Anti-Detection] Error checking for blocking:', error.message);
+    return true; // В разі помилки вважаємо що заблоковано
+  }
+};
+
+/**
+ * Виконує рандомні дії для імітації користувача
+ */
+export { performRandomActions, randomDelay };

@@ -1,5 +1,5 @@
 import { TagService } from './../tag/tag.service';
-import { getBrowser } from 'src/common/puppeteer-browser';
+import { getBrowser, performRandomActions, randomDelay, setupPage, checkForBlocking } from 'src/common/puppeteer-browser';
 import {
   BadRequestException,
   ForbiddenException,
@@ -744,10 +744,7 @@ export class PostService {
 
     const browser = await getBrowser();
     const page = await browser.newPage();
-    await page.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
-    );
-    await page.setViewport({ width: 1280, height: 800 });
+    await setupPage(page);
 
     const TWITTER_USERNAME = this.configService.get<string>('TWITTER_USERNAME');
     const TWITTER_PASSWORD = this.configService.get<string>('TWITTER_PASSWORD');
@@ -927,6 +924,17 @@ export class PostService {
       waitUntil: 'networkidle2',
     });
     console.log('[_postTweet] Successfully navigated to Twitter compose page');
+
+    // Перевіряємо на блокування
+    const isBlocked = await checkForBlocking(page);
+    if (isBlocked) {
+      console.log('[_postTweet] Page appears to be blocked, skipping...');
+      return { message: 'Skipped: Page blocked', tweetUrl: '' };
+    }
+
+    // Рандомні дії для імітації користувача
+    await performRandomActions(page);
+    await randomDelay(2000, 4000);
     
 
 
@@ -977,6 +985,11 @@ export class PostService {
     try {
       await randomSleep();
       await input.uploadFile(imagePath);
+      
+      // Рандомні дії після завантаження зображення
+      await performRandomActions(page);
+      await randomDelay(1500, 3000);
+      
     } catch (error) {
       console.error('[_postTweet] ERROR uploading image:', error.message);
       throw error;
@@ -985,6 +998,10 @@ export class PostService {
     await page.focus('[data-testid="tweetTextarea_0"]');
     await page.keyboard.press('ArrowDown');
     await randomSleep();
+
+    // Рандомні дії перед публікацією
+    await performRandomActions(page);
+    await randomDelay(1000, 2500);
 
     
     let tweetButton = await page.$('[data-testid="tweetButton"]');
