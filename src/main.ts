@@ -9,6 +9,7 @@ import * as session from 'express-session';
 import * as passport from 'passport';
 import { RedisStore } from 'connect-redis';
 import { createClient } from 'redis';
+import { closeBrowser } from './common/puppeteer-browser';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -100,4 +101,18 @@ async function bootstrap() {
   console.log(`📚 Swagger documentation: http://0.0.0.0:${port}/api`);
   console.log(`⏰ Cron jobs are enabled and will run every 10 minutes`);
 }
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, closing browser...');
+  await closeBrowser();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT received, closing browser...');
+  await closeBrowser();
+  process.exit(0);
+});
+
 bootstrap();

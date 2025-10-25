@@ -1,4 +1,5 @@
 import { TagService } from './../tag/tag.service';
+import { getBrowser } from 'src/common/puppeteer-browser';
 import {
   BadRequestException,
   ForbiddenException,
@@ -26,7 +27,6 @@ import * as sharp from 'sharp';
 import * as path from 'path';
 import * as fs from 'fs';
 import axios from 'axios';
-import puppeteer from 'puppeteer';
 import { ConfigService } from '@nestjs/config';
 import { NotificationGateway } from 'src/notification/notification.gateway';
 import { PartnershipActivityEntity } from 'src/admin/entities/partnership-activity.entity';
@@ -742,25 +742,7 @@ export class PostService {
       console.log('[Puppeteer] No system browser found, using bundled Chrome');
     }
 
-    const browser = await puppeteer.launch({
-      headless: true,
-      executablePath: executablePath,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--single-process',
-        '--disable-gpu',
-        '--disable-web-security',
-        '--disable-features=VizDisplayCompositor',
-        '--disable-background-timer-throttling',
-        '--disable-backgrounding-occluded-windows',
-        '--disable-renderer-backgrounding'
-      ],
-    });
+    const browser = await getBrowser();
     const page = await browser.newPage();
     await page.setUserAgent(
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
@@ -782,7 +764,7 @@ export class PostService {
         'input[name="text"][inputmode="numeric"]',
       );
       if (is2faPrompt) {
-        await browser.close();
+        await page.close();
         return await this._recoverSessionViaGmail(post_id, userId);
       }
 
@@ -807,7 +789,7 @@ export class PostService {
     );
 
     if (isCodeInputPresent) {
-      await browser.close();
+      await page.close();
       return await this._recoverSessionViaGmail(post_id, userId);
     }
 
@@ -867,7 +849,7 @@ export class PostService {
           'input[data-testid="ocfEnterTextTextInput"]',
         );
         if (!codeInput) {
-          await browser.close();
+          await page.close();
           return await this._recoverSessionViaGmail(post_id, userId);
         }
 
@@ -894,11 +876,11 @@ export class PostService {
         );
         if (stillOnCodeInput) {
           fs.unlinkSync(CONFIRM_CODE_PATH);
-          await browser.close();
+          await page.close();
           return await this._recoverSessionViaGmail(post_id, userId);
         }
       } else {
-        await browser.close();
+        await page.close();
         return await this._recoverSessionViaGmail(post_id, userId);
       }
     } catch (err) {}
@@ -1169,25 +1151,7 @@ export class PostService {
       console.log('[Puppeteer] No system browser found, using bundled Chrome');
     }
 
-    const browser = await puppeteer.launch({
-      headless: true,
-      executablePath: executablePath,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--single-process',
-        '--disable-gpu',
-        '--disable-web-security',
-        '--disable-features=VizDisplayCompositor',
-        '--disable-background-timer-throttling',
-        '--disable-backgrounding-occluded-windows',
-        '--disable-renderer-backgrounding'
-      ],
-    });
+    const browser = await getBrowser();
 
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 800 });
@@ -1244,7 +1208,7 @@ export class PostService {
     fs.writeFileSync(CONFIRMATION_CODE_PATH, code);
 
     
-    await browser.close();
+    await page.close();
     return await this.tweetImageViaPuppeteer(post_id, userId);
   }
 }
