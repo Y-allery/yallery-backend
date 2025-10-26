@@ -1132,6 +1132,11 @@ export class PostService {
     // Очищення після кожного твіту
     aggressiveCleanup();
     
+    // Примусовий GC для звільнення пам'яті
+    if (global.gc) {
+      global.gc();
+    }
+    
     return {
       message: 'Tweet sent successfully',
       tweetUrl: tweetUrlFull,

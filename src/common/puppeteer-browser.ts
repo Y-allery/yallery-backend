@@ -207,7 +207,22 @@ export async function getBrowser(): Promise<Browser> {
 
   // Якщо браузер не існує або не працює - очищаємо і створюємо новий
   console.log('[Puppeteer] Creating new browser');
+  
+  // Закриваємо старий браузер якщо існує
+  if (sharedBrowser) {
+    try {
+      await sharedBrowser.close();
+    } catch (e) {
+      // Ігноруємо помилки
+    }
+    sharedBrowser = null;
+  }
+  
+  // Очищення та GC перед створенням нового
   aggressiveCleanup();
+  if (global.gc) {
+    global.gc();
+  }
   
   const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser';
   
@@ -255,8 +270,17 @@ export async function getBrowser(): Promise<Browser> {
       '--disable-client-side-phishing-detection',
       '--disable-features=VizDisplayCompositor',
       '--memory-pressure-off',
-      '--max_old_space_size=256',
+      '--max_old_space_size=128',
       '--disk-cache-size=0',
+      '--aggressive-cache-discard',
+      '--memory-pressure-off',
+      '--max-old-space-size=128',
+      '--disable-background-networking',
+      '--disable-software-rasterizer',
+      '--disable-gpu',
+      '--disable-canvas-aa',
+      '--disable-2d-canvas-clip-aa',
+      '--disable-gl-drawing-for-tests',
       '--no-first-run',
       '--no-default-browser-check',
       '--disable-default-apps',
@@ -306,6 +330,12 @@ function startCleanupTimer(): void {
           await sharedBrowser.close();
           sharedBrowser = null;
           lastActivityTime = 0;
+          // Очищення після закриття
+          aggressiveCleanup();
+          // Примусовий GC
+          if (global.gc) {
+            global.gc();
+          }
         } catch (error) {
           console.error('[Puppeteer] Error closing browser:', error.message);
           sharedBrowser = null;
