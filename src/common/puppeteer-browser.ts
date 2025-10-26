@@ -70,6 +70,59 @@ const performRandomActions = async (page: any) => {
   }
 };
 
+// Людські затримки - більш реалістичні
+const humanDelay = () => randomDelay(2000, 8000); // 2-8 секунд
+const typingDelay = () => randomDelay(50, 200); // 50-200мс між символами
+const thinkingDelay = () => randomDelay(1000, 4000); // 1-4 секунди "думки"
+
+// Імітація людської поведінки
+const simulateHumanBehavior = async (page: any) => {
+  try {
+    // Випадкова пауза "думки"
+    await thinkingDelay();
+    
+    // Рандомний скрол
+    await page.evaluate(() => {
+      window.scrollBy(0, Math.random() * 300 - 150);
+    });
+    await randomDelay(800, 2000);
+
+    // Рандомний рух миші з людською траєкторією
+    const startX = Math.random() * 800 + 100;
+    const startY = Math.random() * 600 + 100;
+    const endX = Math.random() * 800 + 100;
+    const endY = Math.random() * 600 + 100;
+    
+    // Рух по кривій (людська траєкторія)
+    const steps = Math.floor(Math.random() * 15) + 8;
+    for (let i = 0; i <= steps; i++) {
+      const progress = i / steps;
+      const curveX = startX + (endX - startX) * progress + Math.sin(progress * Math.PI) * 50;
+      const curveY = startY + (endY - startY) * progress + Math.cos(progress * Math.PI) * 30;
+      
+      await page.mouse.move(curveX, curveY, { steps: 1 });
+      await randomDelay(20, 80);
+    }
+    
+    // Випадковий клік в безпечному місці
+    await page.click('body', { 
+      button: 'left',
+      clickCount: 1,
+      delay: Math.random() * 150 + 50
+    });
+    await randomDelay(300, 1000);
+
+    // Випадкове натискання клавіш (як людина що думає)
+    const thinkingKeys = ['Tab', 'Escape', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
+    const randomKey = thinkingKeys[Math.floor(Math.random() * thinkingKeys.length)];
+    await page.keyboard.press(randomKey);
+    await randomDelay(200, 800);
+
+  } catch (error) {
+    // Ігноруємо помилки рандомних дій
+  }
+};
+
 /**
  * Отримує спільний браузер або створює новий
  */
@@ -304,7 +357,64 @@ export const checkForBlocking = async (page: any): Promise<boolean> => {
   }
 };
 
+// Імітація людського друкування
+const humanType = async (page: any, selector: string, text: string) => {
+  await page.focus(selector);
+  await thinkingDelay(); // Пауза перед початком друкування
+  
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    
+    // Випадкова помилка (як людина)
+    if (Math.random() < 0.05) { // 5% шанс помилки
+      const wrongChar = String.fromCharCode(97 + Math.floor(Math.random() * 26));
+      await page.keyboard.type(wrongChar);
+      await typingDelay();
+      await page.keyboard.press('Backspace');
+      await typingDelay();
+    }
+    
+    await page.keyboard.type(char);
+    await typingDelay();
+    
+    // Випадкова пауза (як людина думає)
+    if (Math.random() < 0.1) { // 10% шанс паузи
+      await thinkingDelay();
+    }
+  }
+};
+
+// Відвідування випадкових сторінок Twitter
+const visitRandomTwitterPages = async (page: any) => {
+  const pages = [
+    'https://twitter.com/home',
+    'https://twitter.com/explore',
+    'https://twitter.com/notifications',
+    'https://twitter.com/messages',
+    'https://twitter.com/i/bookmarks'
+  ];
+  
+  const randomPage = pages[Math.floor(Math.random() * pages.length)];
+  
+  try {
+    await page.goto(randomPage, { waitUntil: 'networkidle2' });
+    await humanDelay();
+    await simulateHumanBehavior(page);
+  } catch (error) {
+    // Ігноруємо помилки
+  }
+};
+
 /**
  * Виконує рандомні дії для імітації користувача
  */
-export { performRandomActions, randomDelay };
+export { 
+  performRandomActions, 
+  randomDelay, 
+  simulateHumanBehavior, 
+  humanDelay, 
+  typingDelay, 
+  thinkingDelay,
+  humanType,
+  visitRandomTwitterPages
+};

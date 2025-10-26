@@ -1,5 +1,5 @@
 import { TagService } from './../tag/tag.service';
-import { getBrowser, performRandomActions, randomDelay, setupPage, checkForBlocking } from 'src/common/puppeteer-browser';
+import { getBrowser, performRandomActions, randomDelay, setupPage, checkForBlocking, simulateHumanBehavior, humanDelay, humanType, visitRandomTwitterPages } from 'src/common/puppeteer-browser';
 import {
   BadRequestException,
   ForbiddenException,
@@ -920,6 +920,10 @@ export class PostService {
     }
     
     console.log('[_postTweet] Navigating to Twitter compose page...');
+    
+    // Спочатку відвідуємо випадкову сторінку Twitter (як людина)
+    await visitRandomTwitterPages(page);
+    
     await page.goto('https://twitter.com/compose/tweet', {
       waitUntil: 'networkidle2',
     });
@@ -932,9 +936,9 @@ export class PostService {
       return { message: 'Skipped: Page blocked', tweetUrl: '' };
     }
 
-    // Рандомні дії для імітації користувача
-    await performRandomActions(page);
-    await randomDelay(2000, 4000);
+    // Людська поведінка замість простих рандомних дій
+    await simulateHumanBehavior(page);
+    await humanDelay();
     
 
 
@@ -947,7 +951,7 @@ export class PostService {
     
     try {
       await page.waitForSelector('[data-testid="tweetTextarea_0"]', { timeout: 10000 });
-      await page.type('[data-testid="tweetTextarea_0"]', tweetText);
+      await humanType(page, '[data-testid="tweetTextarea_0"]', tweetText);
     } catch (error) {
       const selectors = [
         '[data-testid="tweetTextarea_0"]',
@@ -961,7 +965,7 @@ export class PostService {
         try {
           const element = await page.$(selector);
           if (element) {
-            await page.type(selector, tweetText);
+            await humanType(page, selector, tweetText);
             break;
           }
         } catch (e) {
@@ -986,9 +990,9 @@ export class PostService {
       await randomSleep();
       await input.uploadFile(imagePath);
       
-      // Рандомні дії після завантаження зображення
-      await performRandomActions(page);
-      await randomDelay(1500, 3000);
+      // Людська поведінка після завантаження зображення
+      await simulateHumanBehavior(page);
+      await humanDelay();
       
     } catch (error) {
       console.error('[_postTweet] ERROR uploading image:', error.message);
@@ -999,9 +1003,9 @@ export class PostService {
     await page.keyboard.press('ArrowDown');
     await randomSleep();
 
-    // Рандомні дії перед публікацією
-    await performRandomActions(page);
-    await randomDelay(1000, 2500);
+    // Людська поведінка перед публікацією
+    await simulateHumanBehavior(page);
+    await humanDelay();
 
     
     let tweetButton = await page.$('[data-testid="tweetButton"]');
