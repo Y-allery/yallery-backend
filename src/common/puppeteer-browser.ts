@@ -62,12 +62,31 @@ const aggressiveCleanup = () => {
 // Моніторинг використання диску
 const checkDiskUsage = () => {
   try {
+    // Перевіряємо вільне місце на /tmp
     const result = execSync('df -h /tmp | tail -1', { encoding: 'utf8' });
     const usage = result.split(/\s+/)[4]; // Використання в %
     const usageNum = parseInt(usage.replace('%', ''));
     
-    if (usageNum > 80) {
-      console.log(`[Disk Monitor] High disk usage: ${usage}, triggering cleanup`);
+    // Більш агресивна очистка при 60% використання
+    if (usageNum > 60) {
+      console.log(`[Disk Monitor] High disk usage: ${usage}, triggering aggressive cleanup`);
+      aggressiveCleanup();
+      
+      // Додаткове очищення через 2 секунди
+      setTimeout(() => {
+        aggressiveCleanup();
+      }, 2000);
+    }
+    
+    // Перевіряємо вільне місце в мегабайтах
+    const availableMB = execSync('df -BM /tmp | tail -1 | awk \'{print $4}\'', { encoding: 'utf8' }).trim();
+    const availableNum = parseInt(availableMB.replace('M', ''));
+    
+    console.log(`[Disk Monitor] /tmp usage: ${usage}, available: ${availableMB}`);
+    
+    // Якщо менше 1GB вільного місця - тривога
+    if (availableNum < 1024) {
+      console.log(`[Disk Monitor] CRITICAL: Less than 1GB free space, aggressive cleanup`);
       aggressiveCleanup();
     }
     
@@ -220,6 +239,12 @@ export async function getBrowser(): Promise<Browser> {
   
   // Очищення та GC перед створенням нового
   aggressiveCleanup();
+  
+  // Очищення через 1 секунду (даємо час системі)
+  setTimeout(() => {
+    aggressiveCleanup();
+  }, 1000);
+  
   if (global.gc) {
     global.gc();
   }
