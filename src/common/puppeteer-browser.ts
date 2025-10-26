@@ -1,15 +1,81 @@
 import puppeteer from 'puppeteer-extra';
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+const { execSync } = require('child_process');
+
+// Типізація для puppeteer
+type Browser = any;
 
 // Ініціалізація stealth плагіну
 puppeteer.use(StealthPlugin());
 
-let sharedBrowser: puppeteer.Browser | null = null;
+let sharedBrowser: Browser | null = null;
 let lastActivityTime: number = 0;
 let cleanupTimer: NodeJS.Timeout | null = null;
 
 const BROWSER_TIMEOUT = 50000; // 50 секунд
 const CLEANUP_INTERVAL = 10000; // Перевірка кожні 10 секунд
+
+// Рандомні затримки
+const randomDelay = (min: number, max: number) => 
+  new Promise(resolve => setTimeout(resolve, min + Math.random() * (max - min)));
+
+// Агресивне очищення тимчасових файлів
+const aggressiveCleanup = () => {
+  try {
+    console.log('[Disk Cleanup] Starting aggressive cleanup...');
+    
+    // Очищення всіх Puppeteer файлів
+    const cleanupCommands = [
+      'rm -rf /tmp/puppeteer*',
+      'rm -rf /tmp/.com.google.Chrome*',
+      'rm -rf /tmp/chrome*',
+      'rm -rf /tmp/chromium*',
+      'rm -rf /var/tmp/puppeteer*',
+      'rm -rf /var/tmp/.com.google.Chrome*',
+      'rm -rf /var/tmp/chrome*',
+      'rm -rf /var/tmp/chromium*',
+      'find /tmp -name "*puppeteer*" -type d -exec rm -rf {} + 2>/dev/null || true',
+      'find /tmp -name "*chrome*" -type d -exec rm -rf {} + 2>/dev/null || true',
+      'find /var/tmp -name "*puppeteer*" -type d -exec rm -rf {} + 2>/dev/null || true',
+      'find /var/tmp -name "*chrome*" -type d -exec rm -rf {} + 2>/dev/null || true'
+    ];
+    
+    cleanupCommands.forEach(cmd => {
+      try {
+        execSync(cmd, { stdio: 'ignore', timeout: 5000 });
+      } catch (e) {
+        // Ігноруємо помилки очищення
+      }
+    });
+    
+    // Примусовий garbage collection
+    if (global.gc) {
+      global.gc();
+    }
+    
+    console.log('[Disk Cleanup] Aggressive cleanup completed');
+  } catch (error) {
+    console.log('[Disk Cleanup] Error during cleanup:', error.message);
+  }
+};
+
+// Моніторинг використання диску
+const checkDiskUsage = () => {
+  try {
+    const result = execSync('df -h /tmp | tail -1', { encoding: 'utf8' });
+    const usage = result.split(/\s+/)[4]; // Використання в %
+    const usageNum = parseInt(usage.replace('%', ''));
+    
+    if (usageNum > 80) {
+      console.log(`[Disk Monitor] High disk usage: ${usage}, triggering cleanup`);
+      aggressiveCleanup();
+    }
+    
+    return usageNum;
+  } catch (error) {
+    return 0;
+  }
+};
 
 // Рандомні User-Agent та Viewport
 const getUserAgent = () => {
@@ -126,8 +192,11 @@ const simulateHumanBehavior = async (page: any) => {
 /**
  * Отримує спільний браузер або створює новий
  */
-export async function getBrowser(): Promise<puppeteer.Browser> {
+export async function getBrowser(): Promise<Browser> {
   const now = Date.now();
+  
+  // Перевіряємо використання диску перед створенням браузера
+  checkDiskUsage();
   
   // Якщо браузер існує і працює - оновлюємо час активності
   if (sharedBrowser && sharedBrowser.isConnected()) {
@@ -136,8 +205,9 @@ export async function getBrowser(): Promise<puppeteer.Browser> {
     return sharedBrowser;
   }
 
-  // Якщо браузер не існує або не працює - створюємо новий
+  // Якщо браузер не існує або не працює - очищаємо і створюємо новий
   console.log('[Puppeteer] Creating new browser');
+  aggressiveCleanup();
   
   const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser';
   
@@ -173,6 +243,37 @@ export async function getBrowser(): Promise<puppeteer.Browser> {
       '--disable-ipc-flooding-protection',
       '--disable-prompt-on-repost',
       '--disable-domain-reliability',
+      '--disable-background-mode',
+      '--disable-background-timer-throttling',
+      '--disable-renderer-backgrounding',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-features=TranslateUI',
+      '--disable-ipc-flooding-protection',
+      '--disable-hang-monitor',
+      '--disable-prompt-on-repost',
+      '--disable-domain-reliability',
+      '--disable-client-side-phishing-detection',
+      '--disable-features=VizDisplayCompositor',
+      '--memory-pressure-off',
+      '--max_old_space_size=256',
+      '--disk-cache-size=0',
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--disable-default-apps',
+      '--disable-extensions',
+      '--disable-plugins',
+      '--disable-sync',
+      '--disable-background-networking',
+      '--disable-component-extensions-with-background-pages',
+      '--disable-features=site-per-process',
+      '--disable-blink-features=AutomationControlled',
+      '--disable-web-security',
+      '--disable-gpu',
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--no-zygote',
+      '--single-process',
       `--user-agent=${getUserAgent()}`
     ],
   });
@@ -238,6 +339,9 @@ export async function closeBrowser(): Promise<void> {
     clearInterval(cleanupTimer);
     cleanupTimer = null;
   }
+  
+  // Агресивне очищення після закриття браузера
+  aggressiveCleanup();
 }
 
 /**
@@ -416,5 +520,7 @@ export {
   typingDelay, 
   thinkingDelay,
   humanType,
-  visitRandomTwitterPages
+  visitRandomTwitterPages,
+  aggressiveCleanup,
+  checkDiskUsage
 };

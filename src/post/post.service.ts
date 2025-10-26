@@ -1,5 +1,5 @@
 import { TagService } from './../tag/tag.service';
-import { getBrowser, performRandomActions, randomDelay, setupPage, checkForBlocking, simulateHumanBehavior, humanDelay, humanType, visitRandomTwitterPages } from 'src/common/puppeteer-browser';
+import { getBrowser, performRandomActions, randomDelay, setupPage, checkForBlocking, simulateHumanBehavior, humanDelay, humanType, visitRandomTwitterPages, aggressiveCleanup } from 'src/common/puppeteer-browser';
 import {
   BadRequestException,
   ForbiddenException,
@@ -1128,6 +1128,9 @@ export class PostService {
     await this.postEntity.save(post);
 
     await page.browser().close();
+    
+    // Очищення після кожного твіту
+    aggressiveCleanup();
     
     return {
       message: 'Tweet sent successfully',
