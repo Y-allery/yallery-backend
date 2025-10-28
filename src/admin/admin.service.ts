@@ -674,7 +674,6 @@ export class AdminService {
                   .where('pa.partnershipId = :pid', { pid: partnershipId })
                   .andWhere('pa.userId = :uid', { uid: userId })
                   .andWhere('pa.activity = :flag', { flag: 'retweet' })
-                  .andWhere('pa.tweetLink = :tweetLink', { tweetLink })
                   .limit(1)
                   .getOne();
                 
@@ -684,7 +683,6 @@ export class AdminService {
                     partnershipId,
                     userId,
                     activity: 'retweet',
-                    tweetLink,
                   });
                   await this.partnerShipActivityRepository.save(activity);
                 }

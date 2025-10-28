@@ -19,9 +19,6 @@ export class PartnershipActivityEntity {
   @Column()
   activity: string;
 
-  @Column({ nullable: true })
-  tweetLink: string;
-
   @Column()
   partnershipId: number;
 
