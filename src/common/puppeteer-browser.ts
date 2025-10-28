@@ -530,33 +530,8 @@ export const checkForBlocking = async (page: any): Promise<boolean> => {
       return softBlockingTexts.some(t => html.includes(t));
     })();
 
-    // Якщо є ознаки, робимо повторну перевірку після короткої паузи
-    if (appearsBlockedOnce) {
-      console.log('[Anti-Detection] Possible block detected, rechecking...');
-      await randomDelay(1500, 2500);
-      const html2 = (await page.content()).toLowerCase();
-      const stillAppearsBlocked = softBlockingTexts.some(t => html2.includes(t));
-
-      // Перевіряємо наявність ключових елементів інтерфейсу
-      const hasUi = await page.evaluate(() => {
-        return (
-          document.querySelector('[data-testid="primaryColumn"]') !== null ||
-          document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]') !== null ||
-          document.querySelector('div[role="textbox"], textarea, [data-testid="tweetTextarea_0"]') !== null
-        );
-      });
-
-      // Якщо UI присутній – вважаємо, що не заблоковано
-      if (hasUi) {
-        return false;
-      }
-
-      // Якщо все ще виглядає як блокування і UI відсутній – тоді true
-      return stillAppearsBlocked;
-    }
-
-    // Перевіряємо наявність основних елементів Twitter як фінальна умова
-    const hasTwitterElements = await page.evaluate(() => {
+    // Перевіряємо наявність ключових елементів інтерфейсу
+    const hasUi = await page.evaluate(() => {
       return (
         document.querySelector('[data-testid="primaryColumn"]') !== null ||
         document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]') !== null ||
@@ -564,7 +539,20 @@ export const checkForBlocking = async (page: any): Promise<boolean> => {
       );
     });
 
-    return !hasTwitterElements;
+    // Якщо UI присутній – вважаємо, що не заблоковано
+    if (hasUi) {
+      return false;
+    }
+
+    // Якщо є блокуючі тексти і UI відсутній – тоді м'яка перевірка
+    if (appearsBlockedOnce) {
+      console.log('[Anti-Detection] Possible block detected, but continuing...');
+      await randomDelay(500, 1000);
+      return false; // Продовжуємо навіть якщо є ознаки блоку
+    }
+
+    // Якщо ні UI, ні блокуючих текстів – не блокуємо
+    return false;
   } catch (error) {
     console.log('[Anti-Detection] Error checking for blocking:', error.message);
     // Уникаємо фальшпозитивів: у разі помилки вважаємо, що НЕ заблоковано

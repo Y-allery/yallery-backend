@@ -1022,11 +1022,8 @@ export class PostService {
     
     if (!tweetButton) {
       const buttonSelectors = [
-        '[data-testid="tweetButton"]',
         '[data-testid="postButton"]',
-        'button[type="submit"]',
-        'button:contains("Post")',
-        'button:contains("Tweet")'
+        'button[type="submit"]'
       ];
       
       for (const selector of buttonSelectors) {
