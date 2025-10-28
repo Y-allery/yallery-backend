@@ -1078,18 +1078,28 @@ export class PostService {
     }
 
     
+    // Wait for CreateTweet (GraphQL) request with broader matching and longer timeout
     const tweetResponsePromise = page.waitForResponse(
-      (res) =>
-        res.url().includes('/CreateTweet') && res.request().method() === 'POST',
+      (res) => {
+        if (res.request().method() !== 'POST') return false;
+        const url = res.url();
+        return /CreateTweet|PostTweet|TweetCreate|CreatePost/i.test(url) ||
+               (/\/graphql\//i.test(url) && /Create|Tweet/i.test(url));
+      },
+      { timeout: 45000 },
     );
 
-    await tweetButton.focus();
-    await page.evaluate(() => {
-      const btn = document.querySelector('[data-testid="tweetButton"]');
-      if (btn) {
-        (btn as HTMLElement).click();
-      }
-    });
+    // Click the found button element directly
+    try {
+      await tweetButton.focus();
+      await tweetButton.click({ delay: 20 });
+    } catch {
+      // Fallback to query by data-testid
+      await page.evaluate(() => {
+        const btn = document.querySelector('[data-testid="tweetButton"], [data-testid="tweetButtonInline"], [data-testid="postButton"]');
+        if (btn) (btn as HTMLElement).click();
+      });
+    }
 
     const tweetRes = await tweetResponsePromise;
     const tweetData = await tweetRes.json();
