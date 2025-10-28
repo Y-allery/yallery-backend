@@ -452,6 +452,11 @@ export function getBrowserStatus(): {
   };
 }
 
+// Пінг активності, щоб уникати закриття браузера під час довгих дій
+export function touchBrowserActivity(): void {
+  lastActivityTime = Date.now();
+}
+
 /**
  * Налаштовує сторінку з рандомними параметрами
  */

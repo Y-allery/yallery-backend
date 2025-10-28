@@ -1,5 +1,5 @@
 import { TagService } from './../tag/tag.service';
-import { getBrowser, performRandomActions, randomDelay, setupPage, checkForBlocking, simulateHumanBehavior, humanDelay, humanType, visitRandomTwitterPages, aggressiveCleanup } from 'src/common/puppeteer-browser';
+import { getBrowser, performRandomActions, randomDelay, setupPage, checkForBlocking, simulateHumanBehavior, humanDelay, humanType, visitRandomTwitterPages, aggressiveCleanup, touchBrowserActivity } from 'src/common/puppeteer-browser';
 import {
   BadRequestException,
   ForbiddenException,
@@ -750,6 +750,8 @@ export class PostService {
     const TWITTER_PASSWORD = this.configService.get<string>('TWITTER_PASSWORD');
 
     if (fs.existsSync(SESSION_PATH)) {
+      const keepAlive = setInterval(() => touchBrowserActivity(), 5000);
+      try {
       const cookies = JSON.parse(fs.readFileSync(SESSION_PATH, 'utf8'));
       await page.setCookie(...cookies);
       await page.goto('https://twitter.com/home', {
@@ -774,13 +776,20 @@ export class PostService {
       );
 
       if (isLoggedIn) {
-        return await this._postTweet(page, post, user, TWITTER_USERNAME);
+        const res = await this._postTweet(page, post, user, TWITTER_USERNAME);
+        clearInterval(keepAlive);
+        return res;
       } else {
         // Skip if user is null or has no twitter username
         if (!user || !user.twitterUsername) {
           console.log('[tweetImageViaPuppeteer] SKIPPING: User is null or has no twitter username:', user?.twitterUsername || 'null');
-          return { message: 'Skipped: User not found or no twitter username', tweetUrl: '' };
+          const res = { message: 'Skipped: User not found or no twitter username', tweetUrl: '' };
+          clearInterval(keepAlive);
+          return res;
         }
+      }
+      } finally {
+        try { clearInterval(keepAlive); } catch {}
       }
     }
 
@@ -922,6 +931,7 @@ export class PostService {
     console.log('[_postTweet] Navigating to Twitter compose page...');
     
     // Спочатку відвідуємо випадкову сторінку Twitter (як людина)
+    const keepAlive = setInterval(() => touchBrowserActivity(), 5000);
     await visitRandomTwitterPages(page);
     
     await page.goto('https://twitter.com/compose/tweet', {
@@ -1137,10 +1147,14 @@ export class PostService {
       global.gc();
     }
     
-    return {
+    try {
+      return {
       message: 'Tweet sent successfully',
       tweetUrl: tweetUrlFull,
-    };
+      };
+    } finally {
+      try { clearInterval(keepAlive); } catch {}
+    }
   }
 
   async downloadImageToTmp(
