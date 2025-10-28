@@ -1021,18 +1021,42 @@ export class PostService {
     let tweetButton = await page.$('[data-testid="tweetButton"]');
     
     if (!tweetButton) {
+      console.log('[_postTweet] Primary tweetButton not found, trying fallback selectors...');
       const buttonSelectors = [
         '[data-testid="postButton"]',
-        'button[type="submit"]'
+        '[data-testid="tweetButtonInline"]',
+        'button[type="submit"]',
+        'div[role="button"][aria-label*="Post"]',
+        'div[role="button"][data-testid="tweetButton"]'
       ];
       
       for (const selector of buttonSelectors) {
-        tweetButton = await page.$(selector);
-        if (tweetButton) break;
+        console.log(`[_postTweet] Trying button selector: ${selector}`);
+        try {
+          tweetButton = await page.$(selector);
+          if (tweetButton) {
+            console.log(`[_postTweet] Found button with selector: ${selector}`);
+            break;
+          }
+        } catch (e) {
+          console.log(`[_postTweet] Selector failed: ${selector} - ${e.message}`);
+        }
       }
     }
     
     if (!tweetButton) {
+      console.error('[_postTweet] All button selectors failed, taking screenshot for debug...');
+      // Log available buttons for debugging
+      const availableButtons = await page.evaluate(() => {
+        const buttons = Array.from(document.querySelectorAll('button, div[role="button"]'));
+        return buttons.map(btn => ({
+          testId: btn.getAttribute('data-testid'),
+          ariaLabel: btn.getAttribute('aria-label'),
+          innerText: (btn as HTMLElement).innerText?.substring(0, 50),
+          className: btn.className?.substring(0, 50)
+        })).slice(0, 5);
+      });
+      console.error('[_postTweet] Available buttons:', JSON.stringify(availableButtons, null, 2));
       throw new Error('Tweet button not found');
     }
 
