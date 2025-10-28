@@ -241,7 +241,8 @@ export class UserService {
     });
     if (!user) throw new NotFoundException('User not found');
 
-    await this.userModel.remove(user);
+    user.is_deleted = true;
+    await this.userModel.save(user);
     return { status: 'Success', message: 'User deleted succesfully' };
   }
 
