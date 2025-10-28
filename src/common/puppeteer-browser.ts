@@ -510,44 +510,60 @@ export const setupPage = async (page: any) => {
  */
 export const checkForBlocking = async (page: any): Promise<boolean> => {
   try {
-    // Перевіряємо на чорний екран або "Just a moment"
-    const blockingTexts = [
-      'Just a moment',
-      'Please wait',
-      'Checking your browser',
-      'Security check',
-      'Access denied',
-      'Blocked',
-      'Suspended'
+    // М'якша перевірка блокування з повторною валідацією
+    const softBlockingTexts = [
+      'just a moment',
+      'checking your browser',
+      'security check',
+      'access denied',
+      'blocked',
+      'suspended'
     ];
-    
-    const pageContent = await page.content();
-    const hasBlockingText = blockingTexts.some(text => 
-      pageContent.toLowerCase().includes(text.toLowerCase())
-    );
-    
-    if (hasBlockingText) {
-      console.log('[Anti-Detection] Blocking detected, waiting...');
-      await randomDelay(5000, 10000);
-      return true;
+
+    const appearsBlockedOnce = await (async () => {
+      const html = (await page.content()).toLowerCase();
+      return softBlockingTexts.some(t => html.includes(t));
+    })();
+
+    // Якщо є ознаки, робимо повторну перевірку після короткої паузи
+    if (appearsBlockedOnce) {
+      console.log('[Anti-Detection] Possible block detected, rechecking...');
+      await randomDelay(1500, 2500);
+      const html2 = (await page.content()).toLowerCase();
+      const stillAppearsBlocked = softBlockingTexts.some(t => html2.includes(t));
+
+      // Перевіряємо наявність ключових елементів інтерфейсу
+      const hasUi = await page.evaluate(() => {
+        return (
+          document.querySelector('[data-testid="primaryColumn"]') !== null ||
+          document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]') !== null ||
+          document.querySelector('div[role="textbox"], textarea, [data-testid="tweetTextarea_0"]') !== null
+        );
+      });
+
+      // Якщо UI присутній – вважаємо, що не заблоковано
+      if (hasUi) {
+        return false;
+      }
+
+      // Якщо все ще виглядає як блокування і UI відсутній – тоді true
+      return stillAppearsBlocked;
     }
-    
-    // Перевіряємо на відсутність основних елементів Twitter
+
+    // Перевіряємо наявність основних елементів Twitter як фінальна умова
     const hasTwitterElements = await page.evaluate(() => {
-      return document.querySelector('[data-testid="primaryColumn"]') !== null ||
-             document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]') !== null ||
-             document.querySelector('input[name="text"]') !== null;
+      return (
+        document.querySelector('[data-testid="primaryColumn"]') !== null ||
+        document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]') !== null ||
+        document.querySelector('div[role="textbox"], textarea, [data-testid="tweetTextarea_0"]') !== null
+      );
     });
-    
-    if (!hasTwitterElements) {
-      console.log('[Anti-Detection] Twitter elements not found, possible blocking');
-      return true;
-    }
-    
-    return false;
+
+    return !hasTwitterElements;
   } catch (error) {
     console.log('[Anti-Detection] Error checking for blocking:', error.message);
-    return true; // В разі помилки вважаємо що заблоковано
+    // Уникаємо фальшпозитивів: у разі помилки вважаємо, що НЕ заблоковано
+    return false;
   }
 };
 
