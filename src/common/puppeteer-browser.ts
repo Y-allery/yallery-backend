@@ -11,6 +11,7 @@ puppeteer.use(StealthPlugin());
 let sharedBrowser: Browser | null = null;
 let lastActivityTime: number = 0;
 let cleanupTimer: NodeJS.Timeout | null = null;
+let currentUserDataDir: string | null = null;
 
 const BROWSER_TIMEOUT = 50000; // 50 секунд
 const CLEANUP_INTERVAL = 10000; // Перевірка кожні 10 секунд
@@ -24,25 +25,28 @@ const aggressiveCleanup = () => {
   try {
     console.log('[Disk Cleanup] Starting aggressive cleanup...');
     
-    // Очищення всіх Puppeteer файлів
+    // Більш агресивне очищення з sudo якщо потрібно
     const cleanupCommands = [
-      'rm -rf /tmp/puppeteer*',
-      'rm -rf /tmp/.com.google.Chrome*',
-      'rm -rf /tmp/chrome*',
-      'rm -rf /tmp/chromium*',
-      'rm -rf /var/tmp/puppeteer*',
-      'rm -rf /var/tmp/.com.google.Chrome*',
-      'rm -rf /var/tmp/chrome*',
-      'rm -rf /var/tmp/chromium*',
-      'find /tmp -name "*puppeteer*" -type d -exec rm -rf {} + 2>/dev/null || true',
-      'find /tmp -name "*chrome*" -type d -exec rm -rf {} + 2>/dev/null || true',
-      'find /var/tmp -name "*puppeteer*" -type d -exec rm -rf {} + 2>/dev/null || true',
-      'find /var/tmp -name "*chrome*" -type d -exec rm -rf {} + 2>/dev/null || true'
+      'find /tmp -type d -name "puppeteer*" -mmin +5 -exec rm -rf {} + 2>/dev/null || true',
+      'find /tmp -type d -name ".com.google.Chrome*" -mmin +5 -exec rm -rf {} + 2>/dev/null || true',
+      'find /tmp -type d -name "chrome*" -mmin +5 -exec rm -rf {} + 2>/dev/null || true',
+      'find /tmp -type d -name "chromium*" -mmin +5 -exec rm -rf {} + 2>/dev/null || true',
+      // Видаляємо файли старіші за 5 хвилин
+      'find /tmp -type f -name "*puppeteer*" -mmin +5 -delete 2>/dev/null || true',
+      'find /tmp -type f -name "*chrome*" -mmin +5 -delete 2>/dev/null || true',
+      'find /tmp -type f -name "*chromium*" -mmin +5 -delete 2>/dev/null || true',
+      // Видаляємо порожні папки
+      'find /tmp -type d -empty -delete 2>/dev/null || true',
+      // Видалити великі файли старіші за 10 хвилин
+      'find /tmp -type f -size +50M -mmin +10 -delete 2>/dev/null || true',
     ];
     
     cleanupCommands.forEach(cmd => {
       try {
-        execSync(cmd, { stdio: 'ignore', timeout: 5000 });
+        const result = execSync(cmd, { stdio: 'pipe', timeout: 10000 });
+        if (result.toString().length > 0) {
+          console.log(`[Disk Cleanup] Cleaned: ${result.toString().trim()}`);
+        }
       } catch (e) {
         // Ігноруємо помилки очищення
       }
@@ -51,6 +55,14 @@ const aggressiveCleanup = () => {
     // Примусовий garbage collection
     if (global.gc) {
       global.gc();
+    }
+    
+    // Показуємо вільне місце
+    try {
+      const df = execSync('df -h /tmp | tail -1', { encoding: 'utf8' });
+      console.log(`[Disk Cleanup] Disk usage after cleanup: ${df.trim()}`);
+    } catch (e) {
+      // Ignore
     }
     
     console.log('[Disk Cleanup] Aggressive cleanup completed');
@@ -234,7 +246,16 @@ export async function getBrowser(): Promise<Browser> {
     } catch (e) {
       // Ігноруємо помилки
     }
+    // Очищаємо старий userDataDir
+    if (currentUserDataDir) {
+      try {
+        execSync(`rm -rf ${currentUserDataDir}`, { stdio: 'ignore', timeout: 5000 });
+      } catch (e) {
+        // Ignore
+      }
+    }
     sharedBrowser = null;
+    currentUserDataDir = null;
   }
   
   // Очищення та GC перед створенням нового
@@ -251,9 +272,19 @@ export async function getBrowser(): Promise<Browser> {
   
   const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser';
   
+  // Створюємо тимчасову директорію для профілю браузера
+  currentUserDataDir = `/tmp/puppeteer-profile-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  
+  try {
+    execSync(`mkdir -p ${currentUserDataDir}`, { stdio: 'ignore' });
+  } catch (e) {
+    console.error('[Puppeteer] Failed to create user data dir:', e.message);
+  }
+  
   sharedBrowser = await puppeteer.launch({
     headless: true,
     executablePath: executablePath,
+    userDataDir: currentUserDataDir,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -330,6 +361,15 @@ function startCleanupTimer(): void {
           await sharedBrowser.close();
           sharedBrowser = null;
           lastActivityTime = 0;
+          // Очищаємо userDataDir
+          if (currentUserDataDir) {
+            try {
+              execSync(`rm -rf ${currentUserDataDir}`, { stdio: 'ignore', timeout: 5000 });
+            } catch (e) {
+              // Ignore
+            }
+            currentUserDataDir = null;
+          }
           // Очищення після закриття
           aggressiveCleanup();
           // Примусовий GC
@@ -339,10 +379,19 @@ function startCleanupTimer(): void {
         } catch (error) {
           console.error('[Puppeteer] Error closing browser:', error.message);
           sharedBrowser = null;
+          currentUserDataDir = null;
         }
       }
     } else {
       // Браузер не працює - очищуємо
+      if (currentUserDataDir) {
+        try {
+          execSync(`rm -rf ${currentUserDataDir}`, { stdio: 'ignore', timeout: 5000 });
+        } catch (e) {
+          // Ignore
+        }
+        currentUserDataDir = null;
+      }
       sharedBrowser = null;
       lastActivityTime = 0;
     }
@@ -360,6 +409,17 @@ export async function closeBrowser(): Promise<void> {
     } catch (error) {
       console.error('[Puppeteer] Error force closing browser:', error.message);
     }
+  }
+  
+  // Очищаємо userDataDir
+  if (currentUserDataDir) {
+    try {
+      console.log(`[Puppeteer] Removing user data dir: ${currentUserDataDir}`);
+      execSync(`rm -rf ${currentUserDataDir}`, { stdio: 'ignore', timeout: 5000 });
+    } catch (e) {
+      console.error('[Puppeteer] Error removing user data dir:', e.message);
+    }
+    currentUserDataDir = null;
   }
   
   sharedBrowser = null;
