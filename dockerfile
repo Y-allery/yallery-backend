@@ -37,6 +37,10 @@ RUN apt-get update && apt-get install -y \
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
+# Disable D-Bus and other system services that cause errors
+ENV DBUS_SESSION_BUS_ADDRESS=/dev/null
+ENV DISPLAY=:99
+
 WORKDIR /app
 
 COPY package*.json ./
