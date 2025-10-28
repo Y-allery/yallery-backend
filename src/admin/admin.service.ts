@@ -419,6 +419,24 @@ export class AdminService {
     // Special handling for retweet flag - check retweet
     if (normalizedFlag === 'retweet') {
       try {
+        // Check if user already has retweet activity in database
+        const existingActivity = await this.partnerShipActivityRepository
+          .createQueryBuilder('pa')
+          .where('pa.partnershipId = :pid', { pid: partnership.id })
+          .andWhere('pa.userId = :uid', { uid: userIdNum })
+          .andWhere('pa.activity = :flag', { flag: 'retweet' })
+          .limit(1)
+          .getOne();
+        
+        // If we have a cached result, return it
+        if (existingActivity) {
+          console.log(`[checkReferralFlag] Using cached retweet check from database`);
+          return { status: "true" };
+        }
+        
+        // If no cached result, check with Twitter API
+        console.log(`[checkReferralFlag] No cache found, checking with Twitter API`);
+        
         // Find the user to get their Twitter username
         const user = await this.userRepository.findOne({
           where: { id: userIdNum },
@@ -441,24 +459,6 @@ export class AdminService {
           return { status: "false" };
         }
         
-        // Check if we already have a retweet check in the database
-        const existingActivity = await this.partnerShipActivityRepository
-          .createQueryBuilder('pa')
-          .where('pa.partnershipId = :pid', { pid: partnership.id })
-          .andWhere('pa.userId = :uid', { uid: userIdNum })
-          .andWhere('pa.activity = :flag', { flag: 'retweet' })
-          .andWhere('pa.tweetLink = :tweetLink', { tweetLink: latestPost.tweetLink })
-          .limit(1)
-          .getOne();
-        
-        // If we have a cached result, return it
-        if (existingActivity) {
-          console.log(`[checkReferralFlag] Using cached retweet check from database`);
-          return { status: "true" };
-        }
-        
-        // If no cached result, check with Twitter API
-        console.log(`[checkReferralFlag] No cache found, checking with Twitter API`);
         const retweetCheck = await this.checkRetweet(
           latestPost.tweetLink,
           user.twitterUsername.replace(/^@/, ''),
