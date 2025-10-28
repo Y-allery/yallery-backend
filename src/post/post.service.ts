@@ -946,6 +946,34 @@ export class PostService {
       return { message: 'Skipped: Page blocked', tweetUrl: '' };
     }
 
+    // Очікуємо, поки інтерфейс повністю завантажиться
+    console.log('[_postTweet] Waiting for compose interface to load...');
+    try {
+      await page.waitForSelector('[data-testid="tweetTextarea_0"]', { timeout: 15000 });
+      console.log('[_postTweet] Compose interface loaded');
+    } catch (e) {
+      console.log('[_postTweet] WaitForSelector timeout, trying fallback selectors...');
+      const fallbackSelectors = [
+        '[data-testid="tweetTextarea"]',
+        'div[role="textbox"]',
+        'textarea'
+      ];
+      let found = false;
+      for (const selector of fallbackSelectors) {
+        try {
+          await page.waitForSelector(selector, { timeout: 5000 });
+          console.log(`[_postTweet] Found fallback selector: ${selector}`);
+          found = true;
+          break;
+        } catch (e) {
+          // Continue to next selector
+        }
+      }
+      if (!found) {
+        throw new Error('Compose interface not found');
+      }
+    }
+
     // Людська поведінка замість простих рандомних дій
     await simulateHumanBehavior(page);
     await humanDelay();
@@ -1089,19 +1117,26 @@ export class PostService {
       { timeout: 45000 },
     );
 
+    console.log('[_postTweet] Clicking tweet button...');
+    
     // Click the found button element directly
     try {
       await tweetButton.focus();
       await tweetButton.click({ delay: 20 });
-    } catch {
+      console.log('[_postTweet] Button clicked, waiting for response...');
+    } catch (clickError) {
+      console.log(`[_postTweet] Direct click failed: ${clickError.message}, trying fallback...`);
       // Fallback to query by data-testid
       await page.evaluate(() => {
         const btn = document.querySelector('[data-testid="tweetButton"], [data-testid="tweetButtonInline"], [data-testid="postButton"]');
         if (btn) (btn as HTMLElement).click();
       });
+      console.log('[_postTweet] Fallback click attempted');
     }
 
+    console.log('[_postTweet] Waiting for tweet API response...');
     const tweetRes = await tweetResponsePromise;
+    console.log('[_postTweet] Received tweet API response');
     const tweetData = await tweetRes.json();
     
     const tweetId =
