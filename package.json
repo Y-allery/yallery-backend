@@ -76,6 +76,7 @@
     "passport-jwt": "^4.0.1",
     "passport-twitter": "^1.0.4",
     "puppeteer": "^24.9.0",
+    "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
     "redis": "^4.6.15",
     "reflect-metadata": "^0.2.0",
