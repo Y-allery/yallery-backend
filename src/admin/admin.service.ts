@@ -441,10 +441,29 @@ export class AdminService {
           return { status: "false" };
         }
         
-        // Check if user retweeted the latest post
+        // Check if we already have a retweet check in the database
+        const existingActivity = await this.partnerShipActivityRepository
+          .createQueryBuilder('pa')
+          .where('pa.partnershipId = :pid', { pid: partnership.id })
+          .andWhere('pa.userId = :uid', { uid: userIdNum })
+          .andWhere('pa.activity = :flag', { flag: 'retweet' })
+          .andWhere('pa.tweetLink = :tweetLink', { tweetLink: latestPost.tweetLink })
+          .limit(1)
+          .getOne();
+        
+        // If we have a cached result, return it
+        if (existingActivity) {
+          console.log(`[checkReferralFlag] Using cached retweet check from database`);
+          return { status: "true" };
+        }
+        
+        // If no cached result, check with Twitter API
+        console.log(`[checkReferralFlag] No cache found, checking with Twitter API`);
         const retweetCheck = await this.checkRetweet(
           latestPost.tweetLink,
           user.twitterUsername.replace(/^@/, ''),
+          partnership.id,
+          userIdNum
         );
         
         return { status: retweetCheck.retweet ? "true" : "false" };
@@ -615,6 +634,8 @@ export class AdminService {
   private async checkRetweet(
     tweetLink: string,
     userHandle: string,
+    partnershipId: number,
+    userId: number,
   ): Promise<{ retweet: boolean }> {
     const options = {
       method: 'POST',
@@ -636,15 +657,43 @@ export class AdminService {
       const req = https.request(options, (res) => {
         const chunks: Uint8Array[] = [];
         res.on('data', (chunk) => chunks.push(chunk));
-        res.on('end', () => {
+        res.on('end', async () => {
           const responseBody = Buffer.concat(chunks).toString();
           try {
             const parsed = JSON.parse(responseBody);
-            if (typeof parsed.retweet === 'boolean') {
-              resolve({ retweet: parsed.retweet });
-            } else {
-              resolve({ retweet: false });
+            const retweetResult = typeof parsed.retweet === 'boolean' ? parsed.retweet : false;
+            
+            console.log(`[checkRetweet] API result for ${userHandle}: ${retweetResult}`);
+            
+            // If retweet is true, save to database for future checks
+            if (retweetResult) {
+              try {
+                // Check if record already exists
+                const existingActivity = await this.partnerShipActivityRepository
+                  .createQueryBuilder('pa')
+                  .where('pa.partnershipId = :pid', { pid: partnershipId })
+                  .andWhere('pa.userId = :uid', { uid: userId })
+                  .andWhere('pa.activity = :flag', { flag: 'retweet' })
+                  .andWhere('pa.tweetLink = :tweetLink', { tweetLink })
+                  .limit(1)
+                  .getOne();
+                
+                if (!existingActivity) {
+                  console.log(`[checkRetweet] Saving retweet result to database`);
+                  const activity = this.partnerShipActivityRepository.create({
+                    partnershipId,
+                    userId,
+                    activity: 'retweet',
+                    tweetLink,
+                  });
+                  await this.partnerShipActivityRepository.save(activity);
+                }
+              } catch (error) {
+                console.error(`[checkRetweet] Error saving to database:`, error.message);
+              }
             }
+            
+            resolve({ retweet: retweetResult });
           } catch (error) {
             console.error(`[checkRetweet] JSON parse error:`, error.message);
             resolve({ retweet: false });
