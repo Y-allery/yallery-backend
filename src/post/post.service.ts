@@ -751,8 +751,7 @@ export class PostService {
         '--disable-dev-shm-usage',
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
-        '--no-zygote',
-        '--single-process',
+      // Removed problematic flags that trigger V8 Proxy resolver errors
         '--disable-gpu',
         '--disable-web-security',
         '--disable-features=VizDisplayCompositor',
@@ -1210,8 +1209,7 @@ export class PostService {
         '--disable-dev-shm-usage',
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
-        '--no-zygote',
-        '--single-process',
+      // Removed problematic flags that trigger V8 Proxy resolver errors
         '--disable-gpu',
         '--disable-web-security',
         '--disable-features=VizDisplayCompositor',
