@@ -270,7 +270,7 @@ export async function getBrowser(): Promise<Browser> {
     global.gc();
   }
   
-  const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser';
+  const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/google-chrome';
   
   // Створюємо тимчасову директорію для профілю браузера
   currentUserDataDir = `/tmp/puppeteer-profile-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
