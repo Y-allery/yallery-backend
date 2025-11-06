@@ -350,7 +350,7 @@ export class AdminService {
         referralLink = `${baseUrl.replace(/\/$/, '')}/?ref=${referralToken}`;
       }
     } else {
-      const branchPayload = {
+      const branchPayload: any = {
         branch_key: process.env.BRANCH_KEY,
         data: {
           $canonical_identifier: `referral/${referralToken}`,
@@ -359,9 +359,14 @@ export class AdminService {
           $android_url:
             'https://play.google.com/store/apps/details?id=app.yallery.y_allery_mobile_client&pli=1',
           referral_token: referralToken,
-          $og_title: 'Join me on Y’allery. Let’s generate pictures together!',
+          $og_title: "Join me on Y'allery. Let's generate pictures together!",
         },
       };
+      
+      // Add contestId if provided and valid
+      if (contestId && Number(contestId) > 0) {
+        branchPayload.data.contest_id = Number(contestId);
+      }
       const branchResponse = await axios.post(
         'https://api2.branch.io/v1/url',
         branchPayload,
