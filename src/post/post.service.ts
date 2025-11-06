@@ -1,4 +1,5 @@
 import { TagService } from './../tag/tag.service';
+import { getBrowser, performRandomActions, randomDelay, setupPage, checkForBlocking, simulateHumanBehavior, humanDelay, humanType, visitRandomTwitterPages, aggressiveCleanup, touchBrowserActivity } from 'src/common/puppeteer-browser';
 import {
   BadRequestException,
   ForbiddenException,
@@ -26,7 +27,6 @@ import * as sharp from 'sharp';
 import * as path from 'path';
 import * as fs from 'fs';
 import axios from 'axios';
-import puppeteer from 'puppeteer';
 import { ConfigService } from '@nestjs/config';
 import { NotificationGateway } from 'src/notification/notification.gateway';
 import { PartnershipActivityEntity } from 'src/admin/entities/partnership-activity.entity';
@@ -34,7 +34,7 @@ import { PartnerUserLinkEntity } from 'src/admin/entities/partner-user-link.enti
 
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 const randomSleep = async () =>
-  await sleep(3000 + Math.floor(Math.random() * 2000)); // Збільшено до 3-5 секунд
+  await sleep(1000 + Math.floor(Math.random() * 1000));
 
 @Injectable()
 export class PostService {
@@ -685,9 +685,9 @@ export class PostService {
     console.log('[tweetImageViaPuppeteer] Starting tweet process for post:', post_id, 'user:', userId);
     
     const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user) {
-      console.log('[tweetImageViaPuppeteer] ERROR: User not found');
-      throw new NotFoundException('User not found');
+    if (!user || !user.twitterUsername) {
+      console.log('[tweetImageViaPuppeteer] ERROR: User not found or has no twitter username:', user?.twitterUsername || 'null');
+      throw new NotFoundException('User not found or has no twitter username');
     }
     console.log('[tweetImageViaPuppeteer] User found:', user.twitterUsername);
 
@@ -742,71 +742,28 @@ export class PostService {
       console.log('[Puppeteer] No system browser found, using bundled Chrome');
     }
 
-    const browser = await puppeteer.launch({
-      headless: true,
-      executablePath: executablePath,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-      // Removed problematic flags that trigger V8 Proxy resolver errors
-        '--disable-gpu',
-        '--disable-web-security',
-        '--disable-features=VizDisplayCompositor',
-        '--disable-background-timer-throttling',
-        '--disable-backgrounding-occluded-windows',
-        '--disable-renderer-backgrounding',
-        '--disable-blink-features=AutomationControlled',
-        '--disable-features=site-per-process',
-        '--no-default-browser-check',
-        '--disable-default-apps',
-        '--disable-popup-blocking',
-        '--disable-translate',
-        '--disable-client-side-phishing-detection',
-        '--disable-sync',
-        '--disable-extensions',
-        '--disable-plugins',
-        '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      ],
-    });
+    const browser = await getBrowser();
     const page = await browser.newPage();
-    
-    // Обхід детекції ботів
-    await page.evaluateOnNewDocument(() => {
-      Object.defineProperty(navigator, 'webdriver', {
-        get: () => undefined,
-      });
-      Object.defineProperty(navigator, 'plugins', {
-        get: () => [1, 2, 3, 4, 5],
-      });
-      Object.defineProperty(navigator, 'languages', {
-        get: () => ['en-US', 'en'],
-      });
-    });
-    
-    await page.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    );
-    await page.setViewport({ width: 1280, height: 800 });
+    await setupPage(page);
 
     const TWITTER_USERNAME = this.configService.get<string>('TWITTER_USERNAME');
     const TWITTER_PASSWORD = this.configService.get<string>('TWITTER_PASSWORD');
 
     if (fs.existsSync(SESSION_PATH)) {
+      const keepAlive = setInterval(() => touchBrowserActivity(), 5000);
+      try {
       const cookies = JSON.parse(fs.readFileSync(SESSION_PATH, 'utf8'));
       await page.setCookie(...cookies);
       await page.goto('https://twitter.com/home', {
         waitUntil: 'networkidle2',
       });
 
-      await new Promise((res) => setTimeout(res, 8000)); // Збільшено до 8 секунд
+      await new Promise((res) => setTimeout(res, 3000));
       const is2faPrompt = await page.$(
         'input[name="text"][inputmode="numeric"]',
       );
       if (is2faPrompt) {
-        await browser.close();
+        await page.close();
         return await this._recoverSessionViaGmail(post_id, userId);
       }
 
@@ -819,8 +776,20 @@ export class PostService {
       );
 
       if (isLoggedIn) {
-        return await this._postTweet(page, post, user, TWITTER_USERNAME);
+        const res = await this._postTweet(page, post, user, TWITTER_USERNAME);
+        clearInterval(keepAlive);
+        return res;
       } else {
+        // Skip if user is null or has no twitter username
+        if (!user || !user.twitterUsername) {
+          console.log('[tweetImageViaPuppeteer] SKIPPING: User is null or has no twitter username:', user?.twitterUsername || 'null');
+          const res = { message: 'Skipped: User not found or no twitter username', tweetUrl: '' };
+          clearInterval(keepAlive);
+          return res;
+        }
+      }
+      } finally {
+        try { clearInterval(keepAlive); } catch {}
       }
     }
 
@@ -831,20 +800,13 @@ export class PostService {
     );
 
     if (isCodeInputPresent) {
-      await browser.close();
+      await page.close();
       return await this._recoverSessionViaGmail(post_id, userId);
     }
 
     await page.goto('https://twitter.com/login', { waitUntil: 'networkidle2' });
 
-    // Перевірка на чорний екран або блокування
-    await new Promise((res) => setTimeout(res, 10000)); // Збільшено до 10 секунд
-    const bodyText = await page.evaluate(() => document.body.innerText);
-    if (!bodyText || bodyText.trim() === '' || bodyText.includes('Just a moment')) {
-      throw new Error('Twitter page appears to be blocked or empty (black screen detected)');
-    }
-
-    await page.waitForSelector('input[name="text"]', { timeout: 30000 }); // Збільшено до 30 секунд
+    await page.waitForSelector('input[name="text"]', { timeout: 10000 });
     await page.type('input[name="text"]', TWITTER_USERNAME);
     await page.keyboard.press('Enter');
     await randomSleep();
@@ -863,7 +825,7 @@ export class PostService {
     } catch (e) {}
 
     
-    await page.waitForSelector('input[name="password"]', { timeout: 30000 }); // Збільшено до 30 секунд
+    await page.waitForSelector('input[name="password"]', { timeout: 10000 });
     await page.type('input[name="password"]', TWITTER_PASSWORD);
     await page.keyboard.press('Enter');
     await randomSleep();
@@ -898,7 +860,7 @@ export class PostService {
           'input[data-testid="ocfEnterTextTextInput"]',
         );
         if (!codeInput) {
-          await browser.close();
+          await page.close();
           return await this._recoverSessionViaGmail(post_id, userId);
         }
 
@@ -925,11 +887,11 @@ export class PostService {
         );
         if (stillOnCodeInput) {
           fs.unlinkSync(CONFIRM_CODE_PATH);
-          await browser.close();
+          await page.close();
           return await this._recoverSessionViaGmail(post_id, userId);
         }
       } else {
-        await browser.close();
+        await page.close();
         return await this._recoverSessionViaGmail(post_id, userId);
       }
     } catch (err) {}
@@ -939,6 +901,12 @@ export class PostService {
       ['auth_token', '_twitter_sess', 'ct0', 'att'].includes(cookie.name),
     );
     fs.writeFileSync(SESSION_PATH, JSON.stringify(requiredCookies, null, 2));
+
+    // Skip if user is null
+    if (!user) {
+      console.log('[tweetImageViaPuppeteer] SKIPPING: User is null, cannot proceed');
+      return { message: 'Skipped: User not found', tweetUrl: '' };
+    }
 
     return await this._postTweet(page, post, user, TWITTER_USERNAME);
   }
@@ -951,14 +919,64 @@ export class PostService {
   ): Promise<{ message: string; tweetUrl: string }> {
     console.log('[_postTweet] Starting tweet process...');
     console.log('[_postTweet] Post ID:', post.id);
-    console.log('[_postTweet] User:', user.twitterUsername);
+    console.log('[_postTweet] User:', user?.twitterUsername || 'null');
     console.log('[_postTweet] Image URL:', post.imageUrl);
     
+    // Skip posting if user is null or has no twitter username
+    if (!user || !user.twitterUsername) {
+      console.log('[_postTweet] SKIPPING: User is null or has no twitter username:', user?.twitterUsername || 'null');
+      return { message: 'Skipped: User not found or no twitter username', tweetUrl: '' };
+    }
+    
     console.log('[_postTweet] Navigating to Twitter compose page...');
+    
+    // Спочатку відвідуємо випадкову сторінку Twitter (як людина)
+    const keepAlive = setInterval(() => touchBrowserActivity(), 5000);
+    await visitRandomTwitterPages(page);
+    
     await page.goto('https://twitter.com/compose/tweet', {
       waitUntil: 'networkidle2',
     });
     console.log('[_postTweet] Successfully navigated to Twitter compose page');
+
+    // Перевіряємо на блокування
+    const isBlocked = await checkForBlocking(page);
+    if (isBlocked) {
+      console.log('[_postTweet] Page appears to be blocked, skipping...');
+      return { message: 'Skipped: Page blocked', tweetUrl: '' };
+    }
+
+    // Очікуємо, поки інтерфейс повністю завантажиться
+    console.log('[_postTweet] Waiting for compose interface to load...');
+    try {
+      await page.waitForSelector('[data-testid="tweetTextarea_0"]', { timeout: 15000 });
+      console.log('[_postTweet] Compose interface loaded');
+    } catch (e) {
+      console.log('[_postTweet] WaitForSelector timeout, trying fallback selectors...');
+      const fallbackSelectors = [
+        '[data-testid="tweetTextarea"]',
+        'div[role="textbox"]',
+        'textarea'
+      ];
+      let found = false;
+      for (const selector of fallbackSelectors) {
+        try {
+          await page.waitForSelector(selector, { timeout: 5000 });
+          console.log(`[_postTweet] Found fallback selector: ${selector}`);
+          found = true;
+          break;
+        } catch (e) {
+          // Continue to next selector
+        }
+      }
+      if (!found) {
+        throw new Error('Compose interface not found');
+      }
+    }
+
+    // Людська поведінка замість простих рандомних дій
+    await simulateHumanBehavior(page);
+    await humanDelay();
     
 
 
@@ -970,8 +988,8 @@ export class PostService {
         : `Generated by ${user.twitterUsername} #post #${post.id}`;
     
     try {
-      await page.waitForSelector('[data-testid="tweetTextarea_0"]', { timeout: 30000 }); // Збільшено до 30 секунд
-      await page.type('[data-testid="tweetTextarea_0"]', tweetText);
+      await page.waitForSelector('[data-testid="tweetTextarea_0"]', { timeout: 10000 });
+      await humanType(page, '[data-testid="tweetTextarea_0"]', tweetText);
     } catch (error) {
       const selectors = [
         '[data-testid="tweetTextarea_0"]',
@@ -985,7 +1003,7 @@ export class PostService {
         try {
           const element = await page.$(selector);
           if (element) {
-            await page.type(selector, tweetText);
+            await humanType(page, selector, tweetText);
             break;
           }
         } catch (e) {
@@ -1009,6 +1027,11 @@ export class PostService {
     try {
       await randomSleep();
       await input.uploadFile(imagePath);
+      
+      // Людська поведінка після завантаження зображення
+      await simulateHumanBehavior(page);
+      await humanDelay();
+      
     } catch (error) {
       console.error('[_postTweet] ERROR uploading image:', error.message);
       throw error;
@@ -1018,25 +1041,50 @@ export class PostService {
     await page.keyboard.press('ArrowDown');
     await randomSleep();
 
+    // Людська поведінка перед публікацією
+    await simulateHumanBehavior(page);
+    await humanDelay();
+
     
     let tweetButton = await page.$('[data-testid="tweetButton"]');
     
     if (!tweetButton) {
+      console.log('[_postTweet] Primary tweetButton not found, trying fallback selectors...');
       const buttonSelectors = [
-        '[data-testid="tweetButton"]',
         '[data-testid="postButton"]',
+        '[data-testid="tweetButtonInline"]',
         'button[type="submit"]',
-        'button:contains("Post")',
-        'button:contains("Tweet")'
+        'div[role="button"][aria-label*="Post"]',
+        'div[role="button"][data-testid="tweetButton"]'
       ];
       
       for (const selector of buttonSelectors) {
-        tweetButton = await page.$(selector);
-        if (tweetButton) break;
+        console.log(`[_postTweet] Trying button selector: ${selector}`);
+        try {
+          tweetButton = await page.$(selector);
+          if (tweetButton) {
+            console.log(`[_postTweet] Found button with selector: ${selector}`);
+            break;
+          }
+        } catch (e) {
+          console.log(`[_postTweet] Selector failed: ${selector} - ${e.message}`);
+        }
       }
     }
     
     if (!tweetButton) {
+      console.error('[_postTweet] All button selectors failed, taking screenshot for debug...');
+      // Log available buttons for debugging
+      const availableButtons = await page.evaluate(() => {
+        const buttons = Array.from(document.querySelectorAll('button, div[role="button"]'));
+        return buttons.map(btn => ({
+          testId: btn.getAttribute('data-testid'),
+          ariaLabel: btn.getAttribute('aria-label'),
+          innerText: (btn as HTMLElement).innerText?.substring(0, 50),
+          className: btn.className?.substring(0, 50)
+        })).slice(0, 5);
+      });
+      console.error('[_postTweet] Available buttons:', JSON.stringify(availableButtons, null, 2));
       throw new Error('Tweet button not found');
     }
 
@@ -1058,20 +1106,37 @@ export class PostService {
     }
 
     
+    // Wait for CreateTweet (GraphQL) request with broader matching and longer timeout
     const tweetResponsePromise = page.waitForResponse(
-      (res) =>
-        res.url().includes('/CreateTweet') && res.request().method() === 'POST',
+      (res) => {
+        if (res.request().method() !== 'POST') return false;
+        const url = res.url();
+        return /CreateTweet|PostTweet|TweetCreate|CreatePost/i.test(url) ||
+               (/\/graphql\//i.test(url) && /Create|Tweet/i.test(url));
+      },
+      { timeout: 45000 },
     );
 
-    await tweetButton.focus();
-    await page.evaluate(() => {
-      const btn = document.querySelector('[data-testid="tweetButton"]');
-      if (btn) {
-        (btn as HTMLElement).click();
-      }
-    });
+    console.log('[_postTweet] Clicking tweet button...');
+    
+    // Click the found button element directly
+    try {
+      await tweetButton.focus();
+      await tweetButton.click({ delay: 20 });
+      console.log('[_postTweet] Button clicked, waiting for response...');
+    } catch (clickError) {
+      console.log(`[_postTweet] Direct click failed: ${clickError.message}, trying fallback...`);
+      // Fallback to query by data-testid
+      await page.evaluate(() => {
+        const btn = document.querySelector('[data-testid="tweetButton"], [data-testid="tweetButtonInline"], [data-testid="postButton"]');
+        if (btn) (btn as HTMLElement).click();
+      });
+      console.log('[_postTweet] Fallback click attempted');
+    }
 
+    console.log('[_postTweet] Waiting for tweet API response...');
     const tweetRes = await tweetResponsePromise;
+    console.log('[_postTweet] Received tweet API response');
     const tweetData = await tweetRes.json();
     
     const tweetId =
@@ -1140,10 +1205,22 @@ export class PostService {
 
     await page.browser().close();
     
-    return {
+    // Очищення після кожного твіту
+    aggressiveCleanup();
+    
+    // Примусовий GC для звільнення пам'яті
+    if (global.gc) {
+      global.gc();
+    }
+    
+    try {
+      return {
       message: 'Tweet sent successfully',
       tweetUrl: tweetUrlFull,
-    };
+      };
+    } finally {
+      try { clearInterval(keepAlive); } catch {}
+    }
   }
 
   async downloadImageToTmp(
@@ -1200,35 +1277,7 @@ export class PostService {
       console.log('[Puppeteer] No system browser found, using bundled Chrome');
     }
 
-    const browser = await puppeteer.launch({
-      headless: true,
-      executablePath: executablePath,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-      // Removed problematic flags that trigger V8 Proxy resolver errors
-        '--disable-gpu',
-        '--disable-web-security',
-        '--disable-features=VizDisplayCompositor',
-        '--disable-background-timer-throttling',
-        '--disable-backgrounding-occluded-windows',
-        '--disable-renderer-backgrounding',
-        '--disable-blink-features=AutomationControlled',
-        '--disable-features=site-per-process',
-        '--no-default-browser-check',
-        '--disable-default-apps',
-        '--disable-popup-blocking',
-        '--disable-translate',
-        '--disable-client-side-phishing-detection',
-        '--disable-sync',
-        '--disable-extensions',
-        '--disable-plugins',
-        '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      ],
-    });
+    const browser = await getBrowser();
 
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 800 });
@@ -1285,7 +1334,7 @@ export class PostService {
     fs.writeFileSync(CONFIRMATION_CODE_PATH, code);
 
     
-    await browser.close();
+    await page.close();
     return await this.tweetImageViaPuppeteer(post_id, userId);
   }
 }

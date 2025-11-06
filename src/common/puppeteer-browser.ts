@@ -452,6 +452,11 @@ export function getBrowserStatus(): {
   };
 }
 
+// Пінг активності, щоб уникати закриття браузера під час довгих дій
+export function touchBrowserActivity(): void {
+  lastActivityTime = Date.now();
+}
+
 /**
  * Налаштовує сторінку з рандомними параметрами
  */
@@ -510,44 +515,48 @@ export const setupPage = async (page: any) => {
  */
 export const checkForBlocking = async (page: any): Promise<boolean> => {
   try {
-    // Перевіряємо на чорний екран або "Just a moment"
-    const blockingTexts = [
-      'Just a moment',
-      'Please wait',
-      'Checking your browser',
-      'Security check',
-      'Access denied',
-      'Blocked',
-      'Suspended'
+    // М'якша перевірка блокування з повторною валідацією
+    const softBlockingTexts = [
+      'just a moment',
+      'checking your browser',
+      'security check',
+      'access denied',
+      'blocked',
+      'suspended'
     ];
-    
-    const pageContent = await page.content();
-    const hasBlockingText = blockingTexts.some(text => 
-      pageContent.toLowerCase().includes(text.toLowerCase())
-    );
-    
-    if (hasBlockingText) {
-      console.log('[Anti-Detection] Blocking detected, waiting...');
-      await randomDelay(5000, 10000);
-      return true;
-    }
-    
-    // Перевіряємо на відсутність основних елементів Twitter
-    const hasTwitterElements = await page.evaluate(() => {
-      return document.querySelector('[data-testid="primaryColumn"]') !== null ||
-             document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]') !== null ||
-             document.querySelector('input[name="text"]') !== null;
+
+    const appearsBlockedOnce = await (async () => {
+      const html = (await page.content()).toLowerCase();
+      return softBlockingTexts.some(t => html.includes(t));
+    })();
+
+    // Перевіряємо наявність ключових елементів інтерфейсу
+    const hasUi = await page.evaluate(() => {
+      return (
+        document.querySelector('[data-testid="primaryColumn"]') !== null ||
+        document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]') !== null ||
+        document.querySelector('div[role="textbox"], textarea, [data-testid="tweetTextarea_0"]') !== null
+      );
     });
-    
-    if (!hasTwitterElements) {
-      console.log('[Anti-Detection] Twitter elements not found, possible blocking');
-      return true;
+
+    // Якщо UI присутній – вважаємо, що не заблоковано
+    if (hasUi) {
+      return false;
     }
-    
+
+    // Якщо є блокуючі тексти і UI відсутній – тоді м'яка перевірка
+    if (appearsBlockedOnce) {
+      console.log('[Anti-Detection] Possible block detected, but continuing...');
+      await randomDelay(500, 1000);
+      return false; // Продовжуємо навіть якщо є ознаки блоку
+    }
+
+    // Якщо ні UI, ні блокуючих текстів – не блокуємо
     return false;
   } catch (error) {
     console.log('[Anti-Detection] Error checking for blocking:', error.message);
-    return true; // В разі помилки вважаємо що заблоковано
+    // Уникаємо фальшпозитивів: у разі помилки вважаємо, що НЕ заблоковано
+    return false;
   }
 };
 

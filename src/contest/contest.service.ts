@@ -310,48 +310,80 @@ export class ContestService {
         const title = 'Join the contest!';
         const body = `The ${contest.name} contest is now live! Join now for a chance to win points!`;
 
-        console.log(`🎯 Contest "${contest.name}" started - sending notifications`);
+        console.log(`🎯 Contest "${contest.name}" started - sending notifications to ${users.length} users`);
 
-        const notificationPromises = users.map(async (user) => {
+        // Batch processing to avoid blocking event loop
+        const BATCH_SIZE = 10; // Process 10 users at a time
+        let processedCount = 0;
+        let successCount = 0;
+        let errorCount = 0;
+
+        for (let i = 0; i < users.length; i += BATCH_SIZE) {
+          const batch = users.slice(i, i + BATCH_SIZE);
+          const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
+          const totalBatches = Math.ceil(users.length / BATCH_SIZE);
+          
+          console.log(`📦 Processing batch ${batchNumber}/${totalBatches} (${batch.length} users)`);
+
+          // Create activities for all users in batch at once (bulk operation)
+          const batchUserIds = batch.map(user => user.id);
           try {
-            // Create activity
             await this.activityService.createActivities(
               null,
-              [user.id],
+              batchUserIds,
               ActivityEnum.CONTEST_OPEN,
               undefined,
               false,
               contest,
             );
-            
-            // Send push notifications
-            if (user.deviceTokens && user.deviceTokens.length > 0) {
-              const deviceTokenPromises = user.deviceTokens.map(async (deviceToken) => {
-                try {
-                  await this.firebaseService.sendNotification(
-                    deviceToken.token,
-                    title,
-                    body,
-                  );
-                  return { success: true };
-                } catch (deviceError) {
-                  console.error(`❌ Push notification failed for user ${user.id}:`, deviceError.message);
-                  return { success: false };
-                }
-              });
-              
-              await Promise.all(deviceTokenPromises);
-            }
-            
-            // Emit profile update
-            await this.notificationGateway.emitProfileUpdate(user.id.toString());
-            
-          } catch (userError) {
-            console.error(`❌ Error processing user ${user.id}:`, userError.message);
+          } catch (activityError) {
+            console.error(`❌ Failed to create activities for batch ${batchNumber}:`, activityError.message);
           }
-        });
 
-        await Promise.all(notificationPromises);
+          const batchPromises = batch.map(async (user) => {
+            try {
+              // Send push notifications to all device tokens
+              if (user.deviceTokens && user.deviceTokens.length > 0) {
+                const deviceTokenPromises = user.deviceTokens.map(async (deviceToken) => {
+                  try {
+                    await this.firebaseService.sendNotification(
+                      deviceToken.token,
+                      title,
+                      body,
+                    );
+                    return { success: true };
+                  } catch (deviceError) {
+                    console.error(`❌ Push notification failed for user ${user.id}:`, deviceError.message);
+                    return { success: false };
+                  }
+                });
+                
+                await Promise.all(deviceTokenPromises);
+              }
+              
+              // Emit profile update
+              await this.notificationGateway.emitProfileUpdate(user.id.toString());
+              
+              successCount++;
+              return { success: true, userId: user.id };
+            } catch (userError) {
+              console.error(`❌ Error processing user ${user.id}:`, userError.message);
+              errorCount++;
+              return { success: false, userId: user.id, error: userError.message };
+            }
+          });
+
+          await Promise.all(batchPromises);
+          processedCount += batch.length;
+          
+          // Small delay between batches to give event loop time to process other events
+          // Only delay if not the last batch
+          if (i + BATCH_SIZE < users.length) {
+            await new Promise(resolve => setTimeout(resolve, 50)); // 50ms delay
+          }
+        }
+
+        console.log(`✅ Contest notifications completed: ${successCount} succeeded, ${errorCount} failed out of ${processedCount} users`);
         updatedContests.push(contest);
       } else if (contest.endTime < currentDate && postsCount === 0) {
         contest.status = ContestStatusEnum.CLOSED;
