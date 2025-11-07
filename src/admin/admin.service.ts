@@ -363,7 +363,7 @@ export class AdminService {
           contest_id: contestId ? Number(contestId) : null,
         },
       };
-      
+      console.log(branchPayload)
       const branchResponse = await axios.post(
         'https://api2.branch.io/v1/url',
         branchPayload,
