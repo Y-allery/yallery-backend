@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CreateContestDto } from './dto/create-contest.dto';
 import { ContestService } from 'src/contest/contest.service';
@@ -36,6 +36,7 @@ import * as https from 'https';
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
   private readonly apiKey: string;
   private readonly apiUrl: string;
   private readonly accountName: string;
@@ -363,7 +364,7 @@ export class AdminService {
           contest_id: contestId ? Number(contestId) : null,
         },
       };
-      console.log(branchPayload)
+      this.logger.log('Branch.io payload: ' + JSON.stringify(branchPayload, null, 2));
       const branchResponse = await axios.post(
         'https://api2.branch.io/v1/url',
         branchPayload,
