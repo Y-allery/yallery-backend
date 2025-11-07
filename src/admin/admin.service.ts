@@ -360,7 +360,7 @@ export class AdminService {
             'https://play.google.com/store/apps/details?id=app.yallery.y_allery_mobile_client&pli=1',
           referral_token: referralToken,
           $og_title: "Join me on Y'allery. Let's generate pictures together!",
-          $contest_id: contestId ? Number(contestId) : null,
+          contest_id: contestId ? Number(contestId) : null,
         },
       };
       
