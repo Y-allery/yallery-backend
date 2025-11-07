@@ -360,13 +360,10 @@ export class AdminService {
             'https://play.google.com/store/apps/details?id=app.yallery.y_allery_mobile_client&pli=1',
           referral_token: referralToken,
           $og_title: "Join me on Y'allery. Let's generate pictures together!",
+          $contest_id: contestId ? Number(contestId) : null,
         },
       };
       
-      // Add contestId if provided and valid
-      if (contestId && Number(contestId) > 0) {
-        branchPayload.data.contest_id = Number(contestId);
-      }
       const branchResponse = await axios.post(
         'https://api2.branch.io/v1/url',
         branchPayload,
