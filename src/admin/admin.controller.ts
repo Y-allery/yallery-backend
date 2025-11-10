@@ -291,6 +291,13 @@ export class AdminController {
     return this.adminService.getAllPartnershipsWithStats();
   }
 
+  @Get('partnerships/with-links')
+  @ApiOperation({ summary: 'Get all partnerships with user links (for testing)' })
+  @ApiResponse({ status: 200, description: 'List of partnerships with user links returned' })
+  async getPartnershipsWithUserLinks() {
+    return this.adminService.getPartnershipsWithUserLinks();
+  }
+
   @Get('referral-status')
   @ApiOperation({
     summary: 'Check referral user flag status',
