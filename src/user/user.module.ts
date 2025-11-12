@@ -14,6 +14,9 @@ import { PostEntity } from 'src/post/entities/post.entity';
 import { LikeEntity } from 'src/like/entities/like.entity';
 import { PartnershipActivityEntity } from 'src/admin/entities/partnership-activity.entity';
 import { PartnershipEntity } from 'src/admin/entities/partner.entity';
+import { PartnerUserLinkEntity } from 'src/admin/entities/partner-user-link.entity';
+import { ReportPostEntity } from 'src/post/entities/report.post.entity';
+import { PaymentEntity } from 'src/payment/entities/payment.entity';
 
 @Module({
   imports: [
@@ -26,6 +29,9 @@ import { PartnershipEntity } from 'src/admin/entities/partner.entity';
       LikeEntity,
       PartnershipActivityEntity,
       PartnershipEntity,
+      PartnerUserLinkEntity,
+      ReportPostEntity,
+      PaymentEntity,
     ]),
     ActivityModule,
     forwardRef(() => NotificationModule),

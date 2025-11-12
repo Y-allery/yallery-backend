@@ -28,6 +28,9 @@ import { LikeEntity } from 'src/like/entities/like.entity';
 import { LogReferralActivityDto } from './dto/log-referral-activity.dto';
 import { PartnershipEntity } from 'src/admin/entities/partner.entity';
 import { PartnershipActivityEntity } from 'src/admin/entities/partnership-activity.entity';
+import { PartnerUserLinkEntity } from 'src/admin/entities/partner-user-link.entity';
+import { ReportPostEntity } from 'src/post/entities/report.post.entity';
+import { PaymentEntity } from 'src/payment/entities/payment.entity';
 
 @Injectable()
 export class UserService {
@@ -55,6 +58,12 @@ export class UserService {
     private readonly partnerShipRepository: Repository<PartnershipEntity>,
     @InjectRepository(PartnershipActivityEntity)
     private readonly partnerShipActivityRepository: Repository<PartnershipActivityEntity>,
+    @InjectRepository(PartnerUserLinkEntity)
+    private readonly partnerUserLinkRepository: Repository<PartnerUserLinkEntity>,
+    @InjectRepository(ReportPostEntity)
+    private readonly reportPostRepository: Repository<ReportPostEntity>,
+    @InjectRepository(PaymentEntity)
+    private readonly paymentRepository: Repository<PaymentEntity>,
 
     private readonly dataSource: DataSource,
   ) {}
@@ -241,9 +250,68 @@ export class UserService {
     });
     if (!user) throw new NotFoundException('User not found');
 
-    user.is_deleted = true;
-    await this.userModel.save(user);
-    return { status: 'Success', message: 'User deleted succesfully' };
+    // Використовуємо транзакцію для повного видалення
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // Видаляємо всі зв'язки, які не мають CASCADE DELETE через SQL запити
+
+      // 1. Оновлюємо contests, де user є winner (встановлюємо NULL) - робимо ПЕРЕД видаленням
+      await queryRunner.query(
+        'UPDATE contests SET winnerId = NULL WHERE winnerId = ?',
+        [user_id],
+      );
+
+      // 2. Видаляємо referrals (де user є власником або використовувачем)
+      await queryRunner.query(
+        'DELETE FROM referrals WHERE userId = ? OR usedById = ?',
+        [user_id, user_id],
+      );
+
+      // 3. Видаляємо partner_user_links
+      await queryRunner.query(
+        'DELETE FROM partner_user_links WHERE userId = ?',
+        [user_id],
+      );
+
+      // 4. Видаляємо partnership_activities
+      await queryRunner.query(
+        'DELETE FROM partnership_activities WHERE userId = ?',
+        [user_id],
+      );
+
+      // 5. Видаляємо reports (де user є reporting або reported)
+      await queryRunner.query(
+        'DELETE FROM reports WHERE reportingUserId = ? OR reportedUserId = ?',
+        [user_id, user_id],
+      );
+
+      // 6. Видаляємо payments
+      await queryRunner.query(
+        'DELETE FROM payments WHERE userId = ?',
+        [user_id],
+      );
+
+      // 7. Видаляємо самого користувача
+      // CASCADE DELETE автоматично видалить:
+      // - posts, likes, viewed_posts, activities, device_tokens, notification_preferences
+      // - зв'язки з tags через users_tags_tags
+      await queryRunner.query(
+        'DELETE FROM users WHERE id = ?',
+        [user_id],
+      );
+
+      await queryRunner.commitTransaction();
+      return { status: 'Success', message: 'User deleted successfully' };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      console.error('Error deleting user account:', error);
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async handleDailyReward() {
@@ -528,6 +596,12 @@ export class UserService {
     const hasReceivedDailyRewardToday = 
       await this.activityService.hasReceivedDailyRewardToday(userId);
     
+    // Get puid (partnerUserId) from partner_user_links
+    const partnerUserLink = await this.partnerUserLinkRepository.findOne({
+      where: { userId },
+    });
+    const puid = partnerUserLink?.partnerUserId ?? null;
+    
     const { password, refreshToken, avatar, ...userData } = user;
 
     return {
@@ -543,6 +617,7 @@ export class UserService {
       unreadContestActivity,
       unreadCollabsActivity,
       hasReceivedDailyRewardToday,
+      puid,
     };
   }
 
