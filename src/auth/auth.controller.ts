@@ -166,11 +166,19 @@ export class AuthController {
 
   @Post('apple-login')
   @ApiBody({
-    schema: { type: 'object', properties: { token: { type: 'string' } } },
+    schema: {
+      type: 'object',
+      properties: {
+        token: { type: 'string' },
+        ref: { type: 'string', description: 'Referral token from partnership link' },
+        puid: { type: 'string', description: 'Partner user id from external partner' },
+      },
+      required: ['token'],
+    },
   })
-  async appleLogin(@Body('token') token: string) {
-    const payload = await this.authService.verifyAppleToken(token);
-    return this.authService.signUpWithOAuth(payload);
+  async appleLogin(@Body() body: { token: string; ref?: string; puid?: string }) {
+    const payload = await this.authService.verifyAppleToken(body.token);
+    return this.authService.signUpWithOAuth(payload, { ref: body.ref, puid: body.puid });
   }
 
   @Get('telegram-login')

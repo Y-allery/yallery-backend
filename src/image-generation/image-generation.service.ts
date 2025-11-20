@@ -38,6 +38,8 @@ import * as fal from '@fal-ai/serverless-client';
 import OpenAI from 'openai';
 import * as leoProfanity from 'leo-profanity';
 import axios from 'axios';
+import { wrapFetchWithPayment } from 'x402-fetch';
+import { privateKeyToAccount } from 'viem/accounts';
 
 @Injectable()
 export class ImageGenerationService {
@@ -47,6 +49,7 @@ export class ImageGenerationService {
     'Flux: A versatile model for abstract art, surreal designs, and conceptual visuals.',
     'Ideogram: Specializes in soft, atmospheric, dream-like imagery, perfect for ethereal landscapes and mood-based scenes.',
     'Realistic Vision: Excels in detailed, photorealistic images, including lifelike portraits and realistic environments',
+    'X-Router AI: High-quality image generation with x402 payment integration, supports multiple resolutions, negative prompts, and reproducible results with seed values.',
   ];
   private readonly defaultSettings: Record<string, any> = {
     defaultAI: 'flux',
@@ -102,6 +105,24 @@ export class ImageGenerationService {
       sizes: ['1024x1024', '1536x640', '768x1344'],
       is_artem: true,
     },
+    [AIEnum.X_ROUTER]: {
+      id: 'x_router',
+      name: 'X-Router AI',
+      allowedOrientations: ['horizontal', 'vertical'],
+      minImages: 1,
+      maxImages: 4, // x-router підтримує до 4 зображень
+      maxPromptLength: 3000, // x-router підтримує до 3000 символів
+      sizes: [
+        '512x512',
+        '768x768',
+        '1024x1024',
+        '768x1024',
+        '1024x768',
+        '1280x768',
+        '768x1344',
+        '1536x640',
+      ],
+    },
   };
   private openai;
   constructor(
@@ -135,6 +156,8 @@ export class ImageGenerationService {
     private readonly fluxProFineTune: Queue,
     @InjectQueue(AIEnum.BYTEDANCE_EDIT)
     private readonly bytedanceEditQueue: Queue,
+    @InjectQueue(AIEnum.X_ROUTER)
+    private readonly xRouterQueue: Queue,
   ) {
     this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   }
@@ -310,7 +333,7 @@ export class ImageGenerationService {
         credentials: token.token,
       });
 
-      const serviceMapping: { [key in AIEnum]: string } = {
+      const serviceMapping: { [key in Exclude<AIEnum, AIEnum.X_ROUTER>]: string } = {
         [AIEnum.AURA_FLOW]: 'fal-ai/ideogram/v2',
         [AIEnum.FLUX]: 'fal-ai/flux-pro/v1.1-ultra',
         [AIEnum.REALISTIC_VISION]: 'fal-ai/realistic-vision',
@@ -318,7 +341,12 @@ export class ImageGenerationService {
         [AIEnum.BYTEDANCE_EDIT]: 'fal-ai/bytedance/seededit/v3/edit-image',
       };
 
-      const serviceName = serviceMapping[createPostDto.ai_service];
+      // X_ROUTER не використовує fal.ai, тому перевіряємо перед використанням
+      if (createPostDto.ai_service === AIEnum.X_ROUTER) {
+        throw new BadRequestException('X_ROUTER service should use generateXRouter method');
+      }
+
+      const serviceName = serviceMapping[createPostDto.ai_service as Exclude<AIEnum, AIEnum.X_ROUTER>];
 
       if (!serviceName) {
         throw new BadRequestException('Invalid AI service selected');
@@ -383,6 +411,159 @@ export class ImageGenerationService {
       }
 
       throw new Error(`Failed to generate images: ${error.message}`);
+    }
+  }
+
+  async generateXRouter(createPostDto: GenerateImageDto): Promise<{
+    generatedImages: string[];
+    suggestedTags: { id: number; name: string }[];
+  }> {
+    let tag: TagEntity;
+    try {
+      const suggestedTags = [];
+      
+      // Визначення тегу (аналогічно generateFalAi)
+      if (createPostDto.auto_tag_select) {
+        tag = await this.findBestTag(createPostDto.prompt);
+        suggestedTags.push({
+          id: tag.id,
+          name: '#' + tag.name,
+          imageUrl: tag.imageUrl,
+        });
+      } else {
+        tag = await this.tagEntity.findOne({
+          where: { id: createPostDto.tag_id },
+        });
+        suggestedTags.push({
+          id: tag.id,
+          name: '#' + tag.name,
+          imageUrl: tag.imageUrl,
+        });
+      }
+
+      const otherTag = await this.tagEntity.findOne({
+        where: { name: 'other' },
+      });
+      suggestedTags.push({
+        id: otherTag.id,
+        name: '#' + otherTag.name,
+        imageUrl: otherTag.imageUrl,
+      });
+
+      // Отримуємо приватний ключ для x402 wallet
+      const privateKey = this.configService.get<string>('X_ROUTER_PRIVATE_KEY');
+      if (!privateKey) {
+        throw new BadRequestException('X-Router private key is not configured');
+      }
+
+      // Створюємо account з приватного ключа
+      const account = privateKeyToAccount(privateKey as `0x${string}`);
+      
+      // Створюємо fetch з x402 оплатою
+      // Node.js 18+ має вбудований fetch, x402-fetch очікує стандартний fetch API
+      const fetchWithPayment = wrapFetchWithPayment(globalThis.fetch, account);
+
+      // URL API x-router
+      const xRouterApiUrl = this.configService.get<string>('X_ROUTER_API_URL') || 
+        'https://api.x-router.ai/v1/images/generate';
+      
+      const model = this.configService.get<string>('X_ROUTER_MODEL') || 'flux-schnell';
+
+      // Підготовка параметрів для x-router API
+      const requestBody: any = {
+        prompt: createPostDto.prompt,
+        model: model,
+        width: createPostDto.width,
+        height: createPostDto.height,
+        numberResults: Math.min(createPostDto.image_quantity, 4), // max 4 для x-router
+        negativePrompt: 'blurry, distorted, low quality, bad anatomy, ugly, watermark',
+      };
+
+      // Опціональні параметри
+      // steps, guidance, seed можна додати пізніше, якщо потрібно
+
+      console.log(`[X-Router] Generating images with params:`, {
+        prompt: createPostDto.prompt.substring(0, 50) + '...',
+        width: requestBody.width,
+        height: requestBody.height,
+        numberResults: requestBody.numberResults,
+        model: requestBody.model,
+      });
+
+      // Виклик x-router.ai API з x402 оплатою
+      const start = Date.now();
+      const response = await fetchWithPayment(xRouterApiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      const end = Date.now();
+      console.log(`[X-Router] API call took ${end - start}ms`);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[X-Router] API error:`, {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText,
+        });
+        throw new BadRequestException(
+          `X-Router API error: ${response.status} ${response.statusText} - ${errorText}`,
+        );
+      }
+
+      const data = await response.json();
+
+      // Отримуємо payment details з header
+      const paymentResponseHeader = response.headers.get('x-payment-response');
+      if (paymentResponseHeader) {
+        try {
+          const paymentData = JSON.parse(
+            Buffer.from(paymentResponseHeader, 'base64').toString('utf-8'),
+          );
+          console.log(`[X-Router] Payment transaction:`, {
+            success: paymentData.success,
+            transaction: paymentData.transaction || paymentData.transactionHash,
+            network: paymentData.network,
+            payer: paymentData.payer,
+          });
+        } catch (e) {
+          console.warn(`[X-Router] Failed to parse payment response header:`, e);
+        }
+      }
+
+      // Перевіряємо відповідь
+      if (!data.images || !Array.isArray(data.images) || data.images.length === 0) {
+        throw new BadRequestException('No images returned from X-Router API');
+      }
+
+      console.log(`[X-Router] Received ${data.images.length} images`);
+
+      // Завантаження зображень через uploadService
+      const uploadPromises = data.images.map(async (image: { url: string; uuid: string }) => {
+        try {
+          const uploadResponse = await this.uploadService.uploadByUrl(image.url);
+          console.log(`[X-Router] Uploaded image UUID: ${image.uuid}`);
+          return uploadResponse;
+        } catch (error) {
+          console.error(`[X-Router] Failed to upload image ${image.uuid}:`, error);
+          throw error;
+        }
+      });
+
+      const uploadResponses = await Promise.all(uploadPromises);
+
+      return { generatedImages: uploadResponses, suggestedTags };
+    } catch (error) {
+      console.error(`[X-Router] Error generating images:`, {
+        error: error.message,
+        stack: error.stack,
+        prompt: createPostDto.prompt?.substring(0, 50),
+      });
+      throw new Error(`Failed to generate images via x-router: ${error.message}`);
     }
   }
 
@@ -576,6 +757,9 @@ export class ImageGenerationService {
           break;
         case AIEnum.FLUX_PRO_FINE_TUNE:
           queue = this.fluxProFineTune;
+          break;
+        case AIEnum.X_ROUTER:
+          queue = this.xRouterQueue;
           break;
 
         default:
@@ -971,6 +1155,7 @@ export class ImageGenerationService {
       [AIEnum.REALISTIC_VISION]: 11,
       [AIEnum.FLUX_PRO_FINE_TUNE]: 100,
       [AIEnum.BYTEDANCE_EDIT]: 25,
+      [AIEnum.X_ROUTER]: 25,
     };
 
     return pricing[service] * quantity || 0;

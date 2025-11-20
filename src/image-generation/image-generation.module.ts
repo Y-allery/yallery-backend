@@ -25,6 +25,7 @@ import { SD3Processor } from './processors/aura.queue.processor';
 import { SDProcessor } from './processors/flux.queue.processor';
 import { FluxProProcessor } from './processors/flux.pro.fine.tune';
 import { BytedanceEditProcessor } from './processors/bytedance-edit.queue.processor';
+import { XRouterProcessor } from './processors/x-router.queue.processor';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { BytedanceEditProcessor } from './processors/bytedance-edit.queue.proces
       { name: AIEnum.REALISTIC_VISION },
       { name: AIEnum.FLUX_PRO_FINE_TUNE },
       { name: AIEnum.BYTEDANCE_EDIT },
+      { name: AIEnum.X_ROUTER },
     ),
     BullBoardModule.forFeature(
       {
@@ -54,6 +56,10 @@ import { BytedanceEditProcessor } from './processors/bytedance-edit.queue.proces
       },
       {
         name: AIEnum.BYTEDANCE_EDIT,
+        adapter: BullMQAdapter,
+      },
+      {
+        name: AIEnum.X_ROUTER,
         adapter: BullMQAdapter,
       },
     ),
@@ -81,6 +87,7 @@ import { BytedanceEditProcessor } from './processors/bytedance-edit.queue.proces
     SDProcessor,
     FluxProProcessor,
     BytedanceEditProcessor,
+    XRouterProcessor,
   ],
   controllers: [ImageGenerationController],
   exports: [ImageGenerationService],

@@ -26,6 +26,10 @@ const SUPPORTED_RESOLUTIONS: Record<AIEnum, Record<string, Dimension>> = {
     vertical: { width: 768, height: 1344 },
     horizontal: { width: 1344, height: 768 },
   },
+  [AIEnum.X_ROUTER]: {
+    vertical: { width: 768, height: 1344 },
+    horizontal: { width: 1344, height: 768 },
+  },
 };
 
 export function getDimensionsForOrientation(

@@ -125,6 +125,19 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   WEB_APP_URL?: string; // e.g. https://yallery.web.app
+
+  // X-Router AI Configuration
+  @IsOptional()
+  @IsString()
+  X_ROUTER_API_URL?: string; // https://api.x-router.ai/v1/images/generate
+
+  @IsOptional()
+  @IsString()
+  X_ROUTER_PRIVATE_KEY?: string; // Private key for x402 wallet (0x...)
+
+  @IsOptional()
+  @IsString()
+  X_ROUTER_MODEL?: string; // Model name, default: flux-schnell
 }
 
 export function validate(config: Record<string, unknown>) {
