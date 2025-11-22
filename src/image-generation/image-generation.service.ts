@@ -370,11 +370,42 @@ export class ImageGenerationService {
       };
 
       if (AIEnum.FLUX_PRO_FINE_TUNE === createPostDto.ai_service) {
+        if (!createPostDto.contest_id) {
+          throw new BadRequestException(
+            'contest_id is required for Flux Pro Fine Tune service',
+          );
+        }
+
         const contest = await this.contestRepository.findOne({
           where: { id: createPostDto.contest_id },
         });
+
+        if (!contest) {
+          throw new BadRequestException(
+            `Contest with id ${createPostDto.contest_id} not found`,
+          );
+        }
+
+        if (!contest.fineTuneToken) {
+          throw new BadRequestException(
+            `Contest ${createPostDto.contest_id} does not have fineTuneToken configured`,
+          );
+        }
+
+        if (!contest.fineTuneTriggerWord) {
+          console.warn(
+            `[Flux Pro Fine Tune] Contest ${createPostDto.contest_id} missing fineTuneTriggerWord, using default`,
+          );
+        }
+
+        console.log(
+          `[Flux Pro Fine Tune] Using contest_id=${createPostDto.contest_id}, finetune_id=${contest.fineTuneToken}, triggerWord=${contest.fineTuneTriggerWord || 'N/A'}`,
+        );
+
         inputParams = {
-          prompt: `Generate me ${contest.fineTuneTriggerWord}.${createPostDto.prompt}`,
+          prompt: contest.fineTuneTriggerWord
+            ? `Generate me ${contest.fineTuneTriggerWord}.${createPostDto.prompt}`
+            : createPostDto.prompt,
           finetune_id: contest.fineTuneToken,
           output_format: 'jpeg',
           safety_tolerance: 2,
@@ -384,6 +415,18 @@ export class ImageGenerationService {
           finetune_strength: +contest.fineTuneStrength || 1,
         };
       }
+
+      console.log(
+        `[FalAI] Calling ${serviceName} with params:`,
+        JSON.stringify(
+          {
+            ...inputParams,
+            prompt: inputParams.prompt?.substring(0, 100) + '...',
+          },
+          null,
+          2,
+        ),
+      );
 
       const start = Date.now();
       const result = await generateMethod({
@@ -403,10 +446,48 @@ export class ImageGenerationService {
 
       return { generatedImages: uploadResponses, suggestedTags };
     } catch (error) {
+      console.error(
+        `[FalAI] Error generating images for service ${createPostDto.ai_service}:`,
+        {
+          message: error.message,
+          stack: error.stack,
+          name: error.name,
+          code: error.code,
+          status: error.status,
+          statusCode: error.statusCode,
+          service: createPostDto.ai_service,
+          contest_id: createPostDto.contest_id,
+          token_id: token?.id,
+          response_status: error.response?.status,
+          response_data: error.response?.data,
+          fullError: JSON.stringify(error, Object.getOwnPropertyNames(error), 2),
+        },
+      );
+
       if (token?.token) {
         await this.serviceTokenService.markTokenAsRateLimited(
           token,
           createPostDto.ai_service,
+        );
+      }
+
+      // Детальна обробка помилок fal.ai
+      // fal.ai може повертати помилки через різні поля
+      const status = error.status || error.statusCode || error.response?.status;
+      const statusText = error.response?.statusText || error.message;
+      const errorData = error.response?.data || error.data;
+
+      if (status === 403 || error.message?.includes('Forbidden')) {
+        throw new Error(
+          `Forbidden: ${statusText}. Check API key permissions and fine-tune model access. ${errorData ? JSON.stringify(errorData) : ''}`,
+        );
+      } else if (status === 422 || error.message?.includes('Unprocessable Entity')) {
+        throw new Error(
+          `Unprocessable Entity: ${statusText}. Invalid parameters. ${errorData ? JSON.stringify(errorData) : ''}`,
+        );
+      } else if (status) {
+        throw new Error(
+          `API Error (${status}): ${statusText}. ${errorData ? JSON.stringify(errorData) : ''}`,
         );
       }
 
