@@ -667,7 +667,7 @@ export class AdminService {
     userId: number,
   ): Promise<{ retweet: boolean }> {
     const userLink = `https://twitter.com/${userHandle}`;
-    const searchText = '@yallery';
+    const searchText = '@y_allery';
     const maxTweetsToCheck = 15;
     let cursor: string | null = null;
     let totalTweetsChecked = 0;
