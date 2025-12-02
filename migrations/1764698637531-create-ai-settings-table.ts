@@ -4,7 +4,6 @@ export class CreateAiSettingsTable1764698637531 implements MigrationInterface {
   name = 'CreateAiSettingsTable1764698637531';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // Створюємо таблицю ai_settings
     await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS \`ai_settings\` (
         \`id\` int NOT NULL AUTO_INCREMENT,
@@ -29,7 +28,6 @@ export class CreateAiSettingsTable1764698637531 implements MigrationInterface {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
 
-    // Вставляємо початкові дані
     const aiSettings = [
       {
         ai_service: 'aura_flow',
