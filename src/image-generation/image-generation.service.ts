@@ -53,10 +53,10 @@ export class ImageGenerationService {
     defaultOrientations: 'vertical',
     defaultColor: 1,
   };
-  // Метод для отримання налаштувань AI з бази даних
+  // Метод для отримання налаштувань AI з бази даних (тільки для зображень)
   private async getAISetting(aiService: AIEnum): Promise<AISettingsEntity | null> {
     return await this.aiSettingsRepository.findOne({
-      where: { ai_service: aiService, is_active: true },
+      where: { ai_service: aiService, is_active: true, type: 'image' },
     });
   }
   private openai;
