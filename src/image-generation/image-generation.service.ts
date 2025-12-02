@@ -20,7 +20,6 @@ import { In, Repository } from 'typeorm';
 import { getDimensionsForOrientation } from 'src/common/helpers/get.dimension.func';
 import { ColorEntity } from './entities/color.entity';
 import { AISettingsEntity } from './entities/ai-settings.entity';
-import { AISettings } from './types/ai.settings.interface';
 import { PostService } from 'src/post/post.service';
 import { UserEntity } from 'src/user/entities/user.entity';
 import { NotificationGateway } from 'src/notification/notification.gateway';
@@ -46,12 +45,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 export class ImageGenerationService {
   @InjectRepository(ContestEntity)
   private readonly contestRepository: Repository<ContestEntity>;
-  private readonly aiDescription = [
-    'Flux: A versatile model for abstract art, surreal designs, and conceptual visuals.',
-    'Ideogram: Specializes in soft, atmospheric, dream-like imagery, perfect for ethereal landscapes and mood-based scenes.',
-    'Realistic Vision: Excels in detailed, photorealistic images, including lifelike portraits and realistic environments',
-    'X-Router AI: High-quality image generation with x402 payment integration, supports multiple resolutions, negative prompts, and reproducible results with seed values.',
-  ];
+  // defaultSettings залишаємо для сумісності з фронтендом
   private readonly defaultSettings: Record<string, any> = {
     defaultAI: 'flux',
     defaultStyle: 12,
@@ -1200,16 +1194,22 @@ export class ImageGenerationService {
           styles: setting.styles || [],
           is_artem: setting.is_artem,
           cost: setting.cost,
+          description: setting.description, // Додаємо опис з БД
         };
       }),
     );
+
+    // Формуємо aiDescription з описів з БД для сумісності з фронтендом
+    const aiDescription = aiSettingsFromDb
+      .filter((s) => s.description)
+      .map((setting) => `${setting.name}: ${setting.description}`);
 
     return {
       defaultSettings: this.defaultSettings,
       aiSettings: aiSettingsWithCost,
       colors: colorDetails,
       styles: styleDetails,
-      aiDescription: this.aiDescription,
+      aiDescription: aiDescription,
     };
   }
 

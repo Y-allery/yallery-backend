@@ -8,8 +8,8 @@ import { AIEnum } from 'src/common/enums/ai.enum';
 
 @Injectable()
 @Processor(AIEnum.X_ROUTER, {
-  concurrency: 20, // менше, ніж для fal.ai, бо синхронний API
-  lockDuration: 180000, // 3 хвилини (x-router може бути повільніше)
+  concurrency: 20, 
+  lockDuration: 180000, 
 })
 export class XRouterProcessor extends WorkerHost {
   constructor(
