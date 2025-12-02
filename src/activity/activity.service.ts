@@ -689,14 +689,14 @@ export class ActivityService {
     if (!params || typeof params !== 'object' || Object.keys(params).length === 0) {
       return {
         prompt: 'Unknown',
-        ai_service: 'unknown',
+        ai_service: 'flux',
         orientation: 'vertical',
       };
     }
 
     return {
       prompt: params.prompt || 'Unknown',
-      ai_service: params.ai_service || 'unknown',
+      ai_service: params.ai_service || 'flux',
       orientation: params.orientation || 'vertical',
       style_id: params.style_id,
       color_id: params.color_id,

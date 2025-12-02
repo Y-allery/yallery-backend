@@ -15,7 +15,7 @@ export class AddGenerationParamsToPosts1764697074631 implements MigrationInterfa
       UPDATE \`posts\` 
       SET \`generation_params\` = JSON_OBJECT(
         'prompt', 'Unknown',
-        'ai_service', 'unknown',
+        'ai_service', 'flux',
         'orientation', 'vertical'
       )
       WHERE \`generation_params\` IS NULL
