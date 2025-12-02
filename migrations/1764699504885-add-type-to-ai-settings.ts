@@ -16,6 +16,13 @@ export class AddTypeToAiSettings1764699504885 implements MigrationInterface {
       SET \`type\` = 'image' 
       WHERE \`type\` = 'image' OR \`type\` IS NULL
     `);
+
+    // Оновлюємо відео модель (byty_dance) на тип 'video', якщо вона вже існує
+    await queryRunner.query(`
+      UPDATE \`ai_settings\` 
+      SET \`type\` = 'video' 
+      WHERE \`ai_service\` = 'byty_dance'
+    `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

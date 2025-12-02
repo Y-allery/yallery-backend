@@ -12,30 +12,68 @@ export class AddVideoAiSettings1764699383908 implements MigrationInterface {
     `);
 
     if (existingRecord[0].count === 0) {
-      // Додаємо відео модель в таблицю ai_settings
-      await queryRunner.query(`
-        INSERT INTO \`ai_settings\` (
-          \`ai_service\`, \`name\`, \`allowedOrientations\`, \`minImages\`, \`maxImages\`,
-          \`maxPromptLength\`, \`sizes\`, \`qualityOptions\`, \`styles\`, \`cost\`,
-          \`api_model\`, \`description\`, \`type\`, \`is_artem\`, \`is_active\`
-        ) VALUES (
-          'byty_dance',
-          'Byty Dance',
-          '[]',
-          1,
-          1,
-          1000,
-          NULL,
-          NULL,
-          NULL,
-          100,
-          'fal-ai/bytedance/seedance/v1/lite/image-to-video',
-          'Create animated videos from your image with BytyDance.',
-          'video',
-          0,
-          1
-        )
+      // Перевіряємо, чи існує поле type в таблиці
+      const typeColumnExists = await queryRunner.query(`
+        SELECT COUNT(*) as count 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'ai_settings' 
+        AND COLUMN_NAME = 'type'
       `);
+
+      if (typeColumnExists[0].count > 0) {
+        // Якщо поле type існує, додаємо з типом 'video'
+        await queryRunner.query(`
+          INSERT INTO \`ai_settings\` (
+            \`ai_service\`, \`name\`, \`allowedOrientations\`, \`minImages\`, \`maxImages\`,
+            \`maxPromptLength\`, \`sizes\`, \`qualityOptions\`, \`styles\`, \`cost\`,
+            \`api_model\`, \`description\`, \`type\`, \`is_artem\`, \`is_active\`
+          ) VALUES (
+            'byty_dance',
+            'Byty Dance',
+            '[]',
+            1,
+            1,
+            1000,
+            NULL,
+            NULL,
+            NULL,
+            100,
+            'fal-ai/bytedance/seedance/v1/lite/image-to-video',
+            'Create animated videos from your image with BytyDance.',
+            'video',
+            0,
+            1
+          )
+        `);
+      } else {
+        // Якщо поля type ще немає, додаємо без нього (воно буде додано пізніше з дефолтом 'image')
+        await queryRunner.query(`
+          INSERT INTO \`ai_settings\` (
+            \`ai_service\`, \`name\`, \`allowedOrientations\`, \`minImages\`, \`maxImages\`,
+            \`maxPromptLength\`, \`sizes\`, \`qualityOptions\`, \`styles\`, \`cost\`,
+            \`api_model\`, \`description\`, \`is_artem\`, \`is_active\`
+          ) VALUES (
+            'byty_dance',
+            'Byty Dance',
+            '[]',
+            1,
+            1,
+            1000,
+            NULL,
+            NULL,
+            NULL,
+            100,
+            'fal-ai/bytedance/seedance/v1/lite/image-to-video',
+            'Create animated videos from your image with BytyDance.',
+            0,
+            1
+          )
+        `);
+        
+        // Після додавання поля type в іншій міграції, оновлюємо тип на 'video'
+        // Це буде виконано в міграції add-type-to-ai-settings
+      }
     }
   }
 
