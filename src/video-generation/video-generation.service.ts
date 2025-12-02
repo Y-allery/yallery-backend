@@ -230,16 +230,20 @@ export class VideoGenerationService {
         credentials: token.token,
       });
 
-      const serviceMapping: { [key in VideoAIEnum]: string } = {
-        [VideoAIEnum.BYTY_DANCE]:
-          'fal-ai/bytedance/seedance/v1/lite/image-to-video',
-      };
+      // Отримуємо api_model з бази даних
+      const aiSetting = await this.aiSettingsRepository.findOne({
+        where: { 
+          ai_service: dto.ai_service,
+          type: 'video',
+          is_active: true 
+        },
+      });
 
-      const serviceName = serviceMapping[dto.ai_service];
-
-      if (!serviceName) {
-        throw new BadRequestException('Invalid AI service selected');
+      if (!aiSetting || !aiSetting.api_model) {
+        throw new BadRequestException('Invalid AI service selected or api_model not found');
       }
+
+      const serviceName = aiSetting.api_model;
 
       const generateMethod = fal.run.bind(fal, serviceName);
 
