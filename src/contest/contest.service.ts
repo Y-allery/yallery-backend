@@ -259,7 +259,6 @@ export class ContestService {
     const total = parseInt(totalResult[0].total, 10);
     const lastPage = Math.ceil(total / limit);
 
-    // Нормалізуємо generation_params для кожного поста
     const normalizedPosts = posts.map((post) => ({
       ...post,
       generation_params: this.normalizeGenerationParams(post.generation_params),
@@ -473,7 +472,6 @@ export class ContestService {
     console.log(`📢 Sending contest notifications for "${contest.name}"`);
     
     try {
-      // Отримуємо всіх активних користувачів
       const users = await this.userRepository.find({
         where: { is_deleted: false, emailVerified: true },
         relations: { deviceTokens: true },
@@ -1035,7 +1033,6 @@ export class ContestService {
 
     const contests = await query.getRawMany();
     
-    // Логування для дебагу
     if (contests.length > 0) {
       console.log('Raw contest data:', contests[0]);
     }

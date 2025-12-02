@@ -975,7 +975,6 @@ export class PostService {
     
     console.log('[_postTweet] Navigating to Twitter compose page...');
     
-    // Спочатку відвідуємо випадкову сторінку Twitter (як людина)
     const keepAlive = setInterval(() => touchBrowserActivity(), 5000);
     await visitRandomTwitterPages(page);
     
@@ -984,14 +983,12 @@ export class PostService {
     });
     console.log('[_postTweet] Successfully navigated to Twitter compose page');
 
-    // Перевіряємо на блокування
     const isBlocked = await checkForBlocking(page);
     if (isBlocked) {
       console.log('[_postTweet] Page appears to be blocked, skipping...');
       return { message: 'Skipped: Page blocked', tweetUrl: '' };
     }
 
-    // Очікуємо, поки інтерфейс повністю завантажиться
     console.log('[_postTweet] Waiting for compose interface to load...');
     try {
       await page.waitForSelector('[data-testid="tweetTextarea_0"]', { timeout: 15000 });
@@ -1019,7 +1016,6 @@ export class PostService {
       }
     }
 
-    // Людська поведінка замість простих рандомних дій
     await simulateHumanBehavior(page);
     await humanDelay();
     
@@ -1073,7 +1069,6 @@ export class PostService {
       await randomSleep();
       await input.uploadFile(imagePath);
       
-      // Людська поведінка після завантаження зображення
       await simulateHumanBehavior(page);
       await humanDelay();
       
@@ -1086,7 +1081,6 @@ export class PostService {
     await page.keyboard.press('ArrowDown');
     await randomSleep();
 
-    // Людська поведінка перед публікацією
     await simulateHumanBehavior(page);
     await humanDelay();
 
@@ -1250,10 +1244,8 @@ export class PostService {
 
     await page.browser().close();
     
-    // Очищення після кожного твіту
     aggressiveCleanup();
     
-    // Примусовий GC для звільнення пам'яті
     if (global.gc) {
       global.gc();
     }
