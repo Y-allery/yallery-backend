@@ -40,7 +40,7 @@ export class AISettingsEntity extends TimeStampEntity {
   styles: string[] | null;
 
   @Column({ type: 'int' })
-  cost: number; // Ціна за одне зображення в credits
+  cost: number;
 
   @Column({ type: 'varchar', nullable: true })
   api_model: string | null; // 'fal-ai/ideogram/v2', etc.
@@ -49,12 +49,12 @@ export class AISettingsEntity extends TimeStampEntity {
   description: string | null;
 
   @Column({ type: 'enum', enum: ['image', 'video'], default: 'image' })
-  type: 'image' | 'video'; // Тип: image або video
+  type: 'image' | 'video';
 
   @Column({ type: 'boolean', default: false })
   is_artem: boolean;
 
   @Column({ type: 'boolean', default: true })
-  is_active: boolean; // Чи активна модель
+  is_active: boolean;
 }
 

@@ -45,7 +45,6 @@ import { privateKeyToAccount } from 'viem/accounts';
 export class ImageGenerationService {
   @InjectRepository(ContestEntity)
   private readonly contestRepository: Repository<ContestEntity>;
-  // defaultSettings залишаємо для сумісності з фронтендом
   private readonly defaultSettings: Record<string, any> = {
     defaultAI: 'flux',
     defaultStyle: 12,
@@ -53,7 +52,6 @@ export class ImageGenerationService {
     defaultOrientations: 'vertical',
     defaultColor: 1,
   };
-  // Метод для отримання налаштувань AI з бази даних (тільки для зображень)
   private async getAISetting(aiService: AIEnum): Promise<AISettingsEntity | null> {
     return await this.aiSettingsRepository.findOne({
       where: { ai_service: aiService, is_active: true, type: 'image' },
@@ -1174,7 +1172,6 @@ export class ImageGenerationService {
       imageUrl: style.imageUrl,
     }));
 
-    // Отримуємо налаштування AI з бази даних (тільки для зображень)
     const aiSettingsFromDb = await this.aiSettingsRepository.find({
       where: { is_active: true, type: 'image' },
       order: { id: 'ASC' },
@@ -1194,12 +1191,11 @@ export class ImageGenerationService {
           styles: setting.styles || [],
           is_artem: setting.is_artem,
           cost: setting.cost,
-          description: setting.description, // Додаємо опис з БД
+          description: setting.description,
         };
       }),
     );
 
-    // Формуємо aiDescription з описів з БД для сумісності з фронтендом
     const aiDescription = aiSettingsFromDb
       .filter((s) => s.description)
       .map((setting) => `${setting.name}: ${setting.description}`);

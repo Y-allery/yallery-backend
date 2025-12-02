@@ -4,16 +4,13 @@ export class EnsureVideoModelExists1764700410883 implements MigrationInterface {
   name = 'EnsureVideoModelExists1764700410883';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // Перевіряємо, чи вже існує запис для byty_dance
     const existingRecord = await queryRunner.query(`
       SELECT COUNT(*) as count 
       FROM \`ai_settings\` 
       WHERE \`ai_service\` = 'byty_dance'
     `);
 
-    // Додаємо відео модель, якщо її немає
     if (existingRecord[0].count === 0) {
-      // ⬇️ ТУТ ДОДАЄТЬСЯ ВІДЕО МОДЕЛЬ В ТАБЛИЦЮ ⬇️
       await queryRunner.query(`
         INSERT INTO \`ai_settings\` (
           \`ai_service\`, \`name\`, \`allowedOrientations\`, \`minImages\`, \`maxImages\`,
@@ -41,7 +38,6 @@ export class EnsureVideoModelExists1764700410883 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    // Видаляємо відео модель
     await queryRunner.query(`
       DELETE FROM \`ai_settings\` 
       WHERE \`ai_service\` = 'byty_dance' AND \`type\` = 'video'

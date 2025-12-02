@@ -111,7 +111,6 @@ export class PostService {
     const posts = await this.postEntity.query(query);
     const nextCursor = posts.length > 0 ? posts[posts.length - 1].id : null;
 
-    // Нормалізуємо generation_params для кожного поста
     const normalizedPosts = posts.map((post) => ({
       ...post,
       generation_params: this.normalizeGenerationParams(post.generation_params),
@@ -185,7 +184,6 @@ export class PostService {
 
     const [posts, total] = await Promise.all([postsQuery, totalQuery]);
 
-    // Нормалізуємо generation_params для кожного поста
     const normalizedPosts = posts.map((post) => ({
       ...post,
       post_generation_params: this.normalizeGenerationParams(post.post_generation_params),
@@ -385,7 +383,7 @@ export class PostService {
         color_id: dto.color_id || undefined,
         width: dto.width || undefined,
         height: dto.height || undefined,
-        negative_prompt: undefined, // Буде додано пізніше, якщо потрібно
+        negative_prompt: undefined,
       },
     });
     const savedPost = await this.postEntity.save(post);

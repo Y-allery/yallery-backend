@@ -4,27 +4,23 @@ export class AddTypeToAiSettings1764699504885 implements MigrationInterface {
   name = 'AddTypeToAiSettings1764699504885';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // Додаємо поле type для розрізнення image та video
     await queryRunner.query(`
       ALTER TABLE \`ai_settings\` 
       ADD COLUMN \`type\` ENUM('image', 'video') NOT NULL DEFAULT 'image'
     `);
 
-    // Оновлюємо існуючі записи - всі поточні записи це зображення
     await queryRunner.query(`
       UPDATE \`ai_settings\` 
       SET \`type\` = 'image' 
       WHERE \`type\` = 'image' OR \`type\` IS NULL
     `);
 
-    // Оновлюємо відео модель (byty_dance) на тип 'video', якщо вона вже існує
     await queryRunner.query(`
       UPDATE \`ai_settings\` 
       SET \`type\` = 'video' 
       WHERE \`ai_service\` = 'byty_dance'
     `);
 
-    // Додаємо відео модель, якщо її ще немає
     const existingVideoRecord = await queryRunner.query(`
       SELECT COUNT(*) as count 
       FROM \`ai_settings\` 
@@ -32,7 +28,6 @@ export class AddTypeToAiSettings1764699504885 implements MigrationInterface {
     `);
 
     if (existingVideoRecord[0].count === 0) {
-      // ⬇️ ТУТ ДОДАЄТЬСЯ ВІДЕО МОДЕЛЬ В ТАБЛИЦЮ ⬇️
       await queryRunner.query(`
         INSERT INTO \`ai_settings\` (
           \`ai_service\`, \`name\`, \`allowedOrientations\`, \`minImages\`, \`maxImages\`,
@@ -60,7 +55,6 @@ export class AddTypeToAiSettings1764699504885 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    // Видаляємо поле type
     await queryRunner.query(`
       ALTER TABLE \`ai_settings\` 
       DROP COLUMN \`type\`

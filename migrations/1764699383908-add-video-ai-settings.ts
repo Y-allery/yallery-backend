@@ -4,16 +4,13 @@ export class AddVideoAiSettings1764699383908 implements MigrationInterface {
   name = 'AddVideoAiSettings1764699383908';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // Перевіряємо, чи вже існує запис для byty_dance
     const existingRecord = await queryRunner.query(`
       SELECT COUNT(*) as count 
       FROM \`ai_settings\` 
       WHERE \`ai_service\` = 'byty_dance'
     `);
 
-    // Додаємо відео модель тільки якщо її ще немає
     if (existingRecord[0].count === 0) {
-      // Перевіряємо, чи існує поле type в таблиці
       const typeColumnExists = await queryRunner.query(`
         SELECT COUNT(*) as count 
         FROM INFORMATION_SCHEMA.COLUMNS 
@@ -23,8 +20,6 @@ export class AddVideoAiSettings1764699383908 implements MigrationInterface {
       `);
 
       if (typeColumnExists[0].count > 0) {
-        // Якщо поле type існує, додаємо з типом 'video'
-        // ⬇️ ТУТ ДОДАЄТЬСЯ ВІДЕО МОДЕЛЬ В ТАБЛИЦЮ ⬇️
         await queryRunner.query(`
           INSERT INTO \`ai_settings\` (
             \`ai_service\`, \`name\`, \`allowedOrientations\`, \`minImages\`, \`maxImages\`,
@@ -49,8 +44,6 @@ export class AddVideoAiSettings1764699383908 implements MigrationInterface {
           )
         `);
       } else {
-        // Якщо поля type ще немає, додаємо без нього (воно буде додано пізніше з дефолтом 'image')
-        // ⬇️ ТУТ ДОДАЄТЬСЯ ВІДЕО МОДЕЛЬ В ТАБЛИЦЮ (БЕЗ ПОЛЯ TYPE) ⬇️
         await queryRunner.query(`
           INSERT INTO \`ai_settings\` (
             \`ai_service\`, \`name\`, \`allowedOrientations\`, \`minImages\`, \`maxImages\`,
@@ -78,7 +71,6 @@ export class AddVideoAiSettings1764699383908 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    // Видаляємо відео модель з таблиці
     await queryRunner.query(`
       DELETE FROM \`ai_settings\` 
       WHERE \`ai_service\` = 'byty_dance' AND \`type\` = 'video'

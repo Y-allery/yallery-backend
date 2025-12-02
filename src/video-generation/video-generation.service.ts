@@ -57,7 +57,6 @@ export class VideoGenerationService {
   }
 
   async getAllAISettings() {
-    // Отримуємо налаштування відео AI з бази даних (тільки для відео)
     const videoAISettingsFromDb = await this.aiSettingsRepository.find({
       where: { 
         type: 'video',
@@ -66,7 +65,6 @@ export class VideoGenerationService {
       order: { id: 'ASC' },
     });
 
-    // Формуємо defaultSettings з першої активної моделі
     const defaultSettings = videoAISettingsFromDb.length > 0
       ? {
           defaultAI: VideoAIEnum.BYTY_DANCE,
@@ -77,16 +75,13 @@ export class VideoGenerationService {
           cost: 100,
         };
 
-    // Формуємо aiSettings з даних БД
     const aiSettings = videoAISettingsFromDb.map((setting) => ({
       id: setting.ai_service,
       name: setting.name,
       cost: setting.cost,
       description: setting.description || 'Create animated videos from your image with BytyDance.',
-      api_model: setting.api_model, // Додаємо api_model з БД
+      api_model: setting.api_model,
     }));
-
-    // Якщо в БД немає налаштувань, повертаємо дефолтні
     if (aiSettings.length === 0) {
       return {
         defaultSettings: {
@@ -161,7 +156,7 @@ export class VideoGenerationService {
         ? {
             prompt: dto.prompt,
             ai_service: dto.ai_service,
-            orientation: undefined, // Для відео орієнтація не застосовується
+            orientation: undefined,
             style_id: undefined,
             color_id: undefined,
             width: undefined,
@@ -230,7 +225,6 @@ export class VideoGenerationService {
         credentials: token.token,
       });
 
-      // Отримуємо api_model з бази даних
       const aiSetting = await this.aiSettingsRepository.findOne({
         where: { 
           ai_service: dto.ai_service,
