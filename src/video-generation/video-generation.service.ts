@@ -21,6 +21,7 @@ import { ActivityService } from 'src/activity/activity.service';
 import { UserService } from 'src/user/user.service';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { TagEntity } from 'src/tag/entities/tag.entity';
+import { AISettingsEntity } from 'src/image-generation/entities/ai-settings.entity';
 import OpenAI from 'openai';
 
 @Injectable()
@@ -40,6 +41,8 @@ export class VideoGenerationService {
     private postRepository: Repository<PostEntity>,
     @InjectRepository(TagEntity)
     private tagRepository: Repository<TagEntity>,
+    @InjectRepository(AISettingsEntity)
+    private aiSettingsRepository: Repository<AISettingsEntity>,
 
     private readonly notificationGateway: NotificationGateway,
   ) {
@@ -54,19 +57,51 @@ export class VideoGenerationService {
   }
 
   async getAllAISettings() {
-    const defaultSettings = {
-      defaultAI: VideoAIEnum.BYTY_DANCE,
-      cost: 100,
-    };
-
-    const aiSettings = [
-      {
-        id: VideoAIEnum.BYTY_DANCE,
-        name: 'Byty Dance',
-        cost: 100,
-        description: 'Create animated videos from your image with BytyDance.',
+    // Отримуємо налаштування відео AI з бази даних
+    const videoAISettingsFromDb = await this.aiSettingsRepository.find({
+      where: { 
+        ai_service: VideoAIEnum.BYTY_DANCE,
+        is_active: true 
       },
-    ];
+      order: { id: 'ASC' },
+    });
+
+    // Формуємо defaultSettings з першої активної моделі
+    const defaultSettings = videoAISettingsFromDb.length > 0
+      ? {
+          defaultAI: VideoAIEnum.BYTY_DANCE,
+          cost: videoAISettingsFromDb[0].cost,
+        }
+      : {
+          defaultAI: VideoAIEnum.BYTY_DANCE,
+          cost: 100,
+        };
+
+    // Формуємо aiSettings з даних БД
+    const aiSettings = videoAISettingsFromDb.map((setting) => ({
+      id: setting.ai_service,
+      name: setting.name,
+      cost: setting.cost,
+      description: setting.description || 'Create animated videos from your image with BytyDance.',
+    }));
+
+    // Якщо в БД немає налаштувань, повертаємо дефолтні
+    if (aiSettings.length === 0) {
+      return {
+        defaultSettings: {
+          defaultAI: VideoAIEnum.BYTY_DANCE,
+          cost: 100,
+        },
+        aiSettings: [
+          {
+            id: VideoAIEnum.BYTY_DANCE,
+            name: 'Byty Dance',
+            cost: 100,
+            description: 'Create animated videos from your image with BytyDance.',
+          },
+        ],
+      };
+    }
 
     return {
       defaultSettings,
