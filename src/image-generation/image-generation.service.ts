@@ -268,12 +268,10 @@ export class ImageGenerationService {
         credentials: token.token,
       });
 
-      // X_ROUTER не використовує fal.ai, тому перевіряємо перед використанням
       if (createPostDto.ai_service === AIEnum.X_ROUTER) {
         throw new BadRequestException('X_ROUTER service should use generateXRouter method');
       }
 
-      // Отримуємо налаштування AI з бази даних для serviceMapping
       const aiSetting = await this.getAISetting(createPostDto.ai_service);
       
       if (!aiSetting || !aiSetting.api_model) {
@@ -405,8 +403,6 @@ export class ImageGenerationService {
         );
       }
 
-      // Детальна обробка помилок fal.ai
-      // fal.ai може повертати помилки через різні поля
       const status = error.status || error.statusCode || error.response?.status;
       const statusText = error.response?.statusText || error.message;
       const errorData = error.response?.data || error.data;
@@ -437,7 +433,6 @@ export class ImageGenerationService {
     try {
       const suggestedTags = [];
       
-      // Визначення тегу (аналогічно generateFalAi)
       if (createPostDto.auto_tag_select) {
         tag = await this.findBestTag(createPostDto.prompt);
         suggestedTags.push({
@@ -465,17 +460,13 @@ export class ImageGenerationService {
         imageUrl: otherTag.imageUrl,
       });
 
-      // Отримуємо приватний ключ для x402 wallet
       const privateKey = this.configService.get<string>('X_ROUTER_PRIVATE_KEY');
       if (!privateKey) {
         throw new BadRequestException('X-Router private key is not configured');
       }
 
-      // Створюємо account з приватного ключа
       const account = privateKeyToAccount(privateKey as `0x${string}`);
       
-      // Створюємо fetch з x402 оплатою
-      // Node.js 18+ має вбудований fetch, x402-fetch очікує стандартний fetch API
       const fetchWithPayment = wrapFetchWithPayment(globalThis.fetch, account);
 
       // URL API x-router
@@ -484,18 +475,15 @@ export class ImageGenerationService {
       
       const model = this.configService.get<string>('X_ROUTER_MODEL') || 'flux-schnell';
 
-      // Підготовка параметрів для x-router API
       const requestBody: any = {
         prompt: createPostDto.prompt,
         model: model,
         width: createPostDto.width,
         height: createPostDto.height,
-        numberResults: Math.min(createPostDto.image_quantity, 4), // max 4 для x-router
+        numberResults: Math.min(createPostDto.image_quantity, 4),
         negativePrompt: 'blurry, distorted, low quality, bad anatomy, ugly, watermark',
       };
 
-      // Опціональні параметри
-      // steps, guidance, seed можна додати пізніше, якщо потрібно
 
       console.log(`[X-Router] Generating images with params:`, {
         prompt: createPostDto.prompt.substring(0, 50) + '...',
@@ -505,7 +493,6 @@ export class ImageGenerationService {
         model: requestBody.model,
       });
 
-      // Виклик x-router.ai API з x402 оплатою
       const start = Date.now();
       const response = await fetchWithPayment(xRouterApiUrl, {
         method: 'POST',
@@ -532,7 +519,6 @@ export class ImageGenerationService {
 
       const data = await response.json();
 
-      // Отримуємо payment details з header
       const paymentResponseHeader = response.headers.get('x-payment-response');
       if (paymentResponseHeader) {
         try {
@@ -550,14 +536,12 @@ export class ImageGenerationService {
         }
       }
 
-      // Перевіряємо відповідь
       if (!data.images || !Array.isArray(data.images) || data.images.length === 0) {
         throw new BadRequestException('No images returned from X-Router API');
       }
 
       console.log(`[X-Router] Received ${data.images.length} images`);
 
-      // Завантаження зображень через uploadService
       const uploadPromises = data.images.map(async (image: { url: string; uuid: string }) => {
         try {
           const uploadResponse = await this.uploadService.uploadByUrl(image.url);
@@ -1050,27 +1034,23 @@ export class ImageGenerationService {
     if (createPostDto.color_id && !color)
       throw new BadRequestException('Color not found');
 
-    // Валідація налаштувань AI з бази даних
     const aiSetting = await this.getAISetting(createPostDto.ai_service);
     if (!aiSetting) {
       throw new BadRequestException(`AI service ${createPostDto.ai_service} not found or inactive`);
     }
 
-    // Перевірка кількості зображень
     if (createPostDto.image_quantity < aiSetting.minImages || createPostDto.image_quantity > aiSetting.maxImages) {
       throw new BadRequestException(
         `Image quantity must be between ${aiSetting.minImages} and ${aiSetting.maxImages} for ${aiSetting.name}`,
       );
     }
 
-    // Перевірка довжини промпту
     if (createPostDto.prompt.length > aiSetting.maxPromptLength) {
       throw new BadRequestException(
         `Prompt length must not exceed ${aiSetting.maxPromptLength} characters for ${aiSetting.name}`,
       );
     }
 
-    // Перевірка орієнтації
     if (!aiSetting.allowedOrientations.includes(createPostDto.orientation)) {
       throw new BadRequestException(
         `Orientation ${createPostDto.orientation} is not allowed for ${aiSetting.name}. Allowed: ${aiSetting.allowedOrientations.join(', ')}`,
