@@ -8,6 +8,7 @@ import { PostEntity } from 'src/post/entities/post.entity';
 import { TagEntity } from 'src/tag/entities/tag.entity';
 import { StyleEntity } from 'src/post/entities/style.entity';
 import { ColorEntity } from './entities/color.entity';
+import { AISettingsEntity } from './entities/ai-settings.entity';
 import { PostModule } from 'src/post/post.module';
 import { UserEntity } from 'src/user/entities/user.entity';
 import { ActivityModule } from 'src/activity/activity.module';
@@ -74,6 +75,7 @@ import { XRouterProcessor } from './processors/x-router.queue.processor';
       ContestEntity,
       PartnershipActivityEntity,
       PartnerUserLinkEntity,
+      AISettingsEntity,
     ]),
     ActivityModule,
     NotificationModule,

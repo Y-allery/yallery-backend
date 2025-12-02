@@ -38,13 +38,3 @@ export function getDimensionsForOrientation(
 ): Dimension {
   return SUPPORTED_RESOLUTIONS[aiService][orientation];
 }
-
-export function getCostByService(service: AIEnum): number {
-  const pricing = {
-    [AIEnum.FLUX]: 20,
-    [AIEnum.AURA_FLOW]: 15,
-    [AIEnum.REALISTIC_VISION]: 20,
-  };
-
-  return pricing[service] || 0;
-}

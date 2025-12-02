@@ -19,6 +19,7 @@ import { StyleEntity } from 'src/post/entities/style.entity';
 import { In, Repository } from 'typeorm';
 import { getDimensionsForOrientation } from 'src/common/helpers/get.dimension.func';
 import { ColorEntity } from './entities/color.entity';
+import { AISettingsEntity } from './entities/ai-settings.entity';
 import { AISettings } from './types/ai.settings.interface';
 import { PostService } from 'src/post/post.service';
 import { UserEntity } from 'src/user/entities/user.entity';
@@ -58,72 +59,12 @@ export class ImageGenerationService {
     defaultOrientations: 'vertical',
     defaultColor: 1,
   };
-  private readonly aiSettings: Record<AIEnum, AISettings> = {
-    [AIEnum.AURA_FLOW]: {
-      id: 'aura_flow',
-      name: 'Ideogram',
-      allowedOrientations: ['horizontal', 'vertical'],
-      minImages: 1,
-      maxImages: 5,
-      maxPromptLength: 1000,
-      sizes: ['1024x1024', '1536x640', '768x1344'],
-    },
-    [AIEnum.FLUX]: {
-      id: 'flux',
-      name: 'FLUX AI',
-      allowedOrientations: ['horizontal', 'vertical'],
-      minImages: 1,
-      maxImages: 5,
-      maxPromptLength: 1000,
-      sizes: ['1024x1024', '1536x640', '768x1344'],
-    },
-    [AIEnum.REALISTIC_VISION]: {
-      id: 'realistic_vision',
-      name: 'Realistic AI',
-      allowedOrientations: ['horizontal', 'vertical'],
-      minImages: 1,
-      maxImages: 5,
-      maxPromptLength: 1000,
-      sizes: ['1024x1024', '1536x640', '768x1344'],
-    },
-    [AIEnum.FLUX_PRO_FINE_TUNE]: {
-      id: 'flux_pro_fine_tune',
-      name: 'Flux PRO Fine Tune',
-      allowedOrientations: ['horizontal', 'vertical'],
-      minImages: 1,
-      maxImages: 2,
-      maxPromptLength: 1000,
-      sizes: ['1024x1024', '1536x640', '768x1344'],
-    },
-    [AIEnum.BYTEDANCE_EDIT]: {
-      id: 'bytedance_edit',
-      name: 'Bytedance Edit',
-      allowedOrientations: ['horizontal', 'vertical'],
-      minImages: 1,
-      maxImages: 1,
-      maxPromptLength: 1000,
-      sizes: ['1024x1024', '1536x640', '768x1344'],
-      is_artem: true,
-    },
-    [AIEnum.X_ROUTER]: {
-      id: 'x_router',
-      name: 'X-Router AI',
-      allowedOrientations: ['horizontal', 'vertical'],
-      minImages: 1,
-      maxImages: 4, // x-router підтримує до 4 зображень
-      maxPromptLength: 3000, // x-router підтримує до 3000 символів
-      sizes: [
-        '512x512',
-        '768x768',
-        '1024x1024',
-        '768x1024',
-        '1024x768',
-        '1280x768',
-        '768x1344',
-        '1536x640',
-      ],
-    },
-  };
+  // Метод для отримання налаштувань AI з бази даних
+  private async getAISetting(aiService: AIEnum): Promise<AISettingsEntity | null> {
+    return await this.aiSettingsRepository.findOne({
+      where: { ai_service: aiService, is_active: true },
+    });
+  }
   private openai;
   constructor(
     private readonly uploadService: UploadService,
@@ -148,6 +89,8 @@ export class ImageGenerationService {
     private partnershipActivityRepo: Repository<PartnershipActivityEntity>,
     @InjectRepository(PartnerUserLinkEntity)
     private partnerUserLinkRepo: Repository<PartnerUserLinkEntity>,
+    @InjectRepository(AISettingsEntity)
+    private aiSettingsRepository: Repository<AISettingsEntity>,
     @InjectQueue(AIEnum.FLUX) private readonly fluxQueue: Queue,
     @InjectQueue(AIEnum.AURA_FLOW) private readonly auraQueue: Queue,
     @InjectQueue(AIEnum.REALISTIC_VISION)
@@ -333,20 +276,19 @@ export class ImageGenerationService {
         credentials: token.token,
       });
 
-      const serviceMapping: { [key in Exclude<AIEnum, AIEnum.X_ROUTER>]: string } = {
-        [AIEnum.AURA_FLOW]: 'fal-ai/ideogram/v2',
-        [AIEnum.FLUX]: 'fal-ai/flux-pro/v1.1-ultra',
-        [AIEnum.REALISTIC_VISION]: 'fal-ai/realistic-vision',
-        [AIEnum.FLUX_PRO_FINE_TUNE]: 'fal-ai/flux-pro/v1.1-ultra-finetuned',
-        [AIEnum.BYTEDANCE_EDIT]: 'fal-ai/bytedance/seededit/v3/edit-image',
-      };
-
       // X_ROUTER не використовує fal.ai, тому перевіряємо перед використанням
       if (createPostDto.ai_service === AIEnum.X_ROUTER) {
         throw new BadRequestException('X_ROUTER service should use generateXRouter method');
       }
 
-      const serviceName = serviceMapping[createPostDto.ai_service as Exclude<AIEnum, AIEnum.X_ROUTER>];
+      // Отримуємо налаштування AI з бази даних для serviceMapping
+      const aiSetting = await this.getAISetting(createPostDto.ai_service);
+      
+      if (!aiSetting || !aiSetting.api_model) {
+        throw new BadRequestException(`AI service ${createPostDto.ai_service} not found or api_model not configured`);
+      }
+
+      const serviceName = aiSetting.api_model;
 
       if (!serviceName) {
         throw new BadRequestException('Invalid AI service selected');
@@ -762,7 +704,7 @@ export class ImageGenerationService {
     user: UserEntity,
     createPostDto: GenerateImageDto,
   ) {
-    const totalCost = this.calculateTotalCost(
+    const totalCost = await this.calculateTotalCost(
       createPostDto.ai_service,
       createPostDto.image_quantity,
     );
@@ -785,7 +727,7 @@ export class ImageGenerationService {
 
   private async fetchAndValidateEntities(createPostDto: GenerateImageDto) {
     const [tag, style, color] = await this.getEntities(createPostDto);
-    this.validateEntities(tag, style, color, createPostDto);
+    await this.validateEntities(tag, style, color, createPostDto);
     return { style, color };
   }
 
@@ -954,7 +896,7 @@ export class ImageGenerationService {
       }),
     );
 
-    const generationCost = this.getCostByService(
+    const generationCost = await this.getCostByService(
       service,
       service === AIEnum.BYTEDANCE_EDIT ? 1 : (dto as GenerateImageDto).image_quantity,
     );
@@ -1060,13 +1002,13 @@ export class ImageGenerationService {
     
     if ('ai_service' in dto && 'image_quantity' in dto) {
       
-      cost = this.calculateTotalCost(
+      cost = await this.calculateTotalCost(
         dto.ai_service,
         dto.image_quantity,
       );
     } else {
       
-      cost = this.calculateTotalCost(
+      cost = await this.calculateTotalCost(
         AIEnum.BYTEDANCE_EDIT,
         1,
       );
@@ -1104,7 +1046,7 @@ export class ImageGenerationService {
     ]);
   }
 
-  private validateEntities(
+  private async validateEntities(
     tag: TagEntity,
     style: StyleEntity,
     color: ColorEntity,
@@ -1115,6 +1057,33 @@ export class ImageGenerationService {
       throw new BadRequestException('Style not found');
     if (createPostDto.color_id && !color)
       throw new BadRequestException('Color not found');
+
+    // Валідація налаштувань AI з бази даних
+    const aiSetting = await this.getAISetting(createPostDto.ai_service);
+    if (!aiSetting) {
+      throw new BadRequestException(`AI service ${createPostDto.ai_service} not found or inactive`);
+    }
+
+    // Перевірка кількості зображень
+    if (createPostDto.image_quantity < aiSetting.minImages || createPostDto.image_quantity > aiSetting.maxImages) {
+      throw new BadRequestException(
+        `Image quantity must be between ${aiSetting.minImages} and ${aiSetting.maxImages} for ${aiSetting.name}`,
+      );
+    }
+
+    // Перевірка довжини промпту
+    if (createPostDto.prompt.length > aiSetting.maxPromptLength) {
+      throw new BadRequestException(
+        `Prompt length must not exceed ${aiSetting.maxPromptLength} characters for ${aiSetting.name}`,
+      );
+    }
+
+    // Перевірка орієнтації
+    if (!aiSetting.allowedOrientations.includes(createPostDto.orientation)) {
+      throw new BadRequestException(
+        `Orientation ${createPostDto.orientation} is not allowed for ${aiSetting.name}. Allowed: ${aiSetting.allowedOrientations.join(', ')}`,
+      );
+    }
   }
 
   sanitizePrompt(prompt: string): string {
@@ -1211,13 +1180,28 @@ export class ImageGenerationService {
       imageUrl: style.imageUrl,
     }));
 
-    const aiSettingsWithCost = Object.entries(this.aiSettings).map(
-      ([key, value]) => {
+    // Отримуємо налаштування AI з бази даних
+    const aiSettingsFromDb = await this.aiSettingsRepository.find({
+      where: { is_active: true },
+      order: { id: 'ASC' },
+    });
+
+    const aiSettingsWithCost = await Promise.all(
+      aiSettingsFromDb.map(async (setting) => {
         return {
-          ...value,
-          cost: this.getCostByService(key as AIEnum),
+          id: setting.ai_service,
+          name: setting.name,
+          allowedOrientations: setting.allowedOrientations,
+          minImages: setting.minImages,
+          maxImages: setting.maxImages,
+          maxPromptLength: setting.maxPromptLength,
+          sizes: setting.sizes || [],
+          qualityOptions: setting.qualityOptions || [],
+          styles: setting.styles || [],
+          is_artem: setting.is_artem,
+          cost: setting.cost,
         };
-      },
+      }),
     );
 
     return {
@@ -1229,17 +1213,16 @@ export class ImageGenerationService {
     };
   }
 
-  getCostByService(service: AIEnum, quantity: number = 1): number {
-    const pricing = {
-      [AIEnum.AURA_FLOW]: 20,
-      [AIEnum.FLUX]: 30,
-      [AIEnum.REALISTIC_VISION]: 11,
-      [AIEnum.FLUX_PRO_FINE_TUNE]: 100,
-      [AIEnum.BYTEDANCE_EDIT]: 25,
-      [AIEnum.X_ROUTER]: 25,
-    };
+  async getCostByService(service: AIEnum, quantity: number = 1): Promise<number> {
+    const aiSetting = await this.aiSettingsRepository.findOne({
+      where: { ai_service: service, is_active: true },
+    });
 
-    return pricing[service] * quantity || 0;
+    if (!aiSetting) {
+      return 0;
+    }
+
+    return aiSetting.cost * quantity;
   }
 
   async markPostAsSaved(
@@ -1259,8 +1242,8 @@ export class ImageGenerationService {
     return { message: 'Post marked as saved successfully' };
   }
 
-  calculateTotalCost(service: AIEnum, quantity: number): number {
-    const costPerImage = this.getCostByService(service);
+  async calculateTotalCost(service: AIEnum, quantity: number): Promise<number> {
+    const costPerImage = await this.getCostByService(service);
     return costPerImage * quantity;
   }
 
@@ -1285,7 +1268,7 @@ export class ImageGenerationService {
       );
     }
 
-    const totalRefund = this.getCostByService(aiService, posts.length);
+    const totalRefund = await this.getCostByService(aiService, posts.length);
     user.points += totalRefund;
     await this.userEntity.save(user);
     await this.notificationGateway.emitProfileUpdate(user.id.toString());
