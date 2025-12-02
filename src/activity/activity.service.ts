@@ -666,7 +666,7 @@ export class ActivityService {
         isRejected: item.post.is_rejected,
         isLiked: item.post.is_liked,
         isViewed: item.post.is_viewed,
-        generation_params: item.post.generation_params,
+        generation_params: this.normalizeGenerationParams(item.post.generation_params),
       };
     });
 
@@ -683,6 +683,27 @@ export class ActivityService {
         totalCount: 0,
       };
     }
+  }
+
+  private normalizeGenerationParams(params: any): any {
+    if (!params || typeof params !== 'object' || Object.keys(params).length === 0) {
+      return {
+        prompt: 'Unknown',
+        ai_service: 'unknown',
+        orientation: 'vertical',
+      };
+    }
+
+    return {
+      prompt: params.prompt || 'Unknown',
+      ai_service: params.ai_service || 'unknown',
+      orientation: params.orientation || 'vertical',
+      style_id: params.style_id,
+      color_id: params.color_id,
+      width: params.width,
+      height: params.height,
+      negative_prompt: params.negative_prompt,
+    };
   }
 
   async markPostsAsViewed(postIds: number[], userId: number) {

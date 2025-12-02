@@ -259,11 +259,38 @@ export class ContestService {
     const total = parseInt(totalResult[0].total, 10);
     const lastPage = Math.ceil(total / limit);
 
+    // Нормалізуємо generation_params для кожного поста
+    const normalizedPosts = posts.map((post) => ({
+      ...post,
+      generation_params: this.normalizeGenerationParams(post.generation_params),
+    }));
+
     return {
-      data: posts,
+      data: normalizedPosts,
       total,
       page,
       lastPage,
+    };
+  }
+
+  private normalizeGenerationParams(params: any): any {
+    if (!params || typeof params !== 'object' || Object.keys(params).length === 0) {
+      return {
+        prompt: 'Unknown',
+        ai_service: 'unknown',
+        orientation: 'vertical',
+      };
+    }
+
+    return {
+      prompt: params.prompt || 'Unknown',
+      ai_service: params.ai_service || 'unknown',
+      orientation: params.orientation || 'vertical',
+      style_id: params.style_id,
+      color_id: params.color_id,
+      width: params.width,
+      height: params.height,
+      negative_prompt: params.negative_prompt,
     };
   }
 

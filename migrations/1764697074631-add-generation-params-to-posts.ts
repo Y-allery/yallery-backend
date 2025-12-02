@@ -9,6 +9,17 @@ export class AddGenerationParamsToPosts1764697074631 implements MigrationInterfa
       ALTER TABLE \`posts\` 
       ADD COLUMN \`generation_params\` JSON NULL
     `);
+    
+    // Встановлюємо дефолтні значення для існуючих записів, які не мають generation_params
+    await queryRunner.query(`
+      UPDATE \`posts\` 
+      SET \`generation_params\` = JSON_OBJECT(
+        'prompt', 'Unknown',
+        'ai_service', 'unknown',
+        'orientation', 'vertical'
+      )
+      WHERE \`generation_params\` IS NULL
+    `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

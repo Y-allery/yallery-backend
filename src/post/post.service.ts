@@ -111,10 +111,37 @@ export class PostService {
     const posts = await this.postEntity.query(query);
     const nextCursor = posts.length > 0 ? posts[posts.length - 1].id : null;
 
+    // Нормалізуємо generation_params для кожного поста
+    const normalizedPosts = posts.map((post) => ({
+      ...post,
+      generation_params: this.normalizeGenerationParams(post.generation_params),
+    }));
+
     return {
-      data: posts,
+      data: normalizedPosts,
       nextCursor,
       hasNextPage: posts.length === limit,
+    };
+  }
+
+  private normalizeGenerationParams(params: any): any {
+    if (!params || typeof params !== 'object' || Object.keys(params).length === 0) {
+      return {
+        prompt: 'Unknown',
+        ai_service: 'unknown',
+        orientation: 'vertical',
+      };
+    }
+
+    return {
+      prompt: params.prompt || 'Unknown',
+      ai_service: params.ai_service || 'unknown',
+      orientation: params.orientation || 'vertical',
+      style_id: params.style_id,
+      color_id: params.color_id,
+      width: params.width,
+      height: params.height,
+      negative_prompt: params.negative_prompt,
     };
   }
 
@@ -158,8 +185,14 @@ export class PostService {
 
     const [posts, total] = await Promise.all([postsQuery, totalQuery]);
 
+    // Нормалізуємо generation_params для кожного поста
+    const normalizedPosts = posts.map((post) => ({
+      ...post,
+      post_generation_params: this.normalizeGenerationParams(post.post_generation_params),
+    }));
+
     return {
-      data: posts,
+      data: normalizedPosts,
       total,
       page,
       limit,
