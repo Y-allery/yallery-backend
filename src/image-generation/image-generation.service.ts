@@ -1215,7 +1215,7 @@ export class ImageGenerationService {
 
   async getCostByService(service: AIEnum, quantity: number = 1): Promise<number> {
     const aiSetting = await this.aiSettingsRepository.findOne({
-      where: { ai_service: service, is_active: true },
+      where: { ai_service: service, is_active: true, type: 'image' },
     });
 
     if (!aiSetting) {
