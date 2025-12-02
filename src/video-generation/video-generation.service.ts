@@ -83,6 +83,7 @@ export class VideoGenerationService {
       name: setting.name,
       cost: setting.cost,
       description: setting.description || 'Create animated videos from your image with BytyDance.',
+      api_model: setting.api_model, // Додаємо api_model з БД
     }));
 
     // Якщо в БД немає налаштувань, повертаємо дефолтні
@@ -98,6 +99,7 @@ export class VideoGenerationService {
             name: 'Byty Dance',
             cost: 100,
             description: 'Create animated videos from your image with BytyDance.',
+            api_model: 'fal-ai/bytedance/seedance/v1/lite/image-to-video',
           },
         ],
       };
