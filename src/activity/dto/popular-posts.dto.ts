@@ -46,6 +46,22 @@ export class PopularPostDto implements PopularPost {
 
   @ApiProperty({ description: 'Is post viewed by current user' })
   isViewed: boolean;
+
+  @ApiProperty({
+    description: 'Generation parameters (prompt, model, orientation, etc.)',
+    nullable: true,
+    required: false,
+  })
+  generation_params?: {
+    prompt?: string;
+    ai_service?: string;
+    orientation?: 'horizontal' | 'vertical';
+    style_id?: number;
+    color_id?: number;
+    width?: number;
+    height?: number;
+    negative_prompt?: string;
+  } | null;
 }
 
 export class PopularPostsResponseDto implements PopularPostsResponse {

@@ -666,6 +666,7 @@ export class ActivityService {
         isRejected: item.post.is_rejected,
         isLiked: item.post.is_liked,
         isViewed: item.post.is_viewed,
+        generation_params: item.post.generation_params,
       };
     });
 

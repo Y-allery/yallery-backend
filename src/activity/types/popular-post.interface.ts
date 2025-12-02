@@ -14,6 +14,16 @@ export interface PopularPost {
   isRejected: boolean;
   isLiked: boolean;
   isViewed: boolean;
+  generation_params?: {
+    prompt?: string;
+    ai_service?: string;
+    orientation?: 'horizontal' | 'vertical';
+    style_id?: number;
+    color_id?: number;
+    width?: number;
+    height?: number;
+    negative_prompt?: string;
+  } | null;
 }
 
 export interface PopularPostsResponse {
