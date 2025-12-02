@@ -24,8 +24,36 @@ export class TagService {
     @InjectRepository(TagEntity)
     private readonly tagRepository: Repository<TagEntity>,
   ) {}
-  async findAll(): Promise<TagEntity[]> {
-    return this.tagModel.find();
+  async findAll(): Promise<any[]> {
+    const tags = await this.tagModel
+      .createQueryBuilder('tag')
+      .leftJoin(
+        'tag.posts',
+        'post',
+        'post.is_published = :isPublished AND post.is_blocked = :isBlocked AND post.is_rejected = :isRejected',
+        {
+          isPublished: true,
+          isBlocked: false,
+          isRejected: false,
+        },
+      )
+      .select('tag.id', 'tag_id')
+      .addSelect('tag.name', 'tag_name')
+      .addSelect('tag.imageUrl', 'tag_imageUrl')
+      .addSelect('tag.createdAt', 'tag_createdAt')
+      .addSelect('tag.updatedAt', 'tag_updatedAt')
+      .addSelect('COUNT(DISTINCT post.id)', 'totalPosts')
+      .groupBy('tag.id')
+      .getRawMany();
+
+    return tags.map((tag) => ({
+      id: tag.tag_id,
+      name: tag.tag_name,
+      imageUrl: tag.tag_imageUrl,
+      createdAt: tag.tag_createdAt,
+      updatedAt: tag.tag_updatedAt,
+      totalPosts: parseInt(tag.totalPosts) || 0,
+    }));
   }
 
   async searchByName(name: string, userId: number): Promise<any[]> {
