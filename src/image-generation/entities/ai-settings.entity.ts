@@ -48,6 +48,9 @@ export class AISettingsEntity extends TimeStampEntity {
   @Column({ type: 'text', nullable: true })
   description: string | null;
 
+  @Column({ type: 'enum', enum: ['image', 'video'], default: 'image' })
+  type: 'image' | 'video'; // Тип: image або video
+
   @Column({ type: 'boolean', default: false })
   is_artem: boolean;
 

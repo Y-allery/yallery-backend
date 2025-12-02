@@ -1174,9 +1174,9 @@ export class ImageGenerationService {
       imageUrl: style.imageUrl,
     }));
 
-    // Отримуємо налаштування AI з бази даних
+    // Отримуємо налаштування AI з бази даних (тільки для зображень)
     const aiSettingsFromDb = await this.aiSettingsRepository.find({
-      where: { is_active: true },
+      where: { is_active: true, type: 'image' },
       order: { id: 'ASC' },
     });
 

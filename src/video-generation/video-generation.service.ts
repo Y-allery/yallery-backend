@@ -57,10 +57,10 @@ export class VideoGenerationService {
   }
 
   async getAllAISettings() {
-    // Отримуємо налаштування відео AI з бази даних
+    // Отримуємо налаштування відео AI з бази даних (тільки для відео)
     const videoAISettingsFromDb = await this.aiSettingsRepository.find({
       where: { 
-        ai_service: VideoAIEnum.BYTY_DANCE,
+        type: 'video',
         is_active: true 
       },
       order: { id: 'ASC' },
