@@ -32,6 +32,9 @@ import { PartnershipActivityEntity } from './entities/partnership-activity.entit
 import { PartnerUserLinkEntity } from './entities/partner-user-link.entity';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
+import { AISettingsEntity } from 'src/image-generation/entities/ai-settings.entity';
+import { UpdateAISettingsDto } from './dto/update-ai-settings.dto';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import * as https from 'https';
 
 @Injectable()
@@ -60,6 +63,8 @@ export class AdminService {
     private readonly postRepository: Repository<PostEntity>,
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
+    @InjectRepository(AISettingsEntity)
+    private readonly aiSettingsRepository: Repository<AISettingsEntity>,
   ) {
     this.apiKey = this.configService.get<string>('TWEETSCOUT_API_KEY');
     this.apiUrl = this.configService.get<string>('TWEETSCOUT_API_URL', 'https://api.tweetscout.io/v2');
@@ -785,5 +790,53 @@ export class AdminService {
       this.logger.error(`[checkRetweet] Error checking retweet for ${userHandle}: ${error.message}`, error.stack);
       return { retweet: false };
     }
+  }
+
+  async getAllAISettings(): Promise<{
+    image: AISettingsEntity[];
+    video: AISettingsEntity[];
+    all: AISettingsEntity[];
+  }> {
+    const allSettings = await this.aiSettingsRepository.find({
+      order: { id: 'ASC' },
+    });
+
+    const imageSettings = allSettings.filter((s) => s.type === 'image');
+    const videoSettings = allSettings.filter((s) => s.type === 'video');
+
+    return {
+      image: imageSettings,
+      video: videoSettings,
+      all: allSettings,
+    };
+  }
+
+  async updateAISettings(
+    id: number,
+    updateDto: UpdateAISettingsDto,
+  ): Promise<AISettingsEntity> {
+    const aiSetting = await this.aiSettingsRepository.findOne({
+      where: { id },
+    });
+
+    if (!aiSetting) {
+      throw new NotFoundException(`AI settings with ID ${id} not found`);
+    }
+
+    if (updateDto.ai_service && updateDto.ai_service !== aiSetting.ai_service) {
+      const existingService = await this.aiSettingsRepository.findOne({
+        where: { ai_service: updateDto.ai_service },
+      });
+
+      if (existingService && existingService.id !== id) {
+        throw new BadRequestException(
+          `AI service '${updateDto.ai_service}' already exists`,
+        );
+      }
+    }
+
+    Object.assign(aiSetting, updateDto);
+
+    return await this.aiSettingsRepository.save(aiSetting);
   }
 }

@@ -13,6 +13,7 @@ import { PartnershipActivityEntity } from './entities/partnership-activity.entit
 import { PartnerUserLinkEntity } from './entities/partner-user-link.entity';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
+import { AISettingsEntity } from 'src/image-generation/entities/ai-settings.entity';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { UserEntity } from 'src/user/entities/user.entity';
       PartnerUserLinkEntity,
       PostEntity,
       UserEntity,
+      AISettingsEntity,
     ]),
     ContestModule,
     UserModule,

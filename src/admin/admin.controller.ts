@@ -35,6 +35,7 @@ import { ContestStatusEnum } from 'src/contest/types/contest.status.enum';
 import { PaginatioDto } from 'src/common/dto/pagination.dto';
 import { CreatePartnershipDto } from './dto/create.refferal.dto';
 import { ForceStartContestDto } from './dto/force-start-contest.dto';
+import { UpdateAISettingsDto } from './dto/update-ai-settings.dto';
 @Controller('admin')
 @ApiTags('Admin')
 @UseGuards(JwtAuthGuard, RoleGuard)
@@ -369,5 +370,107 @@ export class AdminController {
   @ApiResponse({ status: 500, description: 'Internal server error' })
   async forceStartContest(@Body() dto: ForceStartContestDto) {
     return this.adminService.forceStartContest(dto.contestId);
+  }
+
+  @Get('ai-settings')
+  @ApiOperation({ 
+    summary: 'Get all AI settings',
+    description: 'Retrieves all AI model settings (image, video, and combined). Returns complete information about all AI models including their configuration, pricing, and capabilities.'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'AI settings retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        image: {
+          type: 'array',
+          description: 'All image generation AI models',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'number' },
+              ai_service: { type: 'string' },
+              name: { type: 'string' },
+              allowedOrientations: { type: 'array', items: { type: 'string' } },
+              minImages: { type: 'number' },
+              maxImages: { type: 'number' },
+              maxPromptLength: { type: 'number' },
+              sizes: { type: 'array', items: { type: 'string' }, nullable: true },
+              qualityOptions: { type: 'array', items: { type: 'string' }, nullable: true },
+              styles: { type: 'array', items: { type: 'string' }, nullable: true },
+              cost: { type: 'number' },
+              api_model: { type: 'string', nullable: true },
+              description: { type: 'string', nullable: true },
+              type: { type: 'string', enum: ['image', 'video'] },
+              is_artem: { type: 'boolean' },
+              is_active: { type: 'boolean' },
+              createdAt: { type: 'string' },
+              updatedAt: { type: 'string' },
+            }
+          }
+        },
+        video: {
+          type: 'array',
+          description: 'All video generation AI models',
+          items: { type: 'object' }
+        },
+        all: {
+          type: 'array',
+          description: 'All AI models (image + video)',
+          items: { type: 'object' }
+        }
+      }
+    }
+  })
+  async getAllAISettings() {
+    return this.adminService.getAllAISettings();
+  }
+
+  @Put('ai-settings/:id')
+  @ApiOperation({ 
+    summary: 'Update AI settings',
+    description: 'Updates AI model settings. All fields except id are optional and can be edited. Only provided fields will be updated.'
+  })
+  @ApiParam({
+    name: 'id',
+    required: true,
+    type: Number,
+    description: 'The ID of the AI settings to update'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'AI settings updated successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'number' },
+        ai_service: { type: 'string' },
+        name: { type: 'string' },
+        allowedOrientations: { type: 'array', items: { type: 'string' } },
+        minImages: { type: 'number' },
+        maxImages: { type: 'number' },
+        maxPromptLength: { type: 'number' },
+        sizes: { type: 'array', items: { type: 'string' }, nullable: true },
+        qualityOptions: { type: 'array', items: { type: 'string' }, nullable: true },
+        styles: { type: 'array', items: { type: 'string' }, nullable: true },
+        cost: { type: 'number' },
+        api_model: { type: 'string', nullable: true },
+        description: { type: 'string', nullable: true },
+        type: { type: 'string', enum: ['image', 'video'] },
+        is_artem: { type: 'boolean' },
+        is_active: { type: 'boolean' },
+        createdAt: { type: 'string' },
+        updatedAt: { type: 'string' },
+      }
+    }
+  })
+  @ApiResponse({ status: 404, description: 'AI settings not found' })
+  @ApiResponse({ status: 400, description: 'Bad request - validation error or duplicate ai_service' })
+  async updateAISettings(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateDto: UpdateAISettingsDto,
+  ) {
+    return this.adminService.updateAISettings(id, updateDto);
   }
 }
