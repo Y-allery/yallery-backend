@@ -11,6 +11,7 @@ export class AddVideoAiSettings1764699383908 implements MigrationInterface {
       WHERE \`ai_service\` = 'byty_dance'
     `);
 
+    // Додаємо відео модель тільки якщо її ще немає
     if (existingRecord[0].count === 0) {
       // Перевіряємо, чи існує поле type в таблиці
       const typeColumnExists = await queryRunner.query(`
@@ -23,6 +24,7 @@ export class AddVideoAiSettings1764699383908 implements MigrationInterface {
 
       if (typeColumnExists[0].count > 0) {
         // Якщо поле type існує, додаємо з типом 'video'
+        // ⬇️ ТУТ ДОДАЄТЬСЯ ВІДЕО МОДЕЛЬ В ТАБЛИЦЮ ⬇️
         await queryRunner.query(`
           INSERT INTO \`ai_settings\` (
             \`ai_service\`, \`name\`, \`allowedOrientations\`, \`minImages\`, \`maxImages\`,
@@ -48,6 +50,7 @@ export class AddVideoAiSettings1764699383908 implements MigrationInterface {
         `);
       } else {
         // Якщо поля type ще немає, додаємо без нього (воно буде додано пізніше з дефолтом 'image')
+        // ⬇️ ТУТ ДОДАЄТЬСЯ ВІДЕО МОДЕЛЬ В ТАБЛИЦЮ (БЕЗ ПОЛЯ TYPE) ⬇️
         await queryRunner.query(`
           INSERT INTO \`ai_settings\` (
             \`ai_service\`, \`name\`, \`allowedOrientations\`, \`minImages\`, \`maxImages\`,
@@ -70,9 +73,6 @@ export class AddVideoAiSettings1764699383908 implements MigrationInterface {
             1
           )
         `);
-        
-        // Після додавання поля type в іншій міграції, оновлюємо тип на 'video'
-        // Це буде виконано в міграції add-type-to-ai-settings
       }
     }
   }
