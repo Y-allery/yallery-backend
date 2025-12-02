@@ -23,6 +23,40 @@ export class AddTypeToAiSettings1764699504885 implements MigrationInterface {
       SET \`type\` = 'video' 
       WHERE \`ai_service\` = 'byty_dance'
     `);
+
+    // Додаємо відео модель, якщо її ще немає
+    const existingVideoRecord = await queryRunner.query(`
+      SELECT COUNT(*) as count 
+      FROM \`ai_settings\` 
+      WHERE \`ai_service\` = 'byty_dance'
+    `);
+
+    if (existingVideoRecord[0].count === 0) {
+      // ⬇️ ТУТ ДОДАЄТЬСЯ ВІДЕО МОДЕЛЬ В ТАБЛИЦЮ ⬇️
+      await queryRunner.query(`
+        INSERT INTO \`ai_settings\` (
+          \`ai_service\`, \`name\`, \`allowedOrientations\`, \`minImages\`, \`maxImages\`,
+          \`maxPromptLength\`, \`sizes\`, \`qualityOptions\`, \`styles\`, \`cost\`,
+          \`api_model\`, \`description\`, \`type\`, \`is_artem\`, \`is_active\`
+        ) VALUES (
+          'byty_dance',
+          'Byty Dance',
+          '[]',
+          1,
+          1,
+          1000,
+          NULL,
+          NULL,
+          NULL,
+          100,
+          'fal-ai/bytedance/seedance/v1/lite/image-to-video',
+          'Create animated videos from your image with BytyDance.',
+          'video',
+          0,
+          1
+        )
+      `);
+    }
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
