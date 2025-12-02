@@ -1,11 +1,28 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class AddTypeToAiSettings1764699504885 implements MigrationInterface {
+  name = 'AddTypeToAiSettings1764699504885';
 
-    public async up(queryRunner: QueryRunner): Promise<void> {
-    }
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    // Додаємо поле type для розрізнення image та video
+    await queryRunner.query(`
+      ALTER TABLE \`ai_settings\` 
+      ADD COLUMN \`type\` ENUM('image', 'video') NOT NULL DEFAULT 'image'
+    `);
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-    }
+    // Оновлюємо існуючі записи - всі поточні записи це зображення
+    await queryRunner.query(`
+      UPDATE \`ai_settings\` 
+      SET \`type\` = 'image' 
+      WHERE \`type\` = 'image' OR \`type\` IS NULL
+    `);
+  }
 
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    // Видаляємо поле type
+    await queryRunner.query(`
+      ALTER TABLE \`ai_settings\` 
+      DROP COLUMN \`type\`
+    `);
+  }
 }
