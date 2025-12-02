@@ -510,7 +510,7 @@ export class ActivityService {
         AND (p.imageUrl IS NOT NULL OR p.videoUrl IS NOT NULL)
       ORDER BY 
         like_count DESC, view_count DESC
-      LIMIT 3;
+      LIMIT 6;
     `;
 
     const todayPosts = await this.postRepository.query(todayQuery);
@@ -524,7 +524,7 @@ export class ActivityService {
     }
 
 
-    if (allFoundPosts.length < 3) {
+    if (allFoundPosts.length < 6) {
       const yesterdayQuery = `
         SELECT DISTINCT
           p.id, 
@@ -563,7 +563,7 @@ export class ActivityService {
           AND (p.imageUrl IS NOT NULL OR p.videoUrl IS NOT NULL)
         ORDER BY 
           like_count DESC, view_count DESC
-        LIMIT ${3 - allFoundPosts.length};
+        LIMIT ${6 - allFoundPosts.length};
       `;
 
       const yesterdayPosts = await this.postRepository.query(yesterdayQuery);
@@ -579,7 +579,7 @@ export class ActivityService {
     }
 
 
-    if (allFoundPosts.length < 3) {
+    if (allFoundPosts.length < 6) {
       const allTimeQuery = `
         SELECT DISTINCT
           p.id, 
@@ -616,7 +616,7 @@ export class ActivityService {
           AND (p.imageUrl IS NOT NULL OR p.videoUrl IS NOT NULL)
         ORDER BY 
           like_count DESC, view_count DESC
-        LIMIT ${3 - allFoundPosts.length};
+        LIMIT ${6 - allFoundPosts.length};
       `;
 
       const allTimePosts = await this.postRepository.query(allTimeQuery);
@@ -643,7 +643,7 @@ export class ActivityService {
     });
 
 
-    const topPosts = allFoundPosts.slice(0, 3);
+    const topPosts = allFoundPosts.slice(0, 6);
     
 
     const formattedPosts = topPosts.map((item) => {

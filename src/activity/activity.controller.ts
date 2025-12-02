@@ -138,10 +138,10 @@ export class ActivityController {
 
   @Get('popular-posts')
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Get 3 most popular posts' })
+  @ApiOperation({ summary: 'Get 6 most popular posts' })
   @ApiResponse({
     status: 200,
-    description: 'Returns 3 most popular posts by likes and views',
+    description: 'Returns 6 most popular posts by likes and views',
     type: PopularPostsResponseDto
   })
   async getPopularPosts(@Req() req: AuthenticatedRequest): Promise<PopularPostsResponseDto> {
