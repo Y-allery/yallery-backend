@@ -111,6 +111,7 @@ export class VideoGenerationService {
     videoUrl: string,
     user: UserEntity,
     tag: TagEntity,
+    dto?: GenerateVideoDto,
   ): Promise<PostEntity> {
     const post = this.postRepository.create({
       user: { id: user.id },
@@ -119,6 +120,18 @@ export class VideoGenerationService {
       imageUrl: null,
       is_published: false,
       is_saved: false,
+      generation_params: dto
+        ? {
+            prompt: dto.prompt,
+            ai_service: dto.ai_service,
+            orientation: undefined, // Для відео орієнтація не застосовується
+            style_id: undefined,
+            color_id: undefined,
+            width: undefined,
+            height: undefined,
+            negative_prompt: undefined,
+          }
+        : null,
     });
 
     return await this.postRepository.save(post);

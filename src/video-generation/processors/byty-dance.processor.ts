@@ -34,6 +34,7 @@ export class BytyDanceProcessor extends WorkerHost {
       response.uploadedVideoUrl,
       user,
       findRelatedTag,
+      dto,
     );
     await this.videoGenerationService.updateUserCredits(user);
     await this.userService.sendPushNotificationIfEnabled(

@@ -496,7 +496,8 @@ export class ActivityService {
           WHEN EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ${userId}) 
           THEN TRUE 
           ELSE FALSE 
-        END AS is_viewed
+        END AS is_viewed,
+        p.generation_params
       FROM 
         posts p
         JOIN users u ON p.userId = u.id
@@ -549,7 +550,8 @@ export class ActivityService {
             WHEN EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ${userId}) 
             THEN TRUE 
             ELSE FALSE 
-          END AS is_viewed
+          END AS is_viewed,
+          p.generation_params
         FROM 
           posts p
           JOIN users u ON p.userId = u.id
@@ -604,7 +606,8 @@ export class ActivityService {
             WHEN EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ${userId}) 
             THEN TRUE 
             ELSE FALSE 
-          END AS is_viewed
+          END AS is_viewed,
+          p.generation_params
         FROM 
           posts p
           JOIN users u ON p.userId = u.id

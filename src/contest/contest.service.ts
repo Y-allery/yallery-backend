@@ -219,7 +219,8 @@ export class ContestService {
           WHEN EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ${userId})
           THEN TRUE 
           ELSE FALSE
-        END AS is_viewed
+        END AS is_viewed,
+        p.generation_params
           FROM
             posts p
           LEFT JOIN
@@ -230,6 +231,7 @@ export class ContestService {
             p.contestId = ? AND
             p.is_published = true
             AND p.is_blocked = false
+            AND p.is_rejected = false
           GROUP BY
           p.id`;
 

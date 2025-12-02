@@ -77,4 +77,16 @@ export class PostEntity extends TimeStampEntity {
   @Column({ type: 'varchar', nullable: true })
   @Index()
   tweetLink: string;
+
+  @Column({ type: 'json', nullable: true })
+  generation_params: {
+    prompt?: string;
+    ai_service?: string;
+    orientation?: 'horizontal' | 'vertical';
+    style_id?: number;
+    color_id?: number;
+    width?: number;
+    height?: number;
+    negative_prompt?: string;
+  } | null;
 }

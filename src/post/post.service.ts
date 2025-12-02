@@ -87,7 +87,8 @@ export class PostService {
           THEN TRUE 
           ELSE FALSE 
         END AS is_liked,
-        FALSE AS is_viewed  
+        FALSE AS is_viewed,
+        p.generation_params
       FROM 
         posts p
         JOIN users u ON p.userId = u.id
@@ -138,9 +139,12 @@ export class PostService {
         'tag.id AS tag_id',
         `CONCAT('#', tag.name) AS tag_name`,
         `(SELECT COUNT(*) FROM likes l WHERE l.postId = post.id) AS likeCount`,
+        'post.generation_params AS post_generation_params',
       ])
       .where('tag.id = :tagId', { tagId })
       .andWhere('post.is_published = :is_published', { is_published: true })
+      .andWhere('post.is_blocked = :is_blocked', { is_blocked: false })
+      .andWhere('post.is_rejected = :is_rejected', { is_rejected: false })
       .groupBy('post.id')
       .orderBy('post.createdAt', 'DESC')
       .offset(offset)
@@ -340,6 +344,16 @@ export class PostService {
       tag: { id: dto.tag_id },
       contest: { id: contest_id },
       is_published: false,
+      generation_params: {
+        prompt: dto.prompt,
+        ai_service: dto.ai_service,
+        orientation: dto.orientation,
+        style_id: dto.style_id || undefined,
+        color_id: dto.color_id || undefined,
+        width: dto.width || undefined,
+        height: dto.height || undefined,
+        negative_prompt: undefined, // Буде додано пізніше, якщо потрібно
+      },
     });
     const savedPost = await this.postEntity.save(post);
     return savedPost;
