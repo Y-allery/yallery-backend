@@ -254,103 +254,28 @@ export class PostService {
     }
   }
   async getUnpublishedPosts(userId: number) {
-    const posts = await this.postEntity
-      .createQueryBuilder('p')
-      .leftJoin('p.likes', 'l')
-      .select('p.id', 'id')
-      .addSelect('p.imageUrl', 'imageUrl')
-      .addSelect('p.videoUrl', 'videoUrl')
-      .addSelect('p.previewImageUrl', 'previewImageUrl')
-      .addSelect('p.createdAt', 'createdAt')
-      .addSelect('p.updatedAt', 'updatedAt')
-      .addSelect('p.is_published', 'is_published')
-      .addSelect('p.is_saved', 'is_saved')
-      .addSelect('p.is_blocked', 'is_blocked')
-      .addSelect('p.is_rejected', 'is_rejected')
-      .addSelect('p.is_delivered', 'is_delivered')
-      .addSelect('p.hasWonDailyReward', 'hasWonDailyReward')
-      .addSelect('p.generation_params', 'generation_params')
-      .addSelect('p.tweetLink', 'tweetLink')
-      .addSelect('p.contestId', 'contestId')
-      .addSelect('p.tagId', 'tagId')
-      .addSelect('p.userId', 'userId')
-      .addSelect('COUNT(DISTINCT l.id)', 'like_count')
-      .where('p.userId = :userId', { userId })
-      .andWhere('p.is_saved = :isSaved', { isSaved: true })
-      .groupBy('p.id')
-      .addGroupBy('p.imageUrl')
-      .addGroupBy('p.videoUrl')
-      .addGroupBy('p.previewImageUrl')
-      .addGroupBy('p.createdAt')
-      .addGroupBy('p.updatedAt')
-      .addGroupBy('p.is_published')
-      .addGroupBy('p.is_saved')
-      .addGroupBy('p.is_blocked')
-      .addGroupBy('p.is_rejected')
-      .addGroupBy('p.is_delivered')
-      .addGroupBy('p.hasWonDailyReward')
-      .addGroupBy('p.generation_params')
-      .addGroupBy('p.tweetLink')
-      .addGroupBy('p.contestId')
-      .addGroupBy('p.tagId')
-      .addGroupBy('p.userId')
-      .orderBy('p.createdAt', 'DESC')
-      .getRawMany();
+    const query = `
+      SELECT 
+        p.*,
+        (SELECT COUNT(*) FROM likes WHERE likes.postId = p.id) AS like_count
+      FROM posts p
+      WHERE p.userId = ${userId} AND p.is_saved = true
+      ORDER BY createdAt DESC
+    `;
 
-    return posts.map((post) => ({
-      ...post,
-      like_count: Number(post.like_count || 0),
-    }));
+    return await this.postEntity.query(query);
   }
-
   async getPublishedPosts(userId: number) {
-    const posts = await this.postEntity
-      .createQueryBuilder('p')
-      .leftJoin('p.likes', 'l')
-      .select('p.id', 'id')
-      .addSelect('p.imageUrl', 'imageUrl')
-      .addSelect('p.videoUrl', 'videoUrl')
-      .addSelect('p.previewImageUrl', 'previewImageUrl')
-      .addSelect('p.createdAt', 'createdAt')
-      .addSelect('p.updatedAt', 'updatedAt')
-      .addSelect('p.is_published', 'is_published')
-      .addSelect('p.is_saved', 'is_saved')
-      .addSelect('p.is_blocked', 'is_blocked')
-      .addSelect('p.is_rejected', 'is_rejected')
-      .addSelect('p.is_delivered', 'is_delivered')
-      .addSelect('p.hasWonDailyReward', 'hasWonDailyReward')
-      .addSelect('p.generation_params', 'generation_params')
-      .addSelect('p.tweetLink', 'tweetLink')
-      .addSelect('p.contestId', 'contestId')
-      .addSelect('p.tagId', 'tagId')
-      .addSelect('p.userId', 'userId')
-      .addSelect('COUNT(DISTINCT l.id)', 'like_count')
-      .where('p.userId = :userId', { userId })
-      .andWhere('p.is_published = :isPublished', { isPublished: true })
-      .groupBy('p.id')
-      .addGroupBy('p.imageUrl')
-      .addGroupBy('p.videoUrl')
-      .addGroupBy('p.previewImageUrl')
-      .addGroupBy('p.createdAt')
-      .addGroupBy('p.updatedAt')
-      .addGroupBy('p.is_published')
-      .addGroupBy('p.is_saved')
-      .addGroupBy('p.is_blocked')
-      .addGroupBy('p.is_rejected')
-      .addGroupBy('p.is_delivered')
-      .addGroupBy('p.hasWonDailyReward')
-      .addGroupBy('p.generation_params')
-      .addGroupBy('p.tweetLink')
-      .addGroupBy('p.contestId')
-      .addGroupBy('p.tagId')
-      .addGroupBy('p.userId')
-      .orderBy('p.createdAt', 'DESC')
-      .getRawMany();
+    const query = `
+      SELECT 
+        p.*,
+        (SELECT COUNT(*) FROM likes WHERE likes.postId = p.id) AS like_count
+      FROM posts p
+      WHERE p.userId = ${userId} AND p.is_published = true
+      ORDER BY createdAt DESC
+    `;
 
-    return posts.map((post) => ({
-      ...post,
-      like_count: Number(post.like_count || 0),
-    }));
+    return await this.postEntity.query(query);
   }
   async markAllAsUnviewed(userId: number) {
     const result = await this.viewedPostRepository.delete({
