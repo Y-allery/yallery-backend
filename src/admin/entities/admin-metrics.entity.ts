@@ -75,6 +75,17 @@ export class AdminMetricsEntity {
       }
     >;
   } | null;
+
+  @Column({ type: 'float', default: 0 })
+  postsPerUserAvg7D: number;
+
+  @Column({ type: 'json', nullable: true })
+  topTags7D: {
+    tagId: number;
+    name: string;
+    posts: number;
+    likes: number;
+  }[] | null;
 }
 
 

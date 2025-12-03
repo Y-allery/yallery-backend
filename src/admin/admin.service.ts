@@ -172,6 +172,37 @@ export class AdminService {
     const newRegularPosts = newPosts - newContestPosts;
     const avgLikesPerPost =
       newPosts > 0 ? Number((newLikes / newPosts).toFixed(2)) : 0;
+    const postsPerUserAvg7D =
+      activeUsers > 0 ? Number((newPosts / activeUsers).toFixed(2)) : 0;
+
+    // Top tags by new posts / likes (7D)
+    const rawTopTags = await this.postRepository
+      .createQueryBuilder('p')
+      .leftJoin('p.tag', 't')
+      .leftJoin('p.likes', 'l')
+      .select('t.id', 'tagId')
+      .addSelect('t.name', 'name')
+      .addSelect('COUNT(DISTINCT p.id)', 'posts')
+      .addSelect('COUNT(DISTINCT l.id)', 'likes')
+      .where('p.createdAt >= :start AND p.createdAt < :end', {
+        start: periodStart,
+        end: periodEnd,
+      })
+      .andWhere('t.id IS NOT NULL')
+      .groupBy('t.id')
+      .addGroupBy('t.name')
+      .orderBy('posts', 'DESC')
+      .addOrderBy('likes', 'DESC')
+      .limit(10)
+      .getRawMany();
+
+    const topTags7D =
+      rawTopTags?.map((row) => ({
+        tagId: Number(row.tagId),
+        name: row.name,
+        posts: Number(row.posts),
+        likes: Number(row.likes),
+      })) || [];
 
     // Get valid AI service names from database to filter correctly
     const imageAiServices = await this.aiSettingsRepository.find({
@@ -287,6 +318,8 @@ export class AdminService {
         image: imageStats,
         video: videoStats,
       },
+      postsPerUserAvg7D,
+      topTags7D,
     });
 
     await this.adminMetricsRepository.save(snapshot);
@@ -318,6 +351,8 @@ export class AdminService {
         newRegularPosts: 0,
         avgLikesPerPost: 0,
         aiStats: null,
+        postsPerUserAvg7D: 0,
+        topTags7D: null,
       };
     }
 
@@ -339,6 +374,8 @@ export class AdminService {
       newRegularPosts: latest.newRegularPosts,
       avgLikesPerPost: latest.avgLikesPerPost,
       aiStats: latest.aiStats,
+      postsPerUserAvg7D: latest.postsPerUserAvg7D,
+      topTags7D: latest.topTags7D,
     };
   }
   async createAdminContest(data: CreateContestDto) {
