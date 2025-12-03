@@ -172,6 +172,62 @@ export class AdminService {
     const avgLikesPerPost =
       newPosts > 0 ? Number((newLikes / newPosts).toFixed(2)) : 0;
 
+    // AI stats per service (image/video) based on generation_params.ai_service
+    const rawImageAi = await this.postRepository
+      .createQueryBuilder('p')
+      .select(
+        "JSON_UNQUOTE(JSON_EXTRACT(p.generation_params, '$.ai_service'))",
+        'ai_service',
+      )
+      .addSelect('COUNT(*)', 'count')
+      .where('p.createdAt >= :start AND p.createdAt < :end', {
+        start: periodStart,
+        end: periodEnd,
+      })
+      .andWhere('p.imageUrl IS NOT NULL AND p.imageUrl != :empty', {
+        empty: '',
+      })
+      .groupBy('ai_service')
+      .getRawMany();
+
+    const rawVideoAi = await this.postRepository
+      .createQueryBuilder('p')
+      .select(
+        "JSON_UNQUOTE(JSON_EXTRACT(p.generation_params, '$.ai_service'))",
+        'ai_service',
+      )
+      .addSelect('COUNT(*)', 'count')
+      .where('p.createdAt >= :start AND p.createdAt < :end', {
+        start: periodStart,
+        end: periodEnd,
+      })
+      .andWhere('p.videoUrl IS NOT NULL AND p.videoUrl != :empty', {
+        empty: '',
+      })
+      .groupBy('ai_service')
+      .getRawMany();
+
+    const imageStats: Record<string, { newPosts: number; totalPosts: number }> =
+      {};
+    const videoStats: Record<string, { newPosts: number; totalPosts: number }> =
+      {};
+
+    for (const row of rawImageAi) {
+      const key = row.ai_service || 'unknown';
+      imageStats[key] = {
+        newPosts: Number(row.count || 0),
+        totalPosts: 0, // can be extended later if потрібен total per service
+      };
+    }
+
+    for (const row of rawVideoAi) {
+      const key = row.ai_service || 'unknown';
+      videoStats[key] = {
+        newPosts: Number(row.count || 0),
+        totalPosts: 0,
+      };
+    }
+
     const snapshot = this.adminMetricsRepository.create({
       periodStart,
       periodEnd,
@@ -189,6 +245,10 @@ export class AdminService {
       newContestPosts,
       newRegularPosts,
       avgLikesPerPost,
+      aiStats: {
+        image: imageStats,
+        video: videoStats,
+      },
     });
 
     await this.adminMetricsRepository.save(snapshot);
@@ -216,6 +276,10 @@ export class AdminService {
         activeUsers: 0,
         newLikes: 0,
         totalLikes: 0,
+        newContestPosts: 0,
+        newRegularPosts: 0,
+        avgLikesPerPost: 0,
+        aiStats: null,
       };
     }
 
@@ -236,6 +300,7 @@ export class AdminService {
       newContestPosts: latest.newContestPosts,
       newRegularPosts: latest.newRegularPosts,
       avgLikesPerPost: latest.avgLikesPerPost,
+      aiStats: latest.aiStats,
     };
   }
   async createAdminContest(data: CreateContestDto) {

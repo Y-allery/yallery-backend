@@ -11,7 +11,8 @@
   - кількість активних користувачів за період (створювали пости);
   - кількість нових лайків та загальну кількість лайків;
   - розподіл нових постів на конкурсні / звичайні;
-  - середню кількість лайків на новий пост.
+  - середню кількість лайків на новий пост;
+  - розподіл нових постів за AI‑сервісами (image/video).
 - **Як рахуємо**: кожну годину окремий cron‑джоб рахує метрики за **останній тиждень (останні 7 днів)** і записує один snapshot у таблицю `admin_metrics`.
 - **Як читаємо**: admin‑ендпоінт завжди повертає **останній (найсвіжіший) тижневий snapshot** з `admin_metrics`.
 
@@ -47,6 +48,9 @@
 - **newContestPosts** (`int`, default 0) – скільки нових постів за період було створено з прив’язкою до конкурсу (`contest IS NOT NULL`).
 - **newRegularPosts** (`int`, default 0) – скільки нових постів за період було створено без конкурсу (`contest IS NULL`).
 - **avgLikesPerPost** (`float`, default 0) – середня кількість лайків на один новий пост за період (нові лайки / нові пости).
+- **aiStats** (`json`, nullable) – агрегована статистика по AI‑сервісах за період:
+  - `aiStats.image` – об’єкт `ai_service -> { newPosts, totalPosts }` для image‑постів;
+  - `aiStats.video` – об’єкт `ai_service -> { newPosts, totalPosts }` для video‑постів (зараз `totalPosts` завжди 0, зарезервовано під розширення).
 
 ---
 
@@ -312,7 +316,16 @@ async recalculateAdminMetrics() {
   "totalLikes": 52000,
   "newContestPosts": 120,
   "newRegularPosts": 669,
-  "avgLikesPerPost": 2.66
+  "avgLikesPerPost": 2.66,
+  "aiStats": {
+    "image": {
+      "flux": { "newPosts": 400, "totalPosts": 0 },
+      "aura_flow": { "newPosts": 150, "totalPosts": 0 }
+    },
+    "video": {
+      "byty_dance": { "newPosts": 20, "totalPosts": 0 }
+    }
+  }
 }
 ```
 
@@ -334,6 +347,8 @@ async recalculateAdminMetrics() {
 - **newContestPosts** – скільки нових постів за тиждень було створено в рамках конкурсів.
 - **newRegularPosts** – скільки нових постів за тиждень було створено поза конкурсами.
 - **avgLikesPerPost** – середня кількість лайків на новий пост за тиждень (`newLikes / newPosts`, округлена до 2 знаків після коми).
+- **aiStats.image** – по кожному AI‑сервісу для image‑генерації: скільки нових постів було створено за тиждень (`newPosts`).
+- **aiStats.video** – по кожному AI‑сервісу для video‑генерації: скільки нових відео‑постів було створено за тиждень (`newPosts`).
 
 Якщо ще не створено жодного snapshot’а, всі числові значення повертаються як `0`, а `from` / `to` будуть `null`.
 

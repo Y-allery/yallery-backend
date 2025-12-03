@@ -57,6 +57,24 @@ export class AdminMetricsEntity {
 
   @Column({ type: 'float', default: 0 })
   avgLikesPerPost: number;
+
+  @Column({ type: 'json', nullable: true })
+  aiStats: {
+    image?: Record<
+      string,
+      {
+        newPosts: number;
+        totalPosts: number;
+      }
+    >;
+    video?: Record<
+      string,
+      {
+        newPosts: number;
+        totalPosts: number;
+      }
+    >;
+  } | null;
 }
 
 
