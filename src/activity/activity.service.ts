@@ -471,108 +471,97 @@ export class ActivityService {
     let allFoundPosts = [];
     let period: 'today' | 'yesterday' | 'all_time' | 'mixed' = 'today';
     
+    // Helper function to build optimized query with JOINs
+    const buildPopularPostsQuery = (
+      startDate: Date | null,
+      endDate: Date | null,
+      limit: number,
+    ) => {
+      const qb = this.postRepository
+        .createQueryBuilder('p')
+        .innerJoin('p.user', 'u')
+        .leftJoin('p.tag', 't')
+        .leftJoin('p.likes', 'l')
+        .leftJoin('p.viewedBy', 'v')
+        .leftJoin('likes', 'user_like', 'user_like.postId = p.id AND user_like.userId = :userId', { userId })
+        .leftJoin('viewed_posts', 'user_viewed', 'user_viewed.postId = p.id AND user_viewed.userId = :userId', { userId })
+        .select('p.id', 'id')
+        .addSelect('p.imageUrl', 'image_url')
+        .addSelect('p.videoUrl', 'video_url')
+        .addSelect('p.createdAt', 'created_at')
+        .addSelect('u.id', 'user_id')
+        .addSelect('u.nickname', 'username')
+        .addSelect('t.id', 'tag_id')
+        .addSelect('t.name', 'tag_name')
+        .addSelect('p.is_published', 'is_published')
+        .addSelect('p.is_blocked', 'is_blocked')
+        .addSelect('p.is_rejected', 'is_rejected')
+        .addSelect('COUNT(DISTINCT l.id)', 'like_count')
+        .addSelect('COUNT(DISTINCT v.id)', 'view_count')
+        .addSelect('MAX(CASE WHEN user_like.id IS NOT NULL THEN 1 ELSE 0 END)', 'is_liked')
+        .addSelect('MAX(CASE WHEN user_viewed.id IS NOT NULL THEN 1 ELSE 0 END)', 'is_viewed')
+        .addSelect('p.generation_params', 'generation_params')
+        .where('p.is_published = :isPublished', { isPublished: true })
+        .andWhere('p.is_blocked = :isBlocked', { isBlocked: false })
+        .andWhere('p.is_rejected = :isRejected', { isRejected: false })
+        .andWhere('(p.imageUrl IS NOT NULL AND p.imageUrl != :empty) OR (p.videoUrl IS NOT NULL AND p.videoUrl != :empty)', { empty: '' })
+        .groupBy('p.id')
+        .addGroupBy('u.id')
+        .addGroupBy('u.nickname')
+        .addGroupBy('t.id')
+        .addGroupBy('t.name')
+        .addGroupBy('p.imageUrl')
+        .addGroupBy('p.videoUrl')
+        .addGroupBy('p.createdAt')
+        .addGroupBy('p.is_published')
+        .addGroupBy('p.is_blocked')
+        .addGroupBy('p.is_rejected')
+        .addGroupBy('p.generation_params')
+        .orderBy('like_count', 'DESC')
+        .addOrderBy('view_count', 'DESC')
+        .limit(limit)
+        .setParameter('userId', userId);
 
-    const todayQuery = `
-      SELECT DISTINCT
-        p.id, 
-        p.imageUrl AS image_url, 
-        p.videoUrl AS video_url, 
-        p.createdAt AS created_at,
-        u.id AS user_id,
-        u.nickname AS username,
-        t.id AS tag_id,
-        t.name AS tag_name,
-        p.is_published,
-        p.is_blocked,
-        p.is_rejected,
-        (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS like_count,
-        (SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id) AS view_count,
-        CASE 
-          WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ${userId}) 
-          THEN TRUE 
-          ELSE FALSE 
-        END AS is_liked,
-        CASE 
-          WHEN EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ${userId}) 
-          THEN TRUE 
-          ELSE FALSE 
-        END AS is_viewed,
-        p.generation_params
-      FROM 
-        posts p
-        JOIN users u ON p.userId = u.id
-        LEFT JOIN tags t ON p.tagId = t.id
-      WHERE 
-        p.createdAt >= '${today.toISOString()}' 
-        AND p.createdAt < '${tomorrow.toISOString()}'
-        AND p.is_published = true 
-        AND p.is_blocked = false
-        AND p.is_rejected = false
-        AND (p.imageUrl IS NOT NULL OR p.videoUrl IS NOT NULL)
-      ORDER BY 
-        like_count DESC, view_count DESC
-      LIMIT 6;
-    `;
+      if (startDate) {
+        qb.andWhere('p.createdAt >= :startDate', { startDate });
+      }
+      if (endDate) {
+        qb.andWhere('p.createdAt < :endDate', { endDate });
+      }
 
-    const todayPosts = await this.postRepository.query(todayQuery);
+      return qb;
+    };
+
+    // Today posts
+    const todayPosts = await buildPopularPostsQuery(today, tomorrow, 6).getRawMany();
     
     if (todayPosts.length > 0) {
       allFoundPosts.push(...todayPosts.map(post => ({
-        post,
+        post: {
+          ...post,
+          like_count: Number(post.like_count ?? 0),
+          view_count: Number(post.view_count ?? 0),
+          is_liked: Boolean(post.is_liked),
+          is_viewed: Boolean(post.is_viewed),
+        },
         period: 'today'
       })));
       period = 'today';
     }
 
-
+    // Yesterday posts (if needed)
     if (allFoundPosts.length < 6) {
-      const yesterdayQuery = `
-        SELECT DISTINCT
-          p.id, 
-          p.imageUrl AS image_url, 
-          p.videoUrl AS video_url, 
-          p.createdAt AS created_at,
-          u.id AS user_id,
-          u.nickname AS username,
-          t.id AS tag_id,
-          t.name AS tag_name,
-          p.is_published,
-          p.is_blocked,
-          p.is_rejected,
-          (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS like_count,
-          (SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id) AS view_count,
-          CASE 
-            WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ${userId}) 
-            THEN TRUE 
-            ELSE FALSE 
-          END AS is_liked,
-          CASE 
-            WHEN EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ${userId}) 
-            THEN TRUE 
-            ELSE FALSE 
-          END AS is_viewed,
-          p.generation_params
-        FROM 
-          posts p
-          JOIN users u ON p.userId = u.id
-          LEFT JOIN tags t ON p.tagId = t.id
-        WHERE 
-          p.createdAt >= '${yesterday.toISOString()}' 
-          AND p.createdAt < '${today.toISOString()}'
-          AND p.is_published = true 
-          AND p.is_blocked = false
-          AND p.is_rejected = false
-          AND (p.imageUrl IS NOT NULL OR p.videoUrl IS NOT NULL)
-        ORDER BY 
-          like_count DESC, view_count DESC
-        LIMIT ${6 - allFoundPosts.length};
-      `;
-
-      const yesterdayPosts = await this.postRepository.query(yesterdayQuery);
+      const yesterdayPosts = await buildPopularPostsQuery(yesterday, today, 6 - allFoundPosts.length).getRawMany();
       
       if (yesterdayPosts.length > 0) {
         allFoundPosts.push(...yesterdayPosts.map(post => ({
-          post,
+          post: {
+            ...post,
+            like_count: Number(post.like_count ?? 0),
+            view_count: Number(post.view_count ?? 0),
+            is_liked: Boolean(post.is_liked),
+            is_viewed: Boolean(post.is_viewed),
+          },
           period: 'yesterday'
         })));
         if (period === 'today') period = 'mixed';
@@ -580,52 +569,18 @@ export class ActivityService {
       }
     }
 
-
+    // All time posts (if needed)
     if (allFoundPosts.length < 6) {
-      const allTimeQuery = `
-        SELECT DISTINCT
-          p.id, 
-          p.imageUrl AS image_url, 
-          p.videoUrl AS video_url, 
-          p.createdAt AS created_at,
-          u.id AS user_id,
-          u.nickname AS username,
-          t.id AS tag_id,
-          t.name AS tag_name,
-          p.is_published,
-          p.is_blocked,
-          p.is_rejected,
-          (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS like_count,
-          (SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id) AS view_count,
-          CASE 
-            WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ${userId}) 
-            THEN TRUE 
-            ELSE FALSE 
-          END AS is_liked,
-          CASE 
-            WHEN EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ${userId}) 
-            THEN TRUE 
-            ELSE FALSE 
-          END AS is_viewed,
-          p.generation_params
-        FROM 
-          posts p
-          JOIN users u ON p.userId = u.id
-          LEFT JOIN tags t ON p.tagId = t.id
-        WHERE 
-          p.is_published = true 
-          AND p.is_blocked = false
-          AND p.is_rejected = false
-          AND (p.imageUrl IS NOT NULL OR p.videoUrl IS NOT NULL)
-        ORDER BY 
-          like_count DESC, view_count DESC
-        LIMIT ${6 - allFoundPosts.length};
-      `;
-
-      const allTimePosts = await this.postRepository.query(allTimeQuery);
+      const allTimePosts = await buildPopularPostsQuery(null, null, 6 - allFoundPosts.length).getRawMany();
       
       allFoundPosts.push(...allTimePosts.map(post => ({
-        post,
+        post: {
+          ...post,
+          like_count: Number(post.like_count ?? 0),
+          view_count: Number(post.view_count ?? 0),
+          is_liked: Boolean(post.is_liked),
+          is_viewed: Boolean(post.is_viewed),
+        },
         period: 'all_time'
       })));
       
