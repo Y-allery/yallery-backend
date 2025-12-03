@@ -72,74 +72,49 @@ export class PostService {
   async getPosts(cursor: number | null, limit: number, userId: number) {
     // Безпечний ліміт: від 1 до 100, щоб не навантажувати БД
     const safeLimit = Math.min(Math.max(limit || 20, 1), 100);
+    const cursorCondition = cursor ? `AND p.id < ${cursor}` : '';
 
-    const qb = this.postEntity
-      .createQueryBuilder('p')
-      .innerJoin('p.user', 'u')
-      .innerJoin('p.tag', 't')
-      .leftJoin('p.likes', 'l')
-      .leftJoin(
-        'likes',
-        'ul',
-        'ul.postId = p.id AND ul.userId = :userId',
-        { userId },
-      )
-      .select('p.id', 'id')
-      .addSelect('p.imageUrl', 'image_url')
-      .addSelect('p.videoUrl', 'video_url')
-      .addSelect('p.createdAt', 'created_at')
-      .addSelect('u.id', 'user_id')
-      .addSelect('t.id', 'tag_id')
-      .addSelect(`CONCAT('#', t.name)`, 'tag_name')
-      .addSelect('COUNT(DISTINCT l.id)', 'like_count')
-      .addSelect(
-        'CASE WHEN MAX(ul.id) IS NOT NULL THEN TRUE ELSE FALSE END',
-        'is_liked',
-      )
-      .addSelect('FALSE', 'is_viewed')
-      .addSelect('p.generation_params', 'generation_params')
-      .where('p.is_published = :isPublished', { isPublished: true })
-      .andWhere('p.is_blocked = :isBlocked', { isBlocked: false })
-      .andWhere(
-        `NOT EXISTS (
-          SELECT 1
-          FROM viewed_posts vp
-          WHERE vp.postId = p.id AND vp.userId = :userId
-        )`,
-        { userId },
-      )
-      .andWhere(
-        `p.tagId IN (
-          SELECT utt.tagsId
-          FROM users_tags_tags utt
-          WHERE utt.usersId = :userId
-        )`,
-        { userId },
-      );
+    const query = `
+      SELECT DISTINCT
+        p.id, 
+        p.imageUrl AS image_url, 
+        p.videoUrl AS video_url, 
+        p.createdAt AS created_at,
+        u.id AS user_id,
+        t.id AS tag_id,
+        CONCAT('#', t.name) AS tag_name,
+        (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS like_count,
+        CASE 
+          WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ${userId}) 
+          THEN TRUE 
+          ELSE FALSE 
+        END AS is_liked,
+        FALSE AS is_viewed,
+        p.generation_params
+      FROM 
+        posts p
+        JOIN users u ON p.userId = u.id
+        JOIN tags t ON p.tagId = t.id
+      WHERE 
+        p.is_published = true 
+        AND p.is_blocked = false
+        AND NOT EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ${userId})
+        AND p.tagId IN (
+          SELECT tagsId
+          FROM users_tags_tags t
+          WHERE t.usersId = ${userId}
+        )
+        ${cursorCondition} -- Додаємо умову курсора
+      ORDER BY 
+        p.id DESC -- Порядок для курсора
+      LIMIT ${safeLimit};
+    `;
 
-    if (cursor) {
-      qb.andWhere('p.id < :cursor', { cursor });
-    }
-
-    const posts = await qb
-      .groupBy('p.id')
-      .addGroupBy('u.id')
-      .addGroupBy('t.id')
-      .addGroupBy('p.imageUrl')
-      .addGroupBy('p.videoUrl')
-      .addGroupBy('p.createdAt')
-      .addGroupBy('p.generation_params')
-      .orderBy('p.id', 'DESC')
-      .limit(safeLimit)
-      .getRawMany();
-
-    const nextCursor =
-      posts.length > 0 ? Number(posts[posts.length - 1].id) : null;
+    const posts = await this.postEntity.query(query);
+    const nextCursor = posts.length > 0 ? posts[posts.length - 1].id : null;
 
     const normalizedPosts = posts.map((post) => ({
       ...post,
-      like_count: Number(post.like_count ?? 0),
-      is_liked: Boolean(post.is_liked),
       generation_params: this.normalizeGenerationParams(post.generation_params),
     }));
 
