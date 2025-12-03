@@ -213,7 +213,8 @@ export class AdminService {
       {};
 
     for (const row of rawImageAi) {
-      const key = row.ai_service || 'unknown';
+      // Default to 'flux' for image posts without ai_service (legacy posts)
+      const key = row.ai_service || 'flux';
       imageStats[key] = {
         newPosts: Number(row.count || 0),
         totalPosts: 0, // can be extended later if потрібен total per service
@@ -221,7 +222,8 @@ export class AdminService {
     }
 
     for (const row of rawVideoAi) {
-      const key = row.ai_service || 'unknown';
+      // Default to 'byty_dance' for video posts without ai_service (legacy posts)
+      const key = row.ai_service || 'byty_dance';
       videoStats[key] = {
         newPosts: Number(row.count || 0),
         totalPosts: 0,
