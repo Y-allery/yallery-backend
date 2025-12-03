@@ -71,9 +71,9 @@ export class VideoGenerationService {
           cost: videoAISettingsFromDb[0].cost,
         }
       : {
-          defaultAI: VideoAIEnum.BYTY_DANCE,
-          cost: 100,
-        };
+      defaultAI: VideoAIEnum.BYTY_DANCE,
+      cost: 100,
+    };
 
     const aiSettings = videoAISettingsFromDb.map((setting) => ({
       id: setting.ai_service,
@@ -89,13 +89,13 @@ export class VideoGenerationService {
           cost: 100,
         },
         aiSettings: [
-          {
-            id: VideoAIEnum.BYTY_DANCE,
-            name: 'Byty Dance',
-            cost: 100,
-            description: 'Create animated videos from your image with BytyDance.',
+      {
+        id: VideoAIEnum.BYTY_DANCE,
+        name: 'Byty Dance',
+        cost: 100,
+        description: 'Create animated videos from your image with BytyDance.',
             api_model: 'fal-ai/bytedance/seedance/v1/lite/image-to-video',
-          },
+      },
         ],
       };
     }
@@ -150,6 +150,7 @@ export class VideoGenerationService {
       tag,
       videoUrl,
       imageUrl: null,
+      previewImageUrl: dto?.image_url ?? null,
       is_published: false,
       is_saved: false,
       generation_params: dto
