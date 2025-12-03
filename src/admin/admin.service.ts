@@ -162,6 +162,15 @@ export class AdminService {
       .getRawOne();
 
     const activeUsers = Number(activeUsersRaw?.cnt || 0);
+    const newContestPosts = await this.postRepository.count({
+      where: {
+        createdAt: Between(periodStart, periodEnd),
+        contest: { id: Between(1, Number.MAX_SAFE_INTEGER) } as any,
+      } as any,
+    });
+    const newRegularPosts = newPosts - newContestPosts;
+    const avgLikesPerPost =
+      newPosts > 0 ? Number((newLikes / newPosts).toFixed(2)) : 0;
 
     const snapshot = this.adminMetricsRepository.create({
       periodStart,
@@ -177,6 +186,9 @@ export class AdminService {
       activeUsers,
       newLikes,
       totalLikes,
+      newContestPosts,
+      newRegularPosts,
+      avgLikesPerPost,
     });
 
     await this.adminMetricsRepository.save(snapshot);
@@ -221,6 +233,9 @@ export class AdminService {
       activeUsers: latest.activeUsers,
       newLikes: latest.newLikes,
       totalLikes: latest.totalLikes,
+      newContestPosts: latest.newContestPosts,
+      newRegularPosts: latest.newRegularPosts,
+      avgLikesPerPost: latest.avgLikesPerPost,
     };
   }
   async createAdminContest(data: CreateContestDto) {

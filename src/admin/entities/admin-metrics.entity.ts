@@ -48,6 +48,15 @@ export class AdminMetricsEntity {
 
   @Column({ type: 'int', default: 0 })
   totalLikes: number;
+
+  @Column({ type: 'int', default: 0 })
+  newContestPosts: number;
+
+  @Column({ type: 'int', default: 0 })
+  newRegularPosts: number;
+
+  @Column({ type: 'float', default: 0 })
+  avgLikesPerPost: number;
 }
 
 
