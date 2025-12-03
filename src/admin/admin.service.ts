@@ -117,7 +117,9 @@ export class AdminService {
           start: periodStart,
           end: periodEnd,
         })
-        .andWhere('p.imageUrl IS NOT NULL AND p.imageUrl != ""')
+        .andWhere('p.imageUrl IS NOT NULL AND p.imageUrl != :empty', {
+          empty: '',
+        })
         .getCount(),
       this.postRepository
         .createQueryBuilder('p')
@@ -125,16 +127,22 @@ export class AdminService {
           start: periodStart,
           end: periodEnd,
         })
-        .andWhere('p.videoUrl IS NOT NULL AND p.videoUrl != ""')
+        .andWhere('p.videoUrl IS NOT NULL AND p.videoUrl != :empty', {
+          empty: '',
+        })
         .getCount(),
       this.postRepository.count(),
       this.postRepository
         .createQueryBuilder('p')
-        .where('p.imageUrl IS NOT NULL AND p.imageUrl != ""')
+        .where('p.imageUrl IS NOT NULL AND p.imageUrl != :empty', {
+          empty: '',
+        })
         .getCount(),
       this.postRepository
         .createQueryBuilder('p')
-        .where('p.videoUrl IS NOT NULL AND p.videoUrl != ""')
+        .where('p.videoUrl IS NOT NULL AND p.videoUrl != :empty', {
+          empty: '',
+        })
         .getCount(),
       this.likeRepository.count({
         where: {
