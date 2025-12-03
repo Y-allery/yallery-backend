@@ -26,7 +26,7 @@ import {
   PartnershipEntity,
   PartnershipSource,
 } from './entities/partner.entity';
-import { Repository, Not, Between } from 'typeorm';
+import { Repository, Between } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { PartnershipActivityEntity } from './entities/partnership-activity.entity';
 import { PartnerUserLinkEntity } from './entities/partner-user-link.entity';
@@ -111,25 +111,31 @@ export class AdminService {
           createdAt: Between(periodStart, periodEnd),
         },
       }),
-      this.postRepository.count({
-        where: {
-          createdAt: Between(periodStart, periodEnd),
-          imageUrl: Not(null),
-        },
-      }),
-      this.postRepository.count({
-        where: {
-          createdAt: Between(periodStart, periodEnd),
-          videoUrl: Not(null),
-        },
-      }),
+      this.postRepository
+        .createQueryBuilder('p')
+        .where('p.createdAt >= :start AND p.createdAt < :end', {
+          start: periodStart,
+          end: periodEnd,
+        })
+        .andWhere('p.imageUrl IS NOT NULL AND p.imageUrl != ""')
+        .getCount(),
+      this.postRepository
+        .createQueryBuilder('p')
+        .where('p.createdAt >= :start AND p.createdAt < :end', {
+          start: periodStart,
+          end: periodEnd,
+        })
+        .andWhere('p.videoUrl IS NOT NULL AND p.videoUrl != ""')
+        .getCount(),
       this.postRepository.count(),
-      this.postRepository.count({
-        where: { imageUrl: Not(null) },
-      }),
-      this.postRepository.count({
-        where: { videoUrl: Not(null) },
-      }),
+      this.postRepository
+        .createQueryBuilder('p')
+        .where('p.imageUrl IS NOT NULL AND p.imageUrl != ""')
+        .getCount(),
+      this.postRepository
+        .createQueryBuilder('p')
+        .where('p.videoUrl IS NOT NULL AND p.videoUrl != ""')
+        .getCount(),
       this.likeRepository.count({
         where: {
           createdAt: Between(periodStart, periodEnd),
