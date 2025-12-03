@@ -44,6 +44,11 @@ export class TagService {
       .addSelect('tag.updatedAt', 'tag_updatedAt')
       .addSelect('COUNT(DISTINCT post.id)', 'totalPosts')
       .groupBy('tag.id')
+      .addGroupBy('tag.name')
+      .addGroupBy('tag.imageUrl')
+      .addGroupBy('tag.createdAt')
+      .addGroupBy('tag.updatedAt')
+      .orderBy('tag.id', 'ASC')
       .getRawMany();
 
     return tags.map((tag) => ({
