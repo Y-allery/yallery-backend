@@ -85,7 +85,8 @@ export class AdminService {
   async collectAdminMetricsSnapshot() {
     const now = new Date();
     const periodEnd = new Date(now.getTime());
-    const periodStart = new Date(periodEnd.getTime() - 60 * 60 * 1000);
+    // Фіксований період: останні 7 днів
+    const periodStart = new Date(periodEnd.getTime() - 7 * 24 * 60 * 60 * 1000);
 
     const [
       newUsers,
@@ -182,46 +183,45 @@ export class AdminService {
     await this.adminMetricsRepository.save(snapshot);
   }
 
-  async getAdminMetricsOverview(from?: Date, to?: Date) {
-    const qb = this.adminMetricsRepository
+  async getAdminMetricsOverview() {
+    const latest = await this.adminMetricsRepository
       .createQueryBuilder('m')
-      .select('MIN(m.periodStart)', 'from')
-      .addSelect('MAX(m.periodEnd)', 'to')
-      .addSelect('SUM(m.newUsers)', 'newUsers')
-      .addSelect('MAX(m.totalUsers)', 'totalUsers')
-      .addSelect('SUM(m.newPosts)', 'newPosts')
-      .addSelect('SUM(m.newImagePosts)', 'newImagePosts')
-      .addSelect('SUM(m.newVideoPosts)', 'newVideoPosts')
-      .addSelect('MAX(m.totalPosts)', 'totalPosts')
-      .addSelect('MAX(m.totalImagePosts)', 'totalImagePosts')
-      .addSelect('MAX(m.totalVideoPosts)', 'totalVideoPosts')
-      .addSelect('SUM(m.activeUsers)', 'activeUsers')
-      .addSelect('SUM(m.newLikes)', 'newLikes')
-      .addSelect('MAX(m.totalLikes)', 'totalLikes');
+      .orderBy('m.snapshotTime', 'DESC')
+      .limit(1)
+      .getOne();
 
-    if (from) {
-      qb.andWhere('m.periodEnd >= :from', { from });
+    if (!latest) {
+      return {
+        from: null,
+        to: null,
+        newUsers: 0,
+        totalUsers: 0,
+        newPosts: 0,
+        newImagePosts: 0,
+        newVideoPosts: 0,
+        totalPosts: 0,
+        totalImagePosts: 0,
+        totalVideoPosts: 0,
+        activeUsers: 0,
+        newLikes: 0,
+        totalLikes: 0,
+      };
     }
-    if (to) {
-      qb.andWhere('m.periodStart <= :to', { to });
-    }
-
-    const raw = await qb.getRawOne();
 
     return {
-      from: raw?.from,
-      to: raw?.to,
-      newUsers: Number(raw?.newUsers || 0),
-      totalUsers: Number(raw?.totalUsers || 0),
-      newPosts: Number(raw?.newPosts || 0),
-      newImagePosts: Number(raw?.newImagePosts || 0),
-      newVideoPosts: Number(raw?.newVideoPosts || 0),
-      totalPosts: Number(raw?.totalPosts || 0),
-      totalImagePosts: Number(raw?.totalImagePosts || 0),
-      totalVideoPosts: Number(raw?.totalVideoPosts || 0),
-      activeUsers: Number(raw?.activeUsers || 0),
-      newLikes: Number(raw?.newLikes || 0),
-      totalLikes: Number(raw?.totalLikes || 0),
+      from: latest.periodStart,
+      to: latest.periodEnd,
+      newUsers: latest.newUsers,
+      totalUsers: latest.totalUsers,
+      newPosts: latest.newPosts,
+      newImagePosts: latest.newImagePosts,
+      newVideoPosts: latest.newVideoPosts,
+      totalPosts: latest.totalPosts,
+      totalImagePosts: latest.totalImagePosts,
+      totalVideoPosts: latest.totalVideoPosts,
+      activeUsers: latest.activeUsers,
+      newLikes: latest.newLikes,
+      totalLikes: latest.totalLikes,
     };
   }
   async createAdminContest(data: CreateContestDto) {
