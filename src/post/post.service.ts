@@ -256,26 +256,68 @@ export class PostService {
   async getUnpublishedPosts(userId: number) {
     const query = `
       SELECT 
-        p.*,
-        (SELECT COUNT(*) FROM likes WHERE likes.postId = p.id) AS like_count
+        p.id,
+        p.imageUrl,
+        p.videoUrl,
+        p.previewImageUrl,
+        p.createdAt,
+        p.updatedAt,
+        p.is_published,
+        p.is_saved,
+        p.is_blocked,
+        p.is_rejected,
+        p.is_delivered,
+        p.hasWonDailyReward,
+        p.generation_params,
+        p.tweetLink,
+        p.contestId,
+        p.tagId,
+        p.userId,
+        COALESCE(COUNT(DISTINCT l.id), 0) AS like_count
       FROM posts p
-      WHERE p.userId = ${userId} AND p.is_saved = true
-      ORDER BY createdAt DESC
+      LEFT JOIN likes l ON l.postId = p.id
+      WHERE p.userId = ? AND p.is_saved = true
+      GROUP BY 
+        p.id, p.imageUrl, p.videoUrl, p.previewImageUrl, p.createdAt, p.updatedAt,
+        p.is_published, p.is_saved, p.is_blocked, p.is_rejected, p.is_delivered,
+        p.hasWonDailyReward, p.generation_params, p.tweetLink, p.contestId, p.tagId, p.userId
+      ORDER BY p.createdAt DESC
     `;
 
-    return await this.postEntity.query(query);
+    return await this.postEntity.query(query, [userId]);
   }
   async getPublishedPosts(userId: number) {
     const query = `
       SELECT 
-        p.*,
-        (SELECT COUNT(*) FROM likes WHERE likes.postId = p.id) AS like_count
+        p.id,
+        p.imageUrl,
+        p.videoUrl,
+        p.previewImageUrl,
+        p.createdAt,
+        p.updatedAt,
+        p.is_published,
+        p.is_saved,
+        p.is_blocked,
+        p.is_rejected,
+        p.is_delivered,
+        p.hasWonDailyReward,
+        p.generation_params,
+        p.tweetLink,
+        p.contestId,
+        p.tagId,
+        p.userId,
+        COALESCE(COUNT(DISTINCT l.id), 0) AS like_count
       FROM posts p
-      WHERE p.userId = ${userId} AND p.is_published = true
-      ORDER BY createdAt DESC
+      LEFT JOIN likes l ON l.postId = p.id
+      WHERE p.userId = ? AND p.is_published = true
+      GROUP BY 
+        p.id, p.imageUrl, p.videoUrl, p.previewImageUrl, p.createdAt, p.updatedAt,
+        p.is_published, p.is_saved, p.is_blocked, p.is_rejected, p.is_delivered,
+        p.hasWonDailyReward, p.generation_params, p.tweetLink, p.contestId, p.tagId, p.userId
+      ORDER BY p.createdAt DESC
     `;
 
-    return await this.postEntity.query(query);
+    return await this.postEntity.query(query, [userId]);
   }
   async markAllAsUnviewed(userId: number) {
     const result = await this.viewedPostRepository.delete({
