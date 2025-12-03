@@ -70,6 +70,8 @@ export class PostService {
   ) {}
 
   async getPosts(cursor: number | null, limit: number, userId: number) {
+    // Безпечний ліміт: від 1 до 100, щоб не навантажувати БД
+    const safeLimit = Math.min(Math.max(limit || 20, 1), 100);
     const cursorCondition = cursor ? `AND p.id < ${cursor}` : '';
 
     const query = `
@@ -105,7 +107,7 @@ export class PostService {
         ${cursorCondition} -- Додаємо умову курсора
       ORDER BY 
         p.id DESC -- Порядок для курсора
-      LIMIT ${limit};
+      LIMIT ${safeLimit};
     `;
 
     const posts = await this.postEntity.query(query);
@@ -119,7 +121,7 @@ export class PostService {
     return {
       data: normalizedPosts,
       nextCursor,
-      hasNextPage: posts.length === limit,
+      hasNextPage: posts.length === safeLimit,
     };
   }
 
