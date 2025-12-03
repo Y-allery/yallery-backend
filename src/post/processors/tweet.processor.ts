@@ -34,7 +34,7 @@ export class TweetProcessor extends WorkerHost {
 
   @OnWorkerEvent('completed')
   onCompleted(job: Job) {
-    console.log(`Tweet job ${job.id} completed`);
+    // Tweet job ${job.id} completed
   }
 
   @OnWorkerEvent('failed')

@@ -911,13 +911,13 @@ export class AdminService {
   }
 
   async forceStartContest(contestId: number) {
-    console.log(`🚀 Force starting contest ID ${contestId}`);
+    this.logger.log(`Force starting contest ID ${contestId}`);
     try {
       // Знаходимо контест
       const contest = await this.contestService.findContestById(contestId);
       
       if (!contest) {
-        console.log(`❌ Contest with ID ${contestId} not found`);
+        this.logger.warn(`Contest with ID ${contestId} not found`);
         return {
           success: false,
           message: 'Contest not found',
@@ -927,7 +927,7 @@ export class AdminService {
 
       // Перевіряємо, чи контест не вже активний
       if (contest.status === ContestStatusEnum.OPEN) {
-        console.log(`⚠️ Contest is already active`);
+        this.logger.warn(`Contest with ID ${contestId} is already active`);
         return {
           success: false,
           message: 'Contest is already active',
@@ -951,7 +951,7 @@ export class AdminService {
       // Відправляємо нотифікації для цього конкретного контесту
       await this.contestService.sendContestStartNotifications(contest);
 
-      console.log(`✅ Contest "${contest.name}" force started successfully`);
+      this.logger.log(`Contest "${contest.name}" force started successfully`);
       return {
         success: true,
         message: `Contest "${contest.name}" has been force started successfully`,

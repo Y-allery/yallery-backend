@@ -131,7 +131,6 @@ export class VideoGenerationService {
 
       return await queue.add(aiService, { dto, userId }, jobOptions);
     } catch (error) {
-      console.log(error);
       throw new HttpException(
         'Internal server error',
         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -173,8 +172,7 @@ export class VideoGenerationService {
   async findBestTagByImage(imageUrl: string): Promise<TagEntity> {
     const tags = await this.tagRepository.find();
     const tagNames = tags.map((t) => t.name);
-    console.log(tagNames);
-    console.log(imageUrl);
+    // tagNames and imageUrl are used only for debug; avoid noisy logging in production
     const messages = [
       {
         role: 'user',

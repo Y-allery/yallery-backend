@@ -194,7 +194,7 @@ export class AuthService {
               activity: 'registered',
             });
             await this.partnershipActivityRepo.save(activity);
-            console.log(`[register] Partnership activity 'registered' created for userId=${newUser.id} partnershipId=${partnership.id}`);
+            // Partnership activity 'registered' created for user
           }
         } catch (error) {
           console.error('[register] Failed to log partnership activity registered:', error?.stack || error);
@@ -452,14 +452,14 @@ export class AuthService {
 
       // Link to partnership if referral data provided (same logic as register)
       if (extras?.ref && extras?.puid) {
-        console.log(
+        // Debug auth flow logs removed
           `[OAuth] New user created via OAuth. Attempting partnership link ref=${extras.ref} puid=${extras.puid} userId=${user.id}`,
         );
         const partnership = await this.partnershipRepo.findOne({
           where: { referralToken: extras.ref },
         });
         if (partnership) {
-          console.log(
+          // Debug auth flow logs removed
             `[OAuth] Partnership found id=${partnership.id} for ref=${extras.ref}`,
           );
           const existing = await this.partnerUserLinkRepo.findOne({
@@ -475,7 +475,7 @@ export class AuthService {
               userId: user.id,
             });
             await this.partnerUserLinkRepo.save(link);
-            console.log(
+            // Debug auth flow logs removed
               `[OAuth] Partner link created partnershipId=${partnership.id} puid=${extras.puid} userId=${user.id}`,
             );
             
@@ -495,7 +495,7 @@ export class AuthService {
                   activity: 'registered',
                 });
                 await this.partnershipActivityRepo.save(activity);
-                console.log(`[OAuth] Partnership activity 'registered' created for userId=${user.id} partnershipId=${partnership.id}`);
+                // OAuth partnership activity 'registered' created
               }
             } catch (error) {
               console.error('[OAuth] Failed to log partnership activity registered:', error?.stack || error);
@@ -503,11 +503,11 @@ export class AuthService {
           } else if (!existing.userId) {
             existing.userId = user.id;
             await this.partnerUserLinkRepo.save(existing);
-            console.log(
+            // Debug auth flow logs removed
               `[OAuth] Partner link updated with userId partnershipId=${partnership.id} puid=${extras.puid} userId=${user.id}`,
             );
           } else {
-            console.log(
+            // Debug auth flow logs removed
               `[OAuth] Partner link already exists and bound to userId=${user.id}`,
             );
           }
@@ -533,7 +533,7 @@ export class AuthService {
       // Existing user logging in via OAuth: attempt to link partnership if referral extras provided
       if (extras?.ref && extras?.puid) {
         try {
-          console.log(
+          // Debug auth flow logs removed
             `[OAuth] Existing user login. Attempting partnership link ref=${extras.ref} puid=${extras.puid} userId=${user.id}`,
           );
           const partnership = await this.partnershipRepo.findOne({
@@ -557,7 +557,7 @@ export class AuthService {
                 userId: user.id,
               });
               await this.partnerUserLinkRepo.save(link);
-              console.log(
+              // Debug auth flow logs removed
                 `[OAuth] Partner link created for existing user partnershipId=${partnership.id} puid=${extras.puid} userId=${user.id}`,
               );
               
@@ -575,7 +575,7 @@ export class AuthService {
             } else if (!existing.userId) {
               existing.userId = user.id;
               await this.partnerUserLinkRepo.save(existing);
-              console.log(
+              // Debug auth flow logs removed
                 `[OAuth] Partner link updated (existing -> attach user) partnershipId=${partnership.id} puid=${extras.puid} userId=${user.id}`,
               );
               
@@ -591,7 +591,7 @@ export class AuthService {
                 console.error(`[OAuth] Failed to log registered activity for existing user (link updated):`, error.message);
               }
             } else {
-              console.log(
+              // Debug auth flow logs removed
                 `[OAuth] Partner link already bound to userId=${existing.userId}; no changes`,
               );
             }
@@ -622,7 +622,7 @@ export class AuthService {
         throw new UnauthorizedException('Auth date is too old');
       }
     } else {
-      console.log('Auth date is not provided or is null.');
+      // Auth date is not provided or is null
     }
 
     parsed.delete('hash');
@@ -640,9 +640,9 @@ export class AuthService {
 
     const isValid = computedHash === hash;
     if (isValid) {
-      console.log('Telegram authentication validated successfully.');
+      // Telegram authentication validated successfully
     } else {
-      console.log('Telegram authentication validation failed. Hash mismatch.');
+      // Telegram authentication validation failed. Hash mismatch
     }
 
     return isValid;

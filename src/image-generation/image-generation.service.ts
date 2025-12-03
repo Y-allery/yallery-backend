@@ -128,8 +128,10 @@ export class ImageGenerationService {
           });
         }
       } catch (aiError) {
-        console.log('AI tag generation failed, using only "other" tag:', aiError.message);
-
+        console.warn(
+          'AI tag generation failed, using only "other" tag:',
+          aiError.message,
+        );
       }
 
       token = await this.serviceTokenService.getNextAvailableToken(
@@ -153,40 +155,22 @@ export class ImageGenerationService {
         guidance_scale: 0.5,
       };
 
-      console.log('🔍 Bytedance Edit Debug - Input params:', JSON.stringify(inputParams, null, 2));
-      console.log('🔍 Bytedance Edit Debug - Token used:', token.token.substring(0, 10) + '...');
+      // Detailed Bytedance debug logs removed to avoid noisy console output
       
-      const start = Date.now();
       const result = await generateMethod({
         input: inputParams,
       });
-
-      const end = Date.now();
-      console.log('🔍 Bytedance Edit Debug - Raw result:', JSON.stringify(result, null, 2));
-      console.log('🔍 Bytedance Edit Debug - Result type:', typeof result);
-      console.log('🔍 Bytedance Edit Debug - Result keys:', Object.keys(result));
-      
-      if (result.image) {
-        console.log('🔍 Bytedance Edit Debug - Result.image type:', typeof result.image);
-        console.log('🔍 Bytedance Edit Debug - Result.image is array:', Array.isArray(result.image));
-        console.log('🔍 Bytedance Edit Debug - Result.image length:', result.image?.length);
-      }
       
   
       let imagesToProcess = [];
       if (Array.isArray(result.image)) {
-        console.log('🔍 Bytedance Edit Debug - Processing result.image as array');
         imagesToProcess = result.image;
       } else if (result.image && typeof result.image === 'object' && result.image.url) {
-        console.log('🔍 Bytedance Edit Debug - Processing result.image as single object');
-    
         imagesToProcess = [result.image];
       } else {
         console.error('❌ Bytedance Edit Debug - Invalid result.image:', result.image);
         throw new Error(`Invalid result format: expected image object or array, got ${typeof result.image}`);
       }
-      
-      console.log('🔍 Bytedance Edit Debug - Images to process:', imagesToProcess.length);
       
       const uploadPromises = imagesToProcess.map(async (image) => {
         const dataUrl = image.url;
@@ -330,9 +314,7 @@ export class ImageGenerationService {
           );
         }
 
-        console.log(
-          `[Flux Pro Fine Tune] Using contest_id=${createPostDto.contest_id}, finetune_id=${contest.fineTuneToken}, triggerWord=${contest.fineTuneTriggerWord || 'N/A'}`,
-        );
+        // Flux Pro Fine Tune contest params prepared
 
         inputParams = {
           prompt: contest.fineTuneTriggerWord
@@ -348,17 +330,7 @@ export class ImageGenerationService {
         };
       }
 
-      console.log(
-        `[FalAI] Calling ${serviceName} with params:`,
-        JSON.stringify(
-          {
-            ...inputParams,
-            prompt: inputParams.prompt?.substring(0, 100) + '...',
-          },
-          null,
-          2,
-        ),
-      );
+      // [FalAI] Calling ${serviceName} with params (omitted from logs in production)
 
       const start = Date.now();
       const result = await generateMethod({
@@ -485,15 +457,8 @@ export class ImageGenerationService {
       };
 
 
-      console.log(`[X-Router] Generating images with params:`, {
-        prompt: createPostDto.prompt.substring(0, 50) + '...',
-        width: requestBody.width,
-        height: requestBody.height,
-        numberResults: requestBody.numberResults,
-        model: requestBody.model,
-      });
+      // [X-Router] Generating images with params (omitted from logs in production)
 
-      const start = Date.now();
       const response = await fetchWithPayment(xRouterApiUrl, {
         method: 'POST',
         headers: {
@@ -501,9 +466,6 @@ export class ImageGenerationService {
         },
         body: JSON.stringify(requestBody),
       });
-
-      const end = Date.now();
-      console.log(`[X-Router] API call took ${end - start}ms`);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -525,12 +487,7 @@ export class ImageGenerationService {
           const paymentData = JSON.parse(
             Buffer.from(paymentResponseHeader, 'base64').toString('utf-8'),
           );
-          console.log(`[X-Router] Payment transaction:`, {
-            success: paymentData.success,
-            transaction: paymentData.transaction || paymentData.transactionHash,
-            network: paymentData.network,
-            payer: paymentData.payer,
-          });
+          // Keep paymentData only for potential future structured logging; avoid console.log noise
         } catch (e) {
           console.warn(`[X-Router] Failed to parse payment response header:`, e);
         }
@@ -540,12 +497,9 @@ export class ImageGenerationService {
         throw new BadRequestException('No images returned from X-Router API');
       }
 
-      console.log(`[X-Router] Received ${data.images.length} images`);
-
       const uploadPromises = data.images.map(async (image: { url: string; uuid: string }) => {
         try {
           const uploadResponse = await this.uploadService.uploadByUrl(image.url);
-          console.log(`[X-Router] Uploaded image UUID: ${image.uuid}`);
           return uploadResponse;
         } catch (error) {
           console.error(`[X-Router] Failed to upload image ${image.uuid}:`, error);
@@ -887,19 +841,10 @@ export class ImageGenerationService {
     // Log partnership activity 'image_generated'
     try {
       if (user.id) {
-        console.log(
-          `[saveGeneratedImages] Attempting to record partnership activity 'image_generated' for userId=${user.id}`,
-        );
         const links = await this.partnerUserLinkRepo.find({
           where: { userId: user.id },
         });
-        console.log(
-          `[saveGeneratedImages] Found ${links.length} partner links for userId=${user.id}`,
-        );
         for (const link of links) {
-          console.log(
-            `[saveGeneratedImages] Checking existing activity for partnershipId=${link.partnershipId} userId=${user.id}`,
-          );
           const exists = await this.partnershipActivityRepo.findOne({
             where: {
               partnershipId: link.partnershipId,
@@ -908,9 +853,6 @@ export class ImageGenerationService {
             },
           });
           if (exists) {
-            console.log(
-              `[saveGeneratedImages] Activity already exists for partnershipId=${link.partnershipId} userId=${user.id}`,
-            );
             continue;
           }
           const rec = this.partnershipActivityRepo.create({
@@ -919,9 +861,6 @@ export class ImageGenerationService {
             activity: 'image_generated',
           });
           await this.partnershipActivityRepo.save(rec);
-          console.log(
-            `[saveGeneratedImages] Activity created for partnershipId=${link.partnershipId} userId=${user.id}`,
-          );
         }
       }
     } catch (error) {

@@ -39,7 +39,7 @@ export class LikeService {
       relations: ['user'],
     });
 
-    console.log(post);
+    // post entity logged for debug previously; removed to avoid noisy output
     if (!user || !post) {
       throw new NotFoundException('User or Post not found');
     }

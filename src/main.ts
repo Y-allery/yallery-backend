@@ -103,14 +103,12 @@ async function bootstrap() {
 }
 
 // Graceful shutdown
-process.on('SIGTERM', async () => {
-  console.log('SIGTERM received, closing browser...');
+  process.on('SIGTERM', async () => {
   await closeBrowser();
   process.exit(0);
 });
 
-process.on('SIGINT', async () => {
-  console.log('SIGINT received, closing browser...');
+  process.on('SIGINT', async () => {
   await closeBrowser();
   process.exit(0);
 });

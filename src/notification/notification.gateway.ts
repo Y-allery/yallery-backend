@@ -66,9 +66,7 @@ export class NotificationGateway {
         { id: In(postIds) },
         { is_delivered: false },
       );
-      console.log(
-        `User ${to_user_id} is not connected. Handling offline logic.`,
-      );
+      // User ${to_user_id} is not connected. Handling offline logic.
     }
   }
   async sendVideoNotification(
@@ -113,13 +111,12 @@ export class NotificationGateway {
     const user = await this.userService.findById(userId);
 
     if (!user) {
-      console.log('User ID not found in socket data');
+      // User ID not found in socket data
       return;
     }
 
     this.connectedUsers.set(userId, client);
     client.join(userId);
-    console.log(`User ${userId} joined their room`);
 
     const undeliveredPosts = await this.postRepository.find({
       where: { user: { id: userId }, is_delivered: false },
@@ -188,7 +185,6 @@ export class NotificationGateway {
             suggestedTags,
           },
         });
-        console.log(`Sent undelivered images to user ${userId}`);
       }
 
       if (videos.length > 0 && client.connected) {
@@ -213,7 +209,6 @@ export class NotificationGateway {
             suggestedTags,
           },
         });
-        console.log(`Sent undelivered videos to user ${userId}`);
       }
 
       
@@ -221,9 +216,6 @@ export class NotificationGateway {
       await this.postRepository.update(
         { id: In(allUndeliveredIds) },
         { is_delivered: true },
-      );
-      console.log(
-        `Updated delivery status for undelivered posts for user ${userId}`,
       );
     }
 
@@ -234,7 +226,6 @@ export class NotificationGateway {
     const userId = client.data.userId;
     if (userId) {
       this.connectedUsers.set(userId, client);
-      console.log(`User ${userId} connected`);
     }
   }
 
@@ -242,7 +233,6 @@ export class NotificationGateway {
     const userId = client.data.userId;
     if (userId) {
       this.connectedUsers.delete(userId);
-      console.log(`User ${userId} disconnected`);
     }
   }
 

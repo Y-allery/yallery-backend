@@ -30,7 +30,7 @@ export class FirebaseService implements OnModuleInit {
     };
     try {
       const response = await this.firebaseApp.messaging().send(message);
-      console.log(`✅ Firebase notification sent successfully to token: ${token.substring(0, 10)}...`);
+      // Firebase notification sent successfully
       return { success: true, response };
     } catch (error) {
       console.error(`❌ Firebase notification failed for token: ${token.substring(0, 10)}...`, error.message);

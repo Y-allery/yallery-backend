@@ -142,7 +142,6 @@ export class TagService {
       .getRawMany();
 
     const isSubscribed = tags.some((tag) => tag.tag_id === tag_id);
-    console.log(`Is user subscribed to tag ${tag_id}:`, isSubscribed);
 
     if (!isSubscribed) {
       const tag = await this.tagRepository.findOne({ where: { id: tag_id } });
@@ -155,7 +154,7 @@ export class TagService {
 
       await this.userRepository.save(user);
 
-      console.log(`User ${user.id} successfully subscribed to tag ${tag_id}.`);
+      // User successfully subscribed to tag ${tag_id}
     }
   }
 }

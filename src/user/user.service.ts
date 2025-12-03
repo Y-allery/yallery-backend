@@ -772,19 +772,9 @@ export class UserService {
       let userRewardEach = 0;
       if (likes.length > 0 && usersReward > 0) {
         userRewardEach = Math.floor(usersReward / likes.length);
-        console.log(
-          `Each liker of post ${topPost.id} will receive ${userRewardEach} points`,
-        );
-      } else {
-        console.log(
-          `No user reward distribution needed for post ${topPost.id}`,
-        );
       }
 
       if (authorReward > 0) {
-        console.log(
-          `Updating author (userId: ${topPost.user.id}) points by ${authorReward}`,
-        );
         await this.userModel
           .createQueryBuilder()
           .update(UserEntity)
@@ -792,21 +782,13 @@ export class UserService {
           .where('id = :userId', { userId: topPost.user.id })
           .execute();
 
-        console.log(
-          `Notifying author (userId: ${topPost.user.id}) about reward`,
-        );
         await this.notifyUser(topPost.user.id, true, topPost);
       } else {
-        console.log(
-          `Author reward is zero for post ${topPost.id}, no notification`,
-        );
+        // Author reward is zero for this post; no notification
       }
 
       if (userRewardEach > 0) {
         const likerIds = likes.map((l) => l.user.id);
-        console.log(
-          `Updating likers ${likerIds.join(', ')} points by ${userRewardEach}`,
-        );
         await this.userModel
           .createQueryBuilder()
           .update(UserEntity)
@@ -815,24 +797,18 @@ export class UserService {
           .execute();
 
         for (const liker of likes) {
-          console.log(
-            `Notifying liker (userId: ${liker.user.id}) about reward`,
-          );
           await this.notifyUser(liker.user.id, false);
         }
       } else {
-        console.log(`No points awarded to likers for post ${topPost.id}`);
+        // No points awarded to likers for this post
       }
 
-      console.log(`Marking post ${topPost.id} as having won the daily reward`);
       await this.markPostAsWon(topPost.id);
     }
 
-    console.log('Finished processTopLikedPostRewards');
   }
 
   private async markPostAsWon(postId: number): Promise<void> {
-    console.log(`Setting hasWonDailyReward to true for post ${postId}`);
     await this.postModel
       .createQueryBuilder()
       .update(PostEntity)
@@ -849,10 +825,6 @@ export class UserService {
     const activityType = isAuthor
       ? ActivityEnum.TOP_POST_REWARD_AUTHOR
       : ActivityEnum.TOP_POST_REWARD_LIKER;
-
-    console.log(
-      `Creating activity for userId ${userId}, activityType ${activityType}`,
-    );
     const description = await this.activityService.createActivities(
       null,
       [userId],
@@ -863,14 +835,12 @@ export class UserService {
       topPost ? topPost : null,
     );
 
-    console.log(`Sending notification to userId ${userId}`);
     await this.notificationGateway.sendNotification(
       userId.toString(),
       description,
       activityType,
     );
 
-    console.log(`Sending push notification to userId ${userId} if enabled`);
     await this.sendPushNotificationIfEnabled(userId, activityType);
   }
 

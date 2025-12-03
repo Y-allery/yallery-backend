@@ -16,8 +16,6 @@ export function sendHtmlResponse(
     'public',
     templateFileName,
   );
-  console.log('Template Path:', templatePath);
-
   let template: string;
 
   try {

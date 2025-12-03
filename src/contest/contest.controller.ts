@@ -36,7 +36,6 @@ export class ContestController {
 
   @Get('my-contests')
   async getMyContests(@Req() req: AuthenticatedRequest) {
-    console.log(true);
     return this.contestService.getMyContests(req.user.id);
   }
 

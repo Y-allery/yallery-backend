@@ -46,7 +46,6 @@ export class SDXLProcessor extends WorkerHost {
       ActivityEnum.IMAGE_GENERATE_SPEND,
     );
 
-    console.log(`Job ${job.id} for OctoAI completed successfully.`);
   }
 
   @OnWorkerEvent('failed')
@@ -57,9 +56,7 @@ export class SDXLProcessor extends WorkerHost {
     const maxAttempts = job.opts.attempts ?? 1;
 
     if (attemptsMade < maxAttempts) {
-      console.log(
-        `Job ${job.id} will be retried. Attempts made: ${attemptsMade}`,
-      );
+      // Job will be retried; attemptsMade info omitted from logs
     } else {
       const { userId } = job.data;
       await this.notificationGateway.sendErrorNotification(

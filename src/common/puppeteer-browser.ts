@@ -23,8 +23,6 @@ const randomDelay = (min: number, max: number) =>
 // Агресивне очищення тимчасових файлів
 const aggressiveCleanup = () => {
   try {
-    console.log('[Disk Cleanup] Starting aggressive cleanup...');
-    
     // Більш агресивне очищення з sudo якщо потрібно
     const cleanupCommands = [
       'find /tmp -type d -name "puppeteer*" -mmin +5 -exec rm -rf {} + 2>/dev/null || true',
@@ -44,9 +42,6 @@ const aggressiveCleanup = () => {
     cleanupCommands.forEach(cmd => {
       try {
         const result = execSync(cmd, { stdio: 'pipe', timeout: 10000 });
-        if (result.toString().length > 0) {
-          console.log(`[Disk Cleanup] Cleaned: ${result.toString().trim()}`);
-        }
       } catch (e) {
         // Ігноруємо помилки очищення
       }
@@ -57,17 +52,9 @@ const aggressiveCleanup = () => {
       global.gc();
     }
     
-    // Показуємо вільне місце
-    try {
-      const df = execSync('df -h /tmp | tail -1', { encoding: 'utf8' });
-      console.log(`[Disk Cleanup] Disk usage after cleanup: ${df.trim()}`);
-    } catch (e) {
-      // Ignore
-    }
-    
-    console.log('[Disk Cleanup] Aggressive cleanup completed');
+    // Показуємо вільне місце (опційно можна додати structured logging тут)
   } catch (error) {
-    console.log('[Disk Cleanup] Error during cleanup:', error.message);
+    console.warn('[Disk Cleanup] Error during cleanup:', error.message);
   }
 };
 
@@ -81,7 +68,6 @@ const checkDiskUsage = () => {
     
     // Більш агресивна очистка при 60% використання
     if (usageNum > 60) {
-      console.log(`[Disk Monitor] High disk usage: ${usage}, triggering aggressive cleanup`);
       aggressiveCleanup();
       
       // Додаткове очищення через 2 секунди
@@ -94,11 +80,9 @@ const checkDiskUsage = () => {
     const availableMB = execSync('df -BM /tmp | tail -1 | awk \'{print $4}\'', { encoding: 'utf8' }).trim();
     const availableNum = parseInt(availableMB.replace('M', ''));
     
-    console.log(`[Disk Monitor] /tmp usage: ${usage}, available: ${availableMB}`);
-    
     // Якщо менше 1GB вільного місця - тривога
     if (availableNum < 1024) {
-      console.log(`[Disk Monitor] CRITICAL: Less than 1GB free space, aggressive cleanup`);
+      console.warn(`[Disk Monitor] CRITICAL: Less than 1GB free space, aggressive cleanup`);
       aggressiveCleanup();
     }
     
@@ -232,13 +216,11 @@ export async function getBrowser(): Promise<Browser> {
   // Якщо браузер існує і працює - оновлюємо час активності
   if (sharedBrowser && sharedBrowser.isConnected()) {
     lastActivityTime = now;
-    console.log('[Puppeteer] Reusing existing browser');
     return sharedBrowser;
   }
 
   // Якщо браузер не існує або не працює - очищаємо і створюємо новий
-  console.log('[Puppeteer] Creating new browser');
-  
+  // Creating new browser instance
   // Закриваємо старий браузер якщо існує
   if (sharedBrowser) {
     try {
@@ -356,7 +338,6 @@ function startCleanupTimer(): void {
       const idleTime = now - lastActivityTime;
       
       if (idleTime > BROWSER_TIMEOUT) {
-        console.log('[Puppeteer] Browser idle for 50+ seconds, closing...');
         try {
           await sharedBrowser.close();
           sharedBrowser = null;
@@ -403,7 +384,6 @@ function startCleanupTimer(): void {
  */
 export async function closeBrowser(): Promise<void> {
   if (sharedBrowser && sharedBrowser.isConnected()) {
-    console.log('[Puppeteer] Force closing browser');
     try {
       await sharedBrowser.close();
     } catch (error) {
@@ -414,7 +394,6 @@ export async function closeBrowser(): Promise<void> {
   // Очищаємо userDataDir
   if (currentUserDataDir) {
     try {
-      console.log(`[Puppeteer] Removing user data dir: ${currentUserDataDir}`);
       execSync(`rm -rf ${currentUserDataDir}`, { stdio: 'ignore', timeout: 5000 });
     } catch (e) {
       console.error('[Puppeteer] Error removing user data dir:', e.message);
@@ -546,7 +525,7 @@ export const checkForBlocking = async (page: any): Promise<boolean> => {
 
     // Якщо є блокуючі тексти і UI відсутній – тоді м'яка перевірка
     if (appearsBlockedOnce) {
-      console.log('[Anti-Detection] Possible block detected, but continuing...');
+      // [Anti-Detection] Possible block detected, but continuing...
       await randomDelay(500, 1000);
       return false; // Продовжуємо навіть якщо є ознаки блоку
     }
@@ -554,7 +533,7 @@ export const checkForBlocking = async (page: any): Promise<boolean> => {
     // Якщо ні UI, ні блокуючих текстів – не блокуємо
     return false;
   } catch (error) {
-    console.log('[Anti-Detection] Error checking for blocking:', error.message);
+    console.warn('[Anti-Detection] Error checking for blocking:', error.message);
     // Уникаємо фальшпозитивів: у разі помилки вважаємо, що НЕ заблоковано
     return false;
   }

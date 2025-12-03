@@ -23,7 +23,7 @@ export class BytyDanceProcessor extends WorkerHost {
 
   async process(job: Job<any, any, string>) {
     const { dto, userId } = job.data;
-    console.log(`BytyDanceProcessor: Job ${job.id} started for user ${userId}`);
+    // Job started for user ${userId}
     const response = await this.videoGenerationService.generateVideo(dto);
     const findRelatedTag = await this.videoGenerationService.findBestTagByImage(
       dto.image_url,
@@ -72,7 +72,7 @@ export class BytyDanceProcessor extends WorkerHost {
       },
       ActivityEnum.VIDEO_GENERATE_SPEND,
     );
-    console.log(`BytyDanceProcessor: Job ${job.id} completed for user ${userId}, videoUrl: ${generatedVideo}`);
+    // Job completed for user ${userId}
   }
 
   @OnWorkerEvent('failed')
@@ -85,9 +85,7 @@ export class BytyDanceProcessor extends WorkerHost {
     const maxAttempts = job.opts.attempts ?? 1;
 
     if (attemptsMade < maxAttempts) {
-      console.log(
-        `Job ${job.id} will be retried. Attempts made: ${attemptsMade}`,
-      );
+      // Job will be retried; attemptsMade info omitted from logs
     } else {
       const { userId } = job.data;
       await this.notificationGateway.sendErrorNotification(
