@@ -26,7 +26,7 @@ import {
   PartnershipEntity,
   PartnershipSource,
 } from './entities/partner.entity';
-import { Repository, Not } from 'typeorm';
+import { Repository, Not, Between } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { PartnershipActivityEntity } from './entities/partnership-activity.entity';
 import { PartnerUserLinkEntity } from './entities/partner-user-link.entity';
@@ -100,58 +100,43 @@ export class AdminService {
       newLikes,
       totalLikes,
     ] = await Promise.all([
-        this.userRepository.count({
-          where: {
-            createdAt: {
-              $gte: periodStart as any,
-              $lt: periodEnd as any,
-            } as any,
-          } as any,
-        }),
-        this.userRepository.count(),
-        this.postRepository.count({
-          where: {
-            createdAt: {
-              $gte: periodStart as any,
-              $lt: periodEnd as any,
-            } as any,
-          } as any,
-        }),
-        this.postRepository.count({
-          where: {
-            createdAt: {
-              $gte: periodStart as any,
-              $lt: periodEnd as any,
-            } as any,
-            imageUrl: Not(null),
-          } as any,
-        }),
-        this.postRepository.count({
-          where: {
-            createdAt: {
-              $gte: periodStart as any,
-              $lt: periodEnd as any,
-            } as any,
-            videoUrl: Not(null),
-          } as any,
-        }),
-        this.postRepository.count(),
-        this.postRepository.count({
-          where: { imageUrl: Not(null) },
-        }),
-        this.postRepository.count({
-          where: { videoUrl: Not(null) },
-        }),
-        this.likeRepository.count({
-          where: {
-            createdAt: {
-              $gte: periodStart as any,
-              $lt: periodEnd as any,
-            } as any,
-          } as any,
-        }),
-        this.likeRepository.count(),
-      ]);
+      this.userRepository.count({
+        where: {
+          createdAt: Between(periodStart, periodEnd),
+        },
+      }),
+      this.userRepository.count(),
+      this.postRepository.count({
+        where: {
+          createdAt: Between(periodStart, periodEnd),
+        },
+      }),
+      this.postRepository.count({
+        where: {
+          createdAt: Between(periodStart, periodEnd),
+          imageUrl: Not(null),
+        },
+      }),
+      this.postRepository.count({
+        where: {
+          createdAt: Between(periodStart, periodEnd),
+          videoUrl: Not(null),
+        },
+      }),
+      this.postRepository.count(),
+      this.postRepository.count({
+        where: { imageUrl: Not(null) },
+      }),
+      this.postRepository.count({
+        where: { videoUrl: Not(null) },
+      }),
+      this.likeRepository.count({
+        where: {
+          createdAt: Between(periodStart, periodEnd),
+        },
+      }),
+      this.likeRepository.count(),
+    ]);
 
     const activeUsersRaw = await this.postRepository
       .createQueryBuilder('p')
