@@ -452,16 +452,10 @@ export class AuthService {
 
       // Link to partnership if referral data provided (same logic as register)
       if (extras?.ref && extras?.puid) {
-        // Debug auth flow logs removed
-          `[OAuth] New user created via OAuth. Attempting partnership link ref=${extras.ref} puid=${extras.puid} userId=${user.id}`,
-        );
         const partnership = await this.partnershipRepo.findOne({
           where: { referralToken: extras.ref },
         });
         if (partnership) {
-          // Debug auth flow logs removed
-            `[OAuth] Partnership found id=${partnership.id} for ref=${extras.ref}`,
-          );
           const existing = await this.partnerUserLinkRepo.findOne({
             where: {
               partnershipId: partnership.id,
@@ -475,9 +469,6 @@ export class AuthService {
               userId: user.id,
             });
             await this.partnerUserLinkRepo.save(link);
-            // Debug auth flow logs removed
-              `[OAuth] Partner link created partnershipId=${partnership.id} puid=${extras.puid} userId=${user.id}`,
-            );
             
             // Log partnership activity 'registered' for new OAuth user
             try {
@@ -503,13 +494,8 @@ export class AuthService {
           } else if (!existing.userId) {
             existing.userId = user.id;
             await this.partnerUserLinkRepo.save(existing);
-            // Debug auth flow logs removed
-              `[OAuth] Partner link updated with userId partnershipId=${partnership.id} puid=${extras.puid} userId=${user.id}`,
-            );
           } else {
-            // Debug auth flow logs removed
-              `[OAuth] Partner link already exists and bound to userId=${user.id}`,
-            );
+            // Partner link already exists and is bound to this user
           }
           
           // Log registered activity for new OAuth user
@@ -533,9 +519,6 @@ export class AuthService {
       // Existing user logging in via OAuth: attempt to link partnership if referral extras provided
       if (extras?.ref && extras?.puid) {
         try {
-          // Debug auth flow logs removed
-            `[OAuth] Existing user login. Attempting partnership link ref=${extras.ref} puid=${extras.puid} userId=${user.id}`,
-          );
           const partnership = await this.partnershipRepo.findOne({
             where: { referralToken: extras.ref },
           });
@@ -557,10 +540,7 @@ export class AuthService {
                 userId: user.id,
               });
               await this.partnerUserLinkRepo.save(link);
-              // Debug auth flow logs removed
-                `[OAuth] Partner link created for existing user partnershipId=${partnership.id} puid=${extras.puid} userId=${user.id}`,
-              );
-              
+
               // Log registered activity for existing user linking to partnership
               try {
                 const activity = this.partnershipActivityRepo.create({
@@ -575,10 +555,7 @@ export class AuthService {
             } else if (!existing.userId) {
               existing.userId = user.id;
               await this.partnerUserLinkRepo.save(existing);
-              // Debug auth flow logs removed
-                `[OAuth] Partner link updated (existing -> attach user) partnershipId=${partnership.id} puid=${extras.puid} userId=${user.id}`,
-              );
-              
+
               // Log registered activity for existing user linking to partnership
               try {
                 const activity = this.partnershipActivityRepo.create({
@@ -591,9 +568,7 @@ export class AuthService {
                 console.error(`[OAuth] Failed to log registered activity for existing user (link updated):`, error.message);
               }
             } else {
-              // Debug auth flow logs removed
-                `[OAuth] Partner link already bound to userId=${existing.userId}; no changes`,
-              );
+              // Partner link already bound to some user; no changes
             }
           }
         } catch (err) {
