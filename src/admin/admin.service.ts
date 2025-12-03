@@ -39,6 +39,7 @@ import * as https from 'https';
 import { AdminMetricsEntity } from './entities/admin-metrics.entity';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { LikeEntity } from 'src/like/entities/like.entity';
+import { VideoAIEnum } from 'src/common/enums/ai.enum';
 
 @Injectable()
 export class AdminService {
@@ -172,6 +173,23 @@ export class AdminService {
     const avgLikesPerPost =
       newPosts > 0 ? Number((newLikes / newPosts).toFixed(2)) : 0;
 
+    // Get valid AI service names from database to filter correctly
+    const imageAiServices = await this.aiSettingsRepository.find({
+      where: { type: 'image', is_active: true },
+      select: ['ai_service'],
+    });
+    const videoAiServices = await this.aiSettingsRepository.find({
+      where: { type: 'video', is_active: true },
+      select: ['ai_service'],
+    });
+
+    const validImageServices = new Set(
+      imageAiServices.map((s) => s.ai_service),
+    );
+    const validVideoServices = new Set(
+      videoAiServices.map((s) => s.ai_service),
+    );
+
     // AI stats per service (image/video) based on generation_params.ai_service
     const rawImageAi = await this.postRepository
       .createQueryBuilder('p')
@@ -214,20 +232,38 @@ export class AdminService {
 
     for (const row of rawImageAi) {
       // Default to 'flux' for image posts without ai_service (legacy posts)
-      const key = row.ai_service || 'flux';
-      imageStats[key] = {
-        newPosts: Number(row.count || 0),
-        totalPosts: 0, // can be extended later if потрібен total per service
-      };
+      let key = row.ai_service || 'flux';
+      // Only include if it's a valid image service (filter out video services that might be in generation_params)
+      if (!validImageServices.has(key)) {
+        key = 'flux'; // Fallback to flux if invalid
+      }
+      const count = Number(row.count || 0);
+      if (imageStats[key]) {
+        imageStats[key].newPosts += count;
+      } else {
+        imageStats[key] = {
+          newPosts: count,
+          totalPosts: 0, // can be extended later if потрібен total per service
+        };
+      }
     }
 
     for (const row of rawVideoAi) {
       // Default to 'byty_dance' for video posts without ai_service (legacy posts)
-      const key = row.ai_service || 'byty_dance';
-      videoStats[key] = {
-        newPosts: Number(row.count || 0),
-        totalPosts: 0,
-      };
+      let key = row.ai_service || 'byty_dance';
+      // Only include if it's a valid video service (filter out image services like 'flux')
+      if (!validVideoServices.has(key)) {
+        key = 'byty_dance'; // Fallback to byty_dance if invalid
+      }
+      const count = Number(row.count || 0);
+      if (videoStats[key]) {
+        videoStats[key].newPosts += count;
+      } else {
+        videoStats[key] = {
+          newPosts: count,
+          totalPosts: 0,
+        };
+      }
     }
 
     const snapshot = this.adminMetricsRepository.create({
