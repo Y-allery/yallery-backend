@@ -26,7 +26,7 @@ import {
   PartnershipEntity,
   PartnershipSource,
 } from './entities/partner.entity';
-import { Repository } from 'typeorm';
+import { Repository, Not } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { PartnershipActivityEntity } from './entities/partnership-activity.entity';
 import { PartnerUserLinkEntity } from './entities/partner-user-link.entity';
@@ -36,6 +36,9 @@ import { AISettingsEntity } from 'src/image-generation/entities/ai-settings.enti
 import { UpdateAISettingsDto } from './dto/update-ai-settings.dto';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import * as https from 'https';
+import { AdminMetricsEntity } from './entities/admin-metrics.entity';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { LikeEntity } from 'src/like/entities/like.entity';
 
 @Injectable()
 export class AdminService {
@@ -65,6 +68,10 @@ export class AdminService {
     private readonly userRepository: Repository<UserEntity>,
     @InjectRepository(AISettingsEntity)
     private readonly aiSettingsRepository: Repository<AISettingsEntity>,
+    @InjectRepository(AdminMetricsEntity)
+    private readonly adminMetricsRepository: Repository<AdminMetricsEntity>,
+    @InjectRepository(LikeEntity)
+    private readonly likeRepository: Repository<LikeEntity>,
   ) {
     this.apiKey = this.configService.get<string>('TWEETSCOUT_API_KEY');
     this.apiUrl = this.configService.get<string>('TWEETSCOUT_API_URL', 'https://api.tweetscout.io/v2');
@@ -72,6 +79,150 @@ export class AdminService {
     this.twitterScoreKey = this.configService.get<string>('TWITTER_SCORE_API_KEY');
     this.twitterScoreUrl = this.configService.get<string>('TWITTER_SCORE_API_URL', 'https://twitterscore.io/api/v1');
     this.twitterId = this.configService.get<string>('TWITTER_ACCOUNT_ID');
+  }
+
+  @Cron(CronExpression.EVERY_HOUR)
+  async collectAdminMetricsSnapshot() {
+    const now = new Date();
+    const periodEnd = new Date(now.getTime());
+    const periodStart = new Date(periodEnd.getTime() - 60 * 60 * 1000);
+
+    const [
+      newUsers,
+      totalUsers,
+      newPosts,
+      newImagePosts,
+      newVideoPosts,
+      totalPosts,
+      totalImagePosts,
+      totalVideoPosts,
+      newLikes,
+      totalLikes,
+    ] = await Promise.all([
+        this.userRepository.count({
+          where: {
+            createdAt: {
+              $gte: periodStart as any,
+              $lt: periodEnd as any,
+            } as any,
+          } as any,
+        }),
+        this.userRepository.count(),
+        this.postRepository.count({
+          where: {
+            createdAt: {
+              $gte: periodStart as any,
+              $lt: periodEnd as any,
+            } as any,
+          } as any,
+        }),
+        this.postRepository.count({
+          where: {
+            createdAt: {
+              $gte: periodStart as any,
+              $lt: periodEnd as any,
+            } as any,
+            imageUrl: Not(null),
+          } as any,
+        }),
+        this.postRepository.count({
+          where: {
+            createdAt: {
+              $gte: periodStart as any,
+              $lt: periodEnd as any,
+            } as any,
+            videoUrl: Not(null),
+          } as any,
+        }),
+        this.postRepository.count(),
+        this.postRepository.count({
+          where: { imageUrl: Not(null) },
+        }),
+        this.postRepository.count({
+          where: { videoUrl: Not(null) },
+        }),
+        this.likeRepository.count({
+          where: {
+            createdAt: {
+              $gte: periodStart as any,
+              $lt: periodEnd as any,
+            } as any,
+          } as any,
+        }),
+        this.likeRepository.count(),
+      ]);
+
+    const activeUsersRaw = await this.postRepository
+      .createQueryBuilder('p')
+      .select('COUNT(DISTINCT p.userId)', 'cnt')
+      .where('p.createdAt >= :start AND p.createdAt < :end', {
+        start: periodStart,
+        end: periodEnd,
+      })
+      .getRawOne();
+
+    const activeUsers = Number(activeUsersRaw?.cnt || 0);
+
+    const snapshot = this.adminMetricsRepository.create({
+      periodStart,
+      periodEnd,
+      newUsers,
+      totalUsers,
+      newPosts,
+      newImagePosts,
+      newVideoPosts,
+      totalPosts,
+      totalImagePosts,
+      totalVideoPosts,
+      activeUsers,
+      newLikes,
+      totalLikes,
+    });
+
+    await this.adminMetricsRepository.save(snapshot);
+  }
+
+  async getAdminMetricsOverview(from?: Date, to?: Date) {
+    const qb = this.adminMetricsRepository
+      .createQueryBuilder('m')
+      .select('MIN(m.periodStart)', 'from')
+      .addSelect('MAX(m.periodEnd)', 'to')
+      .addSelect('SUM(m.newUsers)', 'newUsers')
+      .addSelect('MAX(m.totalUsers)', 'totalUsers')
+      .addSelect('SUM(m.newPosts)', 'newPosts')
+      .addSelect('SUM(m.newImagePosts)', 'newImagePosts')
+      .addSelect('SUM(m.newVideoPosts)', 'newVideoPosts')
+      .addSelect('MAX(m.totalPosts)', 'totalPosts')
+      .addSelect('MAX(m.totalImagePosts)', 'totalImagePosts')
+      .addSelect('MAX(m.totalVideoPosts)', 'totalVideoPosts')
+      .addSelect('SUM(m.activeUsers)', 'activeUsers')
+      .addSelect('SUM(m.newLikes)', 'newLikes')
+      .addSelect('MAX(m.totalLikes)', 'totalLikes');
+
+    if (from) {
+      qb.andWhere('m.periodEnd >= :from', { from });
+    }
+    if (to) {
+      qb.andWhere('m.periodStart <= :to', { to });
+    }
+
+    const raw = await qb.getRawOne();
+
+    return {
+      from: raw?.from,
+      to: raw?.to,
+      newUsers: Number(raw?.newUsers || 0),
+      totalUsers: Number(raw?.totalUsers || 0),
+      newPosts: Number(raw?.newPosts || 0),
+      newImagePosts: Number(raw?.newImagePosts || 0),
+      newVideoPosts: Number(raw?.newVideoPosts || 0),
+      totalPosts: Number(raw?.totalPosts || 0),
+      totalImagePosts: Number(raw?.totalImagePosts || 0),
+      totalVideoPosts: Number(raw?.totalVideoPosts || 0),
+      activeUsers: Number(raw?.activeUsers || 0),
+      newLikes: Number(raw?.newLikes || 0),
+      totalLikes: Number(raw?.totalLikes || 0),
+    };
   }
   async createAdminContest(data: CreateContestDto) {
     return this.contestService.createAdminContest(data);

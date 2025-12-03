@@ -473,4 +473,36 @@ export class AdminController {
   ) {
     return this.adminService.updateAISettings(id, updateDto);
   }
+
+  @Get('metrics/overview')
+  @ApiOperation({
+    summary: 'Get aggregated admin metrics',
+    description:
+      'Returns high-level aggregated metrics (users and posts) for a given period. ' +
+      'Data is pre-aggregated hourly by a background cron job, so this endpoint is fast even for long ranges.',
+  })
+  @ApiQuery({
+    name: 'from',
+    required: false,
+    description:
+      'Start of the period (ISO 8601). If omitted, uses the earliest available metrics snapshot.',
+  })
+  @ApiQuery({
+    name: 'to',
+    required: false,
+    description:
+      'End of the period (ISO 8601). If omitted, uses the latest available metrics snapshot.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Aggregated metrics overview returned successfully.',
+  })
+  async getAdminMetricsOverview(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    const fromDate = from ? new Date(from) : undefined;
+    const toDate = to ? new Date(to) : undefined;
+    return this.adminService.getAdminMetricsOverview(fromDate, toDate);
+  }
 }
