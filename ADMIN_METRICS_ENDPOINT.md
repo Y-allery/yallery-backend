@@ -188,6 +188,32 @@ async getAdminMetricsOverview() {
 }
 ```
 
+### Admin‑ендпоінт: `POST /admin/metrics/recalculate`
+
+Додатковий службовий ендпоінт для адмінів, який дозволяє **зафорсити** перерахунок метрик без очікування наступного запуску крону.
+
+```430:452:src/admin/admin.controller.ts
+@Post('metrics/recalculate')
+@ApiOperation({
+  summary: 'Force recalculate 7-day admin metrics snapshot',
+  description:
+    'Triggers the same logic as the hourly cron job to immediately recalculate and store a fresh 7-day metrics snapshot.',
+})
+@ApiResponse({
+  status: 200,
+  description: 'Metrics snapshot recalculated successfully.',
+})
+async recalculateAdminMetrics() {
+  await this.adminService.collectAdminMetricsSnapshot();
+  return { success: true };
+}
+```
+
+- **Метод**: `POST`
+- **URL**: `/admin/metrics/recalculate`
+- **Авторизація**: JWT + `RoleGuard`, роль `ADMIN`.
+- **Призначення**: разово запустити перерахунок тижневих метрик (якщо треба «прямо зараз» оновити дашборд).
+
 Вся бізнес‑логіка агрегації винесена в `AdminService.getAdminMetricsOverview`.
 
 ```185:225:src/admin/admin.service.ts

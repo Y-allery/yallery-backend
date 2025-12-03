@@ -474,6 +474,21 @@ export class AdminController {
     return this.adminService.updateAISettings(id, updateDto);
   }
 
+  @Post('metrics/recalculate')
+  @ApiOperation({
+    summary: 'Force recalculate 7-day admin metrics snapshot',
+    description:
+      'Triggers the same logic as the hourly cron job to immediately recalculate and store a fresh 7-day metrics snapshot.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Metrics snapshot recalculated successfully.',
+  })
+  async recalculateAdminMetrics() {
+    await this.adminService.collectAdminMetricsSnapshot();
+    return { success: true };
+  }
+
   @Get('metrics/overview')
   @ApiOperation({
     summary: 'Get aggregated admin metrics',
