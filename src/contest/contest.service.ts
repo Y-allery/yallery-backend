@@ -51,18 +51,36 @@ export class ContestService {
   }
 
   async getAllContests(userId: number, type?: ContestTypeEnum) {
-    let whereCondition = {};
+    const whereCondition: any = {};
 
     if (type) {
-      whereCondition = { contestType: type };
+      whereCondition.contestType = type;
     }
 
     const contests = await this.contestRepository.find({
       where: whereCondition,
-      relations: ['winner', 'tag', 'participants'],
+      relations: ['winner', 'tag'],
       order: { status: 'DESC' },
     });
 
+    // Отримуємо список contest IDs для перевірки participants одним запитом (замість N+1)
+    const contestIds = contests.map((c) => c.id);
+    let participantContestIds: number[] = [];
+
+    if (contestIds.length > 0) {
+      const participantResults = await this.contestRepository
+        .createQueryBuilder('contest')
+        .innerJoin('contest.participants', 'participant', 'participant.id = :userId', {
+          userId,
+        })
+        .where('contest.id IN (:...contestIds)', { contestIds })
+        .select('contest.id', 'id')
+        .getRawMany();
+
+      participantContestIds = participantResults.map((r) => r.id);
+    }
+
+    // Повертаємо точно таку саму структуру, як в оригіналі
     return contests.map((contest) => ({
       id: contest.id,
       name: contest.name,
@@ -78,9 +96,7 @@ export class ContestService {
         id: contest?.tag?.id,
         name: contest?.tag?.name,
       },
-      is_participant: contest.participants.some(
-        (participant) => participant.id === userId,
-      ),
+      is_participant: participantContestIds.includes(contest.id),
     }));
   }
   async getMyContests(userId: number) {
