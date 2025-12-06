@@ -100,7 +100,7 @@ export class NotificationGateway {
     video: {
       uploadedVideoUrl: string;
       id: number;
-      suggestedTags: { id: number; name: string }[];
+      suggestedTags: { id: number; name: string; imageUrl: string }[];
     },
     activity_type: ActivityEnum,
   ) {

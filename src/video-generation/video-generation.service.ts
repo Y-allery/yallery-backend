@@ -208,9 +208,13 @@ export class VideoGenerationService {
     return selectedTag ?? tags[0];
   }
 
-  async generateVideo(dto: GenerateVideoDto) {
+  async generateVideo(dto: GenerateVideoDto): Promise<{
+    uploadedVideoUrl: string;
+  }> {
     let token: AiServiceToken;
     try {
+      console.log(`[generateVideo] Starting | Service: ${dto.ai_service} | Prompt: ${dto.prompt.substring(0, 50)}...`);
+      
       token = await this.serviceTokenService.getNextAvailableToken(
         dto.ai_service,
       );
@@ -248,11 +252,18 @@ export class VideoGenerationService {
         input: inputParams,
       });
 
-      const videoUrl = result.video?.url;
+      if (!result || !result.video || !result.video.url) {
+        throw new Error(
+          `Video generation service ${dto.ai_service} returned no video. Result: ${JSON.stringify(result)}`,
+        );
+      }
 
-      let uploadedVideoUrl: string | null = null;
-      if (videoUrl) {
-        uploadedVideoUrl = await this.uploadService.uploadVideoByUrl(videoUrl);
+      const videoUrl = result.video.url;
+
+      const uploadedVideoUrl = await this.uploadService.uploadVideoByUrl(videoUrl);
+
+      if (!uploadedVideoUrl) {
+        throw new Error('Failed to upload video: upload service returned no URL');
       }
 
       return { uploadedVideoUrl };
@@ -264,7 +275,7 @@ export class VideoGenerationService {
         );
       }
 
-      throw new Error(`Failed to generate images: ${error.message}`);
+      throw new Error(`Failed to generate video: ${error.message}`);
     }
   }
 
@@ -277,7 +288,7 @@ export class VideoGenerationService {
   public async logActivityAndNotify(
     userId: number,
     activityType: ActivityEnum,
-    service?: AIEnum,
+    service?: VideoAIEnum,
     generationCost?: number,
   ) {
     const description = await this.activityService.createActivities(
@@ -288,7 +299,7 @@ export class VideoGenerationService {
       false,
       undefined,
       undefined,
-      service,
+      service as any,
       generationCost,
     );
     await this.notificationGateway.sendNotification(
@@ -296,5 +307,38 @@ export class VideoGenerationService {
       description,
       activityType,
     );
+  }
+
+  async getDefaultTag(): Promise<TagEntity> {
+    const tags = await this.tagRepository.find();
+    return tags[0];
+  }
+
+  async buildSuggestedTags(tag: TagEntity): Promise<{ id: number; name: string; imageUrl: string }[]> {
+    const suggestedTags = [];
+    
+    if (tag) {
+      suggestedTags.push({
+        id: tag.id,
+        name: '#' + tag.name,
+        imageUrl: tag.imageUrl,
+      });
+    }
+
+    const otherTag = await this.tagRepository.findOne({
+      where: { name: 'other' },
+    });
+    
+    if (!otherTag) {
+      throw new Error('Tag "other" not found in database');
+    }
+    
+    suggestedTags.push({
+      id: otherTag.id,
+      name: '#' + otherTag.name,
+      imageUrl: otherTag.imageUrl,
+    });
+
+    return suggestedTags;
   }
 }
