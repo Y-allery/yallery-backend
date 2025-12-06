@@ -20,6 +20,7 @@ import { In, Repository } from 'typeorm';
 import { getDimensionsForOrientation } from 'src/common/helpers/get.dimension.func';
 import { ColorEntity } from './entities/color.entity';
 import { AISettingsEntity } from './entities/ai-settings.entity';
+import { AIProcessorMappingEntity, ProcessorType } from './entities/ai-processor-mapping.entity';
 import { PostService } from 'src/post/post.service';
 import { UserEntity } from 'src/user/entities/user.entity';
 import { NotificationGateway } from 'src/notification/notification.gateway';
@@ -83,16 +84,10 @@ export class ImageGenerationService {
     private partnerUserLinkRepo: Repository<PartnerUserLinkEntity>,
     @InjectRepository(AISettingsEntity)
     private aiSettingsRepository: Repository<AISettingsEntity>,
-    @InjectQueue(AIEnum.FLUX) private readonly fluxQueue: Queue,
-    @InjectQueue(AIEnum.AURA_FLOW) private readonly auraQueue: Queue,
-    @InjectQueue(AIEnum.REALISTIC_VISION)
-    private readonly turboDiffusionQueue: Queue,
-    @InjectQueue(AIEnum.FLUX_PRO_FINE_TUNE)
-    private readonly fluxProFineTune: Queue,
-    @InjectQueue(AIEnum.BYTEDANCE_EDIT)
-    private readonly bytedanceEditQueue: Queue,
-    @InjectQueue(AIEnum.X_ROUTER)
-    private readonly xRouterQueue: Queue,
+    @InjectRepository(AIProcessorMappingEntity)
+    private aiProcessorMappingRepository: Repository<AIProcessorMappingEntity>,
+    @InjectQueue('fal_ai') private readonly falAiQueue: Queue,
+    @InjectQueue('x_router') private readonly xRouterQueue: Queue,
   ) {
     this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   }
@@ -666,6 +661,9 @@ export class ImageGenerationService {
     userId: number,
   ): Promise<any> {
     try {
+      const mapping = await this.getProcessorMapping(AIEnum.BYTEDANCE_EDIT);
+      const queue = this.getQueueByProcessorType(mapping.processor_type);
+      
       const jobOptions = {
         attempts: 3,
         backoff: 15000,
@@ -674,11 +672,12 @@ export class ImageGenerationService {
       };
 
       return await this.addJobToQueue(
-        this.bytedanceEditQueue,
+        queue,
         AIEnum.BYTEDANCE_EDIT,
         editImageDto,
         userId,
         jobOptions,
+        mapping,
       );
     } catch (error) {
       throw new Error(`Failed to add edit image job to queue: ${error.message}`);
@@ -690,6 +689,9 @@ export class ImageGenerationService {
     userId: number,
   ): Promise<any> {
     try {
+      const mapping = await this.getProcessorMapping(createPostDto.ai_service);
+      const queue = this.getQueueByProcessorType(mapping.processor_type);
+      
       const jobOptions = {
         attempts: 3,
         backoff: 15000,
@@ -697,34 +699,13 @@ export class ImageGenerationService {
         removeOnFail: false,
       };
 
-      let queue;
-      switch (createPostDto.ai_service) {
-        case AIEnum.AURA_FLOW:
-          queue = this.auraQueue;
-          break;
-        case AIEnum.FLUX:
-          queue = this.fluxQueue;
-          break;
-        case AIEnum.REALISTIC_VISION:
-          queue = this.turboDiffusionQueue;
-          break;
-        case AIEnum.FLUX_PRO_FINE_TUNE:
-          queue = this.fluxProFineTune;
-          break;
-        case AIEnum.X_ROUTER:
-          queue = this.xRouterQueue;
-          break;
-
-        default:
-          throw new HttpException('Invalid AI service', HttpStatus.BAD_REQUEST);
-      }
-
       return await this.addJobToQueue(
         queue,
         createPostDto.ai_service,
         createPostDto,
         userId,
         jobOptions,
+        mapping,
       );
     } catch (error) {
       console.error(`[generateImagesUsingService] Error:`, {
@@ -737,24 +718,62 @@ export class ImageGenerationService {
     }
   }
 
+  private async getProcessorMapping(aiService: AIEnum): Promise<AIProcessorMappingEntity> {
+    const mapping = await this.aiProcessorMappingRepository.findOne({
+      where: { ai_service: aiService },
+    });
+
+    if (!mapping) {
+      throw new HttpException(
+        `Processor mapping not found for AI service: ${aiService}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    return mapping;
+  }
+
+  private getQueueByProcessorType(processorType: ProcessorType): Queue {
+    switch (processorType) {
+      case ProcessorType.FAL_AI:
+        return this.falAiQueue;
+      case ProcessorType.X_ROUTER:
+        return this.xRouterQueue;
+      default:
+        throw new HttpException(
+          `Unsupported processor type: ${processorType}`,
+          HttpStatus.BAD_REQUEST,
+        );
+    }
+  }
+
   private async addJobToQueue(
     queue: any,
     aiService: AIEnum,
     dto: any,
     userId: number,
     jobOptions: any,
+    mapping: AIProcessorMappingEntity,
   ): Promise<any> {
     try {
-      const jobData = aiService === AIEnum.BYTEDANCE_EDIT 
-        ? { editImageDto: dto, userId }
-        : { createPostDto: dto, userId };
-      
+      const jobData = mapping.is_edit
+        ? {
+            editImageDto: dto,
+            userId,
+            aiService,
+          }
+        : {
+            createPostDto: dto,
+            userId,
+            aiService,
+          };
+
       return await queue.add(aiService, jobData, jobOptions);
     } catch (error) {
       console.error(`[addJobToQueue] Error:`, {
         aiService,
         userId,
-        error: error.message
+        error: error.message,
       });
       throw error;
     }

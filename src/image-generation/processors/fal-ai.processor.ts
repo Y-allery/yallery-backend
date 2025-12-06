@@ -5,13 +5,15 @@ import { ImageGenerationService } from '../image-generation.service';
 import { ActivityEnum } from 'src/activity/types/activity.enum';
 import { NotificationGateway } from 'src/notification/notification.gateway';
 import { AIEnum } from 'src/common/enums/ai.enum';
+import { GenerateImageDto } from '../dto/generate.image.dto';
+import { EditImageDto } from '../dto/edit-image.dto';
 
 @Injectable()
-@Processor('x_router', {
-  concurrency: 20,
-  lockDuration: 180000,
+@Processor('fal_ai', {
+  concurrency: 60,
+  lockDuration: 120000,
 })
-export class XRouterProcessor extends WorkerHost {
+export class FalAiProcessor extends WorkerHost {
   constructor(
     private readonly imageGenerationService: ImageGenerationService,
     private readonly notificationGateway: NotificationGateway,
@@ -20,17 +22,42 @@ export class XRouterProcessor extends WorkerHost {
   }
 
   async process(job: Job<any, any, string>) {
-    const { createPostDto, userId } = job.data;
-    const { generatedImages, suggestedTags } =
-      await this.imageGenerationService.generateXRouter(createPostDto);
+    const { createPostDto, editImageDto, userId, aiService } = job.data;
+
+    let generatedImages: string[];
+    let suggestedTags: { id: number; name: string }[];
+    let dto: GenerateImageDto | EditImageDto;
+    let service: AIEnum;
+
+    if (editImageDto) {
+      const result = await this.imageGenerationService.generateBytedanceEdit(
+        editImageDto,
+      );
+      generatedImages = result.generatedImages;
+      suggestedTags = result.suggestedTags;
+      dto = editImageDto;
+      service = AIEnum.BYTEDANCE_EDIT;
+    } else {
+      if (!createPostDto) {
+        throw new Error('createPostDto is required when editImageDto is not provided');
+      }
+      const result = await this.imageGenerationService.generateFalAi(
+        createPostDto,
+      );
+      generatedImages = result.generatedImages;
+      suggestedTags = result.suggestedTags;
+      dto = createPostDto;
+      service = createPostDto.ai_service;
+    }
+
     const user = await this.imageGenerationService.getUser(userId);
     const data = await this.imageGenerationService.saveGeneratedImages(
       generatedImages,
-      createPostDto,
+      dto,
       user,
-      createPostDto.ai_service,
+      service,
     );
-    await this.imageGenerationService.updateUserCredits(user, createPostDto);
+    await this.imageGenerationService.updateUserCredits(user, dto);
     await this.imageGenerationService.notifyUserOfImageGeneration(+userId);
 
     return { data, suggestedTags };
@@ -38,19 +65,21 @@ export class XRouterProcessor extends WorkerHost {
 
   @OnWorkerEvent('completed')
   async onCompleted(job: Job) {
-    const { userId } = job.data;
+    const { userId, editImageDto } = job.data;
     const generatedImages = job.returnvalue;
+    const isEdit = !!editImageDto;
     await this.notificationGateway.sendImageArrayNotification(
       userId.toString(),
       generatedImages,
       ActivityEnum.IMAGE_GENERATE_SPEND,
-      false,
+      isEdit,
     );
   }
 
   @OnWorkerEvent('failed')
   async onFailed(job: Job, err: Error) {
-    console.error(`Job ${job.id} for X-Router failed: ${err.message}`);
+    const { aiService } = job.data;
+    console.error(`Job ${job.id} for ${aiService} failed: ${err.message}`);
 
     const attemptsMade = job.attemptsMade;
     const maxAttempts = job.opts.attempts ?? 1;
@@ -66,5 +95,4 @@ export class XRouterProcessor extends WorkerHost {
     );
   }
 }
-
 

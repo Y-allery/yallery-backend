@@ -20,47 +20,23 @@ import { ServiceTokenModule } from 'src/service-token/service-token.module';
 import { PartnershipActivityEntity } from 'src/admin/entities/partnership-activity.entity';
 import { PartnerUserLinkEntity } from 'src/admin/entities/partner-user-link.entity';
 import { BullBoardModule } from '@bull-board/nestjs';
-import { SDXLProcessor } from './processors/realistic-vision.queue.processor';
-import { AIEnum } from 'src/common/enums/ai.enum';
-import { SD3Processor } from './processors/aura.queue.processor';
-import { SDProcessor } from './processors/flux.queue.processor';
-import { FluxProProcessor } from './processors/flux.pro.fine.tune';
-import { BytedanceEditProcessor } from './processors/bytedance-edit.queue.processor';
+import { FalAiProcessor } from './processors/fal-ai.processor';
 import { XRouterProcessor } from './processors/x-router.queue.processor';
+import { AIProcessorMappingEntity } from './entities/ai-processor-mapping.entity';
 
 @Module({
   imports: [
     BullModule.registerQueue(
-      { name: AIEnum.AURA_FLOW },
-      { name: AIEnum.FLUX },
-      { name: AIEnum.REALISTIC_VISION },
-      { name: AIEnum.FLUX_PRO_FINE_TUNE },
-      { name: AIEnum.BYTEDANCE_EDIT },
-      { name: AIEnum.X_ROUTER },
+      { name: 'fal_ai' },
+      { name: 'x_router' },
     ),
     BullBoardModule.forFeature(
       {
-        name: AIEnum.AURA_FLOW,
+        name: 'fal_ai',
         adapter: BullMQAdapter,
       },
       {
-        name: AIEnum.FLUX,
-        adapter: BullMQAdapter,
-      },
-      {
-        name: AIEnum.REALISTIC_VISION,
-        adapter: BullMQAdapter,
-      },
-      {
-        name: AIEnum.FLUX_PRO_FINE_TUNE,
-        adapter: BullMQAdapter,
-      },
-      {
-        name: AIEnum.BYTEDANCE_EDIT,
-        adapter: BullMQAdapter,
-      },
-      {
-        name: AIEnum.X_ROUTER,
+        name: 'x_router',
         adapter: BullMQAdapter,
       },
     ),
@@ -76,6 +52,7 @@ import { XRouterProcessor } from './processors/x-router.queue.processor';
       PartnershipActivityEntity,
       PartnerUserLinkEntity,
       AISettingsEntity,
+      AIProcessorMappingEntity,
     ]),
     ActivityModule,
     NotificationModule,
@@ -84,11 +61,7 @@ import { XRouterProcessor } from './processors/x-router.queue.processor';
   ],
   providers: [
     ImageGenerationService,
-    SDXLProcessor,
-    SD3Processor,
-    SDProcessor,
-    FluxProProcessor,
-    BytedanceEditProcessor,
+    FalAiProcessor,
     XRouterProcessor,
   ],
   controllers: [ImageGenerationController],
