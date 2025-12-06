@@ -51,13 +51,13 @@ export class FalAiProcessor extends WorkerHost {
     }
 
     const user = await this.imageGenerationService.getUser(userId);
+    await this.imageGenerationService.updateUserCredits(user, dto);
     const data = await this.imageGenerationService.saveGeneratedImages(
       generatedImages,
       dto,
       user,
       service,
     );
-    await this.imageGenerationService.updateUserCredits(user, dto);
     await this.imageGenerationService.notifyUserOfImageGeneration(+userId);
 
     return { data, suggestedTags };

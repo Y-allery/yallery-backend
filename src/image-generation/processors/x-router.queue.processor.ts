@@ -24,13 +24,13 @@ export class XRouterProcessor extends WorkerHost {
     const { generatedImages, suggestedTags } =
       await this.imageGenerationService.generateXRouter(createPostDto);
     const user = await this.imageGenerationService.getUser(userId);
+    await this.imageGenerationService.updateUserCredits(user, createPostDto);
     const data = await this.imageGenerationService.saveGeneratedImages(
       generatedImages,
       createPostDto,
       user,
       createPostDto.ai_service,
     );
-    await this.imageGenerationService.updateUserCredits(user, createPostDto);
     await this.imageGenerationService.notifyUserOfImageGeneration(+userId);
 
     return { data, suggestedTags };
