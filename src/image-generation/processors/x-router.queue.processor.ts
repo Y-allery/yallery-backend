@@ -38,14 +38,28 @@ export class XRouterProcessor extends WorkerHost {
 
   @OnWorkerEvent('completed')
   async onCompleted(job: Job) {
-    const { userId } = job.data;
-    const generatedImages = job.returnvalue;
-    await this.notificationGateway.sendImageArrayNotification(
-      userId.toString(),
-      generatedImages,
-      ActivityEnum.IMAGE_GENERATE_SPEND,
-      false,
-    );
+    try {
+      const { userId } = job.data;
+      if (!userId) {
+        console.error(`[XRouterProcessor] onCompleted: userId is missing for job ${job.id}`);
+        return;
+      }
+
+      const generatedImages = job.returnvalue;
+      if (!generatedImages) {
+        console.error(`[XRouterProcessor] onCompleted: generatedImages is missing for job ${job.id}`);
+        return;
+      }
+
+      await this.notificationGateway.sendImageArrayNotification(
+        userId.toString(),
+        generatedImages,
+        ActivityEnum.IMAGE_GENERATE_SPEND,
+        false,
+      );
+    } catch (error) {
+      console.error(`[XRouterProcessor] onCompleted error for job ${job.id}:`, error);
+    }
   }
 
   @OnWorkerEvent('failed')

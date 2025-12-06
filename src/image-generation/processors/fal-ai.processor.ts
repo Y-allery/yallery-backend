@@ -65,15 +65,29 @@ export class FalAiProcessor extends WorkerHost {
 
   @OnWorkerEvent('completed')
   async onCompleted(job: Job) {
-    const { userId, editImageDto } = job.data;
-    const generatedImages = job.returnvalue;
-    const isEdit = !!editImageDto;
-    await this.notificationGateway.sendImageArrayNotification(
-      userId.toString(),
-      generatedImages,
-      ActivityEnum.IMAGE_GENERATE_SPEND,
-      isEdit,
-    );
+    try {
+      const { userId, editImageDto } = job.data;
+      if (!userId) {
+        console.error(`[FalAiProcessor] onCompleted: userId is missing for job ${job.id}`);
+        return;
+      }
+
+      const generatedImages = job.returnvalue;
+      if (!generatedImages) {
+        console.error(`[FalAiProcessor] onCompleted: generatedImages is missing for job ${job.id}`);
+        return;
+      }
+
+      const isEdit = !!editImageDto;
+      await this.notificationGateway.sendImageArrayNotification(
+        userId.toString(),
+        generatedImages,
+        ActivityEnum.IMAGE_GENERATE_SPEND,
+        isEdit,
+      );
+    } catch (error) {
+      console.error(`[FalAiProcessor] onCompleted error for job ${job.id}:`, error);
+    }
   }
 
   @OnWorkerEvent('failed')
