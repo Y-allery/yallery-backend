@@ -21,9 +21,25 @@ export class XRouterProcessor extends BaseImageProcessor {
 
   async process(job: Job<any, any, string>) {
     const { createPostDto, userId } = job.data;
+    
+    if (!userId) {
+      throw new Error('userId is required for image generation');
+    }
+
     const { generatedImages, suggestedTags } =
       await this.imageGenerationService.generateXRouter(createPostDto);
+    
+    if (!generatedImages || !Array.isArray(generatedImages) || generatedImages.length === 0) {
+      throw new Error(
+        `No images generated for X-Router. Generated images: ${JSON.stringify(generatedImages)}`,
+      );
+    }
+
     const user = await this.imageGenerationService.getUser(userId);
+    if (!user) {
+      throw new Error(`User with id ${userId} not found`);
+    }
+
     await this.imageGenerationService.updateUserCredits(user, createPostDto);
     const data = await this.imageGenerationService.saveGeneratedImages(
       generatedImages,
@@ -31,7 +47,13 @@ export class XRouterProcessor extends BaseImageProcessor {
       user,
       createPostDto.ai_service,
     );
-    await this.imageGenerationService.notifyUserOfImageGeneration(+userId);
+    
+    try {
+      await this.imageGenerationService.notifyUserOfImageGeneration(+userId);
+    } catch (error) {
+      console.error(`[XRouterProcessor] Failed to notify user ${userId}:`, error);
+      // Не кидаємо помилку, щоб не зламати весь процес
+    }
 
     return { data, suggestedTags };
   }

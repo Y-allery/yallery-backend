@@ -50,7 +50,21 @@ export class FalAiProcessor extends BaseImageProcessor {
       service = createPostDto.ai_service;
     }
 
+    if (!userId) {
+      throw new Error('userId is required for image generation');
+    }
+
+    if (!generatedImages || !Array.isArray(generatedImages) || generatedImages.length === 0) {
+      throw new Error(
+        `No images generated for service ${service}. Generated images: ${JSON.stringify(generatedImages)}`,
+      );
+    }
+
     const user = await this.imageGenerationService.getUser(userId);
+    if (!user) {
+      throw new Error(`User with id ${userId} not found`);
+    }
+
     await this.imageGenerationService.updateUserCredits(user, dto);
     const data = await this.imageGenerationService.saveGeneratedImages(
       generatedImages,
@@ -58,7 +72,13 @@ export class FalAiProcessor extends BaseImageProcessor {
       user,
       service,
     );
-    await this.imageGenerationService.notifyUserOfImageGeneration(+userId);
+    
+    try {
+      await this.imageGenerationService.notifyUserOfImageGeneration(+userId);
+    } catch (error) {
+      console.error(`[FalAiProcessor] Failed to notify user ${userId}:`, error);
+      // Не кидаємо помилку, щоб не зламати весь процес
+    }
 
     return { data, suggestedTags };
   }

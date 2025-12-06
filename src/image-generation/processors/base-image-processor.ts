@@ -50,9 +50,17 @@ export abstract class BaseImageProcessor extends WorkerHost {
         return;
       }
 
-      const generatedImages = job.returnvalue;
-      if (!generatedImages) {
-        console.error(`[${processorName}] onCompleted: generatedImages is missing for job ${job.id}`);
+      const result = job.returnvalue;
+      if (!result) {
+        console.error(`[${processorName}] onCompleted: return value is missing for job ${job.id}`);
+        return;
+      }
+
+      const generatedImages = result?.data || result;
+      if (!generatedImages || !Array.isArray(generatedImages) || generatedImages.length === 0) {
+        console.error(
+          `[${processorName}] onCompleted: generatedImages is missing or empty for job ${job.id}. Return value: ${JSON.stringify(result)}`,
+        );
         return;
       }
 

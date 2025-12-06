@@ -167,6 +167,10 @@ export class ImageGenerationService {
         throw new Error(`Invalid result format: expected image object or array, got ${typeof result.image}`);
       }
       
+      if (!imagesToProcess || imagesToProcess.length === 0) {
+        throw new Error('Bytedance Edit returned no images to process');
+      }
+      
       const uploadPromises = imagesToProcess.map(async (image) => {
         const dataUrl = image.url;
         const uploadResponse = await this.uploadService.uploadByUrl(dataUrl);
@@ -841,6 +845,12 @@ export class ImageGenerationService {
     user: UserEntity,
     service: AIEnum,
   ) {
+    if (!generatedImages || !Array.isArray(generatedImages) || generatedImages.length === 0) {
+      throw new Error(
+        `Cannot save empty generated images array for service ${service}. User: ${user.id}`,
+      );
+    }
+
     const posts = await Promise.all(
       generatedImages.map(async (imageUrl) => {
         if (service === AIEnum.BYTEDANCE_EDIT) {
