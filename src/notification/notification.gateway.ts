@@ -55,8 +55,9 @@ export class NotificationGateway {
     isEdit: boolean = false,
   ) {
     if (this.isUserConnected(to_user_id)) {
+      const imagesArray = Array.isArray(images) ? images : images.data;
       this.server.to(to_user_id).emit('imageGenerated', {
-        images,
+        images: imagesArray,
         activity_type,
         isEdit,
       });
