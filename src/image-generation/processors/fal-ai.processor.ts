@@ -1,24 +1,24 @@
-import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
+import { Processor, OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Injectable } from '@nestjs/common';
 import { ImageGenerationService } from '../image-generation.service';
-import { ActivityEnum } from 'src/activity/types/activity.enum';
 import { NotificationGateway } from 'src/notification/notification.gateway';
 import { AIEnum } from 'src/common/enums/ai.enum';
 import { GenerateImageDto } from '../dto/generate.image.dto';
 import { EditImageDto } from '../dto/edit-image.dto';
+import { BaseImageProcessor } from './base-image-processor';
 
 @Injectable()
 @Processor('fal_ai', {
   concurrency: 60,
   lockDuration: 120000,
 })
-export class FalAiProcessor extends WorkerHost {
+export class FalAiProcessor extends BaseImageProcessor {
   constructor(
     private readonly imageGenerationService: ImageGenerationService,
-    private readonly notificationGateway: NotificationGateway,
+    notificationGateway: NotificationGateway,
   ) {
-    super();
+    super(notificationGateway);
   }
 
   async process(job: Job<any, any, string>) {
@@ -65,48 +65,9 @@ export class FalAiProcessor extends WorkerHost {
 
   @OnWorkerEvent('completed')
   async onCompleted(job: Job) {
-    try {
-      const { userId, editImageDto } = job.data;
-      if (!userId) {
-        console.error(`[FalAiProcessor] onCompleted: userId is missing for job ${job.id}`);
-        return;
-      }
-
-      const generatedImages = job.returnvalue;
-      if (!generatedImages) {
-        console.error(`[FalAiProcessor] onCompleted: generatedImages is missing for job ${job.id}`);
-        return;
-      }
-
-      const isEdit = !!editImageDto;
-      await this.notificationGateway.sendImageArrayNotification(
-        userId.toString(),
-        generatedImages,
-        ActivityEnum.IMAGE_GENERATE_SPEND,
-        isEdit,
-      );
-    } catch (error) {
-      console.error(`[FalAiProcessor] onCompleted error for job ${job.id}:`, error);
-    }
-  }
-
-  @OnWorkerEvent('failed')
-  async onFailed(job: Job, err: Error) {
-    const { aiService } = job.data;
-    console.error(`Job ${job.id} for ${aiService} failed: ${err.message}`);
-
-    const attemptsMade = job.attemptsMade;
-    const maxAttempts = job.opts.attempts ?? 1;
-
-    if (attemptsMade < maxAttempts) {
-      return;
-    }
-
-    const { userId } = job.data;
-    await this.notificationGateway.sendErrorNotification(
-      userId.toString(),
-      ` ${err.message}`,
-    );
+    const { editImageDto } = job.data;
+    const isEdit = !!editImageDto;
+    await this.handleCompletedNotification(job, isEdit);
   }
 }
 
