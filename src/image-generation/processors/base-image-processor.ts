@@ -74,10 +74,12 @@ export abstract class BaseImageProcessor extends WorkerHost {
         return;
       }
 
+      const suggestedTags = result?.suggestedTags || [];
+
       console.log(`[${processorName}] Sending success notification for job ${job.id} with ${generatedImages.length} images`);
       await this.notificationGateway.sendImageArrayNotification(
         userId.toString(),
-        { data: generatedImages },
+        { data: generatedImages, suggestedTags },
         ActivityEnum.IMAGE_GENERATE_SPEND,
         isEdit,
       );

@@ -106,6 +106,9 @@ export class ImageGenerationService {
       const otherTag = await this.tagEntity.findOne({
         where: { name: 'other' },
       });
+      if (!otherTag) {
+        throw new Error('Tag "other" not found in database');
+      }
       suggestedTags.push({
         id: otherTag.id,
         name: '#' + otherTag.name,
@@ -116,7 +119,7 @@ export class ImageGenerationService {
       try {
         tag = await this.findBestTag(editImageDto.prompt);
 
-        if (tag.id !== otherTag.id) {
+        if (tag && tag.id !== otherTag.id) {
           suggestedTags.push({
             id: tag.id,
             name: '#' + tag.name,
@@ -205,27 +208,29 @@ export class ImageGenerationService {
     try {
       console.log(`[generateFalAi] Starting | Service: ${createPostDto.ai_service} | Quantity: ${createPostDto.image_quantity} | Prompt: ${createPostDto.prompt.substring(0, 50)}...`);
       const suggestedTags = [];
-      if (createPostDto.auto_tag_select) {
+      
+      try {
         tag = await this.findBestTag(createPostDto.prompt);
-        suggestedTags.push({
-          id: tag.id,
-          name: '#' + tag.name,
-          imageUrl: tag.imageUrl,
-        });
-      } else {
-        tag = await this.tagEntity.findOne({
-          where: { id: createPostDto.tag_id },
-        });
-        suggestedTags.push({
-          id: tag.id,
-          name: '#' + tag.name,
-          imageUrl: tag.imageUrl,
-        });
+        if (tag) {
+          suggestedTags.push({
+            id: tag.id,
+            name: '#' + tag.name,
+            imageUrl: tag.imageUrl,
+          });
+        }
+      } catch (aiError) {
+        console.warn(
+          'AI tag generation failed, will use only "other" tag:',
+          aiError.message,
+        );
       }
 
       const otherTag = await this.tagEntity.findOne({
         where: { name: 'other' },
       });
+      if (!otherTag) {
+        throw new Error('Tag "other" not found in database');
+      }
       suggestedTags.push({
         id: otherTag.id,
         name: '#' + otherTag.name,
@@ -406,27 +411,28 @@ export class ImageGenerationService {
       console.log(`[generateXRouter] Starting | Quantity: ${createPostDto.image_quantity} | Prompt: ${createPostDto.prompt.substring(0, 50)}...`);
       const suggestedTags = [];
       
-      if (createPostDto.auto_tag_select) {
+      try {
         tag = await this.findBestTag(createPostDto.prompt);
-        suggestedTags.push({
-          id: tag.id,
-          name: '#' + tag.name,
-          imageUrl: tag.imageUrl,
-        });
-      } else {
-        tag = await this.tagEntity.findOne({
-          where: { id: createPostDto.tag_id },
-        });
-        suggestedTags.push({
-          id: tag.id,
-          name: '#' + tag.name,
-          imageUrl: tag.imageUrl,
-        });
+        if (tag) {
+          suggestedTags.push({
+            id: tag.id,
+            name: '#' + tag.name,
+            imageUrl: tag.imageUrl,
+          });
+        }
+      } catch (aiError) {
+        console.warn(
+          'AI tag generation failed, will use only "other" tag:',
+          aiError.message,
+        );
       }
 
       const otherTag = await this.tagEntity.findOne({
         where: { name: 'other' },
       });
+      if (!otherTag) {
+        throw new Error('Tag "other" not found in database');
+      }
       suggestedTags.push({
         id: otherTag.id,
         name: '#' + otherTag.name,

@@ -55,16 +55,29 @@ export class NotificationGateway {
     isEdit: boolean = false,
   ) {
     if (this.isUserConnected(to_user_id)) {
-      const imagesArray = Array.isArray(images) ? images : (images?.data || []);
-      if (!Array.isArray(imagesArray) || imagesArray.length === 0) {
+      if (Array.isArray(images)) {
+        this.server.to(to_user_id).emit('imageGenerated', {
+          images: { data: images, suggestedTags: [] },
+          activity_type,
+          isEdit,
+        });
+      } else if (images?.data && Array.isArray(images.data)) {
+        if (images.data.length === 0) {
+          console.error(`[NotificationGateway] Empty images.data for user ${to_user_id}`);
+          return;
+        }
+        this.server.to(to_user_id).emit('imageGenerated', {
+          images: {
+            data: images.data,
+            suggestedTags: images.suggestedTags || [],
+          },
+          activity_type,
+          isEdit,
+        });
+      } else {
         console.error(`[NotificationGateway] Invalid images structure for user ${to_user_id}:`, images);
         return;
       }
-      this.server.to(to_user_id).emit('imageGenerated', {
-        images: imagesArray,
-        activity_type,
-        isEdit,
-      });
     } else {
       if (!images?.data || !Array.isArray(images.data) || images.data.length === 0) {
         console.error(`[NotificationGateway] Invalid images.data structure for offline user ${to_user_id}:`, images);
