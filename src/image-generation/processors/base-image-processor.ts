@@ -77,7 +77,7 @@ export abstract class BaseImageProcessor extends WorkerHost {
       console.log(`[${processorName}] Sending success notification for job ${job.id} with ${generatedImages.length} images`);
       await this.notificationGateway.sendImageArrayNotification(
         userId.toString(),
-        generatedImages,
+        { data: generatedImages },
         ActivityEnum.IMAGE_GENERATE_SPEND,
         isEdit,
       );
