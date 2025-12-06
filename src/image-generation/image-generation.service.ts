@@ -208,8 +208,7 @@ export class ImageGenerationService {
     try {
       console.log(`[generateFalAi] Starting | Service: ${createPostDto.ai_service} | Quantity: ${createPostDto.image_quantity} | Prompt: ${createPostDto.prompt.substring(0, 50)}...`);
       const suggestedTags = [];
-      
-      try {
+      if (createPostDto.auto_tag_select) {
         tag = await this.findBestTag(createPostDto.prompt);
         if (tag) {
           suggestedTags.push({
@@ -218,11 +217,18 @@ export class ImageGenerationService {
             imageUrl: tag.imageUrl,
           });
         }
-      } catch (aiError) {
-        console.warn(
-          'AI tag generation failed, will use only "other" tag:',
-          aiError.message,
-        );
+      } else {
+        tag = await this.tagEntity.findOne({
+          where: { id: createPostDto.tag_id },
+        });
+        if (!tag) {
+          throw new BadRequestException(`Tag with id ${createPostDto.tag_id} not found`);
+        }
+        suggestedTags.push({
+          id: tag.id,
+          name: '#' + tag.name,
+          imageUrl: tag.imageUrl,
+        });
       }
 
       const otherTag = await this.tagEntity.findOne({
@@ -411,7 +417,7 @@ export class ImageGenerationService {
       console.log(`[generateXRouter] Starting | Quantity: ${createPostDto.image_quantity} | Prompt: ${createPostDto.prompt.substring(0, 50)}...`);
       const suggestedTags = [];
       
-      try {
+      if (createPostDto.auto_tag_select) {
         tag = await this.findBestTag(createPostDto.prompt);
         if (tag) {
           suggestedTags.push({
@@ -420,11 +426,18 @@ export class ImageGenerationService {
             imageUrl: tag.imageUrl,
           });
         }
-      } catch (aiError) {
-        console.warn(
-          'AI tag generation failed, will use only "other" tag:',
-          aiError.message,
-        );
+      } else {
+        tag = await this.tagEntity.findOne({
+          where: { id: createPostDto.tag_id },
+        });
+        if (!tag) {
+          throw new BadRequestException(`Tag with id ${createPostDto.tag_id} not found`);
+        }
+        suggestedTags.push({
+          id: tag.id,
+          name: '#' + tag.name,
+          imageUrl: tag.imageUrl,
+        });
       }
 
       const otherTag = await this.tagEntity.findOne({
