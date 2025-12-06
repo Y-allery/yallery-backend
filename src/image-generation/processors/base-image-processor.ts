@@ -18,13 +18,11 @@ export abstract class BaseImageProcessor extends WorkerHost {
 
     console.error(`Job ${job.id} for ${aiService || 'unknown'} failed in ${processorName}: ${err.message} | Attempts: ${attemptsMade}/${maxAttempts}`);
 
-    // Не відправляємо помилку, якщо є ще спроби для retry
     if (attemptsMade < maxAttempts) {
       console.log(`[${processorName}] Job ${job.id} will be retried (${attemptsMade + 1}/${maxAttempts})`);
       return;
     }
 
-    // Перевіряємо, чи джоба дійсно failed (не в процесі retry)
     if (job.finishedOn && job.processedOn) {
       const jobState = await job.getState().catch(() => null);
       if (jobState !== 'failed') {
@@ -56,13 +54,6 @@ export abstract class BaseImageProcessor extends WorkerHost {
     const processorName = this.constructor.name;
     
     try {
-      // Перевіряємо, чи джоба дійсно completed, а не failed
-      const jobState = await job.getState().catch(() => 'completed');
-      if (jobState !== 'completed') {
-        console.log(`[${processorName}] Job ${job.id} is not in completed state (${jobState}), skipping success notification`);
-        return;
-      }
-
       const { userId } = job.data;
       if (!userId) {
         console.error(`[${processorName}] onCompleted: userId is missing for job ${job.id}`);

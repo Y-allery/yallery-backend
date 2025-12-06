@@ -83,13 +83,11 @@ export class FalAiProcessor extends BaseImageProcessor {
         await this.imageGenerationService.notifyUserOfImageGeneration(+userId);
       } catch (error) {
         console.error(`[FalAiProcessor] Failed to notify user ${userId}:`, error);
-        // Не кидаємо помилку, щоб не зламати весь процес
       }
 
       console.log(`[FalAiProcessor] Successfully generated ${generatedImages.length} images | Job: ${job.id} | User: ${userId} | Service: ${serviceName}`);
       return { data, suggestedTags };
     } catch (error) {
-      // Помилка буде залогована в onFailed
       throw error;
     }
   }

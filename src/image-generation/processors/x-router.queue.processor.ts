@@ -56,13 +56,11 @@ export class XRouterProcessor extends BaseImageProcessor {
         await this.imageGenerationService.notifyUserOfImageGeneration(+userId);
       } catch (error) {
         console.error(`[XRouterProcessor] Failed to notify user ${userId}:`, error);
-        // Не кидаємо помилку, щоб не зламати весь процес
       }
 
       console.log(`[XRouterProcessor] Successfully generated ${generatedImages.length} images | Job: ${job.id} | User: ${userId} | Service: ${createPostDto?.ai_service}`);
       return { data, suggestedTags };
     } catch (error) {
-      // Помилка буде залогована в onFailed
       throw error;
     }
   }
