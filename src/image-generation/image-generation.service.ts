@@ -99,6 +99,7 @@ export class ImageGenerationService {
     let token: AiServiceToken;
     let tag: TagEntity;
     try {
+      console.log(`[generateBytedanceEdit] Starting | Prompt: ${editImageDto.prompt.substring(0, 50)}...`);
       const suggestedTags = [];
       
       
@@ -179,18 +180,10 @@ export class ImageGenerationService {
 
       const uploadResponses = await Promise.all(uploadPromises);
 
+      console.log(`[generateBytedanceEdit] Success | Generated: ${uploadResponses.length} images`);
       return { generatedImages: uploadResponses, suggestedTags };
     } catch (error) {
-      console.error('❌ Bytedance Edit Debug - Error details:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name,
-        code: error.code,
-        status: error.status,
-        statusCode: error.statusCode,
-        response: error.response?.data,
-        fullError: JSON.stringify(error, null, 2)
-      });
+      console.error(`[generateBytedanceEdit] Failed | Error: ${error.message}`);
       
       if (token?.token) {
         await this.serviceTokenService.markTokenAsRateLimited(
@@ -210,6 +203,7 @@ export class ImageGenerationService {
     let token: AiServiceToken;
     let tag: TagEntity;
     try {
+      console.log(`[generateFalAi] Starting | Service: ${createPostDto.ai_service} | Quantity: ${createPostDto.image_quantity} | Prompt: ${createPostDto.prompt.substring(0, 50)}...`);
       const suggestedTags = [];
       if (createPostDto.auto_tag_select) {
         tag = await this.findBestTag(createPostDto.prompt);
@@ -353,10 +347,11 @@ export class ImageGenerationService {
 
       const uploadResponses = await Promise.all(uploadPromises);
 
+      console.log(`[generateFalAi] Success | Service: ${createPostDto.ai_service} | Generated: ${uploadResponses.length} images`);
       return { generatedImages: uploadResponses, suggestedTags };
     } catch (error) {
       console.error(
-        `[FalAI] Error generating images for service ${createPostDto.ai_service}:`,
+        `[generateFalAi] Failed | Service: ${createPostDto.ai_service} | Error: ${error.message}`,
         {
           message: error.message,
           stack: error.stack,
@@ -408,6 +403,7 @@ export class ImageGenerationService {
   }> {
     let tag: TagEntity;
     try {
+      console.log(`[generateXRouter] Starting | Quantity: ${createPostDto.image_quantity} | Prompt: ${createPostDto.prompt.substring(0, 50)}...`);
       const suggestedTags = [];
       
       if (createPostDto.auto_tag_select) {
@@ -514,13 +510,10 @@ export class ImageGenerationService {
 
       const uploadResponses = await Promise.all(uploadPromises);
 
+      console.log(`[generateXRouter] Success | Generated: ${uploadResponses.length} images`);
       return { generatedImages: uploadResponses, suggestedTags };
     } catch (error) {
-      console.error(`[X-Router] Error generating images:`, {
-        error: error.message,
-        stack: error.stack,
-        prompt: createPostDto.prompt?.substring(0, 50),
-      });
+      console.error(`[generateXRouter] Failed | Error: ${error.message}`);
       throw new Error(`Failed to generate images via x-router: ${error.message}`);
     }
   }

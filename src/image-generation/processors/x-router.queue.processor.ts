@@ -26,8 +26,12 @@ export class XRouterProcessor extends BaseImageProcessor {
       throw new Error('userId is required for image generation');
     }
 
-    const { generatedImages, suggestedTags } =
-      await this.imageGenerationService.generateXRouter(createPostDto);
+    const prompt = createPostDto?.prompt || 'N/A';
+    console.log(`[XRouterProcessor] Starting generation | Job: ${job.id} | User: ${userId} | Service: ${createPostDto?.ai_service} | Prompt: ${prompt.substring(0, 50)}...`);
+
+    try {
+      const { generatedImages, suggestedTags } =
+        await this.imageGenerationService.generateXRouter(createPostDto);
     
     if (!generatedImages || !Array.isArray(generatedImages) || generatedImages.length === 0) {
       throw new Error(
@@ -48,14 +52,19 @@ export class XRouterProcessor extends BaseImageProcessor {
       createPostDto.ai_service,
     );
     
-    try {
-      await this.imageGenerationService.notifyUserOfImageGeneration(+userId);
-    } catch (error) {
-      console.error(`[XRouterProcessor] Failed to notify user ${userId}:`, error);
-      // Не кидаємо помилку, щоб не зламати весь процес
-    }
+      try {
+        await this.imageGenerationService.notifyUserOfImageGeneration(+userId);
+      } catch (error) {
+        console.error(`[XRouterProcessor] Failed to notify user ${userId}:`, error);
+        // Не кидаємо помилку, щоб не зламати весь процес
+      }
 
-    return { data, suggestedTags };
+      console.log(`[XRouterProcessor] Successfully generated ${generatedImages.length} images | Job: ${job.id} | User: ${userId} | Service: ${createPostDto?.ai_service}`);
+      return { data, suggestedTags };
+    } catch (error) {
+      // Помилка буде залогована в onFailed
+      throw error;
+    }
   }
 
   @OnWorkerEvent('completed')
