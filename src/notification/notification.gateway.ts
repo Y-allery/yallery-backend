@@ -55,14 +55,26 @@ export class NotificationGateway {
     isEdit: boolean = false,
   ) {
     if (this.isUserConnected(to_user_id)) {
-      const imagesArray = Array.isArray(images) ? images : images.data;
+      const imagesArray = Array.isArray(images) ? images : (images?.data || []);
+      if (!Array.isArray(imagesArray) || imagesArray.length === 0) {
+        console.error(`[NotificationGateway] Invalid images structure for user ${to_user_id}:`, images);
+        return;
+      }
       this.server.to(to_user_id).emit('imageGenerated', {
         images: imagesArray,
         activity_type,
         isEdit,
       });
     } else {
-      const postIds = images.data.map((img) => img.id);
+      if (!images?.data || !Array.isArray(images.data) || images.data.length === 0) {
+        console.error(`[NotificationGateway] Invalid images.data structure for offline user ${to_user_id}:`, images);
+        return;
+      }
+      const postIds = images.data.map((img) => img.id).filter((id) => id != null);
+      if (postIds.length === 0) {
+        console.error(`[NotificationGateway] No valid post IDs found for offline user ${to_user_id}`);
+        return;
+      }
       await this.postRepository.update(
         { id: In(postIds) },
         { is_delivered: false },

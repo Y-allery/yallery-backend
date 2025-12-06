@@ -44,13 +44,25 @@ export class XRouterProcessor extends BaseImageProcessor {
       throw new Error(`User with id ${userId} not found`);
     }
 
-    await this.imageGenerationService.updateUserCredits(user, createPostDto);
-    const data = await this.imageGenerationService.saveGeneratedImages(
-      generatedImages,
-      createPostDto,
-      user,
-      createPostDto.ai_service,
-    );
+    try {
+      await this.imageGenerationService.updateUserCredits(user, createPostDto);
+    } catch (error) {
+      console.error(`[XRouterProcessor] Failed to update credits for user ${userId}:`, error);
+      throw new Error(`Failed to update user credits: ${error.message}`);
+    }
+
+    let data;
+    try {
+      data = await this.imageGenerationService.saveGeneratedImages(
+        generatedImages,
+        createPostDto,
+        user,
+        createPostDto.ai_service,
+      );
+    } catch (error) {
+      console.error(`[XRouterProcessor] Failed to save images for user ${userId}, credits already deducted:`, error);
+      throw new Error(`Failed to save generated images: ${error.message}`);
+    }
     
       try {
         await this.imageGenerationService.notifyUserOfImageGeneration(+userId);

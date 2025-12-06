@@ -71,13 +71,25 @@ export class FalAiProcessor extends BaseImageProcessor {
         throw new Error(`User with id ${userId} not found`);
       }
 
-      await this.imageGenerationService.updateUserCredits(user, dto);
-      const data = await this.imageGenerationService.saveGeneratedImages(
-        generatedImages,
-        dto,
-        user,
-        service,
-      );
+      try {
+        await this.imageGenerationService.updateUserCredits(user, dto);
+      } catch (error) {
+        console.error(`[FalAiProcessor] Failed to update credits for user ${userId}:`, error);
+        throw new Error(`Failed to update user credits: ${error.message}`);
+      }
+
+      let data;
+      try {
+        data = await this.imageGenerationService.saveGeneratedImages(
+          generatedImages,
+          dto,
+          user,
+          service,
+        );
+      } catch (error) {
+        console.error(`[FalAiProcessor] Failed to save images for user ${userId}, credits already deducted:`, error);
+        throw new Error(`Failed to save generated images: ${error.message}`);
+      }
       
       try {
         await this.imageGenerationService.notifyUserOfImageGeneration(+userId);
