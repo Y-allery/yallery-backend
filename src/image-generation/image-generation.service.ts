@@ -332,6 +332,12 @@ export class ImageGenerationService {
         input: inputParams,
       });
 
+      if (!result.images || !Array.isArray(result.images) || result.images.length === 0) {
+        throw new Error(
+          `FalAI service ${createPostDto.ai_service} returned no images. Result: ${JSON.stringify(result)}`,
+        );
+      }
+
       const end = Date.now();
       const uploadPromises = result.images.map(async (image) => {
         const dataUrl = image.url;
