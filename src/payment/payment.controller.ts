@@ -15,12 +15,26 @@ export class PaymentController {
   @ApiResponse(PAYMENT_SWAGGER.handleWebhook.responses.badRequest)
   @ApiResponse(PAYMENT_SWAGGER.handleWebhook.responses.internalError)
   async handlePaymentWebhook(@Req() req: Request, @Res() res: Response) {
+    console.log('🎯 ===== PAYMENT CONTROLLER CALLED =====');
+    console.log('🎯 Request method:', req.method);
+    console.log('🎯 Request URL:', req.url);
+    console.log('🎯 Request body type:', typeof req.body);
+    console.log('🎯 Request body is Buffer:', Buffer.isBuffer(req.body));
+    
     try {
       const webhookData = req.body;
+      
+      if (!webhookData) {
+        console.error('❌ Request body is empty or undefined!');
+        return res.status(HttpStatus.BAD_REQUEST).json({
+          error: 'Request body is required',
+        });
+      }
+      
       const dataString = webhookData.toString('utf-8');
       
       console.log('📥 Webhook received, length:', webhookData.length);
-      console.log('📥 Webhook data preview:', dataString.substring(0, 300));
+      console.log('📥 Webhook data preview:', dataString.substring(0, 500));
 
       const parsedData = JSON.parse(dataString);
 

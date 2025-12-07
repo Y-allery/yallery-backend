@@ -48,7 +48,7 @@ async function bootstrap() {
   });
 
   try {
-    await redisClient.connect();
+  await redisClient.connect();
   } catch (error) {
     console.error('❌ Failed to connect to Redis:', error);
     process.exit(1);
@@ -72,6 +72,16 @@ async function bootstrap() {
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
+
+  app.use('/payment/webhook', (req, res, next) => {
+    console.log('🔔 ===== WEBHOOK REQUEST RECEIVED =====');
+    console.log('🔔 Method:', req.method);
+    console.log('🔔 URL:', req.url);
+    console.log('🔔 Headers:', JSON.stringify(req.headers, null, 2));
+    console.log('🔔 IP:', req.ip || req.connection.remoteAddress);
+    console.log('🔔 ====================================');
+    next();
+  });
 
   app.use('/payment/webhook', bodyParser.raw({ type: 'application/json' }));
   app.use(bodyParser.json());
@@ -117,10 +127,10 @@ async function bootstrap() {
 
   const port = process.env.PORT || 8000;
   try {
-    await app.listen(port, '0.0.0.0');
-    console.log(`🚀 Application is running on: http://0.0.0.0:${port}`);
-    console.log(`📚 Swagger documentation: http://0.0.0.0:${port}/api`);
-    console.log(`⏰ Cron jobs are enabled and will run every 10 minutes`);
+  await app.listen(port, '0.0.0.0');
+  console.log(`🚀 Application is running on: http://0.0.0.0:${port}`);
+  console.log(`📚 Swagger documentation: http://0.0.0.0:${port}/api`);
+  console.log(`⏰ Cron jobs are enabled and will run every 10 minutes`);
   } catch (error) {
     console.error(`❌ Failed to start server on port ${port}:`, error);
     if (redisClient) {
@@ -139,7 +149,7 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 
-process.on('SIGTERM', async () => {
+  process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully...');
   await closeBrowser();
   if (redisClient) {
@@ -148,7 +158,7 @@ process.on('SIGTERM', async () => {
   process.exit(0);
 });
 
-process.on('SIGINT', async () => {
+  process.on('SIGINT', async () => {
   console.log('SIGINT received, shutting down gracefully...');
   await closeBrowser();
   if (redisClient) {
