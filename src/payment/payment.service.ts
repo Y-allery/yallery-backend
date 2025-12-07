@@ -26,19 +26,24 @@ export class PaymentService {
   async processWebhook(webhookData: Buffer): Promise<void> {
     try {
       const dataString = webhookData.toString('utf-8');
+      this.logger.log(`📥 Received webhook data: ${dataString.substring(0, 200)}...`);
 
       const parsedData = JSON.parse(dataString);
 
       const profileId = parsedData.customer_user_id;
       const eventType = parsedData.event_type;
 
+      this.logger.log(`🔍 Webhook data - profileId: ${profileId}, eventType: ${eventType}`);
+
       if (!profileId || !eventType) {
+        this.logger.warn(`⚠️ Missing profileId or eventType. profileId: ${profileId}, eventType: ${eventType}`);
         return;
       }
 
       const user = await this.userService.findById(profileId);
 
       if (!user) {
+        this.logger.warn(`⚠️ User not found with id: ${profileId}`);
         return;
       }
 
@@ -46,17 +51,23 @@ export class PaymentService {
         case 'non_subscription_purchase':
           const eventProperties = parsedData.event_properties;
           const productId = eventProperties?.vendor_product_id;
+          
+          this.logger.log(`💰 Processing purchase - productId: ${productId}, userId: ${profileId}`);
+          
           if (!productId) {
+            this.logger.warn(`⚠️ Missing productId in event_properties`);
             return;
           }
 
           const pointsToAdd = await this.getPointsForProduct(productId);
 
           if (pointsToAdd === null) {
-            this.logger.error(`Unknown productId: ${productId}`);
+            this.logger.error(`❌ Unknown productId: ${productId}`);
             return;
           }
 
+          const isTest = parsedData.is_sandbox === true || parsedData.environment === 'sandbox' || parsedData.test === true;
+          
           user.points += pointsToAdd;
           await this.userService.updateUser(user);
           await this.notificationGateway.emitProfileUpdate(user.id.toString());
@@ -77,15 +88,16 @@ export class PaymentService {
           await this.paymentRepository.save(payment);
           
           this.logger.log(
-            `Added ${pointsToAdd} points to user ${profileId} for product ${productId} and saved payment record`,
+            `✅ Added ${pointsToAdd} points to user ${profileId} for product ${productId} and saved payment record (ID: ${payment.id}, Test: ${isTest})`,
           );
           break;
 
         default:
-          this.logger.warn(`Unhandled event type: ${eventType}`);
+          this.logger.warn(`⚠️ Unhandled event type: ${eventType}`);
       }
     } catch (error) {
-      this.logger.error('Error processing webhook:', error);
+      this.logger.error('❌ Error processing webhook:', error);
+      this.logger.error('Error stack:', error.stack);
     }
   }
 

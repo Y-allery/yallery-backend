@@ -18,14 +18,19 @@ export class PaymentController {
     try {
       const webhookData = req.body;
       const dataString = webhookData.toString('utf-8');
+      
+      console.log('📥 Webhook received, length:', webhookData.length);
+      console.log('📥 Webhook data preview:', dataString.substring(0, 300));
 
       const parsedData = JSON.parse(dataString);
 
       if (parsedData.adapty_check) {
+        console.log('✅ Adapty check request, skipping processing');
         res.status(HttpStatus.OK).json({
           adapty_check_response: parsedData.adapty_check,
         });
       } else {
+        console.log('🔄 Processing webhook event...');
         await this.paymentService.processWebhook(webhookData);
 
         res.status(HttpStatus.OK).json({
@@ -34,10 +39,12 @@ export class PaymentController {
         });
       }
     } catch (error) {
-      console.error('Error processing webhook:', error);
+      console.error('❌ Error processing webhook:', error);
+      console.error('Error stack:', error.stack);
 
       res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
         error: 'Error processing webhook',
+        message: error.message,
       });
     }
   }
