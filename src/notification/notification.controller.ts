@@ -1,7 +1,8 @@
 import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
 import { NotificationService } from './notification.service';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
-import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiOperation, ApiTags, ApiResponse } from '@nestjs/swagger';
+import { NOTIFICATION_SWAGGER } from 'src/common/swagger';
 import { SetNotificationPreferenceDto } from './dto/change.notification.settings.dto';
 
 @Controller('notification')
@@ -11,8 +12,10 @@ export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
 
   @Post('set')
-  @ApiOperation({ summary: 'Set notification preference' })
+  @ApiOperation(NOTIFICATION_SWAGGER.setPreference)
   @ApiBody({ type: SetNotificationPreferenceDto })
+  @ApiResponse(NOTIFICATION_SWAGGER.setPreference.responses.success)
+  @ApiResponse(NOTIFICATION_SWAGGER.setPreference.responses.badRequest)
   async setPreference(
     @Req() req: any,
     @Body() body: SetNotificationPreferenceDto,

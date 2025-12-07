@@ -2,7 +2,8 @@ import { Controller, Get, Put, Query, Req, UseGuards, Post, Patch, Body } from '
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { ActivityService } from './activity.service';
 import { AuthenticatedRequest } from 'src/auth/types/auth.user.interface';
-import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiResponse, ApiTags, ApiBody } from '@nestjs/swagger';
+import { ACTIVITY_SWAGGER } from 'src/common/swagger';
 import { ActivityEntity } from './entities/activity.entity';
 import { ActivityEnum } from './types/activity.enum';
 import { ClaimDailyRewardResponseDto } from './dto/claim-daily-reward.dto';
@@ -16,18 +17,14 @@ export class ActivityController {
 
   @Get('user-profile-activity')
   @UseGuards(JwtAuthGuard)
+  @ApiOperation(ACTIVITY_SWAGGER.getUserActivities)
   @ApiQuery({ name: 'filter', enum: ['earned', 'spent'], required: true })
   @ApiQuery({
     name: 'period',
     enum: ['day', 'week', 'month', 'year'],
     required: true,
   })
-  @ApiOperation({ summary: 'Get user activities' })
-  @ApiResponse({
-    status: 200,
-    description: 'Return user activities based on filter and period',
-    type: [ActivityEntity],
-  })
+  @ApiResponse(ACTIVITY_SWAGGER.getUserActivities.responses.success)
   async getUserActivities(
     @Req() req: AuthenticatedRequest,
     @Query('filter') filter: 'earned' | 'spent',
@@ -39,16 +36,10 @@ export class ActivityController {
 
   @Get('user')
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({
-    summary: 'Get paginated activities for the authenticated user',
-  })
+  @ApiOperation(ACTIVITY_SWAGGER.getPaginatedActivities)
   @ApiQuery({ name: 'skip', required: false, type: 'number', example: 0 })
   @ApiQuery({ name: 'take', required: false, type: 'number', example: 10 })
-  @ApiResponse({
-    status: 200,
-    description: 'Return paginated activities for the authenticated user',
-    type: [ActivityEntity],
-  })
+  @ApiResponse(ACTIVITY_SWAGGER.getPaginatedActivities.responses.success)
   async getPaginatedActivitiesForUser(
     @Req() req: AuthenticatedRequest,
     @Query('skip') skip = 0,
@@ -64,13 +55,8 @@ export class ActivityController {
 
   @Put('user/activities/mark-all-as-read')
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({
-    summary: 'Mark all activities as read for the authenticated user',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Successfully marked all activities as read',
-  })
+  @ApiOperation(ACTIVITY_SWAGGER.markAllActivitiesAsRead)
+  @ApiResponse(ACTIVITY_SWAGGER.markAllActivitiesAsRead.responses.success)
   async markAllActivitiesAsRead(@Req() req: AuthenticatedRequest) {
     const userId = req.user.id;
     await this.activityService.markAllActivitiesAsRead(userId);
@@ -79,13 +65,8 @@ export class ActivityController {
 
   @Put('user/activities/mark-contest-as-read')
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({
-    summary: 'Mark all activities as read for the authenticated user',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Successfully marked all activities as read',
-  })
+  @ApiOperation(ACTIVITY_SWAGGER.markContestActivitiesAsRead)
+  @ApiResponse(ACTIVITY_SWAGGER.markContestActivitiesAsRead.responses.success)
   async markContestActivitiesAsRead(@Req() req: AuthenticatedRequest) {
     const userId = req.user.id;
     await this.activityService.markContestActivityAsRead(userId);
@@ -94,13 +75,8 @@ export class ActivityController {
 
   @Put('user/activities/mark-collabs-as-read')
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({
-    summary: 'Mark all activities as read for the authenticated user',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Successfully marked all activities as read',
-  })
+  @ApiOperation(ACTIVITY_SWAGGER.markCollabsActivitiesAsRead)
+  @ApiResponse(ACTIVITY_SWAGGER.markCollabsActivitiesAsRead.responses.success)
   async markCollabsActivitiesAsRead(@Req() req: AuthenticatedRequest) {
     const userId = req.user.id;
     await this.activityService.markContestCollabsAsRead(userId);
@@ -109,12 +85,8 @@ export class ActivityController {
 
   @Get('types')
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Get specific activity types' })
-  @ApiResponse({
-    status: 200,
-    description: 'Return specific activity types with detailed descriptions',
-    type: 'json',
-  })
+  @ApiOperation(ACTIVITY_SWAGGER.getActivityTypes)
+  @ApiResponse(ACTIVITY_SWAGGER.getActivityTypes.responses.success)
   async getAllActivityTypes(@Req() req: AuthenticatedRequest) {
     const userId = req.user.id;
     return await this.activityService.getNotificationPreferences(userId, [
@@ -125,12 +97,9 @@ export class ActivityController {
 
   @Post('claim-daily-reward')
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Claim daily reward' })
-  @ApiResponse({
-    status: 200,
-    description: 'Daily reward claimed successfully or already claimed today',
-    type: ClaimDailyRewardResponseDto
-  })
+  @ApiOperation(ACTIVITY_SWAGGER.claimDailyReward)
+  @ApiResponse(ACTIVITY_SWAGGER.claimDailyReward.responses.success)
+  @ApiResponse(ACTIVITY_SWAGGER.claimDailyReward.responses.badRequest)
   async claimDailyReward(@Req() req: AuthenticatedRequest): Promise<ClaimDailyRewardResponseDto> {
     const userId = req.user.id;
     return await this.activityService.claimDailyReward(userId);
@@ -138,12 +107,8 @@ export class ActivityController {
 
   @Get('popular-posts')
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Get 6 most popular posts' })
-  @ApiResponse({
-    status: 200,
-    description: 'Returns 6 most popular posts by likes and views',
-    type: PopularPostsResponseDto
-  })
+  @ApiOperation(ACTIVITY_SWAGGER.getPopularPosts)
+  @ApiResponse(ACTIVITY_SWAGGER.getPopularPosts.responses.success)
   async getPopularPosts(@Req() req: AuthenticatedRequest): Promise<PopularPostsResponseDto> {
     const userId = req.user.id;
     return await this.activityService.getPopularPosts(userId);
@@ -151,11 +116,9 @@ export class ActivityController {
 
   @Patch('mark-posts-viewed')
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Mark posts as viewed' })
-  @ApiResponse({
-    status: 200,
-    description: 'Posts marked as viewed successfully',
-  })
+  @ApiOperation(ACTIVITY_SWAGGER.markPostsAsViewed)
+  @ApiBody({ type: MarkViewedDto })
+  @ApiResponse(ACTIVITY_SWAGGER.markPostsAsViewed.responses.success)
   async markPostsAsViewed(
     @Req() req: AuthenticatedRequest,
     @Body() markViewedDto: MarkViewedDto,

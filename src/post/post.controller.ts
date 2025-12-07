@@ -22,6 +22,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { POST_SWAGGER } from 'src/common/swagger';
 import { AuthenticatedRequest } from 'src/auth/types/auth.user.interface';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { ReportPostDto } from './dto/report.post.dto';
@@ -42,6 +43,10 @@ export class PostController {
 
   @Get('feed')
   @UseGuards(JwtAuthGuard)
+  @ApiOperation(POST_SWAGGER.getFeed)
+  @ApiQuery({ name: 'cursor', required: false, type: String })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+  @ApiResponse(POST_SWAGGER.getFeed.responses.success)
   getPosts(
     @Req() req: AuthenticatedRequest,
     @Query('cursor') cursor?: string,
@@ -54,9 +59,12 @@ export class PostController {
   }
 
   @Get('get-posts-by-tag')
+  @ApiOperation(POST_SWAGGER.getPostsByTag)
   @ApiQuery({ name: 'page', required: true })
   @ApiQuery({ name: 'limit', required: true })
   @ApiQuery({ name: 'tagId', required: true })
+  @ApiResponse(POST_SWAGGER.getPostsByTag.responses.success)
+  @ApiResponse(POST_SWAGGER.getPostsByTag.responses.notFound)
   async getPostsByTag(
     @Query('tagId') tagId: number,
     @Query('page') page: number,
@@ -67,27 +75,36 @@ export class PostController {
 
   @Patch('publish/:id')
   @UseGuards(JwtAuthGuard)
+  @ApiOperation(POST_SWAGGER.publishPost)
   @ApiParam({ name: 'id', required: true })
+  @ApiResponse(POST_SWAGGER.publishPost.responses.success)
+  @ApiResponse(POST_SWAGGER.publishPost.responses.notFound)
+  @ApiResponse(POST_SWAGGER.publishPost.responses.forbidden)
   publishPost(@Param('id') id: number, @Req() req: AuthenticatedRequest) {
     return this.postService.publishPost(id, req.user.id);
   }
 
   @Get('published')
   @UseGuards(JwtAuthGuard)
+  @ApiOperation(POST_SWAGGER.getPublishedPosts)
+  @ApiResponse(POST_SWAGGER.getPublishedPosts.responses.success)
   getUnpublishedPosts(@Req() req: AuthenticatedRequest) {
     return this.postService.getPublishedPosts(req.user.id);
   }
 
   @Get('unpublished')
   @UseGuards(JwtAuthGuard)
+  @ApiOperation(POST_SWAGGER.getUnpublishedPosts)
+  @ApiResponse(POST_SWAGGER.getUnpublishedPosts.responses.success)
   getPublishedPosts(@Req() req: AuthenticatedRequest) {
     return this.postService.getUnpublishedPosts(req.user.id);
   }
 
   @Patch('mark-viewed')
   @UseGuards(JwtAuthGuard)
+  @ApiOperation(POST_SWAGGER.markPostsAsViewed)
   @ApiBody({ type: MarkViewedDto })
-  @ApiResponse({ status: 200, description: 'Posts marked as viewed' })
+  @ApiResponse(POST_SWAGGER.markPostsAsViewed.responses.success)
   @HttpCode(HttpStatus.OK)
   async markPostsAsViewed(
     @Body() markViewedDto: MarkViewedDto,
@@ -103,6 +120,8 @@ export class PostController {
 
   @Patch('mark-all-as-unviewed')
   @UseGuards(JwtAuthGuard)
+  @ApiOperation(POST_SWAGGER.markAllAsUnviewed)
+  @ApiResponse(POST_SWAGGER.markAllAsUnviewed.responses.success)
   async markAllAsUnviewed(@Req() req: AuthenticatedRequest) {
     const userId = req.user.id;
     return this.postService.markAllAsUnviewed(userId);
@@ -111,10 +130,11 @@ export class PostController {
   @Post('report')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Report a post' })
+  @ApiOperation(POST_SWAGGER.reportPost)
   @ApiBody({ type: ReportPostDto })
-  @ApiResponse({ status: 201, description: 'Post reported successfully' })
-  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse(POST_SWAGGER.reportPost.responses.success)
+  @ApiResponse(POST_SWAGGER.reportPost.responses.badRequest)
+  @ApiResponse(POST_SWAGGER.reportPost.responses.forbidden)
   async reportPost(
     @Body() reportDto: ReportPostDto,
     @Req() req: AuthenticatedRequest,
@@ -123,8 +143,10 @@ export class PostController {
   }
 
   @Get('download/:id')
+  @ApiOperation(POST_SWAGGER.downloadPost)
   @ApiParam({ name: 'id', required: true })
-  @ApiOperation({ summary: 'Download post image or video' })
+  @ApiResponse(POST_SWAGGER.downloadPost.responses.success)
+  @ApiResponse(POST_SWAGGER.downloadPost.responses.notFound)
   async downloadPostImage(@Param('id') id: number, @Res() res: Response) {
     const { buffer, contentType, filename } =
       await this.postService.getPostImageWithWatermark(id);
@@ -139,7 +161,9 @@ export class PostController {
 
   @Post('share')
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Share to earn daily points' })
+  @ApiOperation(POST_SWAGGER.share)
+  @ApiResponse(POST_SWAGGER.share.responses.success)
+  @ApiResponse(POST_SWAGGER.share.responses.badRequest)
   async share(@Req() req: AuthenticatedRequest) {
     const userId = req.user.id;
     const result = await this.postService.share(userId);
@@ -152,6 +176,10 @@ export class PostController {
   @Post('tweet')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation(POST_SWAGGER.tweet)
+  @ApiBody({ type: TweetDto })
+  @ApiResponse(POST_SWAGGER.tweet.responses.success)
+  @ApiResponse(POST_SWAGGER.tweet.responses.badRequest)
   async tweetImage(@Body() dto: TweetDto, @Req() req: AuthenticatedRequest) {
     await this.tweetQueue.add(
       'tweet',

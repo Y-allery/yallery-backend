@@ -16,7 +16,8 @@ import {
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
-import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiOperation, ApiResponse, ApiTags, ApiParam } from '@nestjs/swagger';
+import { USER_SWAGGER } from 'src/common/swagger';
 import { UpdateUserDto } from './dto/update.user.details.dto';
 import { AuthenticatedRequest } from 'src/auth/types/auth.user.interface';
 import { AddTagsDto } from './dto/add.tags.dto';
@@ -42,12 +43,18 @@ export class UserController {
   constructor(private readonly userService: UserService) {}
 
   @Post('generate-referral-code')
+  @ApiOperation(USER_SWAGGER.generateReferralCode)
+  @ApiResponse(USER_SWAGGER.generateReferralCode.responses.success)
   async generateReferralCode(@Req() req: AuthenticatedRequest) {
     const code = await this.userService.generateReferralCode(req.user.id);
     return { code };
   }
 
   @Post('use-referral-code')
+  @ApiOperation(USER_SWAGGER.useReferralCode)
+  @ApiBody({ type: UseReferralCodeDto })
+  @ApiResponse(USER_SWAGGER.useReferralCode.responses.success)
+  @ApiResponse(USER_SWAGGER.useReferralCode.responses.badRequest)
   async useReferralCode(
     @Req() req: AuthenticatedRequest,
     @Body() useReferralCodeDto: UseReferralCodeDto,
@@ -60,11 +67,18 @@ export class UserController {
   }
 
   @Get('profile')
+  @ApiOperation(USER_SWAGGER.getProfile)
+  @ApiResponse(USER_SWAGGER.getProfile.responses.success)
+  @ApiResponse(USER_SWAGGER.getProfile.responses.unauthorized)
   async getProfile(@Req() req: AuthenticatedRequest) {
     return this.userService.getUserProfile(req.user.id);
   }
 
   @Post('update-user-details')
+  @ApiOperation(USER_SWAGGER.updateUserDetails)
+  @ApiBody({ type: UpdateUserDto })
+  @ApiResponse(USER_SWAGGER.updateUserDetails.responses.success)
+  @ApiResponse(USER_SWAGGER.updateUserDetails.responses.badRequest)
   async updateUser(
     @Req() req: AuthenticatedRequest,
     @Body() updateUserDto: UpdateUserDto,
@@ -91,6 +105,10 @@ export class UserController {
   }
 
   @Post('add-tags')
+  @ApiOperation(USER_SWAGGER.addTagsToUser)
+  @ApiBody({ type: AddTagsDto })
+  @ApiResponse(USER_SWAGGER.addTagsToUser.responses.success)
+  @ApiResponse(USER_SWAGGER.addTagsToUser.responses.badRequest)
   async addTagsToUser(
     @Req() req: AuthenticatedRequest,
     @Body() addTagsDto: AddTagsDto,
@@ -105,15 +123,10 @@ export class UserController {
   }
 
   @Delete('remove-tag/:tagId')
-  @ApiOperation({ summary: 'Remove a tag from the user' })
-  @ApiResponse({
-    status: 200,
-    description: 'Tag removed successfully',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'User or tag not found',
-  })
+  @ApiOperation(USER_SWAGGER.removeTagFromUser)
+  @ApiParam({ name: 'tagId', type: Number })
+  @ApiResponse(USER_SWAGGER.removeTagFromUser.responses.success)
+  @ApiResponse(USER_SWAGGER.removeTagFromUser.responses.notFound)
   async removeTagFromUser(
     @Req() req: AuthenticatedRequest,
     @Param('tagId') tagId: number,
@@ -124,6 +137,9 @@ export class UserController {
   }
 
   @Delete('delete-account')
+  @ApiOperation(USER_SWAGGER.deleteUserAccount)
+  @ApiResponse(USER_SWAGGER.deleteUserAccount.responses.success)
+  @ApiResponse(USER_SWAGGER.deleteUserAccount.responses.unauthorized)
   async deleteUserAccount(@Req() req: AuthenticatedRequest) {
     const result = await this.userService.deleteUserAccount(req.user.id);
 
@@ -131,8 +147,10 @@ export class UserController {
   }
 
   @Post('register-device-token')
-  @ApiOperation({ summary: 'Register a device token for push notifications' })
+  @ApiOperation(USER_SWAGGER.registerDeviceToken)
   @ApiBody({ type: RegisterDeviceTokenDto })
+  @ApiResponse(USER_SWAGGER.registerDeviceToken.responses.success)
+  @ApiResponse(USER_SWAGGER.registerDeviceToken.responses.badRequest)
   async registerDeviceToken(
     @Req() req: AuthenticatedRequest,
     @Body() registerDeviceTokenDto: RegisterDeviceTokenDto,
@@ -148,18 +166,10 @@ export class UserController {
   }
 
   @Delete('unregister-device-token/by-device-type')
-  @ApiOperation({
-    summary: 'Unregister all device tokens for a specified device type',
-  })
-  @ApiResponse({
-    status: 200,
-    description:
-      'All device tokens for the specified type were unregistered successfully',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'No tokens found for this device type or user not found',
-  })
+  @ApiOperation(USER_SWAGGER.unregisterDeviceTokensByType)
+  @ApiBody({ type: UnregisterDeviceTokenDto })
+  @ApiResponse(USER_SWAGGER.unregisterDeviceTokensByType.responses.success)
+  @ApiResponse(USER_SWAGGER.unregisterDeviceTokensByType.responses.notFound)
   async unregisterDeviceTokensByType(
     @Req() req: AuthenticatedRequest,
     @Body() unregisterDeviceTokenDto: UnregisterDeviceTokenDto,
@@ -174,8 +184,9 @@ export class UserController {
   }
 
   @Post('change-notification-setting')
-  @ApiOperation({ summary: 'Set notification preference' })
+  @ApiOperation(USER_SWAGGER.setNotificationPreference)
   @ApiBody({ type: UpdateNotificationPreferenceDto })
+  @ApiResponse(USER_SWAGGER.setNotificationPreference.responses.success)
   async setNotificationPreference(
     @Req() req: AuthenticatedRequest,
     @Body() updateNotificationPreferenceDto: UpdateNotificationPreferenceDto,
@@ -190,8 +201,10 @@ export class UserController {
   }
 
   @Put('update-avatar')
-  @ApiOperation({ summary: 'Update user avatar' })
+  @ApiOperation(USER_SWAGGER.updateAvatar)
   @UseInterceptors(FileInterceptor('avatar'))
+  @ApiResponse(USER_SWAGGER.updateAvatar.responses.success)
+  @ApiResponse(USER_SWAGGER.updateAvatar.responses.badRequest)
   async updateAvatar(
     @Req() req: AuthenticatedRequest,
     @UploadedFile() file: Express.Multer.File,
@@ -208,6 +221,10 @@ export class UserController {
   }
 
   @Put('change-password')
+  @ApiOperation(USER_SWAGGER.changePassword)
+  @ApiBody({ type: ChangePasswordDto })
+  @ApiResponse(USER_SWAGGER.changePassword.responses.success)
+  @ApiResponse(USER_SWAGGER.changePassword.responses.badRequest)
   async changePassword(
     @Req() req: AuthenticatedRequest,
     @Body() changePasswordDto: ChangePasswordDto,
@@ -221,6 +238,10 @@ export class UserController {
   }
 
   @Put('update-name')
+  @ApiOperation(USER_SWAGGER.updateName)
+  @ApiBody({ type: UpdateNameDto })
+  @ApiResponse(USER_SWAGGER.updateName.responses.success)
+  @ApiResponse(USER_SWAGGER.updateName.responses.badRequest)
   async updateName(
     @Req() req: AuthenticatedRequest,
     @Body() updateNameDto: UpdateNameDto,
@@ -233,6 +254,10 @@ export class UserController {
   }
 
   @Put('update-nickname')
+  @ApiOperation(USER_SWAGGER.updateNickname)
+  @ApiBody({ type: UpdateNicknameDto })
+  @ApiResponse(USER_SWAGGER.updateNickname.responses.success)
+  @ApiResponse(USER_SWAGGER.updateNickname.responses.badRequest)
   async updateNickname(
     @Req() req: AuthenticatedRequest,
     @Body() updateNicknameDto: UpdateNicknameDto,
@@ -245,8 +270,9 @@ export class UserController {
   }
 
   @Put('update-twitter-username')
-  @ApiOperation({ summary: 'Update Twitter username' })
+  @ApiOperation(USER_SWAGGER.updateTwitterUsername)
   @ApiBody({ type: UpdateTwitterUsernameDto })
+  @ApiResponse(USER_SWAGGER.updateTwitterUsername.responses.success)
   async updateTwitterUsername(
     @Req() req: AuthenticatedRequest,
     @Body() body: UpdateTwitterUsernameDto,
@@ -258,9 +284,10 @@ export class UserController {
   }
 
   @Post('log-referral-activity')
-  @ApiOperation({ summary: 'Log user activity by referral token' })
-  @ApiResponse({ status: 201, description: 'Activity logged successfully.' })
-  @ApiResponse({ status: 404, description: 'Referral not found.' })
+  @ApiOperation(USER_SWAGGER.logReferralActivity)
+  @ApiBody({ type: LogReferralActivityDto })
+  @ApiResponse(USER_SWAGGER.logReferralActivity.responses.success)
+  @ApiResponse(USER_SWAGGER.logReferralActivity.responses.notFound)
   async logReferralActivity(
     @Body() dto: LogReferralActivityDto,
     @Req() req: AuthenticatedRequest,

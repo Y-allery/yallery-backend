@@ -10,7 +10,8 @@ import {
 import { ContestService } from './contest.service';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { AuthenticatedRequest } from 'src/auth/types/auth.user.interface';
-import { ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiParam, ApiQuery, ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { CONTEST_SWAGGER } from 'src/common/swagger';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ContestTypeEnum } from './types/contest.status.enum';
 
@@ -21,12 +22,14 @@ export class ContestController {
   constructor(private readonly contestService: ContestService) {}
 
   @Get()
+  @ApiOperation(CONTEST_SWAGGER.getAllContests)
   @ApiQuery({
     name: 'type',
     required: false,
     description: 'Filter contests by status (open or closed)',
     enum: ContestTypeEnum,
   })
+  @ApiResponse(CONTEST_SWAGGER.getAllContests.responses.success)
   getAllContests(
     @Req() req: AuthenticatedRequest,
     @Query('type') type?: ContestTypeEnum,
@@ -40,11 +43,19 @@ export class ContestController {
   }
 
   @Get('won-contests')
+  @ApiOperation(CONTEST_SWAGGER.getWonContests)
+  @ApiResponse(CONTEST_SWAGGER.getWonContests.responses.success)
   async getWonContests(@Req() req: AuthenticatedRequest) {
     return this.contestService.getWonContests(req.user.id);
   }
 
   @Get('posts/:contestId')
+  @ApiOperation(CONTEST_SWAGGER.getPostsByContest)
+  @ApiParam({ name: 'contestId', type: Number })
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+  @ApiResponse(CONTEST_SWAGGER.getPostsByContest.responses.success)
+  @ApiResponse(CONTEST_SWAGGER.getPostsByContest.responses.notFound)
   getPostsByContest(
     @Param('contestId') contestId: number,
     @Query('page') page: number = 1,
@@ -60,11 +71,18 @@ export class ContestController {
   }
 
   @Get('example-contest')
+  @ApiOperation(CONTEST_SWAGGER.getExampleContest)
+  @ApiResponse(CONTEST_SWAGGER.getExampleContest.responses.success)
   getExmapleContest() {
     return this.contestService.getExampleContest();
   }
 
   @Post('join/:contestId')
+  @ApiOperation(CONTEST_SWAGGER.joinContest)
+  @ApiParam({ name: 'contestId', type: Number })
+  @ApiResponse(CONTEST_SWAGGER.joinContest.responses.success)
+  @ApiResponse(CONTEST_SWAGGER.joinContest.responses.badRequest)
+  @ApiResponse(CONTEST_SWAGGER.joinContest.responses.notFound)
   async joinContest(
     @Param('contestId') contestId: number,
     @Req() req: AuthenticatedRequest,
@@ -84,12 +102,15 @@ export class ContestController {
 
 
   @Get(':id')
+  @ApiOperation(CONTEST_SWAGGER.getContestById)
   @ApiParam({
     name: 'id',
     description: 'ID of the contest to fetch',
     required: true,
     type: Number,
   })
+  @ApiResponse(CONTEST_SWAGGER.getContestById.responses.success)
+  @ApiResponse(CONTEST_SWAGGER.getContestById.responses.notFound)
   getContestById(@Param('id') id: number) {
     return this.contestService.findContestById(id);
   }

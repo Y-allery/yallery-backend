@@ -1,7 +1,8 @@
 import { Controller, Post, Req, Res, HttpStatus } from '@nestjs/common';
 import { PaymentService } from './payment.service';
 import { Request, Response } from 'express';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { PAYMENT_SWAGGER } from 'src/common/swagger';
 
 @ApiTags('Payment')
 @Controller('payment')
@@ -9,6 +10,10 @@ export class PaymentController {
   constructor(private readonly paymentService: PaymentService) {}
 
   @Post('webhook')
+  @ApiOperation(PAYMENT_SWAGGER.handleWebhook)
+  @ApiResponse(PAYMENT_SWAGGER.handleWebhook.responses.success)
+  @ApiResponse(PAYMENT_SWAGGER.handleWebhook.responses.badRequest)
+  @ApiResponse(PAYMENT_SWAGGER.handleWebhook.responses.internalError)
   async handlePaymentWebhook(@Req() req: Request, @Res() res: Response) {
     try {
       const webhookData = req.body;
