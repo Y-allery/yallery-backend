@@ -10,6 +10,7 @@ import { TagEntity } from 'src/tag/entities/tag.entity';
 import { NotificationModule } from 'src/notification/notification.module';
 import { ActivityModule } from 'src/activity/activity.module';
 import { FirebaseModule } from 'src/firebase/firebase.module';
+import { RedisService } from 'src/database/redis.service.connect';
 
 @Module({
   imports: [
@@ -24,7 +25,7 @@ import { FirebaseModule } from 'src/firebase/firebase.module';
     ActivityModule,
     FirebaseModule,
   ],
-  providers: [ContestService],
+  providers: [ContestService, RedisService],
   controllers: [ContestController],
   exports: [ContestService],
 })

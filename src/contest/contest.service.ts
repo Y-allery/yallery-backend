@@ -121,7 +121,6 @@ export class ContestService {
         'winner.id',
       ])
       .where('user.id = :userId', { userId })
-      .andWhere('contest.status = :status', { status: ContestStatusEnum.OPEN })
       .getMany();
     return contests.map((contest) => ({
       id: contest.id,
@@ -181,6 +180,19 @@ export class ContestService {
       return { success: true, message: 'done' };
     }
 
+    if (contest.status !== ContestStatusEnum.OPEN) {
+      throw new BadRequestException('Contest is not open for participation');
+    }
+
+    const now = new Date();
+    if (now < contest.startTime) {
+      throw new BadRequestException('Contest has not started yet');
+    }
+
+    if (now > contest.endTime) {
+      throw new BadRequestException('Contest has already ended');
+    }
+
     contest.participants.push(user);
     await this.contestRepository.save(contest);
     return { success: true, message: 'You join to contest succesfully' };
@@ -231,12 +243,12 @@ export class ContestService {
         CONCAT('#', t.name) AS tag_name,
         COUNT(l.id) AS like_count,
         CASE 
-          WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ${userId}) 
+          WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ?) 
           THEN TRUE 
           ELSE FALSE 
         END AS is_liked,
         CASE
-          WHEN EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ${userId})
+          WHEN EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ?)
           THEN TRUE 
           ELSE FALSE
         END AS is_viewed,
@@ -256,11 +268,15 @@ export class ContestService {
           p.id`;
 
     let orderByClause = ' ORDER BY p.createdAt DESC';
+    const queryParams: any[] = [userId, userId, contestId];
+    
     if (contest.winner) {
-      orderByClause = ` ORDER BY (p.userId = ${contest.winner.id}) DESC, p.createdAt DESC`;
+      orderByClause = ` ORDER BY (p.userId = ?) DESC, p.createdAt DESC`;
+      queryParams.push(contest.winner.id);
     }
 
     const rawQuery = `${baseQuery}${orderByClause} LIMIT ? OFFSET ?;`;
+    queryParams.push(limit, offset);
 
     const countQuery = `
       SELECT COUNT(*) AS total
@@ -268,11 +284,13 @@ export class ContestService {
         SELECT p.id
         FROM posts p
         WHERE p.contestId = ? AND p.is_published = true
+          AND p.is_blocked = false
+          AND p.is_rejected = false
         GROUP BY p.id
       ) AS sub`;
 
     const [posts, totalResult] = await Promise.all([
-      this.postRepository.query(rawQuery, [contestId, limit, offset]),
+      this.postRepository.query(rawQuery, queryParams),
       this.postRepository.query(countQuery, [contestId]),
     ]);
 
@@ -332,16 +350,19 @@ export class ContestService {
       where: { role: RoleEnum.ADMIN },
       select: { id: true },
     });
-    
-    const users = await this.userRepository.find({
-      where: { is_deleted: false, emailVerified: true },
-      relations: { deviceTokens: true },
-    });
 
     const updatedContests = [];
 
     for (let contest of contests) {
-      const postsCount = contest.posts.length;
+      try {
+        const postsCount = await this.postRepository.count({
+          where: {
+            contest: { id: contest.id },
+            is_published: true,
+            is_blocked: false,
+            is_rejected: false,
+          },
+        });
 
       if (contest.status === ContestStatusEnum.CLOSED && contest.is_approved) {
         continue;
@@ -358,78 +379,8 @@ export class ContestService {
         const title = 'Join the contest!';
         const body = `The ${contest.name} contest is now live! Join now for a chance to win points!`;
 
-        // Contest "${contest.name}" started - sending notifications to ${users.length} users
+        await this.sendContestNotificationsToAllUsers(contest, title, body);
 
-        // Batch processing to avoid blocking event loop
-        const BATCH_SIZE = 10; // Process 10 users at a time
-        let processedCount = 0;
-        let successCount = 0;
-        let errorCount = 0;
-
-        for (let i = 0; i < users.length; i += BATCH_SIZE) {
-          const batch = users.slice(i, i + BATCH_SIZE);
-          const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
-          const totalBatches = Math.ceil(users.length / BATCH_SIZE);
-
-          // Create activities for all users in batch at once (bulk operation)
-          const batchUserIds = batch.map(user => user.id);
-          try {
-            await this.activityService.createActivities(
-              null,
-              batchUserIds,
-              ActivityEnum.CONTEST_OPEN,
-              undefined,
-              false,
-              contest,
-            );
-          } catch (activityError) {
-            console.error(`❌ Failed to create activities for batch ${batchNumber}:`, activityError.message);
-          }
-
-          const batchPromises = batch.map(async (user) => {
-            try {
-              // Send push notifications to all device tokens
-              if (user.deviceTokens && user.deviceTokens.length > 0) {
-                const deviceTokenPromises = user.deviceTokens.map(async (deviceToken) => {
-                  try {
-                    await this.firebaseService.sendNotification(
-                      deviceToken.token,
-                      title,
-                      body,
-                    );
-                    return { success: true };
-                  } catch (deviceError) {
-                    console.error(`❌ Push notification failed for user ${user.id}:`, deviceError.message);
-                    return { success: false };
-                  }
-                });
-                
-                await Promise.all(deviceTokenPromises);
-              }
-              
-              // Emit profile update
-              await this.notificationGateway.emitProfileUpdate(user.id.toString());
-              
-              successCount++;
-              return { success: true, userId: user.id };
-            } catch (userError) {
-              console.error(`❌ Error processing user ${user.id}:`, userError.message);
-              errorCount++;
-              return { success: false, userId: user.id, error: userError.message };
-            }
-          });
-
-          await Promise.all(batchPromises);
-          processedCount += batch.length;
-          
-          // Small delay between batches to give event loop time to process other events
-          // Only delay if not the last batch
-          if (i + BATCH_SIZE < users.length) {
-            await new Promise(resolve => setTimeout(resolve, 50)); // 50ms delay
-          }
-        }
-
-        // Contest notifications summary: successCount/errorCount/processedCount
         updatedContests.push(contest);
       } else if (contest.endTime < currentDate && postsCount === 0) {
         contest.status = ContestStatusEnum.CLOSED;
@@ -476,90 +427,125 @@ export class ContestService {
         contest.status = ContestStatusEnum.CLOSED;
         updatedContests.push(contest);
       }
+      } catch (error) {
+        console.error(`❌ Error processing contest ${contest.id}:`, error.message);
+        continue;
+      }
     }
 
     if (updatedContests.length > 0) {
       await this.contestRepository.save(updatedContests);
-      users.map((user) => {
-        this.notificationGateway.emitProfileUpdate(user.id.toString());
+      
+      const participantUserIds = new Set<number>();
+      updatedContests.forEach((contest) => {
+        if (contest.participants) {
+          contest.participants.forEach((participant) => {
+            participantUserIds.add(participant.id);
+          });
+        }
+      });
+      
+      participantUserIds.forEach((userId) => {
+        this.notificationGateway.emitProfileUpdate(userId.toString());
       });
     }
   }
 
-  async sendContestStartNotifications(contest: ContestEntity) {
-    // Sending contest notifications for "${contest.name}"
-    
-    try {
+  private async sendContestNotificationsToAllUsers(
+    contest: ContestEntity,
+    title: string,
+    body: string,
+  ): Promise<void> {
+    const USER_BATCH_SIZE = 100;
+    let offset = 0;
+    let totalProcessed = 0;
+    let totalSuccess = 0;
+    let totalErrors = 0;
+
+    while (true) {
       const users = await this.userRepository.find({
         where: { is_deleted: false, emailVerified: true },
         relations: { deviceTokens: true },
+        take: USER_BATCH_SIZE,
+        skip: offset,
       });
 
       if (users.length === 0) {
-        // No users found - skipping notifications
-        return;
+        break;
       }
 
-      const title = 'Join the contest!';
-      const body = `The ${contest.name} contest is now live! Join now for a chance to win points!`;
+      const batchUserIds = users.map(user => user.id);
+      
+      try {
+        await this.activityService.createActivities(
+          null,
+          batchUserIds,
+          ActivityEnum.CONTEST_OPEN,
+          undefined,
+          false,
+          contest,
+        );
+      } catch (activityError) {
+        console.error(`❌ Failed to create activities for batch (offset ${offset}):`, activityError.message);
+      }
 
-      let successCount = 0;
-      let errorCount = 0;
+      const NOTIFICATION_BATCH_SIZE = 10;
+      for (let i = 0; i < users.length; i += NOTIFICATION_BATCH_SIZE) {
+        const batch = users.slice(i, i + NOTIFICATION_BATCH_SIZE);
 
-      const notificationPromises = users.map(async (user) => {
-        try {
-          // Create activity
-          await this.activityService.createActivities(
-            null,
-            [user.id],
-            ActivityEnum.CONTEST_OPEN,
-            undefined,
-            false,
-            contest,
-          );
-          
-          // Send push notifications
-          if (user.deviceTokens && user.deviceTokens.length > 0) {
-            const deviceTokenPromises = user.deviceTokens.map(async (deviceToken) => {
-              try {
-                await this.firebaseService.sendNotification(
-                  deviceToken.token,
-                  title,
-                  body,
-                );
-                return { success: true };
-              } catch (deviceError) {
-                console.error(`❌ Push notification failed for user ${user.id}:`, deviceError.message);
-                return { success: false, error: deviceError.message };
-              }
-            });
+        const batchPromises = batch.map(async (user) => {
+          try {
+            if (user.deviceTokens && user.deviceTokens.length > 0) {
+              const deviceTokenPromises = user.deviceTokens.map(async (deviceToken) => {
+                try {
+                  await this.firebaseService.sendNotification(
+                    deviceToken.token,
+                    title,
+                    body,
+                  );
+                  return { success: true };
+                } catch (deviceError) {
+                  console.error(`❌ Push notification failed for user ${user.id}:`, deviceError.message);
+                  return { success: false };
+                }
+              });
+              
+              await Promise.all(deviceTokenPromises);
+            }
             
-            const deviceResults = await Promise.all(deviceTokenPromises);
-            const deviceSuccesses = deviceResults.filter(r => r.success).length;
-            const deviceErrors = deviceResults.filter(r => !r.success);
+            await this.notificationGateway.emitProfileUpdate(user.id.toString());
             
-            successCount += deviceSuccesses;
-            errorCount += deviceErrors.length;
+            totalSuccess++;
+            return { success: true, userId: user.id };
+          } catch (userError) {
+            console.error(`❌ Error processing user ${user.id}:`, userError.message);
+            totalErrors++;
+            return { success: false, userId: user.id, error: userError.message };
           }
-          
-          // Emit profile update
-          await this.notificationGateway.emitProfileUpdate(user.id.toString());
-          
-        } catch (userError) {
-          console.error(`❌ Error processing user ${user.id}:`, userError.message);
-          errorCount++;
-        }
-      });
+        });
 
-      await Promise.all(notificationPromises);
+        await Promise.all(batchPromises);
+        totalProcessed += batch.length;
+        
+        if (i + NOTIFICATION_BATCH_SIZE < users.length) {
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+      }
+
+      offset += USER_BATCH_SIZE;
       
-      // Final summary
-      // Contest notifications stats: successCount, errorCount, users.length
-      
-    } catch (error) {
-      console.error(`❌ Contest notification error:`, error.message);
-      throw error;
+      if (users.length < USER_BATCH_SIZE) {
+        break;
+      }
     }
+
+    console.log(`📢 Contest "${contest.name}" notifications: ${totalSuccess} success, ${totalErrors} errors, ${totalProcessed} processed`);
+  }
+
+  async sendContestStartNotifications(contest: ContestEntity) {
+    const title = 'Join the contest!';
+    const body = `The ${contest.name} contest is now live! Join now for a chance to win points!`;
+    await this.sendContestNotificationsToAllUsers(contest, title, body);
   }
 
   async setAutomaticContestWinner(contest: ContestEntity) {

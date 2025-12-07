@@ -14,12 +14,16 @@ import { ApiParam, ApiQuery, ApiTags, ApiOperation, ApiResponse } from '@nestjs/
 import { CONTEST_SWAGGER } from 'src/common/swagger';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ContestTypeEnum, ContestStatusEnum } from './types/contest.status.enum';
+import { RedisService } from 'src/database/redis.service.connect';
 
 @Controller('contest')
 @ApiTags('Contest')
 @UseGuards(JwtAuthGuard)
 export class ContestController {
-  constructor(private readonly contestService: ContestService) {}
+  constructor(
+    private readonly contestService: ContestService,
+    private readonly redisService: RedisService,
+  ) {}
 
   @Get()
   @ApiOperation(CONTEST_SWAGGER.getAllContests)
@@ -99,10 +103,20 @@ export class ContestController {
 
   @Cron(CronExpression.EVERY_10_MINUTES)
   async handleContests() {
+    const lockKey = 'contest:update:lock';
+    const lockAcquired = await this.redisService.acquireLock(lockKey, 600);
+    
+    if (!lockAcquired) {
+      console.log('⏸️  Contest update already in progress, skipping...');
+      return;
+    }
+    
     try {
       await this.contestService.updateContestStatuses();
     } catch (error) {
       console.error(`❌ Cron job error:`, error.message);
+    } finally {
+      await this.redisService.releaseLock(lockKey);
     }
   }
 
