@@ -28,21 +28,6 @@ async function bootstrap() {
     client: redisClient,
     prefix: 'myapp_sess:',
   });
-  app.use(
-    session({
-      store: redisStore,
-      secret: process.env.SESSION_SECRET,
-      name: 'sid',
-      resave: false,
-      saveUninitialized: false,
-      cookie: {
-        secure: process.env.NODE_ENV === 'production',
-        httpOnly: true,
-        maxAge: 3600000,
-
-      },
-    }),
-  );
   const config = new DocumentBuilder()
     .setTitle('Y-app API')
     .setDescription('API for y-allery application')
@@ -79,12 +64,13 @@ async function bootstrap() {
 
   app.use(
     session({
+      store: redisStore,
       secret: process.env.SESSION_SECRET,
-      key: 'sid',
+      name: 'sid',
       resave: false,
       saveUninitialized: false,
       cookie: {
-        secure: process.env.NODE_ENV === 'production' ? true : false,
+        secure: process.env.NODE_ENV === 'production',
         httpOnly: true,
         maxAge: 3600000,
         sameSite: 'none',
