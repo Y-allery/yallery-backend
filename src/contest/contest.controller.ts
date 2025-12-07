@@ -13,7 +13,7 @@ import { AuthenticatedRequest } from 'src/auth/types/auth.user.interface';
 import { ApiParam, ApiQuery, ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { CONTEST_SWAGGER } from 'src/common/swagger';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { ContestTypeEnum } from './types/contest.status.enum';
+import { ContestTypeEnum, ContestStatusEnum } from './types/contest.status.enum';
 
 @Controller('contest')
 @ApiTags('Contest')
@@ -26,15 +26,22 @@ export class ContestController {
   @ApiQuery({
     name: 'type',
     required: false,
-    description: 'Filter contests by status (open or closed)',
+    description: 'Filter contests by type (DEFAULT or FINE_TUNE)',
     enum: ContestTypeEnum,
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    description: 'Filter contests by status (open, closed, or pending_review)',
+    enum: ContestStatusEnum,
   })
   @ApiResponse(CONTEST_SWAGGER.getAllContests.responses.success)
   getAllContests(
     @Req() req: AuthenticatedRequest,
     @Query('type') type?: ContestTypeEnum,
+    @Query('status') status?: ContestStatusEnum,
   ) {
-    return this.contestService.getAllContests(req.user.id, type);
+    return this.contestService.getAllContests(req.user.id, type, status);
   }
 
   @Get('my-contests')

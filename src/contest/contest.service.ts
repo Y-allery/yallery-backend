@@ -50,11 +50,15 @@ export class ContestService {
     this.tweetscoutApiKey = this.configService.get<string>('TWEETSCOUT_API_KEY');
   }
 
-  async getAllContests(userId: number, type?: ContestTypeEnum) {
+  async getAllContests(userId: number, type?: ContestTypeEnum, status?: ContestStatusEnum) {
     const whereCondition: any = {};
 
     if (type) {
       whereCondition.contestType = type;
+    }
+
+    if (status) {
+      whereCondition.status = status;
     }
 
     const contests = await this.contestRepository.find({

@@ -1,7 +1,7 @@
 export const CONTEST_SWAGGER = {
   getAllContests: {
     summary: 'Get all contests',
-    description: `Retrieve all available contests. Can be filtered by status (open or closed). Contests include active competitions where users can participate and win rewards.`,
+    description: `Retrieve all available contests. Can be filtered by type (DEFAULT or FINE_TUNE) and/or status (open, closed, pending_review). If no filters are provided, returns all contests. Contests include active competitions where users can participate and win rewards.`,
     responses: {
       success: { status: 200, description: 'Contests retrieved successfully' }
     }

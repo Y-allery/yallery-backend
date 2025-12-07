@@ -16,7 +16,10 @@ import { TagEntity } from 'src/tag/entities/tag.entity';
 
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: process.env.NODE_ENV === 'production'
+      ? [process.env.FRONTEND_URL, process.env.WEB_APP_URL].filter(Boolean)
+      : '*',
+    credentials: true,
   },
   namespace: '/',
   transports: ['websocket'],

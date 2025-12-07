@@ -11,19 +11,49 @@ import { RedisStore } from 'connect-redis';
 import { createClient } from 'redis';
 import { closeBrowser } from './common/puppeteer-browser';
 
+let redisClient: ReturnType<typeof createClient>;
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.useWebSocketAdapter(new IoAdapter(app));
   const expressApp = app.getHttpAdapter().getInstance();
 
-  const redisClient = createClient({
+  redisClient = createClient({
     socket: {
       host: process.env.REDIS_HOST,
       port: Number(process.env.REDIS_PORT),
+      reconnectStrategy: (retries) => {
+        if (retries > 10) {
+          console.error('Redis: Max reconnection attempts reached');
+          return new Error('Max reconnection attempts reached');
+        }
+        const delay = Math.min(retries * 100, 3000);
+        console.log(`Redis: Reconnecting in ${delay}ms (attempt ${retries})`);
+        return delay;
+      },
     },
     password: process.env.REDIS_PASSWORD,
   });
-  await redisClient.connect();
+
+  redisClient.on('error', (err) => {
+    console.error('Redis Client Error:', err);
+  });
+
+  redisClient.on('connect', () => {
+    console.log('✅ Redis connected');
+  });
+
+  redisClient.on('reconnecting', () => {
+    console.log('🔄 Redis reconnecting...');
+  });
+
+  try {
+    await redisClient.connect();
+  } catch (error) {
+    console.error('❌ Failed to connect to Redis:', error);
+    process.exit(1);
+  }
+
   const redisStore = new RedisStore({
     client: redisClient,
     prefix: 'myapp_sess:',
@@ -46,8 +76,12 @@ async function bootstrap() {
   app.use('/payment/webhook', bodyParser.raw({ type: 'application/json' }));
   app.use(bodyParser.json());
 
+  const allowedOrigins = process.env.NODE_ENV === 'production'
+    ? [process.env.FRONTEND_URL, process.env.WEB_APP_URL].filter(Boolean)
+    : true;
+
   app.enableCors({
-    origin: true,
+    origin: allowedOrigins,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     preflightContinue: false,
     optionsSuccessStatus: 204,
@@ -73,7 +107,7 @@ async function bootstrap() {
         secure: process.env.NODE_ENV === 'production',
         httpOnly: true,
         maxAge: 3600000,
-        sameSite: 'none',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       },
     }),
   );
@@ -82,21 +116,48 @@ async function bootstrap() {
   app.use(passport.session());
 
   const port = process.env.PORT || 8000;
-  await app.listen(port, '0.0.0.0');
-  console.log(`🚀 Application is running on: http://0.0.0.0:${port}`);
-  console.log(`📚 Swagger documentation: http://0.0.0.0:${port}/api`);
-  console.log(`⏰ Cron jobs are enabled and will run every 10 minutes`);
+  try {
+    await app.listen(port, '0.0.0.0');
+    console.log(`🚀 Application is running on: http://0.0.0.0:${port}`);
+    console.log(`📚 Swagger documentation: http://0.0.0.0:${port}/api`);
+    console.log(`⏰ Cron jobs are enabled and will run every 10 minutes`);
+  } catch (error) {
+    console.error(`❌ Failed to start server on port ${port}:`, error);
+    if (redisClient) {
+      await redisClient.quit().catch(console.error);
+    }
+    process.exit(1);
+  }
 }
 
-// Graceful shutdown
-  process.on('SIGTERM', async () => {
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  process.exit(1);
+});
+
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, shutting down gracefully...');
   await closeBrowser();
+  if (redisClient) {
+    await redisClient.quit().catch(console.error);
+  }
   process.exit(0);
 });
 
-  process.on('SIGINT', async () => {
+process.on('SIGINT', async () => {
+  console.log('SIGINT received, shutting down gracefully...');
   await closeBrowser();
+  if (redisClient) {
+    await redisClient.quit().catch(console.error);
+  }
   process.exit(0);
 });
 
-bootstrap();
+bootstrap().catch((error) => {
+  console.error('Failed to start application:', error);
+  process.exit(1);
+});
