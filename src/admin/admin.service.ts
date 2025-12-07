@@ -40,6 +40,7 @@ import { AdminMetricsEntity } from './entities/admin-metrics.entity';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { LikeEntity } from 'src/like/entities/like.entity';
 import { VideoAIEnum } from 'src/common/enums/ai.enum';
+import { PaymentEntity } from 'src/payment/entities/payment.entity';
 
 @Injectable()
 export class AdminService {
@@ -73,6 +74,8 @@ export class AdminService {
     private readonly adminMetricsRepository: Repository<AdminMetricsEntity>,
     @InjectRepository(LikeEntity)
     private readonly likeRepository: Repository<LikeEntity>,
+    @InjectRepository(PaymentEntity)
+    private readonly paymentRepository: Repository<PaymentEntity>,
   ) {
     this.apiKey = this.configService.get<string>('TWEETSCOUT_API_KEY');
     this.apiUrl = this.configService.get<string>('TWEETSCOUT_API_URL', 'https://api.tweetscout.io/v2');
@@ -297,6 +300,24 @@ export class AdminService {
       }
     }
 
+    const payments7D = await this.paymentRepository.find({
+      where: {
+        createdAt: Between(periodStart, periodEnd),
+        status: 'completed',
+      },
+    });
+
+    const productPointsMap: { [key: string]: number } = {
+      '5000yeps': 5000,
+      '15000yeps': 15000,
+      '30000yeps': 30000,
+    };
+
+    const purchasedYeps7D = payments7D.reduce((total, payment) => {
+      const points = productPointsMap[payment.productId] || 0;
+      return total + points;
+    }, 0);
+
     const snapshot = this.adminMetricsRepository.create({
       periodStart,
       periodEnd,
@@ -320,6 +341,7 @@ export class AdminService {
       },
       postsPerUserAvg7D,
       topTags7D,
+      purchasedYeps7D,
     });
 
     await this.adminMetricsRepository.save(snapshot);
@@ -353,6 +375,7 @@ export class AdminService {
         aiStats: null,
         postsPerUserAvg7D: 0,
         topTags7D: null,
+        purchasedYeps7D: 0,
       };
     }
 
@@ -376,6 +399,7 @@ export class AdminService {
       aiStats: latest.aiStats,
       postsPerUserAvg7D: latest.postsPerUserAvg7D,
       topTags7D: latest.topTags7D,
+      purchasedYeps7D: latest.purchasedYeps7D,
     };
   }
   async createAdminContest(data: CreateContestDto) {

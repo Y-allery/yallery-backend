@@ -60,8 +60,24 @@ export class PaymentService {
           user.points += pointsToAdd;
           await this.userService.updateUser(user);
           await this.notificationGateway.emitProfileUpdate(user.id.toString());
+          
+          const paymentIntentId = parsedData.transaction_id || parsedData.payment_intent_id || null;
+          const amount = eventProperties?.price || eventProperties?.amount || pointsToAdd;
+          const currency = eventProperties?.currency || 'USD';
+
+          const payment = this.paymentRepository.create({
+            paymentIntentId,
+            userId: user.id,
+            productId,
+            amount: typeof amount === 'number' ? amount : pointsToAdd,
+            currency,
+            status: 'completed',
+          });
+
+          await this.paymentRepository.save(payment);
+          
           this.logger.log(
-            `Added ${pointsToAdd} points to user ${profileId} for product ${productId}`,
+            `Added ${pointsToAdd} points to user ${profileId} for product ${productId} and saved payment record`,
           );
           break;
 

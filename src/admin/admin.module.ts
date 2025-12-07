@@ -16,6 +16,7 @@ import { UserEntity } from 'src/user/entities/user.entity';
 import { AISettingsEntity } from 'src/image-generation/entities/ai-settings.entity';
 import { AdminMetricsEntity } from './entities/admin-metrics.entity';
 import { LikeEntity } from 'src/like/entities/like.entity';
+import { PaymentEntity } from 'src/payment/entities/payment.entity';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { LikeEntity } from 'src/like/entities/like.entity';
       AISettingsEntity,
       AdminMetricsEntity,
       LikeEntity,
+      PaymentEntity,
     ]),
     ContestModule,
     UserModule,

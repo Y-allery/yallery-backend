@@ -86,6 +86,9 @@ export class AdminMetricsEntity {
     posts: number;
     likes: number;
   }[] | null;
+
+  @Column({ type: 'int', default: 0 })
+  purchasedYeps7D: number;
 }
 
 
