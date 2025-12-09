@@ -156,12 +156,7 @@ export class UserService {
       if (!(await this.isEmailUnique(email))) {
         throw new BadRequestException('Email already in use');
       }
-      const emailRewardPoints = await this.rewardService.getRewardPointsOrDefault(
-        RewardTypeEnum.EMAIL_UPDATE_REWARD,
-        100,
-      );
       user.email = email;
-      user.points = user.points ? user.points + emailRewardPoints : emailRewardPoints;
     }
 
     if (name) {
