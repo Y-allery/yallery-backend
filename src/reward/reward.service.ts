@@ -7,10 +7,11 @@ import { UpdateRewardDto } from './dto/update-reward.dto';
 
 @Injectable()
 export class RewardService {
-  private readonly paymentRewardTypes = [
+  private readonly excludedRewardTypes = [
     RewardTypeEnum.PAYMENT_5000,
     RewardTypeEnum.PAYMENT_15000,
     RewardTypeEnum.PAYMENT_30000,
+    RewardTypeEnum.VIDEO_GENERATE_SPEND, // Вартість береться з ai_settings
   ];
 
   constructor(
@@ -21,15 +22,15 @@ export class RewardService {
   async getAllRewards(): Promise<RewardEntity[]> {
     return this.rewardRepository.find({
       where: {
-        reward_type: Not(In(this.paymentRewardTypes)),
+        reward_type: Not(In(this.excludedRewardTypes)),
       },
       order: { reward_type: 'ASC' },
     });
   }
 
   async getRewardByType(rewardType: RewardTypeEnum): Promise<RewardEntity | null> {
-    // Не повертаємо Payment нагороди через GET
-    if (this.paymentRewardTypes.includes(rewardType)) {
+    // Не повертаємо виключені нагороди через GET (Payment та VIDEO_GENERATE_SPEND)
+    if (this.excludedRewardTypes.includes(rewardType)) {
       return null;
     }
     return this.rewardRepository.findOne({
