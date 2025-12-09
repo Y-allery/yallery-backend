@@ -79,14 +79,19 @@ export class VideoGenerationService {
       order: { id: 'ASC' },
     });
 
-    const defaultSettings = videoAISettingsFromDb.length > 0
-      ? {
+    if (videoAISettingsFromDb.length === 0) {
+      return {
+        defaultSettings: {
           defaultAI: VideoAIEnum.BYTY_DANCE,
-          cost: videoAISettingsFromDb[0].cost,
-        }
-      : {
+          cost: 0,
+        },
+        aiSettings: [],
+      };
+    }
+
+    const defaultSettings = {
       defaultAI: VideoAIEnum.BYTY_DANCE,
-      cost: 100,
+      cost: videoAISettingsFromDb[0].cost,
     };
 
     const aiSettings = videoAISettingsFromDb.map((setting) => ({
@@ -96,23 +101,6 @@ export class VideoGenerationService {
       description: setting.description || 'Create animated videos from your image with BytyDance.',
       api_model: setting.api_model,
     }));
-    if (aiSettings.length === 0) {
-      return {
-        defaultSettings: {
-          defaultAI: VideoAIEnum.BYTY_DANCE,
-          cost: 100,
-        },
-        aiSettings: [
-      {
-        id: VideoAIEnum.BYTY_DANCE,
-        name: 'Byty Dance',
-        cost: 100,
-        description: 'Create animated videos from your image with BytyDance.',
-            api_model: 'fal-ai/bytedance/seedance/v1/lite/image-to-video',
-      },
-        ],
-      };
-    }
 
     return {
       defaultSettings,
