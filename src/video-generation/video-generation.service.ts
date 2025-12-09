@@ -23,8 +23,6 @@ import { PostEntity } from 'src/post/entities/post.entity';
 import { TagEntity } from 'src/tag/entities/tag.entity';
 import { AISettingsEntity } from 'src/image-generation/entities/ai-settings.entity';
 import OpenAI from 'openai';
-import { RewardService } from 'src/reward/reward.service';
-import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
 
 @Injectable()
 export class VideoGenerationService {
@@ -47,7 +45,6 @@ export class VideoGenerationService {
     private aiSettingsRepository: Repository<AISettingsEntity>,
 
     private readonly notificationGateway: NotificationGateway,
-    private readonly rewardService: RewardService,
   ) {
     this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   }
@@ -65,10 +62,8 @@ export class VideoGenerationService {
     });
 
     if (!aiSetting) {
-      // Fallback до значення з rewards, якщо не знайдено в ai_settings
-      return await this.rewardService.getRewardPointsOrDefault(
-        RewardTypeEnum.VIDEO_GENERATE_SPEND,
-        100,
+      throw new BadRequestException(
+        `AI service ${service} not found in ai_settings or is inactive`,
       );
     }
 
