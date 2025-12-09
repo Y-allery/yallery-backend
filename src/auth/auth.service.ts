@@ -33,6 +33,9 @@ import { NotificationGateway } from 'src/notification/notification.gateway';
 import { PartnershipEntity } from 'src/admin/entities/partner.entity';
 import { PartnerUserLinkEntity } from 'src/admin/entities/partner-user-link.entity';
 import { PartnershipActivityEntity } from 'src/admin/entities/partnership-activity.entity';
+import { RewardService } from 'src/reward/reward.service';
+import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
+
 @Injectable()
 export class AuthService {
   private client: OAuth2Client;
@@ -43,6 +46,7 @@ export class AuthService {
     private readonly mailService: MailService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly rewardService: RewardService,
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
     @InjectRepository(PartnershipEntity)
@@ -243,11 +247,15 @@ export class AuthService {
 
   private async createUser(dto: SignUpDto) {
     const hashedPassword = await bcrypt.hash(dto.password, 10);
+    const registrationBonus = await this.rewardService.getRewardPointsOrDefault(
+      RewardTypeEnum.REGISTRATION_BONUS,
+      3000,
+    );
     const newUser = this.userRepository.create({
       ...dto,
       password: hashedPassword,
       is_deleted: false,
-      points: this.configService.get('YEPS_PER_REGISTRATION') || 3000,
+      points: registrationBonus,
       emailVerified: false,
     });
     await this.userRepository.save(newUser);
@@ -443,10 +451,14 @@ export class AuthService {
     });
 
     if (!user) {
+      const registrationBonus = await this.rewardService.getRewardPointsOrDefault(
+        RewardTypeEnum.REGISTRATION_BONUS,
+        3000,
+      );
       user = this.userRepository.create({
         name: `${payload.firstName} ${payload.lastName}`,
         email: payload.email,
-        points: this.configService.get('YEPS_PER_REGISTRATION'),
+        points: registrationBonus,
       });
       await this.userRepository.save(user);
 
@@ -654,11 +666,15 @@ export class AuthService {
 
     let user = await this.userRepository.findOne({ where: { telegramId } });
     if (!user) {
+      const registrationBonus = await this.rewardService.getRewardPointsOrDefault(
+        RewardTypeEnum.REGISTRATION_BONUS,
+        3000,
+      );
       user = this.userRepository.create({
         telegramId,
         nickname: username,
         name: `${firstName} ${lastName}`.trim(),
-        points: this.configService.get('YEPS_PER_REGISTRATION'),
+        points: registrationBonus,
         email: randomEmail,
         password: randomPassword,
       });
@@ -719,12 +735,16 @@ export class AuthService {
     let user = await this.userRepository.findOne({ where: { email } });
 
     if (!user) {
+      const registrationBonus = await this.rewardService.getRewardPointsOrDefault(
+        RewardTypeEnum.REGISTRATION_BONUS,
+        3000,
+      );
       user = this.userRepository.create({
         name: profile.displayName,
         nickname: profile.username,
         email: email,
         telegramId: null,
-        points: this.configService.get('YEPS_PER_REGISTRATION'),
+        points: registrationBonus,
       });
 
       await this.userRepository.save(user);

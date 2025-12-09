@@ -92,6 +92,24 @@ export class CreateRewardsTable1765318000000 implements MigrationInterface {
         description: 'Reward for both users when referral code is used',
         is_active: 1,
       },
+      {
+        reward_type: 'TWITTER_USERNAME_UPDATE_REWARD',
+        points: 200,
+        description: 'Reward for updating Twitter username',
+        is_active: 1,
+      },
+      {
+        reward_type: 'EMAIL_UPDATE_REWARD',
+        points: 100,
+        description: 'Reward for updating email address',
+        is_active: 1,
+      },
+      {
+        reward_type: 'REGISTRATION_BONUS',
+        points: 3000,
+        description: 'Initial points bonus for new user registration',
+        is_active: 1,
+      },
     ];
 
     for (const reward of rewards) {

@@ -16,6 +16,7 @@ import { PartnerUserLinkEntity } from 'src/admin/entities/partner-user-link.enti
 import { PartnershipActivityEntity } from 'src/admin/entities/partnership-activity.entity';
 import { NotificationModule } from 'src/notification/notification.module';
 import { TwitterStrategy } from './strategies/twitter.auth.strategy';
+import { RewardModule } from 'src/reward/reward.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { TwitterStrategy } from './strategies/twitter.auth.strategy';
       PartnershipActivityEntity,
     ]),
     NotificationModule,
+    RewardModule,
   ],
   controllers: [AuthController],
   providers: [

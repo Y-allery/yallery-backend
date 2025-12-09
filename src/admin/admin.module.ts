@@ -17,6 +17,7 @@ import { AISettingsEntity } from 'src/image-generation/entities/ai-settings.enti
 import { AdminMetricsEntity } from './entities/admin-metrics.entity';
 import { LikeEntity } from 'src/like/entities/like.entity';
 import { PaymentEntity } from 'src/payment/entities/payment.entity';
+import { RewardModule } from 'src/reward/reward.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { PaymentEntity } from 'src/payment/entities/payment.entity';
     PostModule,
     TagModule,
     ActivityModule,
+    RewardModule,
   ],
   providers: [AdminService],
   controllers: [AdminController, PartnerController],
