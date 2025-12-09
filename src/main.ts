@@ -86,9 +86,7 @@ async function bootstrap() {
   app.use('/payment/webhook', bodyParser.raw({ type: 'application/json' }));
   app.use(bodyParser.json());
 
-  const allowedOrigins = process.env.NODE_ENV === 'production'
-    ? [process.env.FRONTEND_URL, process.env.WEB_APP_URL].filter(Boolean)
-    : true;
+  const allowedOrigins = true;
 
   app.enableCors({
     origin: allowedOrigins,
