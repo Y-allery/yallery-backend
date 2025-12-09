@@ -123,7 +123,7 @@ export class UserService {
       RewardTypeEnum.TWITTER_USERNAME_UPDATE_REWARD,
       200,
     );
-    user.points = rewardPoints;
+    user.points = (user.points || 0) + rewardPoints;
     user.twitterUsername = twitterUsername;
     await this.userModel.save(user);
     await this.notificationGateway.emitProfileUpdate(userId.toString());
