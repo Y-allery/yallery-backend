@@ -11,7 +11,6 @@ export class RewardService {
     RewardTypeEnum.PAYMENT_5000,
     RewardTypeEnum.PAYMENT_15000,
     RewardTypeEnum.PAYMENT_30000,
-    RewardTypeEnum.VIDEO_GENERATE_SPEND, // Вартість береться з ai_settings
   ];
 
   constructor(

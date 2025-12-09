@@ -22,7 +22,7 @@ export class RewardController {
   }
 
   @Get(':rewardType')
-  @ApiOperation({ summary: 'Get reward by type', description: 'Retrieve a specific reward type (Payment rewards and VIDEO_GENERATE_SPEND are not available via GET)' })
+  @ApiOperation({ summary: 'Get reward by type', description: 'Retrieve a specific reward type (Payment rewards are not available via GET)' })
   @ApiParam({ name: 'rewardType', enum: RewardTypeEnum, description: 'Type of reward' })
   @ApiResponse({ status: 200, description: 'Reward details' })
   @ApiResponse({ status: 404, description: 'Reward not found' })

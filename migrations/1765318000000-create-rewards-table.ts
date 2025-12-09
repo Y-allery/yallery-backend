@@ -63,12 +63,6 @@ export class CreateRewardsTable1765318000000 implements MigrationInterface {
         is_active: 1,
       },
       {
-        reward_type: 'VIDEO_GENERATE_SPEND',
-        points: 100,
-        description: 'Points spent to generate a video',
-        is_active: 1,
-      },
-      {
         reward_type: 'PAYMENT_5000',
         points: 5000,
         description: 'Points purchased: 5000 YEPs package',
