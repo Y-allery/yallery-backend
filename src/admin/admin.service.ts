@@ -316,6 +316,13 @@ export class AdminService {
       '30000yeps': RewardTypeEnum.PAYMENT_30000,
     };
 
+    // Payment rewards не зберігаються в БД, використовуємо fallback значення
+    const paymentFallbackValues: { [key: string]: number } = {
+      [RewardTypeEnum.PAYMENT_5000]: 5000,
+      [RewardTypeEnum.PAYMENT_15000]: 15000,
+      [RewardTypeEnum.PAYMENT_30000]: 30000,
+    };
+
     let purchasedYeps7D = 0;
     for (const payment of payments7D) {
       const rewardType = productRewardMap[payment.productId];
@@ -324,7 +331,13 @@ export class AdminService {
           const points = await this.rewardService.getRewardPoints(rewardType);
           purchasedYeps7D += points;
         } catch (error) {
-          this.logger.warn(`Failed to get reward points for ${rewardType}:`, error);
+          // Якщо не знайдено в БД, використовуємо fallback
+          const fallbackValue = paymentFallbackValues[rewardType];
+          if (fallbackValue) {
+            purchasedYeps7D += fallbackValue;
+          } else {
+            this.logger.warn(`Failed to get reward points for ${rewardType}:`, error);
+          }
         }
       }
     }

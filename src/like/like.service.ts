@@ -8,7 +8,7 @@ import { LikeEntity } from './entities/like.entity';
 import { CreateLikeDto } from './dto/create.like.dto';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
-import { Repository, DataSource, MoreThanOrEqual } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { NotificationGateway } from 'src/notification/notification.gateway';
 import { ActivityService } from 'src/activity/activity.service';
 import { ActivityEnum } from 'src/activity/types/activity.enum';
@@ -51,7 +51,13 @@ export class LikeService {
       throw new BadRequestException('You cannot like your own post');
     }
 
-    if (user.points < 15) {
+    // Отримуємо значення нагород до транзакції
+    const likeSpendPoints = await this.rewardService.getRewardPointsOrDefault(
+      RewardTypeEnum.LIKE_SPEND,
+      15,
+    );
+
+    if (user.points < likeSpendPoints) {
       throw new BadRequestException('User does not have enough points');
     }
 
@@ -62,12 +68,6 @@ export class LikeService {
     if (existingLike) {
       throw new BadRequestException('You have already liked this post');
     }
-
-    // Отримуємо значення нагород до транзакції
-    const likeSpendPoints = await this.rewardService.getRewardPointsOrDefault(
-      RewardTypeEnum.LIKE_SPEND,
-      15,
-    );
     const likeEarnPoints = await this.rewardService.getRewardPointsOrDefault(
       RewardTypeEnum.LIKE_EARN,
       5,
@@ -82,7 +82,7 @@ export class LikeService {
         await manager
           .getRepository(UserEntity)
           .decrement(
-            { id: user.id, points: MoreThanOrEqual(likeSpendPoints) },
+            { id: user.id },
             'points',
             likeSpendPoints,
           );
