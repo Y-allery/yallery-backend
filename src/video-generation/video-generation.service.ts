@@ -52,11 +52,27 @@ export class VideoGenerationService {
     this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   }
 
-  private async verifyUserHasEnoughCredits(user: UserEntity) {
-    const totalCost = 100;
+  private async verifyUserHasEnoughCredits(user: UserEntity, aiService: VideoAIEnum) {
+    const totalCost = await this.getCostByService(aiService);
     if (user.points < totalCost) {
-      throw new BadRequestException('Not enough credits to generate images');
+      throw new BadRequestException('Not enough credits to generate video');
     }
+  }
+
+  async getCostByService(service: VideoAIEnum): Promise<number> {
+    const aiSetting = await this.aiSettingsRepository.findOne({
+      where: { ai_service: service, is_active: true, type: 'video' },
+    });
+
+    if (!aiSetting) {
+      // Fallback до значення з rewards, якщо не знайдено в ai_settings
+      return await this.rewardService.getRewardPointsOrDefault(
+        RewardTypeEnum.VIDEO_GENERATE_SPEND,
+        100,
+      );
+    }
+
+    return aiSetting.cost;
   }
 
   async getAllAISettings() {
@@ -111,7 +127,7 @@ export class VideoGenerationService {
   async addVideoTaskToQueue(dto: GenerateVideoDto, userId: number) {
     try {
       const user = await this.userService.findById(userId);
-      await this.verifyUserHasEnoughCredits(user);
+      await this.verifyUserHasEnoughCredits(user, dto.ai_service);
 
       const jobOptions = {
         attempts: 3,
@@ -282,14 +298,12 @@ export class VideoGenerationService {
     }
   }
 
-  async updateUserCredits(user: UserEntity) {
-    const videoCost = await this.rewardService.getRewardPointsOrDefault(
-      RewardTypeEnum.VIDEO_GENERATE_SPEND,
-      100,
-    );
+  async updateUserCredits(user: UserEntity, aiService: VideoAIEnum) {
+    const videoCost = await this.getCostByService(aiService);
     user.points -= videoCost;
     await this.userEntity.save(user);
     await this.notificationGateway.emitProfileUpdate(user.id.toString());
+    return videoCost;
   }
 
   public async logActivityAndNotify(
@@ -298,6 +312,12 @@ export class VideoGenerationService {
     service?: VideoAIEnum,
     generationCost?: number,
   ) {
+    // Якщо generationCost не передано, беремо з ai_settings
+    let cost = generationCost;
+    if (!cost && service) {
+      cost = await this.getCostByService(service);
+    }
+
     const description = await this.activityService.createActivities(
       null,
       [userId],
@@ -307,7 +327,7 @@ export class VideoGenerationService {
       undefined,
       undefined,
       service as any,
-      generationCost,
+      cost,
     );
     await this.notificationGateway.sendNotification(
       userId.toString(),

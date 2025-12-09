@@ -80,8 +80,9 @@ export class BytyDanceProcessor extends BaseVideoProcessor {
         throw new Error('Post creation failed: post is missing or has no id');
       }
 
+      let videoCost: number;
       try {
-        await this.videoGenerationService.updateUserCredits(user);
+        videoCost = await this.videoGenerationService.updateUserCredits(user, dto.ai_service);
       } catch (error) {
         console.error(`[BytyDanceProcessor] Failed to update credits for user ${userId}:`, error);
         throw new Error(`Failed to update user credits: ${error.message}`);
@@ -101,7 +102,7 @@ export class BytyDanceProcessor extends BaseVideoProcessor {
           userId,
           ActivityEnum.VIDEO_GENERATE_SPEND,
           dto.ai_service,
-          100,
+          videoCost,
         );
       } catch (error) {
         console.error(`[BytyDanceProcessor] Failed to log activity for user ${userId}:`, error);
