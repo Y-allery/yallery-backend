@@ -109,9 +109,22 @@ export class PaymentService {
     if (!rewardType) {
       return null;
     }
+    // Payment rewards не зберігаються в БД, використовуємо fallback значення
+    const fallbackValues: { [key: string]: number } = {
+      [RewardTypeEnum.PAYMENT_5000]: 5000,
+      [RewardTypeEnum.PAYMENT_15000]: 15000,
+      [RewardTypeEnum.PAYMENT_30000]: 30000,
+    };
+    
     try {
       return await this.rewardService.getRewardPoints(rewardType);
     } catch (error) {
+      // Якщо не знайдено в БД, використовуємо fallback
+      const fallbackValue = fallbackValues[rewardType];
+      if (fallbackValue) {
+        this.logger.warn(`⚠️ Reward ${rewardType} not found in DB, using fallback: ${fallbackValue}`);
+        return fallbackValue;
+      }
       this.logger.error(`❌ Failed to get reward points for ${rewardType}:`, error);
       return null;
     }

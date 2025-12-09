@@ -63,24 +63,6 @@ export class CreateRewardsTable1765318000000 implements MigrationInterface {
         is_active: 1,
       },
       {
-        reward_type: 'PAYMENT_5000',
-        points: 5000,
-        description: 'Points purchased: 5000 YEPs package',
-        is_active: 1,
-      },
-      {
-        reward_type: 'PAYMENT_15000',
-        points: 15000,
-        description: 'Points purchased: 15000 YEPs package',
-        is_active: 1,
-      },
-      {
-        reward_type: 'PAYMENT_30000',
-        points: 30000,
-        description: 'Points purchased: 30000 YEPs package',
-        is_active: 1,
-      },
-      {
         reward_type: 'REFERRAL_REWARD',
         points: 500,
         description: 'Reward for both users when referral code is used',
