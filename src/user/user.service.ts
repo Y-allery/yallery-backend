@@ -120,8 +120,8 @@ export class UserService {
     if (!user) throw new NotFoundException('User not found');
 
     const rewardPoints = await this.rewardService.getRewardPointsOrDefault(
-      RewardTypeEnum.TWITTER_USERNAME_UPDATE_REWARD,
-      200,
+      RewardTypeEnum.REGISTRATION_BONUS,
+      3000,
     );
     user.points = (user.points || 0) + rewardPoints;
     user.twitterUsername = twitterUsername;
