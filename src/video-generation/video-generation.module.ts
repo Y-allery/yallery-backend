@@ -15,7 +15,6 @@ import { ActivityModule } from 'src/activity/activity.module';
 import { TagEntity } from 'src/tag/entities/tag.entity';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { AISettingsEntity } from 'src/image-generation/entities/ai-settings.entity';
-import { RewardModule } from 'src/reward/reward.module';
 
 @Module({
   imports: [
@@ -26,7 +25,6 @@ import { RewardModule } from 'src/reward/reward.module';
     UploadModule,
     ServiceTokenModule,
     NotificationModule,
-    RewardModule,
     BullModule.registerQueue({ name: VideoAIEnum.BYTY_DANCE }),
     BullBoardModule.forFeature({
       name: VideoAIEnum.BYTY_DANCE,
