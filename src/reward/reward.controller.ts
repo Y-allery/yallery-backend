@@ -22,14 +22,14 @@ export class RewardController {
   }
 
   @Get(':rewardType')
-  @ApiOperation({ summary: 'Get reward by type', description: 'Retrieve a specific reward type' })
+  @ApiOperation({ summary: 'Get reward by type', description: 'Retrieve a specific reward type (Payment rewards are not available via GET)' })
   @ApiParam({ name: 'rewardType', enum: RewardTypeEnum, description: 'Type of reward' })
   @ApiResponse({ status: 200, description: 'Reward details' })
   @ApiResponse({ status: 404, description: 'Reward not found' })
   async getRewardByType(@Param('rewardType') rewardType: RewardTypeEnum) {
     const reward = await this.rewardService.getRewardByType(rewardType);
     if (!reward) {
-      throw new NotFoundException(`Reward type ${rewardType} not found`);
+      throw new NotFoundException(`Reward type ${rewardType} not found or not available`);
     }
     return reward;
   }

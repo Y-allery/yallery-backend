@@ -1,12 +1,18 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Not, In } from 'typeorm';
 import { RewardEntity } from './entities/reward.entity';
 import { RewardTypeEnum } from './types/reward-type.enum';
 import { UpdateRewardDto } from './dto/update-reward.dto';
 
 @Injectable()
 export class RewardService {
+  private readonly paymentRewardTypes = [
+    RewardTypeEnum.PAYMENT_5000,
+    RewardTypeEnum.PAYMENT_15000,
+    RewardTypeEnum.PAYMENT_30000,
+  ];
+
   constructor(
     @InjectRepository(RewardEntity)
     private readonly rewardRepository: Repository<RewardEntity>,
@@ -14,22 +20,37 @@ export class RewardService {
 
   async getAllRewards(): Promise<RewardEntity[]> {
     return this.rewardRepository.find({
+      where: {
+        reward_type: Not(In(this.paymentRewardTypes)),
+      },
       order: { reward_type: 'ASC' },
     });
   }
 
   async getRewardByType(rewardType: RewardTypeEnum): Promise<RewardEntity | null> {
+    // Не повертаємо Payment нагороди через GET
+    if (this.paymentRewardTypes.includes(rewardType)) {
+      return null;
+    }
     return this.rewardRepository.findOne({
       where: { reward_type: rewardType, is_active: true },
     });
   }
 
   async getRewardPoints(rewardType: RewardTypeEnum): Promise<number> {
-    const reward = await this.getRewardByType(rewardType);
+    // Використовуємо внутрішній метод, який не фільтрує Payment нагороди
+    const reward = await this.getRewardByTypeInternal(rewardType);
     if (!reward) {
       throw new NotFoundException(`Reward type ${rewardType} not found or inactive`);
     }
     return reward.points;
+  }
+
+  // Внутрішній метод для отримання нагороди без фільтрації Payment
+  private async getRewardByTypeInternal(rewardType: RewardTypeEnum): Promise<RewardEntity | null> {
+    return this.rewardRepository.findOne({
+      where: { reward_type: rewardType, is_active: true },
+    });
   }
 
   async updateReward(
