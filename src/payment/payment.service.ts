@@ -5,14 +5,16 @@ import { ConfigService } from '@nestjs/config';
 import { UserService } from '../user/user.service';
 import { PaymentEntity } from './entities/payment.entity';
 import { NotificationGateway } from 'src/notification/notification.gateway';
+import { RewardService } from 'src/reward/reward.service';
+import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
 
 @Injectable()
 export class PaymentService {
   private readonly logger = new Logger(PaymentService.name);
-  private productPointsMap: { [key: string]: number } = {
-    '5000yeps': 5000,
-    '15000yeps': 15000,
-    '30000yeps': 30000,
+  private productPointsMap: { [key: string]: RewardTypeEnum } = {
+    '5000yeps': RewardTypeEnum.PAYMENT_5000,
+    '15000yeps': RewardTypeEnum.PAYMENT_15000,
+    '30000yeps': RewardTypeEnum.PAYMENT_30000,
   };
 
   constructor(
@@ -21,6 +23,7 @@ export class PaymentService {
     @InjectRepository(PaymentEntity)
     private readonly paymentRepository: Repository<PaymentEntity>,
     private readonly notificationGateway: NotificationGateway,
+    private readonly rewardService: RewardService,
   ) {}
 
   async processWebhook(webhookData: Buffer): Promise<void> {
@@ -67,7 +70,7 @@ export class PaymentService {
           }
 
           const isTest = parsedData.is_sandbox === true || parsedData.environment === 'sandbox' || parsedData.test === true;
-          
+
           user.points += pointsToAdd;
           await this.userService.updateUser(user);
           await this.notificationGateway.emitProfileUpdate(user.id.toString());
@@ -101,7 +104,16 @@ export class PaymentService {
     }
   }
 
-  private getPointsForProduct(productId: string): number | null {
-    return this.productPointsMap[productId] || null;
+  private async getPointsForProduct(productId: string): Promise<number | null> {
+    const rewardType = this.productPointsMap[productId];
+    if (!rewardType) {
+      return null;
+    }
+    try {
+      return await this.rewardService.getRewardPoints(rewardType);
+    } catch (error) {
+      this.logger.error(`❌ Failed to get reward points for ${rewardType}:`, error);
+      return null;
+    }
   }
 }

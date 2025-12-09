@@ -14,6 +14,8 @@ import { ActivityService } from 'src/activity/activity.service';
 import { ActivityEnum } from 'src/activity/types/activity.enum';
 import { ConfigService } from '@nestjs/config';
 import { UserService } from 'src/user/user.service';
+import { RewardService } from 'src/reward/reward.service';
+import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
 
 @Injectable()
 export class LikeService {
@@ -28,6 +30,7 @@ export class LikeService {
     private readonly userService: UserService,
     private readonly activityService: ActivityService,
     private readonly configService: ConfigService,
+    private readonly rewardService: RewardService,
     @InjectDataSource()
     private readonly dataSource: DataSource,
   ) {}
@@ -60,6 +63,16 @@ export class LikeService {
       throw new BadRequestException('You have already liked this post');
     }
 
+    // Отримуємо значення нагород до транзакції
+    const likeSpendPoints = await this.rewardService.getRewardPointsOrDefault(
+      RewardTypeEnum.LIKE_SPEND,
+      15,
+    );
+    const likeEarnPoints = await this.rewardService.getRewardPointsOrDefault(
+      RewardTypeEnum.LIKE_EARN,
+      5,
+    );
+
     try {
       await this.dataSource.transaction(async (manager) => {
         await manager
@@ -69,9 +82,9 @@ export class LikeService {
         await manager
           .getRepository(UserEntity)
           .decrement(
-            { id: user.id, points: MoreThanOrEqual(15) },
+            { id: user.id, points: MoreThanOrEqual(likeSpendPoints) },
             'points',
-            +this.configService.get('LIKE_SPEND_YEPS'),
+            likeSpendPoints,
           );
 
         await manager
@@ -79,7 +92,7 @@ export class LikeService {
           .increment(
             { id: post.user.id },
             'points',
-            +this.configService.get('LIKE_EARN_YEPS'),
+            likeEarnPoints,
           );
       });
 

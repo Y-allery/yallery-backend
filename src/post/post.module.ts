@@ -17,6 +17,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { TweetProcessor } from './processors/tweet.processor';
 import { PartnershipActivityEntity } from 'src/admin/entities/partnership-activity.entity';
 import { PartnerUserLinkEntity } from 'src/admin/entities/partner-user-link.entity';
+import { RewardModule } from 'src/reward/reward.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { PartnerUserLinkEntity } from 'src/admin/entities/partner-user-link.enti
     ActivityModule,
     NotificationModule,
     TagModule,
+    RewardModule,
   ],
   providers: [PostService, TweetProcessor],
   controllers: [PostController],

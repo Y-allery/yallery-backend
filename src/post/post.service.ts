@@ -31,6 +31,8 @@ import { ConfigService } from '@nestjs/config';
 import { NotificationGateway } from 'src/notification/notification.gateway';
 import { PartnershipActivityEntity } from 'src/admin/entities/partnership-activity.entity';
 import { PartnerUserLinkEntity } from 'src/admin/entities/partner-user-link.entity';
+import { RewardService } from 'src/reward/reward.service';
+import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
 
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 const randomSleep = async () =>
@@ -67,6 +69,7 @@ export class PostService {
     private readonly partnerUserLinkRepo: Repository<PartnerUserLinkEntity>,
     @InjectRepository(PartnershipActivityEntity)
     private readonly partnershipActivityRepo: Repository<PartnershipActivityEntity>,
+    private readonly rewardService: RewardService,
   ) {}
 
   async getPosts(cursor: number | null, limit: number, userId: number) {
@@ -724,7 +727,10 @@ export class PostService {
   async share(
     userId: number,
   ): Promise<{ message: string; pointsAwarded: number }> {
-    const dailyPoints = this.configService.get('SHARE_YEPS') || 5;
+    const dailyPoints = await this.rewardService.getRewardPointsOrDefault(
+      RewardTypeEnum.SHARE_YEPS,
+      5,
+    );
     const now = new Date();
     const startOfToday = new Date(now.setHours(0, 0, 0, 0));
 

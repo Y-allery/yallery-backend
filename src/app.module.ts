@@ -28,6 +28,7 @@ import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import { APP_FILTER } from '@nestjs/core';
 import { VideoGenerationController } from './video-generation/video-generation.controller';
 import { VideoGenerationModule } from './video-generation/video-generation.module';
+import { RewardModule } from './reward/reward.module';
 
 @Module({
   imports: [
@@ -79,6 +80,7 @@ import { VideoGenerationModule } from './video-generation/video-generation.modul
     ServiceTokenModule,
     PaymentModule,
     VideoGenerationModule,
+    RewardModule,
   ],
   controllers: [VideoGenerationController],
   providers: [

@@ -1,0 +1,50 @@
+import { Controller, Get, Put, Param, Body, UseGuards, NotFoundException } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/swagger';
+import { RewardService } from './reward.service';
+import { RewardTypeEnum } from './types/reward-type.enum';
+import { UpdateRewardDto } from './dto/update-reward.dto';
+import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
+import { RoleGuard } from 'src/auth/guards/role.guard';
+import { Roles } from 'src/auth/decorators/role.decorator';
+import { RoleEnum } from 'src/user/types/role.enum';
+
+@Controller('rewards')
+@ApiTags('Rewards')
+@UseGuards(JwtAuthGuard, RoleGuard)
+export class RewardController {
+  constructor(private readonly rewardService: RewardService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Get all rewards', description: 'Retrieve all reward types with their point values' })
+  @ApiResponse({ status: 200, description: 'List of all rewards' })
+  async getAllRewards() {
+    return this.rewardService.getAllRewards();
+  }
+
+  @Get(':rewardType')
+  @ApiOperation({ summary: 'Get reward by type', description: 'Retrieve a specific reward type' })
+  @ApiParam({ name: 'rewardType', enum: RewardTypeEnum, description: 'Type of reward' })
+  @ApiResponse({ status: 200, description: 'Reward details' })
+  @ApiResponse({ status: 404, description: 'Reward not found' })
+  async getRewardByType(@Param('rewardType') rewardType: RewardTypeEnum) {
+    const reward = await this.rewardService.getRewardByType(rewardType);
+    if (!reward) {
+      throw new NotFoundException(`Reward type ${rewardType} not found`);
+    }
+    return reward;
+  }
+
+  @Put(':rewardType')
+  @Roles(RoleEnum.ADMIN)
+  @ApiOperation({ summary: 'Update reward', description: 'Update points, description, or active status of a reward (Admin only)' })
+  @ApiParam({ name: 'rewardType', enum: RewardTypeEnum, description: 'Type of reward to update' })
+  @ApiBody({ type: UpdateRewardDto })
+  @ApiResponse({ status: 200, description: 'Reward updated successfully' })
+  @ApiResponse({ status: 404, description: 'Reward not found' })
+  async updateReward(
+    @Param('rewardType') rewardType: RewardTypeEnum,
+    @Body() updateDto: UpdateRewardDto,
+  ) {
+    return this.rewardService.updateReward(rewardType, updateDto);
+  }
+}

@@ -23,6 +23,8 @@ import { PostEntity } from 'src/post/entities/post.entity';
 import { TagEntity } from 'src/tag/entities/tag.entity';
 import { AISettingsEntity } from 'src/image-generation/entities/ai-settings.entity';
 import OpenAI from 'openai';
+import { RewardService } from 'src/reward/reward.service';
+import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
 
 @Injectable()
 export class VideoGenerationService {
@@ -45,6 +47,7 @@ export class VideoGenerationService {
     private aiSettingsRepository: Repository<AISettingsEntity>,
 
     private readonly notificationGateway: NotificationGateway,
+    private readonly rewardService: RewardService,
   ) {
     this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   }
@@ -280,7 +283,11 @@ export class VideoGenerationService {
   }
 
   async updateUserCredits(user: UserEntity) {
-    user.points -= 100;
+    const videoCost = await this.rewardService.getRewardPointsOrDefault(
+      RewardTypeEnum.VIDEO_GENERATE_SPEND,
+      100,
+    );
+    user.points -= videoCost;
     await this.userEntity.save(user);
     await this.notificationGateway.emitProfileUpdate(user.id.toString());
   }

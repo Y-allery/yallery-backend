@@ -31,6 +31,8 @@ import { PartnershipActivityEntity } from 'src/admin/entities/partnership-activi
 import { PartnerUserLinkEntity } from 'src/admin/entities/partner-user-link.entity';
 import { ReportPostEntity } from 'src/post/entities/report.post.entity';
 import { PaymentEntity } from 'src/payment/entities/payment.entity';
+import { RewardService } from 'src/reward/reward.service';
+import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
 
 @Injectable()
 export class UserService {
@@ -47,6 +49,7 @@ export class UserService {
     private readonly deviceTokenModel: Repository<DeviceTokenEntity>,
     private readonly configService: ConfigService,
     private readonly activityService: ActivityService,
+    private readonly rewardService: RewardService,
     @Inject(forwardRef(() => NotificationGateway))
     private readonly notificationGateway: NotificationGateway,
 
@@ -315,11 +318,10 @@ export class UserService {
   }
 
   async handleDailyReward() {
-    const dailyReward = +this.configService.get<number>('DAILY_REWARD_YEPS');
-    if (!dailyReward) {
-      console.error('Daily reward is not set in the configuration.');
-      return;
-    }
+    const dailyReward = await this.rewardService.getRewardPointsOrDefault(
+      RewardTypeEnum.DAILY_REWARD,
+      10,
+    );
 
     const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
     const usersToUpdate = await this.userModel
@@ -653,7 +655,10 @@ export class UserService {
     referral.usedBy = user;
     await this.referralRepository.save(referral);
 
-    const rewardPoints = 500;
+    const rewardPoints = await this.rewardService.getRewardPointsOrDefault(
+      RewardTypeEnum.REFERRAL_REWARD,
+      500,
+    );
 
     user.points += rewardPoints;
     referral.user.points += rewardPoints;
@@ -775,10 +780,14 @@ export class UserService {
       }
 
       if (authorReward > 0) {
+        const authorRewardPoints = await this.rewardService.getRewardPointsOrDefault(
+          RewardTypeEnum.TOP_POST_REWARD_AUTHOR,
+          100,
+        );
         await this.userModel
           .createQueryBuilder()
           .update(UserEntity)
-          .set({ points: () => `points + ${100}` })
+          .set({ points: () => `points + ${authorRewardPoints}` })
           .where('id = :userId', { userId: topPost.user.id })
           .execute();
 

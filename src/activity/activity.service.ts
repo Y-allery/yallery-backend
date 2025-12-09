@@ -15,6 +15,8 @@ import { NotificationGateway } from 'src/notification/notification.gateway';
 import { UserEntity } from 'src/user/entities/user.entity';
 import { PopularPostsResponse } from './types/popular-post.interface';
 import { ViewedPostEntity } from 'src/post/entities/viwed.entity';
+import { RewardService } from 'src/reward/reward.service';
+import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
 
 @Injectable()
 export class ActivityService {
@@ -31,6 +33,7 @@ export class ActivityService {
     @InjectRepository(ViewedPostEntity)
     private viewedPostRepository: Repository<ViewedPostEntity>,
     private readonly notificationGateway: NotificationGateway,
+    private readonly rewardService: RewardService,
   ) {}
 
   getActivityMessage(
@@ -73,7 +76,7 @@ export class ActivityService {
       type === ActivityEnum.IMAGE_GENERATE_SPEND ||
       type === ActivityEnum.VIDEO_GENERATE_SPEND
         ? generation_cost
-        : this.getPointsForActivity(type, contest_reward);
+        : await this.getPointsForActivity(type, contest_reward);
 
 
     const messageGenerationCost = points;
@@ -168,18 +171,19 @@ export class ActivityService {
     });
   }
 
-  getPointsForActivity(type: ActivityEnum, contest_reward?: number): number {
+  async getPointsForActivity(type: ActivityEnum, contest_reward?: number): Promise<number> {
     switch (type) {
       case ActivityEnum.LIKE_EARN:
-        return +this.configService.get('LIKE_EARN_YEPS');
+        return await this.rewardService.getRewardPointsOrDefault(RewardTypeEnum.LIKE_EARN, 5);
       case ActivityEnum.LIKE_SPEND:
-        return +this.configService.get('LIKE_SPEND_YEPS');
+        return await this.rewardService.getRewardPointsOrDefault(RewardTypeEnum.LIKE_SPEND, 15);
       case ActivityEnum.IMAGE_GENERATE_SPEND:
-        return +this.configService.get('IMAGE_GENERATE_SPEND_YEPS');
+        // IMAGE_GENERATE_SPEND вартість береться з ai_settings, не з rewards
+        return +this.configService.get('IMAGE_GENERATE_SPEND_YEPS') || 0;
       case ActivityEnum.DAILY_REWARD:
-        return +this.configService.get('DAILY_REWARD_YEPS');
+        return await this.rewardService.getRewardPointsOrDefault(RewardTypeEnum.DAILY_REWARD, 10);
       case ActivityEnum.SHARE_REWARD:
-        return +this.configService.get('SHARE_REWARD_YEPS');
+        return await this.rewardService.getRewardPointsOrDefault(RewardTypeEnum.SHARE_REWARD, 500);
       case ActivityEnum.CONTEST_WIN:
         return contest_reward || 0;
       default:
@@ -435,11 +439,7 @@ export class ActivityService {
         pointsAwarded: 0
       };
     }
-    const dailyRewardAmount = this.configService.get('DAILY_REWARD_YEPS');
-
-
-    const dailyRewardPoints = this.getPointsForActivity(ActivityEnum.DAILY_REWARD);
-    
+    const dailyRewardPoints = await this.getPointsForActivity(ActivityEnum.DAILY_REWARD);
 
     await this.createActivities(
       null,
@@ -447,7 +447,7 @@ export class ActivityService {
       ActivityEnum.DAILY_REWARD
     );
 
-    await this.userRepository.increment({ id: userId }, 'points', dailyRewardAmount);
+    await this.userRepository.increment({ id: userId }, 'points', dailyRewardPoints);
 
     await this.notificationGateway.emitProfileUpdate(userId.toString());
 
