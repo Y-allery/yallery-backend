@@ -28,7 +28,7 @@ export class RewardService {
   }
 
   async getRewardByType(rewardType: RewardTypeEnum): Promise<RewardEntity | null> {
-    // Не повертаємо виключені нагороди через GET (Payment та VIDEO_GENERATE_SPEND)
+    // Не повертаємо Payment нагороди через GET
     if (this.excludedRewardTypes.includes(rewardType)) {
       return null;
     }
