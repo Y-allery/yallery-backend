@@ -51,18 +51,6 @@ export class CreateRewardsTable1765318000000 implements MigrationInterface {
         is_active: 1,
       },
       {
-        reward_type: 'TOP_POST_REWARD_AUTHOR',
-        points: 100,
-        description: 'Reward for author of the most liked post in a tag',
-        is_active: 1,
-      },
-      {
-        reward_type: 'TOP_POST_REWARD_LIKER',
-        points: 0,
-        description: 'Dynamic reward for likers of top post (calculated per post)',
-        is_active: 1,
-      },
-      {
         reward_type: 'REFERRAL_REWARD',
         points: 500,
         description: 'Reward for both users when referral code is used',

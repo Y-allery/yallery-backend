@@ -55,8 +55,6 @@ export class ActivityService {
       [ActivityEnum.ADMIN_CONTEST_REVIEW]: `A contest review has been initiated`,
       [ActivityEnum.ADMIN_REPORT_REVIEW]: `A report review has been completed`,
       [ActivityEnum.ADMIN_CONTEST_WON]: `The contest result has been finalized and the winners have been announced`,
-      [ActivityEnum.TOP_POST_REWARD_AUTHOR]: `Congratulations! Your post was the most liked in its tag today. You received a reward of ${generationCost || 'points'} YEPs as the author!`,
-      [ActivityEnum.TOP_POST_REWARD_LIKER]: `You received a share of the reward for liking the most popular post!`,
     };
     return messages[type];
   }

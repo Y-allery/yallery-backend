@@ -300,10 +300,6 @@ export class UserController {
     await this.userService.handleDailyReward();
   }
 
-  @Cron('0 2 * * *')
-  async handleTopLikedPostReward() {
-    await this.userService.processTopLikedPostRewards();
-  }
 
 
 }

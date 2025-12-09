@@ -45,11 +45,6 @@ export function getNotificationMessage(activityType: ActivityEnum): {
         title: 'Share Reward',
         body: 'You received a reward for sharing content.',
       };
-    case ActivityEnum.TOP_POST_REWARD_AUTHOR:
-      return {
-        title: 'Top Post Reward',
-        body: 'Congratulations! Your post was the most liked in its tag today. You received a reward of points.',
-      };
     default:
       return {
         title: 'Notification',
