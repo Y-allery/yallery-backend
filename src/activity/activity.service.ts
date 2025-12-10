@@ -36,21 +36,41 @@ export class ActivityService {
     private readonly rewardService: RewardService,
   ) {}
 
-  getActivityMessage(
+  async getActivityMessage(
     type: ActivityEnum,
     generationCost?: number,
     contest?: ContestEntity,
-  ): string {
+  ): Promise<string> {
+    // Отримуємо значення з RewardService для fallback, якщо generationCost не передано
+    let points = generationCost;
+    
+    if (!generationCost) {
+      switch (type) {
+        case ActivityEnum.LIKE_EARN:
+          points = await this.rewardService.getRewardPointsOrDefault(RewardTypeEnum.LIKE_EARN, 5);
+          break;
+        case ActivityEnum.LIKE_SPEND:
+          points = await this.rewardService.getRewardPointsOrDefault(RewardTypeEnum.LIKE_SPEND, 15);
+          break;
+        case ActivityEnum.DAILY_REWARD:
+          points = await this.rewardService.getRewardPointsOrDefault(RewardTypeEnum.DAILY_REWARD, 10);
+          break;
+        case ActivityEnum.SHARE_REWARD:
+          points = await this.rewardService.getRewardPointsOrDefault(RewardTypeEnum.SHARE_REWARD, 500);
+          break;
+      }
+    }
+
     const messages = {
-      [ActivityEnum.LIKE_EARN]: `You earned ${generationCost || this.configService.get('LIKE_EARN_YEPS')} YEPs for a like`,
-      [ActivityEnum.LIKE_SPEND]: `You spent ${generationCost || this.configService.get('LIKE_SPEND_YEPS')} YEPs on a like`,
-      [ActivityEnum.IMAGE_GENERATE_SPEND]: `You spent ${generationCost || this.configService.get('IMAGE_GENERATE_COST_YEPS')} YEPs on image generation`,
-      [ActivityEnum.VIDEO_GENERATE_SPEND]: `You spent ${generationCost || this.configService.get('VIDEO_GENERATE_COST_YEPS')} YEPs on video generation`,
+      [ActivityEnum.LIKE_EARN]: `You earned ${points || generationCost || 5} YEPs for a like`,
+      [ActivityEnum.LIKE_SPEND]: `You spent ${points || generationCost || 15} YEPs on a like`,
+      [ActivityEnum.IMAGE_GENERATE_SPEND]: `You spent ${generationCost || this.configService.get('IMAGE_GENERATE_COST_YEPS') || 0} YEPs on image generation`,
+      [ActivityEnum.VIDEO_GENERATE_SPEND]: `You spent ${generationCost || this.configService.get('VIDEO_GENERATE_COST_YEPS') || 0} YEPs on video generation`,
       [ActivityEnum.CONTEST_OPEN]: `The contest ${contest?.name} is now open! Join us for an exciting challenge and show off your skills.`,
       [ActivityEnum.CONTEST_CLOSE]: `The contest is closed. Unfortunately, you didn't win a prize this time`,
       [ActivityEnum.CONTEST_WIN]: `Congratulations! You won first place in the ${contest?.name} contest and received a reward of ${generationCost} YEPs`,
-      [ActivityEnum.DAILY_REWARD]: `You received a daily reward of ${generationCost || this.configService.get('DAILY_REWARD_YEPS')} YEPs`,
-      [ActivityEnum.SHARE_REWARD]: `You received a reward of ${generationCost || this.configService.get('SHARE_REWARD_YEPS')} YEPs for invite new users`,
+      [ActivityEnum.DAILY_REWARD]: `You received a daily reward of ${points || generationCost || 10} YEPs`,
+      [ActivityEnum.SHARE_REWARD]: `You received a reward of ${points || generationCost || 500} YEPs for invite new users`,
       [ActivityEnum.ADMIN_REPORT]: `A new report has been submitted for review`,
       [ActivityEnum.ADMIN_CONTEST_REVIEW]: `A contest review has been initiated`,
       [ActivityEnum.ADMIN_REPORT_REVIEW]: `A report review has been completed`,
@@ -79,7 +99,7 @@ export class ActivityService {
 
     const messageGenerationCost = points;
     
-    const description = this.getActivityMessage(type, messageGenerationCost, contest);
+    const description = await this.getActivityMessage(type, messageGenerationCost, contest);
     const activities = toUserIds.map((toUserId) =>
       this.activityRepository.create({
         fromUser: fromUserId ? { id: fromUserId } : null,
