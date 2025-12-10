@@ -11,6 +11,4 @@ export enum RewardTypeEnum {
   PAYMENT_30000 = 'PAYMENT_30000',
   REFERRAL_REWARD = 'REFERRAL_REWARD',
   REGISTRATION_BONUS = 'REGISTRATION_BONUS',
-  // Залишаємо для зворотної сумісності (буде видалено пізніше)
-  DAILY_REWARD = 'DAILY_REWARD',
 }
