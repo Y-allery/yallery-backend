@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ContestService } from './contest.service';
 import { ContestController } from './contest.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -11,6 +11,7 @@ import { NotificationModule } from 'src/notification/notification.module';
 import { ActivityModule } from 'src/activity/activity.module';
 import { FirebaseModule } from 'src/firebase/firebase.module';
 import { RedisService } from 'src/database/redis.service.connect';
+import { RewardModule } from 'src/reward/reward.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { RedisService } from 'src/database/redis.service.connect';
     NotificationModule,
     ActivityModule,
     FirebaseModule,
+    forwardRef(() => RewardModule),
   ],
   providers: [ContestService, RedisService],
   controllers: [ContestController],
