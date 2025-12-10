@@ -26,7 +26,6 @@ export class RewardEntity {
   @Column({ type: 'boolean', default: true })
   is_active: boolean;
 
-  // Позначаємо чи нагорода є щоденною (claimable раз на день)
   @Column({ type: 'boolean', default: false })
   is_daily: boolean;
 

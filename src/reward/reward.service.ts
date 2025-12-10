@@ -15,13 +15,19 @@ export class RewardService {
     RewardTypeEnum.PAYMENT_30000,
   ];
 
-  // Нагороди які можна клеймити в reward center
   private readonly claimableRewardTypes = [
     RewardTypeEnum.DAILY_LOGIN,
     RewardTypeEnum.POST_VIDEO_REWARD,
     RewardTypeEnum.POST_PHOTO_REWARD,
     RewardTypeEnum.CONTEST_PARTICIPATION,
     RewardTypeEnum.REGISTRATION_REWARD,
+    RewardTypeEnum.RATE_APP,
+  ];
+
+  private readonly oneTimeRewardTypes = [
+    RewardTypeEnum.CONTEST_PARTICIPATION,
+    RewardTypeEnum.REGISTRATION_REWARD,
+    RewardTypeEnum.RATE_APP,
   ];
 
   constructor(
@@ -105,7 +111,7 @@ export class RewardService {
   }
 
   /**
-   * Відмітити що нагорода стала доступною для користувача
+   * Mark reward as eligible for a user.
    */
   async markRewardEligible(
     userId: number,
@@ -114,7 +120,17 @@ export class RewardService {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Перевіряємо чи вже існує запис на сьогодні
+    // One-time rewards: block re-eligibility if any record exists
+    if (this.oneTimeRewardTypes.includes(rewardType)) {
+      const existingAnyDate = await this.userRewardRepository.findOne({
+        where: { userId, rewardType },
+      });
+      if (existingAnyDate) {
+        return existingAnyDate;
+      }
+    }
+
+    // Daily/recurring: check for existing record today
     const existing = await this.userRewardRepository.findOne({
       where: {
         userId,
@@ -124,10 +140,9 @@ export class RewardService {
     });
 
     if (existing) {
-      return existing; // Вже відмічено
+      return existing;
     }
 
-    // Створюємо новий запис
     const userReward = this.userRewardRepository.create({
       userId,
       rewardType,
@@ -140,7 +155,7 @@ export class RewardService {
   }
 
   /**
-   * Отримати доступні нагороди для користувача (які можна клеймити)
+   * Get available rewards grouped by daily/one-time.
    */
   async getAvailableRewards(userId: number): Promise<{
     daily: {
@@ -165,10 +180,10 @@ export class RewardService {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Забезпечуємо автоклейм реєстраційного реварду (одноразовий, без поінтів)
+    // Auto-claim registration reward (one-time, zero points by default)
     await this.ensureRegistrationRewardAutoClaimed(userId, today);
 
-    // Отримуємо всі claimable нагороди
+    // Fetch claimable rewards
     const rewards = await this.rewardRepository.find({
       where: {
         reward_type: In(this.claimableRewardTypes),
@@ -176,7 +191,7 @@ export class RewardService {
       },
     });
 
-    // Отримуємо записи user_rewards для сьогодні
+    // Fetch user reward entries for today
     const userRewards = await this.userRewardRepository.find({
       where: {
         userId,
@@ -215,7 +230,7 @@ export class RewardService {
   }
 
   /**
-   * Автоматично відмічає реєстраційний ревард як заклеймлений (одноразовий)
+   * Auto-claim registration reward (one-time).
    */
   private async ensureRegistrationRewardAutoClaimed(
     userId: number,
@@ -243,7 +258,6 @@ export class RewardService {
       return;
     }
 
-    // Створюємо заклеймлений запис без нарахування поінтів
     const claimed = this.userRewardRepository.create({
       userId,
       rewardType: RewardTypeEnum.REGISTRATION_REWARD,
@@ -252,7 +266,6 @@ export class RewardService {
       pointsAwarded: reward.points || 0,
     });
 
-    // Якщо хочемо нарахувати поінти (>0) — нараховуємо
     if (reward.points && reward.points > 0) {
       await this.userService.incrementUserPoints(userId, reward.points);
     }
@@ -261,7 +274,7 @@ export class RewardService {
   }
 
   /**
-   * Перевірити чи доступна нагорода для клеймування
+   * Check if reward is eligible for claim today.
    */
   async isRewardEligible(
     userId: number,
@@ -301,7 +314,7 @@ export class RewardService {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Перевіряємо чи доступна нагорода
+    // Check availability
     const userReward = await this.userRewardRepository.findOne({
       where: {
         userId,
@@ -326,13 +339,12 @@ export class RewardService {
       };
     }
 
-    // Отримуємо кількість поінтів
+    // Load points
     const points = await this.getRewardPoints(rewardType);
 
-    // Додаємо поінти користувачу
+    // Add points
     await this.userService.incrementUserPoints(userId, points);
 
-    // Оновлюємо запис
     const todayDate = new Date();
     todayDate.setHours(0, 0, 0, 0);
     userReward.claimedDate = todayDate;

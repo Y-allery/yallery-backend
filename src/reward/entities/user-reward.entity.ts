@@ -29,13 +29,13 @@ export class UserRewardEntity {
 
   @Column({ type: 'date' })
   @Index()
-  eligibleDate: Date; // Дата коли нагорода стала доступною
+  eligibleDate: Date;
 
   @Column({ type: 'date', nullable: true })
-  claimedDate: Date | null; // Дата коли нагорода була клеймована (null якщо не клеймована)
+  claimedDate: Date | null;
 
   @Column({ type: 'int', nullable: true })
-  pointsAwarded: number | null; // Кількість поінтів які були нараховані
+  pointsAwarded: number | null;
 
   @CreateDateColumn()
   createdAt: Date;

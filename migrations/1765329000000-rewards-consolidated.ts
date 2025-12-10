@@ -103,6 +103,13 @@ export class RewardsConsolidated1765329000000 implements MigrationInterface {
         is_active: 1,
         is_daily: 0,
       },
+      {
+        reward_type: 'RATE_APP',
+        points: 100,
+        description: 'Reward for completing the rate app flow (one-time)',
+        is_active: 1,
+        is_daily: 0,
+      },
     ];
 
     for (const reward of rewards) {

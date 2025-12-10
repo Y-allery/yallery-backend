@@ -10,13 +10,13 @@ import { Roles } from 'src/auth/decorators/role.decorator';
 import { RoleEnum } from 'src/user/types/role.enum';
 import { AuthenticatedRequest } from 'src/auth/types/auth.user.interface';
 
-// Claimable rewards (for swagger docs)
 const CLAIMABLE_REWARD_TYPES: RewardTypeEnum[] = [
   RewardTypeEnum.DAILY_LOGIN,
   RewardTypeEnum.POST_VIDEO_REWARD,
   RewardTypeEnum.POST_PHOTO_REWARD,
   RewardTypeEnum.CONTEST_PARTICIPATION,
   RewardTypeEnum.REGISTRATION_REWARD,
+  RewardTypeEnum.RATE_APP,
 ];
 
 @Controller('rewards')
@@ -62,7 +62,7 @@ export class RewardController {
   @Post('claim/:rewardType')
   @ApiOperation({ 
     summary: 'Claim reward (eligible only)', 
-    description: 'Claim a reward only if it is eligible for the user. Daily rewards — раз на день; one-time — після виконання умови.' 
+    description: 'Claim only if eligible. Daily rewards — once per day; one-time — after completing the required action.' 
   })
   @ApiParam({ name: 'rewardType', enum: CLAIMABLE_REWARD_TYPES, description: 'Claimable reward type' })
   @ApiResponse({ 
@@ -76,6 +76,17 @@ export class RewardController {
     @Param('rewardType') rewardType: RewardTypeEnum,
   ): Promise<ClaimRewardResponseDto> {
     return this.rewardService.claimReward(req.user.id, rewardType);
+  }
+
+  @Post('mark/rate-app')
+  @ApiOperation({
+    summary: 'Mark rate-app flow completed',
+    description: 'Marks the rate-app reward as eligible after user taps rate flow.',
+  })
+  @ApiResponse({ status: 200, description: 'Marked as eligible' })
+  async markRateApp(@Req() req: AuthenticatedRequest) {
+    await this.rewardService.markRewardEligible(req.user.id, RewardTypeEnum.RATE_APP);
+    return { success: true };
   }
 
   @Put(':rewardType')
