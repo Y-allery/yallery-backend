@@ -20,6 +20,8 @@ export class RewardService {
     RewardTypeEnum.DAILY_LOGIN,
     RewardTypeEnum.POST_VIDEO_REWARD,
     RewardTypeEnum.POST_PHOTO_REWARD,
+    RewardTypeEnum.CONTEST_PARTICIPATION,
+    RewardTypeEnum.REGISTRATION_REWARD,
   ];
 
   constructor(
@@ -163,6 +165,9 @@ export class RewardService {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    // Забезпечуємо автоклейм реєстраційного реварду (одноразовий, без поінтів)
+    await this.ensureRegistrationRewardAutoClaimed(userId, today);
+
     // Отримуємо всі claimable нагороди
     const rewards = await this.rewardRepository.find({
       where: {
@@ -207,6 +212,52 @@ export class RewardService {
     }
 
     return { daily, oneTime };
+  }
+
+  /**
+   * Автоматично відмічає реєстраційний ревард як заклеймлений (одноразовий)
+   */
+  private async ensureRegistrationRewardAutoClaimed(
+    userId: number,
+    today: Date,
+  ): Promise<void> {
+    const existing = await this.userRewardRepository.findOne({
+      where: {
+        userId,
+        rewardType: RewardTypeEnum.REGISTRATION_REWARD,
+      },
+    });
+
+    if (existing) {
+      return;
+    }
+
+    const reward = await this.rewardRepository.findOne({
+      where: {
+        reward_type: RewardTypeEnum.REGISTRATION_REWARD,
+        is_active: true,
+      },
+    });
+
+    if (!reward) {
+      return;
+    }
+
+    // Створюємо заклеймлений запис без нарахування поінтів
+    const claimed = this.userRewardRepository.create({
+      userId,
+      rewardType: RewardTypeEnum.REGISTRATION_REWARD,
+      eligibleDate: today,
+      claimedDate: today,
+      pointsAwarded: reward.points || 0,
+    });
+
+    // Якщо хочемо нарахувати поінти (>0) — нараховуємо
+    if (reward.points && reward.points > 0) {
+      await this.userService.incrementUserPoints(userId, reward.points);
+    }
+
+    await this.userRewardRepository.save(claimed);
   }
 
   /**

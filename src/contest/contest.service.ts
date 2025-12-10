@@ -25,6 +25,8 @@ import { ActivityEnum } from 'src/activity/types/activity.enum';
 import { UpdateContestDto } from './dto/update.contest.dto';
 import { RoleEnum } from 'src/user/types/role.enum';
 import { FirebaseService } from 'src/firebase/firebase.service';
+import { RewardService } from 'src/reward/reward.service';
+import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
 const axios = require('axios');
 import * as https from 'https';
 
@@ -46,6 +48,7 @@ export class ContestService {
     private readonly activityService: ActivityService,
     private readonly firebaseService: FirebaseService,
     private readonly notificationGateway: NotificationGateway,
+    private readonly rewardService: RewardService,
   ) {
     this.tweetscoutApiKey = this.configService.get<string>('TWEETSCOUT_API_KEY');
   }
@@ -196,6 +199,13 @@ export class ContestService {
 
     contest.participants.push(user);
     await this.contestRepository.save(contest);
+
+    // Відмічаємо eligibility для одноразового реварду "участь у контесті"
+    await this.rewardService.markRewardEligible(
+      userId,
+      RewardTypeEnum.CONTEST_PARTICIPATION,
+    );
+
     return { success: true, message: 'You join to contest succesfully' };
   }
 

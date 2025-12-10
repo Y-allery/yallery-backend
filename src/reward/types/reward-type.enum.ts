@@ -2,6 +2,8 @@ export enum RewardTypeEnum {
   DAILY_LOGIN = 'DAILY_LOGIN', // Перейменовано з DAILY_REWARD
   POST_VIDEO_REWARD = 'POST_VIDEO_REWARD', // Нова нагорода за публікацію відео
   POST_PHOTO_REWARD = 'POST_PHOTO_REWARD', // Нова нагорода за публікацію фото
+  CONTEST_PARTICIPATION = 'CONTEST_PARTICIPATION', // Одноразова нагорода за участь в контесті
+  REGISTRATION_REWARD = 'REGISTRATION_REWARD', // Базова нагорода за реєстрацію (автоклейм)
   LIKE_EARN = 'LIKE_EARN',
   LIKE_SPEND = 'LIKE_SPEND',
   SHARE_REWARD = 'SHARE_REWARD',

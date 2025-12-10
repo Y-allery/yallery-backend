@@ -89,6 +89,20 @@ export class RewardsConsolidated1765329000000 implements MigrationInterface {
         is_active: 1,
         is_daily: 0,
       },
+      {
+        reward_type: 'REGISTRATION_REWARD',
+        points: 0,
+        description: 'Base reward for app install/registration (auto-claimed)',
+        is_active: 1,
+        is_daily: 0,
+      },
+      {
+        reward_type: 'CONTEST_PARTICIPATION',
+        points: 100,
+        description: 'Reward for participating in a contest (one-time)',
+        is_active: 1,
+        is_daily: 0,
+      },
     ];
 
     for (const reward of rewards) {
