@@ -85,10 +85,14 @@
 1. Спочатку намагається отримати значення з БД (таблиця `rewards`)
 2. Якщо не знайдено - використовує fallback значення
 
-### ⚠️ Єдине місце з "хардкодом":
+### ✅ Виправлено:
 **Повідомлення активностей** (`activity.service.ts:getActivityMessage()`):
-- Використовує `configService.get('DAILY_REWARD_YEPS')` та `configService.get('SHARE_REWARD_YEPS')`
-- Але це **тільки для тексту повідомлення**, не для нарахування поінтів
+- ✅ Тепер використовує `rewardService.getRewardPointsOrDefault()` для:
+  - LIKE_EARN
+  - LIKE_SPEND
+  - DAILY_REWARD
+  - SHARE_REWARD
+- ⚠️ `configService.get()` залишено тільки для IMAGE_GENERATE_SPEND та VIDEO_GENERATE_SPEND (вартість з ai_settings, не з rewards)
 - Нарахування поінтів завжди використовує RewardService
 
 ### ⚠️ Розбіжності з міграцією:
