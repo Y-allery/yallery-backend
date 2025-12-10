@@ -39,13 +39,33 @@ export class RewardService {
     private readonly userService: UserService,
   ) {}
 
-  async getAllRewards(): Promise<RewardEntity[]> {
-    return this.rewardRepository.find({
+  async getAllRewards(): Promise<{
+    daily: RewardEntity[];
+    oneTime: RewardEntity[];
+    other: RewardEntity[];
+  }> {
+    const allRewards = await this.rewardRepository.find({
       where: {
         reward_type: Not(In(this.excludedRewardTypes)),
       },
       order: { reward_type: 'ASC' },
     });
+
+    const daily: RewardEntity[] = [];
+    const oneTime: RewardEntity[] = [];
+    const other: RewardEntity[] = [];
+
+    for (const reward of allRewards) {
+      if (reward.is_daily) {
+        daily.push(reward);
+      } else if (this.oneTimeRewardTypes.includes(reward.reward_type as RewardTypeEnum)) {
+        oneTime.push(reward);
+      } else {
+        other.push(reward);
+      }
+    }
+
+    return { daily, oneTime, other };
   }
 
   async getRewardByType(rewardType: RewardTypeEnum): Promise<RewardEntity | null> {

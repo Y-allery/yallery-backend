@@ -4,6 +4,7 @@ import { RewardService } from './reward.service';
 import { RewardTypeEnum } from './types/reward-type.enum';
 import { UpdateRewardDto } from './dto/update-reward.dto';
 import { ClaimRewardResponseDto, AvailableRewardsResponseDto } from './dto/claim-reward.dto';
+import { GetAllRewardsResponseDto } from './dto/get-all-rewards.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { RoleGuard } from 'src/auth/guards/role.guard';
 import { Roles } from 'src/auth/decorators/role.decorator';
@@ -40,9 +41,16 @@ export class RewardController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all rewards', description: 'Retrieve all reward types with their point values' })
-  @ApiResponse({ status: 200, description: 'List of all rewards' })
-  async getAllRewards() {
+  @ApiOperation({ 
+    summary: 'Get all rewards', 
+    description: 'Retrieve all reward types grouped by daily/one-time/other with their point values' 
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Rewards grouped by type',
+    type: GetAllRewardsResponseDto,
+  })
+  async getAllRewards(): Promise<GetAllRewardsResponseDto> {
     return this.rewardService.getAllRewards();
   }
 
