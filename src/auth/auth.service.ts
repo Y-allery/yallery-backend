@@ -215,6 +215,13 @@ export class AuthService {
       }
     }
 
+    // Відмічаємо що користувач може клеймити DAILY_LOGIN нагороду (після реєстрації це перший логін)
+    try {
+      await this.rewardService.markRewardEligible(newUser.id, RewardTypeEnum.DAILY_LOGIN);
+    } catch (error) {
+      console.warn('[register] Failed to mark DAILY_LOGIN eligible:', error);
+    }
+
     const accessToken = await this.generateAccessToken(newUser);
     const refreshToken = await this.generateRefreshToken(newUser);
 
@@ -471,6 +478,13 @@ export class AuthService {
       });
       await this.userRepository.save(user);
 
+      // Відмічаємо що користувач може клеймити DAILY_LOGIN нагороду (після реєстрації це перший логін)
+      try {
+        await this.rewardService.markRewardEligible(user.id, RewardTypeEnum.DAILY_LOGIN);
+      } catch (error) {
+        console.warn('[signUpWithOAuth] Failed to mark DAILY_LOGIN eligible for new user:', error);
+      }
+
       // Link to partnership if referral data provided (same logic as register)
       if (extras?.ref && extras?.puid) {
         const partnership = await this.partnershipRepo.findOne({
@@ -695,6 +709,13 @@ export class AuthService {
         password: randomPassword,
       });
       await this.userRepository.save(user);
+
+      // Відмічаємо що користувач може клеймити DAILY_LOGIN нагороду (після реєстрації це перший логін)
+      try {
+        await this.rewardService.markRewardEligible(user.id, RewardTypeEnum.DAILY_LOGIN);
+      } catch (error) {
+        console.warn('[loginWithTelegram] Failed to mark DAILY_LOGIN eligible for new user:', error);
+      }
     } else {
       // Відмічаємо що користувач може клеймити DAILY_LOGIN нагороду
       try {
@@ -770,6 +791,13 @@ export class AuthService {
       });
 
       await this.userRepository.save(user);
+
+      // Відмічаємо що користувач може клеймити DAILY_LOGIN нагороду (після реєстрації це перший логін)
+      try {
+        await this.rewardService.markRewardEligible(user.id, RewardTypeEnum.DAILY_LOGIN);
+      } catch (error) {
+        console.warn('[loginWithTwitter] Failed to mark DAILY_LOGIN eligible for new user:', error);
+      }
     } else {
       // Відмічаємо що користувач може клеймити DAILY_LOGIN нагороду
       try {
