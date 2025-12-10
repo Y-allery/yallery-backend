@@ -16,6 +16,20 @@ import { AuthenticatedRequest } from 'src/auth/types/auth.user.interface';
 export class RewardController {
   constructor(private readonly rewardService: RewardService) {}
 
+  @Get('available')
+  @ApiOperation({ 
+    summary: 'Get available rewards', 
+    description: 'Get all claimable rewards for the current user with eligibility status' 
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'List of available rewards',
+    type: [AvailableRewardDto],
+  })
+  async getAvailableRewards(@Req() req: AuthenticatedRequest): Promise<AvailableRewardDto[]> {
+    return this.rewardService.getAvailableRewards(req.user.id);
+  }
+
   @Get()
   @ApiOperation({ summary: 'Get all rewards', description: 'Retrieve all reward types with their point values' })
   @ApiResponse({ status: 200, description: 'List of all rewards' })
@@ -34,20 +48,6 @@ export class RewardController {
       throw new NotFoundException(`Reward type ${rewardType} not found or not available`);
     }
     return reward;
-  }
-
-  @Get('available')
-  @ApiOperation({ 
-    summary: 'Get available rewards', 
-    description: 'Get all claimable rewards for the current user with eligibility status' 
-  })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'List of available rewards',
-    type: [AvailableRewardDto],
-  })
-  async getAvailableRewards(@Req() req: AuthenticatedRequest): Promise<AvailableRewardDto[]> {
-    return this.rewardService.getAvailableRewards(req.user.id);
   }
 
   @Post('claim/:rewardType')

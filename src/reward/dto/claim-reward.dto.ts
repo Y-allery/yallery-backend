@@ -38,7 +38,14 @@ export class AvailableRewardDto {
     points: number;
     description: string | null;
     is_active: boolean;
+    is_daily: boolean;
   };
+
+  @ApiProperty({
+    description: 'Whether this reward is daily (claimable once per day)',
+    example: true,
+  })
+  isDaily: boolean;
 
   @ApiProperty({
     description: 'Whether the user is eligible to claim this reward',

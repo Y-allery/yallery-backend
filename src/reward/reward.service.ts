@@ -147,6 +147,7 @@ export class RewardService {
     isClaimed: boolean;
     eligibleDate: Date | null;
     claimedDate: Date | null;
+    isDaily: boolean;
   }[]> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -181,6 +182,7 @@ export class RewardService {
         isClaimed: !!userReward?.claimedDate,
         eligibleDate: userReward?.eligibleDate || null,
         claimedDate: userReward?.claimedDate || null,
+        isDaily: reward.is_daily,
       };
     });
   }
