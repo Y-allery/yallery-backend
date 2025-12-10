@@ -8,7 +8,7 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { RoleGuard } from 'src/auth/guards/role.guard';
 import { Roles } from 'src/auth/decorators/role.decorator';
 import { RoleEnum } from 'src/user/types/role.enum';
-import { AuthenticatedRequest } from 'src/auth/types/authenticated-request.type';
+import { AuthenticatedRequest } from 'src/auth/types/auth.user.interface';
 
 @Controller('rewards')
 @ApiTags('Rewards')

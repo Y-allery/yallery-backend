@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, In, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
+import { Repository, Not, In } from 'typeorm';
 import { RewardEntity } from './entities/reward.entity';
 import { UserRewardEntity } from './entities/user-reward.entity';
 import { RewardTypeEnum } from './types/reward-type.enum';

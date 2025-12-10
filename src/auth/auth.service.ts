@@ -470,14 +470,6 @@ export class AuthService {
         points: registrationBonus,
       });
       await this.userRepository.save(user);
-    } else {
-      // Відмічаємо що користувач може клеймити DAILY_LOGIN нагороду
-      try {
-        await this.rewardService.markRewardEligible(user.id, RewardTypeEnum.DAILY_LOGIN);
-      } catch (error) {
-        console.warn('[signUpWithOAuth] Failed to mark DAILY_LOGIN eligible:', error);
-      }
-    }
 
       // Link to partnership if referral data provided (same logic as register)
       if (extras?.ref && extras?.puid) {
@@ -546,6 +538,13 @@ export class AuthService {
       }
     } else {
       // Existing user logging in via OAuth: attempt to link partnership if referral extras provided
+      // Відмічаємо що користувач може клеймити DAILY_LOGIN нагороду
+      try {
+        await this.rewardService.markRewardEligible(user.id, RewardTypeEnum.DAILY_LOGIN);
+      } catch (error) {
+        console.warn('[signUpWithOAuth] Failed to mark DAILY_LOGIN eligible:', error);
+      }
+
       if (extras?.ref && extras?.puid) {
         try {
           const partnership = await this.partnershipRepo.findOne({
