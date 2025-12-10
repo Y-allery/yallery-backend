@@ -1,12 +1,14 @@
-import { Controller, Get, Put, Param, Body, UseGuards, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Put, Post, Param, Body, UseGuards, NotFoundException, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/swagger';
 import { RewardService } from './reward.service';
 import { RewardTypeEnum } from './types/reward-type.enum';
 import { UpdateRewardDto } from './dto/update-reward.dto';
+import { ClaimRewardResponseDto, AvailableRewardDto } from './dto/claim-reward.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { RoleGuard } from 'src/auth/guards/role.guard';
 import { Roles } from 'src/auth/decorators/role.decorator';
 import { RoleEnum } from 'src/user/types/role.enum';
+import { AuthenticatedRequest } from 'src/auth/types/authenticated-request.type';
 
 @Controller('rewards')
 @ApiTags('Rewards')
@@ -32,6 +34,39 @@ export class RewardController {
       throw new NotFoundException(`Reward type ${rewardType} not found or not available`);
     }
     return reward;
+  }
+
+  @Get('available')
+  @ApiOperation({ 
+    summary: 'Get available rewards', 
+    description: 'Get all claimable rewards for the current user with eligibility status' 
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'List of available rewards',
+    type: [AvailableRewardDto],
+  })
+  async getAvailableRewards(@Req() req: AuthenticatedRequest): Promise<AvailableRewardDto[]> {
+    return this.rewardService.getAvailableRewards(req.user.id);
+  }
+
+  @Post('claim/:rewardType')
+  @ApiOperation({ 
+    summary: 'Claim reward', 
+    description: 'Claim a reward if eligible. Rewards can be claimed once per day.' 
+  })
+  @ApiParam({ name: 'rewardType', enum: RewardTypeEnum, description: 'Type of reward to claim' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Reward claimed successfully',
+    type: ClaimRewardResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Reward not available or already claimed' })
+  async claimReward(
+    @Req() req: AuthenticatedRequest,
+    @Param('rewardType') rewardType: RewardTypeEnum,
+  ): Promise<ClaimRewardResponseDto> {
+    return this.rewardService.claimReward(req.user.id, rewardType);
   }
 
   @Put(':rewardType')

@@ -431,50 +431,13 @@ export class ActivityService {
   }
 
   async hasReceivedDailyRewardToday(userId: number): Promise<boolean> {
-    const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
-    const todayEnd = new Date(new Date().setHours(23, 59, 59, 999));
-
-    const dailyRewardActivity = await this.activityRepository.findOne({
-      where: {
-        toUser: { id: userId },
-        activityType: ActivityEnum.DAILY_REWARD,
-        createdAt: Between(todayStart, todayEnd),
-      },
-    });
-
-    const hasReceived = !!dailyRewardActivity;
-
-    return hasReceived;
+    // Використовуємо нову систему перевірки клеймованих нагород
+    return this.rewardService.hasClaimedRewardToday(userId, RewardTypeEnum.DAILY_LOGIN);
   }
 
   async claimDailyReward(userId: number): Promise<{ success: boolean; message: string; pointsAwarded: number }> {
-
-    const hasReceivedToday = await this.hasReceivedDailyRewardToday(userId);
-    
-    if (hasReceivedToday) {
-      return {
-        success: false,
-        message: 'You have already received your daily reward today. Come back tomorrow!',
-        pointsAwarded: 0
-      };
-    }
-    const dailyRewardPoints = await this.getPointsForActivity(ActivityEnum.DAILY_REWARD);
-
-    await this.createActivities(
-      null,
-      [userId], // toUserIds
-      ActivityEnum.DAILY_REWARD
-    );
-
-    await this.userRepository.increment({ id: userId }, 'points', dailyRewardPoints);
-
-    await this.notificationGateway.emitProfileUpdate(userId.toString());
-
-    return {
-      success: true,
-      message: `Successfully claimed daily reward of ${dailyRewardPoints} YEPs!`,
-      pointsAwarded: dailyRewardPoints
-    };
+    // Використовуємо нову систему клеймування нагород
+    return this.rewardService.claimReward(userId, RewardTypeEnum.DAILY_LOGIN);
   }
 
   async getPopularPosts(userId: number): Promise<PopularPostsResponse> {

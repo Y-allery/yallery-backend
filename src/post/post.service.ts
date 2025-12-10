@@ -246,6 +246,19 @@ export class PostService {
       
       const savedPost = await this.postEntity.save(post);
       
+      // Відмічаємо доступність нагороди за публікацію
+      try {
+        if (savedPost.videoUrl) {
+          // Це відео пост
+          await this.rewardService.markRewardEligible(userId, RewardTypeEnum.POST_VIDEO_REWARD);
+        } else if (savedPost.imageUrl) {
+          // Це фото пост
+          await this.rewardService.markRewardEligible(userId, RewardTypeEnum.POST_PHOTO_REWARD);
+        }
+      } catch (error) {
+        console.warn('[publishPost] Failed to mark reward eligible:', error);
+      }
+      
       return savedPost;
     } catch (error) {
       console.error(`[publishPost] Error publishing post:`, {

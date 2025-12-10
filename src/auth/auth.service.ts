@@ -99,6 +99,15 @@ export class AuthService {
     dto: SignInDto,
   ): Promise<{ accessToken: string; refreshToken: string }> {
     const user = await this.validateUser(dto.email, dto.password);
+    
+    // Відмічаємо що користувач може клеймити DAILY_LOGIN нагороду
+    try {
+      await this.rewardService.markRewardEligible(user.id, RewardTypeEnum.DAILY_LOGIN);
+    } catch (error) {
+      // Ігноруємо помилки (можливо вже відмічено)
+      console.warn('[login] Failed to mark DAILY_LOGIN eligible:', error);
+    }
+    
     const accessToken = await this.generateAccessToken(user);
     const refreshToken = await this.generateRefreshToken(user);
     return { accessToken, refreshToken };
@@ -461,6 +470,14 @@ export class AuthService {
         points: registrationBonus,
       });
       await this.userRepository.save(user);
+    } else {
+      // Відмічаємо що користувач може клеймити DAILY_LOGIN нагороду
+      try {
+        await this.rewardService.markRewardEligible(user.id, RewardTypeEnum.DAILY_LOGIN);
+      } catch (error) {
+        console.warn('[signUpWithOAuth] Failed to mark DAILY_LOGIN eligible:', error);
+      }
+    }
 
       // Link to partnership if referral data provided (same logic as register)
       if (extras?.ref && extras?.puid) {
@@ -680,6 +697,12 @@ export class AuthService {
       });
       await this.userRepository.save(user);
     } else {
+      // Відмічаємо що користувач може клеймити DAILY_LOGIN нагороду
+      try {
+        await this.rewardService.markRewardEligible(user.id, RewardTypeEnum.DAILY_LOGIN);
+      } catch (error) {
+        console.warn('[loginWithTelegram] Failed to mark DAILY_LOGIN eligible:', error);
+      }
     }
 
     const accessToken = await this.generateAccessToken(user);
@@ -748,6 +771,13 @@ export class AuthService {
       });
 
       await this.userRepository.save(user);
+    } else {
+      // Відмічаємо що користувач може клеймити DAILY_LOGIN нагороду
+      try {
+        await this.rewardService.markRewardEligible(user.id, RewardTypeEnum.DAILY_LOGIN);
+      } catch (error) {
+        console.warn('[loginWithTwitter] Failed to mark DAILY_LOGIN eligible:', error);
+      }
     }
 
     const accessToken = await this.generateAccessToken(user);

@@ -1,5 +1,7 @@
 export enum RewardTypeEnum {
-  DAILY_REWARD = 'DAILY_REWARD',
+  DAILY_LOGIN = 'DAILY_LOGIN', // Перейменовано з DAILY_REWARD
+  POST_VIDEO_REWARD = 'POST_VIDEO_REWARD', // Нова нагорода за публікацію відео
+  POST_PHOTO_REWARD = 'POST_PHOTO_REWARD', // Нова нагорода за публікацію фото
   LIKE_EARN = 'LIKE_EARN',
   LIKE_SPEND = 'LIKE_SPEND',
   SHARE_REWARD = 'SHARE_REWARD',
@@ -9,4 +11,6 @@ export enum RewardTypeEnum {
   PAYMENT_30000 = 'PAYMENT_30000',
   REFERRAL_REWARD = 'REFERRAL_REWARD',
   REGISTRATION_BONUS = 'REGISTRATION_BONUS',
+  // Залишаємо для зворотної сумісності (буде видалено пізніше)
+  DAILY_REWARD = 'DAILY_REWARD',
 }

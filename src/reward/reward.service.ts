@@ -1,9 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, In } from 'typeorm';
+import { Repository, Not, In, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
 import { RewardEntity } from './entities/reward.entity';
+import { UserRewardEntity } from './entities/user-reward.entity';
 import { RewardTypeEnum } from './types/reward-type.enum';
 import { UpdateRewardDto } from './dto/update-reward.dto';
+import { UserService } from 'src/user/user.service';
 
 @Injectable()
 export class RewardService {
@@ -13,9 +15,20 @@ export class RewardService {
     RewardTypeEnum.PAYMENT_30000,
   ];
 
+  // Нагороди які можна клеймити в reward center
+  private readonly claimableRewardTypes = [
+    RewardTypeEnum.DAILY_LOGIN,
+    RewardTypeEnum.POST_VIDEO_REWARD,
+    RewardTypeEnum.POST_PHOTO_REWARD,
+  ];
+
   constructor(
     @InjectRepository(RewardEntity)
     private readonly rewardRepository: Repository<RewardEntity>,
+    @InjectRepository(UserRewardEntity)
+    private readonly userRewardRepository: Repository<UserRewardEntity>,
+    @Inject(forwardRef(() => UserService))
+    private readonly userService: UserService,
   ) {}
 
   async getAllRewards(): Promise<RewardEntity[]> {
@@ -87,5 +100,193 @@ export class RewardService {
     } catch (error) {
       return defaultValue;
     }
+  }
+
+  /**
+   * Відмітити що нагорода стала доступною для користувача
+   */
+  async markRewardEligible(
+    userId: number,
+    rewardType: RewardTypeEnum,
+  ): Promise<UserRewardEntity> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Перевіряємо чи вже існує запис на сьогодні
+    const existing = await this.userRewardRepository.findOne({
+      where: {
+        userId,
+        rewardType,
+        eligibleDate: today,
+      },
+    });
+
+    if (existing) {
+      return existing; // Вже відмічено
+    }
+
+    // Створюємо новий запис
+    const userReward = this.userRewardRepository.create({
+      userId,
+      rewardType,
+      eligibleDate: today,
+      claimedDate: null,
+      pointsAwarded: null,
+    });
+
+    return await this.userRewardRepository.save(userReward);
+  }
+
+  /**
+   * Отримати доступні нагороди для користувача (які можна клеймити)
+   */
+  async getAvailableRewards(userId: number): Promise<{
+    rewardType: RewardTypeEnum;
+    reward: RewardEntity;
+    isEligible: boolean;
+    isClaimed: boolean;
+    eligibleDate: Date | null;
+    claimedDate: Date | null;
+  }[]> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Отримуємо всі claimable нагороди
+    const rewards = await this.rewardRepository.find({
+      where: {
+        reward_type: In(this.claimableRewardTypes),
+        is_active: true,
+      },
+    });
+
+    // Отримуємо записи user_rewards для сьогодні
+    const userRewards = await this.userRewardRepository.find({
+      where: {
+        userId,
+        rewardType: In(this.claimableRewardTypes),
+        eligibleDate: today,
+      },
+    });
+
+    const userRewardsMap = new Map(
+      userRewards.map((ur) => [ur.rewardType, ur]),
+    );
+
+    return rewards.map((reward) => {
+      const userReward = userRewardsMap.get(reward.reward_type as RewardTypeEnum);
+      return {
+        rewardType: reward.reward_type as RewardTypeEnum,
+        reward,
+        isEligible: !!userReward,
+        isClaimed: !!userReward?.claimedDate,
+        eligibleDate: userReward?.eligibleDate || null,
+        claimedDate: userReward?.claimedDate || null,
+      };
+    });
+  }
+
+  /**
+   * Перевірити чи доступна нагорода для клеймування
+   */
+  async isRewardEligible(
+    userId: number,
+    rewardType: RewardTypeEnum,
+  ): Promise<boolean> {
+    if (!this.claimableRewardTypes.includes(rewardType)) {
+      return false;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const userReward = await this.userRewardRepository.findOne({
+      where: {
+        userId,
+        rewardType,
+        eligibleDate: today,
+      },
+    });
+
+    return !!userReward && !userReward.claimedDate;
+  }
+
+  /**
+   * Клеймити нагороду
+   */
+  async claimReward(
+    userId: number,
+    rewardType: RewardTypeEnum,
+  ): Promise<{ success: boolean; message: string; pointsAwarded: number }> {
+    if (!this.claimableRewardTypes.includes(rewardType)) {
+      throw new BadRequestException(
+        `Reward type ${rewardType} is not claimable`,
+      );
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Перевіряємо чи доступна нагорода
+    const userReward = await this.userRewardRepository.findOne({
+      where: {
+        userId,
+        rewardType,
+        eligibleDate: today,
+      },
+    });
+
+    if (!userReward) {
+      return {
+        success: false,
+        message: `Reward ${rewardType} is not available. Complete the required action first.`,
+        pointsAwarded: 0,
+      };
+    }
+
+    if (userReward.claimedDate) {
+      return {
+        success: false,
+        message: `Reward ${rewardType} has already been claimed today.`,
+        pointsAwarded: 0,
+      };
+    }
+
+    // Отримуємо кількість поінтів
+    const points = await this.getRewardPoints(rewardType);
+
+    // Додаємо поінти користувачу
+    await this.userService.incrementUserPoints(userId, points);
+
+    // Оновлюємо запис
+    userReward.claimedDate = new Date();
+    userReward.pointsAwarded = points;
+    await this.userRewardRepository.save(userReward);
+
+    return {
+      success: true,
+      message: `Successfully claimed ${rewardType} reward!`,
+      pointsAwarded: points,
+    };
+  }
+
+  /**
+   * Перевірити чи клеймована нагорода сьогодні
+   */
+  async hasClaimedRewardToday(
+    userId: number,
+    rewardType: RewardTypeEnum,
+  ): Promise<boolean> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const userReward = await this.userRewardRepository.findOne({
+      where: {
+        userId,
+        rewardType,
+        eligibleDate: today,
+      },
+    });
+
+    return !!userReward?.claimedDate;
   }
 }
