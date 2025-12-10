@@ -258,7 +258,9 @@ export class RewardService {
     await this.userService.incrementUserPoints(userId, points);
 
     // Оновлюємо запис
-    userReward.claimedDate = new Date();
+    const todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0);
+    userReward.claimedDate = todayDate;
     userReward.pointsAwarded = points;
     await this.userRewardRepository.save(userReward);
 
