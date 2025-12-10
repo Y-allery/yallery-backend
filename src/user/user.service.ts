@@ -322,7 +322,7 @@ export class UserService {
 
   async handleDailyReward() {
     const dailyReward = await this.rewardService.getRewardPointsOrDefault(
-      RewardTypeEnum.DAILY_REWARD,
+      RewardTypeEnum.DAILY_LOGIN,
       10,
     );
 

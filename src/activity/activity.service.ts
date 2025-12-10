@@ -53,7 +53,7 @@ export class ActivityService {
           points = await this.rewardService.getRewardPointsOrDefault(RewardTypeEnum.LIKE_SPEND, 15);
           break;
         case ActivityEnum.DAILY_REWARD:
-          points = await this.rewardService.getRewardPointsOrDefault(RewardTypeEnum.DAILY_REWARD, 10);
+          points = await this.rewardService.getRewardPointsOrDefault(RewardTypeEnum.DAILY_LOGIN, 10);
           break;
         case ActivityEnum.SHARE_REWARD:
           points = await this.rewardService.getRewardPointsOrDefault(RewardTypeEnum.SHARE_REWARD, 500);
@@ -69,7 +69,7 @@ export class ActivityService {
       [ActivityEnum.CONTEST_OPEN]: `The contest ${contest?.name} is now open! Join us for an exciting challenge and show off your skills.`,
       [ActivityEnum.CONTEST_CLOSE]: `The contest is closed. Unfortunately, you didn't win a prize this time`,
       [ActivityEnum.CONTEST_WIN]: `Congratulations! You won first place in the ${contest?.name} contest and received a reward of ${generationCost} YEPs`,
-      [ActivityEnum.DAILY_REWARD]: `You received a daily reward of ${points || generationCost || 10} YEPs`,
+      [ActivityEnum.DAILY_REWARD]: `You received a daily login reward of ${points || generationCost || 10} YEPs`,
       [ActivityEnum.SHARE_REWARD]: `You received a reward of ${points || generationCost || 500} YEPs for invite new users`,
       [ActivityEnum.ADMIN_REPORT]: `A new report has been submitted for review`,
       [ActivityEnum.ADMIN_CONTEST_REVIEW]: `A contest review has been initiated`,
@@ -200,7 +200,7 @@ export class ActivityService {
         // Цей метод не використовується для IMAGE_GENERATE_SPEND, бо вартість передається через generation_cost
         return 0;
       case ActivityEnum.DAILY_REWARD:
-        return await this.rewardService.getRewardPointsOrDefault(RewardTypeEnum.DAILY_REWARD, 10);
+        return await this.rewardService.getRewardPointsOrDefault(RewardTypeEnum.DAILY_LOGIN, 10);
       case ActivityEnum.SHARE_REWARD:
         return await this.rewardService.getRewardPointsOrDefault(RewardTypeEnum.SHARE_REWARD, 500);
       case ActivityEnum.CONTEST_WIN:

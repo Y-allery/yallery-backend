@@ -37,8 +37,8 @@ export function getNotificationMessage(activityType: ActivityEnum): {
       };
     case ActivityEnum.DAILY_REWARD:
       return {
-        title: 'Daily Reward',
-        body: 'You received a daily reward of points.',
+        title: 'Daily Login',
+        body: 'You received points for daily login.',
       };
     case ActivityEnum.SHARE_REWARD:
       return {
