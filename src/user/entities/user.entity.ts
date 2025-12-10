@@ -28,7 +28,7 @@ export class UserEntity extends TimeStampEntity {
   @Column({ nullable: true, unique: true })
   nickname: string;
 
-  @Column()
+  @Column({ unique: true })
   email: string;
 
   @Column({ nullable: true })
