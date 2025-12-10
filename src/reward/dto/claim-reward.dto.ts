@@ -73,3 +73,11 @@ export class AvailableRewardDto {
   })
   claimedDate: Date | null;
 }
+
+export class AvailableRewardsResponseDto {
+  @ApiProperty({ type: [AvailableRewardDto] })
+  daily: AvailableRewardDto[];
+
+  @ApiProperty({ type: [AvailableRewardDto] })
+  oneTime: AvailableRewardDto[];
+}

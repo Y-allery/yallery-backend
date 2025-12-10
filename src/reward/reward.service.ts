@@ -141,14 +141,25 @@ export class RewardService {
    * Отримати доступні нагороди для користувача (які можна клеймити)
    */
   async getAvailableRewards(userId: number): Promise<{
-    rewardType: RewardTypeEnum;
-    reward: RewardEntity;
-    isEligible: boolean;
-    isClaimed: boolean;
-    eligibleDate: Date | null;
-    claimedDate: Date | null;
-    isDaily: boolean;
-  }[]> {
+    daily: {
+      rewardType: RewardTypeEnum;
+      reward: RewardEntity;
+      isEligible: boolean;
+      isClaimed: boolean;
+      eligibleDate: Date | null;
+      claimedDate: Date | null;
+      isDaily: boolean;
+    }[];
+    oneTime: {
+      rewardType: RewardTypeEnum;
+      reward: RewardEntity;
+      isEligible: boolean;
+      isClaimed: boolean;
+      eligibleDate: Date | null;
+      claimedDate: Date | null;
+      isDaily: boolean;
+    }[];
+  }> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -173,18 +184,29 @@ export class RewardService {
       userRewards.map((ur) => [ur.rewardType, ur]),
     );
 
-    return rewards.map((reward) => {
+    const daily = [];
+    const oneTime = [];
+
+    for (const reward of rewards) {
       const userReward = userRewardsMap.get(reward.reward_type as RewardTypeEnum);
-      return {
+      const dto = {
         rewardType: reward.reward_type as RewardTypeEnum,
         reward,
         isEligible: !!userReward,
         isClaimed: !!userReward?.claimedDate,
         eligibleDate: userReward?.eligibleDate || null,
         claimedDate: userReward?.claimedDate || null,
-        isDaily: reward.is_daily,
+        isDaily: !!reward.is_daily,
       };
-    });
+
+      if (reward.is_daily) {
+        daily.push(dto);
+      } else {
+        oneTime.push(dto);
+      }
+    }
+
+    return { daily, oneTime };
   }
 
   /**

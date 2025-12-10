@@ -3,7 +3,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/s
 import { RewardService } from './reward.service';
 import { RewardTypeEnum } from './types/reward-type.enum';
 import { UpdateRewardDto } from './dto/update-reward.dto';
-import { ClaimRewardResponseDto, AvailableRewardDto } from './dto/claim-reward.dto';
+import { ClaimRewardResponseDto, AvailableRewardsResponseDto } from './dto/claim-reward.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { RoleGuard } from 'src/auth/guards/role.guard';
 import { Roles } from 'src/auth/decorators/role.decorator';
@@ -23,10 +23,10 @@ export class RewardController {
   })
   @ApiResponse({ 
     status: 200, 
-    description: 'List of available rewards',
-    type: [AvailableRewardDto],
+    description: 'List of available rewards grouped by daily/one-time',
+    type: AvailableRewardsResponseDto,
   })
-  async getAvailableRewards(@Req() req: AuthenticatedRequest): Promise<AvailableRewardDto[]> {
+  async getAvailableRewards(@Req() req: AuthenticatedRequest): Promise<AvailableRewardsResponseDto> {
     return this.rewardService.getAvailableRewards(req.user.id);
   }
 
