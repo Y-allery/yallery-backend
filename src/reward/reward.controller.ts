@@ -10,6 +10,15 @@ import { Roles } from 'src/auth/decorators/role.decorator';
 import { RoleEnum } from 'src/user/types/role.enum';
 import { AuthenticatedRequest } from 'src/auth/types/auth.user.interface';
 
+// Claimable rewards (for swagger docs)
+const CLAIMABLE_REWARD_TYPES: RewardTypeEnum[] = [
+  RewardTypeEnum.DAILY_LOGIN,
+  RewardTypeEnum.POST_VIDEO_REWARD,
+  RewardTypeEnum.POST_PHOTO_REWARD,
+  RewardTypeEnum.CONTEST_PARTICIPATION,
+  RewardTypeEnum.REGISTRATION_REWARD,
+];
+
 @Controller('rewards')
 @ApiTags('Rewards')
 @UseGuards(JwtAuthGuard, RoleGuard)
@@ -19,7 +28,7 @@ export class RewardController {
   @Get('available')
   @ApiOperation({ 
     summary: 'Get available rewards', 
-    description: 'Get all claimable rewards for the current user with eligibility status' 
+    description: 'Get claimable rewards grouped by daily/one-time with eligibility status' 
   })
   @ApiResponse({ 
     status: 200, 
@@ -52,16 +61,16 @@ export class RewardController {
 
   @Post('claim/:rewardType')
   @ApiOperation({ 
-    summary: 'Claim reward', 
-    description: 'Claim a reward if eligible. Rewards can be claimed once per day.' 
+    summary: 'Claim reward (eligible only)', 
+    description: 'Claim a reward only if it is eligible for the user. Daily rewards — раз на день; one-time — після виконання умови.' 
   })
-  @ApiParam({ name: 'rewardType', enum: RewardTypeEnum, description: 'Type of reward to claim' })
+  @ApiParam({ name: 'rewardType', enum: CLAIMABLE_REWARD_TYPES, description: 'Claimable reward type' })
   @ApiResponse({ 
     status: 200, 
     description: 'Reward claimed successfully',
     type: ClaimRewardResponseDto,
   })
-  @ApiResponse({ status: 400, description: 'Reward not available or already claimed' })
+  @ApiResponse({ status: 400, description: 'Reward not available or already claimed (not eligible)' })
   async claimReward(
     @Req() req: AuthenticatedRequest,
     @Param('rewardType') rewardType: RewardTypeEnum,
