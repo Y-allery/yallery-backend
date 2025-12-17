@@ -484,20 +484,27 @@ export class PostService {
     console.log(`[updatePostsDimensionsBatch] Batch size: ${batchSize}, Delay between batches: ${delayMs}ms (fixed)`);
 
     // Get all posts with imageUrl (always process all posts)
-    // First, get total count to verify
-    const totalCount = await this.postEntity
-      .createQueryBuilder('post')
-      .where('post.imageUrl IS NOT NULL')
-      .getCount();
+    // Use raw SQL query to ensure we get ALL posts without any TypeORM limitations
+    const countResult = await this.postEntity.query(
+      'SELECT COUNT(*) as count FROM posts WHERE imageUrl IS NOT NULL',
+    );
+    const totalCount = parseInt(countResult[0]?.count || '0', 10);
     
     console.log(`[updatePostsDimensionsBatch] Total posts with imageUrl in database: ${totalCount}`);
 
-    // Use QueryBuilder to ensure we get all posts without any limits
-    const allPosts = await this.postEntity
-      .createQueryBuilder('post')
-      .select(['post.id', 'post.imageUrl', 'post.generation_params'])
-      .where('post.imageUrl IS NOT NULL')
-      .getMany();
+    // Get all posts using raw SQL to avoid any limitations
+    const allPostsRaw = await this.postEntity.query(`
+      SELECT id, imageUrl, generation_params 
+      FROM posts 
+      WHERE imageUrl IS NOT NULL
+    `);
+
+    // Transform raw results to match expected format
+    const allPosts = allPostsRaw.map((post: any) => ({
+      id: post.id,
+      imageUrl: post.imageUrl,
+      generation_params: post.generation_params,
+    }));
 
     let processed = 0;
     let updated = 0;
@@ -508,6 +515,8 @@ export class PostService {
     
     if (total !== totalCount) {
       console.warn(`[updatePostsDimensionsBatch] ⚠️ WARNING: Retrieved ${total} posts but database has ${totalCount} posts!`);
+    } else {
+      console.log(`[updatePostsDimensionsBatch] ✅ Successfully retrieved all ${total} posts`);
     }
 
     // Process posts in batches with delay to not block event loop
