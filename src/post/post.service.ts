@@ -514,6 +514,27 @@ export class PostService {
     const startTime = Date.now();
 
     // Get all posts with imageUrl (always process all posts)
+    // First, let's check total posts count for debugging
+    const totalPostsResult = await this.postEntity.query(
+      'SELECT COUNT(*) as count FROM posts',
+    );
+    const totalPosts = parseInt(totalPostsResult[0]?.count || '0', 10);
+    console.log(`[updatePostsDimensionsBatch] Total posts in database: ${totalPosts}`);
+
+    // Check posts with NULL imageUrl
+    const nullImageUrlResult = await this.postEntity.query(
+      'SELECT COUNT(*) as count FROM posts WHERE imageUrl IS NULL',
+    );
+    const nullImageUrlCount = parseInt(nullImageUrlResult[0]?.count || '0', 10);
+    console.log(`[updatePostsDimensionsBatch] Posts with NULL imageUrl: ${nullImageUrlCount}`);
+
+    // Check posts with empty string imageUrl
+    const emptyImageUrlResult = await this.postEntity.query(
+      'SELECT COUNT(*) as count FROM posts WHERE imageUrl = ""',
+    );
+    const emptyImageUrlCount = parseInt(emptyImageUrlResult[0]?.count || '0', 10);
+    console.log(`[updatePostsDimensionsBatch] Posts with empty string imageUrl: ${emptyImageUrlCount}`);
+
     // Use raw SQL query to ensure we get ALL posts without any TypeORM limitations
     // Check for both NULL and empty string (as some posts might have empty strings)
     const countResult = await this.postEntity.query(
@@ -521,7 +542,7 @@ export class PostService {
     );
     const totalCount = parseInt(countResult[0]?.count || '0', 10);
     
-    console.log(`[updatePostsDimensionsBatch] Total posts with imageUrl in database: ${totalCount}`);
+    console.log(`[updatePostsDimensionsBatch] Total posts with valid imageUrl in database: ${totalCount}`);
 
     // Get all posts using raw SQL to avoid any limitations
     // Also exclude empty strings
