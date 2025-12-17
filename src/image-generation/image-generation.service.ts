@@ -876,8 +876,8 @@ export class ImageGenerationService {
       );
     }
 
-    const posts = await Promise.all(
-      generatedImages.map(async (imageUrl) => {
+    const posts: PostEntity[] = await Promise.all(
+      generatedImages.map(async (imageUrl): Promise<PostEntity> => {
         if (service === AIEnum.BYTEDANCE_EDIT) {
           return await this.createPostForEditImage(dto as EditImageDto, imageUrl, user, suggestedTags);
         } else {
@@ -930,10 +930,10 @@ export class ImageGenerationService {
       );
     }
 
-    return posts.map((e) => {
+    return posts.map((post: PostEntity) => {
       return {
-        imageUrl: e.imageUrl,
-        id: e.id,
+        imageUrl: post.imageUrl,
+        id: post.id,
       };
     });
   }

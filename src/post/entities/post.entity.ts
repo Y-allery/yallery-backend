@@ -92,5 +92,6 @@ export class PostEntity extends TimeStampEntity {
     width?: number;
     height?: number;
     negative_prompt?: string;
+    suggestedTags?: { id: number; name: string }[];
   } | null;
 }
