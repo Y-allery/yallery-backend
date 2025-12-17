@@ -484,12 +484,12 @@ export class PostService {
     console.log(`[updatePostsDimensionsBatch] Batch size: ${batchSize}, Delay between batches: ${delayMs}ms (fixed)`);
 
     // Get all posts with imageUrl (always process all posts)
-    const allPosts = await this.postEntity.find({
-      where: {
-        imageUrl: Not(null),
-      },
-      select: ['id', 'imageUrl', 'generation_params'],
-    });
+    // Use QueryBuilder to ensure we get all posts without any limits
+    const allPosts = await this.postEntity
+      .createQueryBuilder('post')
+      .select(['post.id', 'post.imageUrl', 'post.generation_params'])
+      .where('post.imageUrl IS NOT NULL')
+      .getMany();
 
     let processed = 0;
     let updated = 0;
