@@ -437,9 +437,9 @@ export class PostService {
     user_id: number,
     contest_id: number | null,
   ) {
-    // Try to get actual image dimensions
-    let actualWidth: number | undefined = dto.width ? Number(dto.width) : undefined;
-    let actualHeight: number | undefined = dto.height ? Number(dto.height) : undefined;
+    // Get actual image dimensions from the generated image
+    let actualWidth: number | undefined = undefined;
+    let actualHeight: number | undefined = undefined;
     
     try {
       const dimensions = await this.getImageDimensions(imageUrl);
@@ -448,8 +448,8 @@ export class PostService {
         actualHeight = Number(dimensions.height);
       }
     } catch (error) {
-      // If failed to get dimensions, use expected dimensions from DTO
-      console.warn(`[savePost] Using expected dimensions for image ${imageUrl}:`, error?.message || error);
+      // If failed to get dimensions, log warning but continue
+      console.warn(`[savePost] Failed to get image dimensions from ${imageUrl}:`, error?.message || error);
     }
 
     const post = this.postEntity.create({

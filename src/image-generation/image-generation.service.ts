@@ -274,15 +274,21 @@ export class ImageGenerationService {
 
       const generateMethod = fal.run.bind(fal, serviceName);
 
+      // Get dimensions based on orientation
+      const { width, height } = getDimensionsForOrientation(
+        createPostDto.orientation,
+        createPostDto.ai_service,
+      );
+
       let inputParams: any = {
         prompt: createPostDto.prompt,
         numImages: createPostDto.image_quantity,
         aspect_ratio:
-          createPostDto.width === 1024 && createPostDto.height === 1024
+          width === 1024 && height === 1024
             ? '1:1'
-            : createPostDto.width === 768 && createPostDto.height === 1344
+            : width === 768 && height === 1344
               ? '3:4'
-              : createPostDto.width === 1344 && createPostDto.height === 768
+              : width === 1344 && height === 768
                 ? '16:9'
                 : undefined,
         negativePrompt: 'Blurry photo, distortion, low-res, poor quality',
@@ -467,11 +473,17 @@ export class ImageGenerationService {
       
       const model = this.configService.get<string>('X_ROUTER_MODEL') || 'flux-schnell';
 
+      // Get dimensions based on orientation
+      const { width, height } = getDimensionsForOrientation(
+        createPostDto.orientation,
+        createPostDto.ai_service,
+      );
+
       const requestBody: any = {
         prompt: createPostDto.prompt,
         model: model,
-        width: createPostDto.width,
-        height: createPostDto.height,
+        width: width,
+        height: height,
         numberResults: Math.min(createPostDto.image_quantity, 4),
         negativePrompt: 'blurry, distorted, low quality, bad anatomy, ugly, watermark',
       };
@@ -1086,9 +1098,6 @@ export class ImageGenerationService {
     } else {
       createPostDto.prompt = `${createPostDto.prompt}${stylePrompt}${colorPrompt}`;
     }
-
-    createPostDto.width = width;
-    createPostDto.height = height;
   }
 
   async deletePost(
