@@ -17,6 +17,7 @@ import { PartnershipEntity } from 'src/admin/entities/partner.entity';
 import { PartnerUserLinkEntity } from 'src/admin/entities/partner-user-link.entity';
 import { ReportPostEntity } from 'src/post/entities/report.post.entity';
 import { PaymentEntity } from 'src/payment/entities/payment.entity';
+import { RewardModule } from 'src/reward/reward.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { PaymentEntity } from 'src/payment/entities/payment.entity';
     forwardRef(() => NotificationModule),
     UploadModule,
     FirebaseModule,
+    RewardModule,
   ],
   providers: [UserService],
   exports: [UserService],

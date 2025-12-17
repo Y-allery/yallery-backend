@@ -9,7 +9,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, Not, Repository } from 'typeorm';
 import { PostEntity } from './entities/post.entity';
 import { TagEntity } from 'src/tag/entities/tag.entity';
 import { ViewedPostEntity } from './entities/viwed.entity';
@@ -31,6 +31,8 @@ import { ConfigService } from '@nestjs/config';
 import { NotificationGateway } from 'src/notification/notification.gateway';
 import { PartnershipActivityEntity } from 'src/admin/entities/partnership-activity.entity';
 import { PartnerUserLinkEntity } from 'src/admin/entities/partner-user-link.entity';
+import { RewardService } from 'src/reward/reward.service';
+import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
 
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 const randomSleep = async () =>
@@ -67,6 +69,7 @@ export class PostService {
     private readonly partnerUserLinkRepo: Repository<PartnerUserLinkEntity>,
     @InjectRepository(PartnershipActivityEntity)
     private readonly partnershipActivityRepo: Repository<PartnershipActivityEntity>,
+    private readonly rewardService: RewardService,
   ) {}
 
   async getPosts(cursor: number | null, limit: number, userId: number) {
@@ -79,6 +82,7 @@ export class PostService {
         p.id, 
         p.imageUrl AS image_url, 
         p.videoUrl AS video_url, 
+        p.previewImageUrl AS preview_image_url,
         p.createdAt AS created_at,
         u.id AS user_id,
         t.id AS tag_id,
@@ -243,6 +247,19 @@ export class PostService {
       
       const savedPost = await this.postEntity.save(post);
       
+      // Відмічаємо доступність нагороди за публікацію
+      try {
+        if (savedPost.videoUrl) {
+          // Це відео пост
+          await this.rewardService.markRewardEligible(userId, RewardTypeEnum.POST_VIDEO_REWARD);
+        } else if (savedPost.imageUrl) {
+          // Це фото пост
+          await this.rewardService.markRewardEligible(userId, RewardTypeEnum.POST_PHOTO_REWARD);
+        }
+      } catch (error) {
+        console.warn('[publishPost] Failed to mark reward eligible:', error);
+      }
+      
       return savedPost;
     } catch (error) {
       console.error(`[publishPost] Error publishing post:`, {
@@ -392,12 +409,49 @@ export class PostService {
 
     return response;
   }
+  private async getImageDimensions(imageUrl: string): Promise<{ width: number; height: number } | null> {
+    try {
+      const response = await axios.get(imageUrl, {
+        responseType: 'arraybuffer',
+        timeout: 10000, // 10 seconds timeout
+      });
+      const imageBuffer = Buffer.from(response.data, 'binary');
+      const metadata = await sharp(imageBuffer).metadata();
+      
+      if (metadata.width && metadata.height) {
+        return {
+          width: metadata.width,
+          height: metadata.height,
+        };
+      }
+      return null;
+    } catch (error) {
+      console.warn(`[savePost] Failed to get image dimensions from ${imageUrl}:`, error?.message || error);
+      return null;
+    }
+  }
+
   async savePost(
     dto: GenerateImageDto,
     imageUrl: string,
     user_id: number,
     contest_id: number | null,
   ) {
+    // Get actual image dimensions from the generated image
+    let actualWidth: number | undefined = undefined;
+    let actualHeight: number | undefined = undefined;
+    
+    try {
+      const dimensions = await this.getImageDimensions(imageUrl);
+      if (dimensions) {
+        actualWidth = Number(dimensions.width);
+        actualHeight = Number(dimensions.height);
+      }
+    } catch (error) {
+      // If failed to get dimensions, log warning but continue
+      console.warn(`[savePost] Failed to get image dimensions from ${imageUrl}:`, error?.message || error);
+    }
+
     const post = this.postEntity.create({
       user: { id: user_id },
       imageUrl,
@@ -410,13 +464,98 @@ export class PostService {
         orientation: dto.orientation,
         style_id: dto.style_id || undefined,
         color_id: dto.color_id || undefined,
-        width: dto.width || undefined,
-        height: dto.height || undefined,
+        width: actualWidth,
+        height: actualHeight,
         negative_prompt: undefined,
       },
     });
     const savedPost = await this.postEntity.save(post);
     return savedPost;
+  }
+
+  async updatePostsDimensionsBatch(
+    batchSize: number = 10,
+    delayBetweenBatches: number = 100,
+  ): Promise<{ total: number; processed: number; updated: number; failed: number }> {
+    // Get all posts with imageUrl
+    const allPosts = await this.postEntity.find({
+      where: {
+        imageUrl: Not(null),
+      },
+      select: ['id', 'imageUrl', 'generation_params'],
+    });
+
+    let processed = 0;
+    let updated = 0;
+    let failed = 0;
+    const total = allPosts.length;
+
+    // Process posts in batches with delay to not block event loop
+    for (let i = 0; i < allPosts.length; i += batchSize) {
+      const batch = allPosts.slice(i, i + batchSize);
+      
+      // Process batch
+      const batchPromises = batch.map(async (post) => {
+        try {
+          // Skip if already has width and height
+          if (
+            post.generation_params?.width &&
+            post.generation_params?.height &&
+            typeof post.generation_params.width === 'number' &&
+            typeof post.generation_params.height === 'number'
+          ) {
+            processed++;
+            return;
+          }
+
+          // Skip if no imageUrl
+          if (!post.imageUrl) {
+            processed++;
+            return;
+          }
+
+          // Get image dimensions
+          const dimensions = await this.getImageDimensions(post.imageUrl);
+          
+          if (dimensions) {
+            // Update generation_params
+            const updatedParams = {
+              ...(post.generation_params || {}),
+              width: dimensions.width,
+              height: dimensions.height,
+            };
+
+            await this.postEntity.update(
+              { id: post.id },
+              { generation_params: updatedParams },
+            );
+            updated++;
+          } else {
+            failed++;
+          }
+          processed++;
+        } catch (error) {
+          console.error(`[updatePostsDimensionsBatch] Failed to process post ${post.id}:`, error?.message || error);
+          failed++;
+          processed++;
+        }
+      });
+
+      // Wait for batch to complete
+      await Promise.all(batchPromises);
+
+      // Delay between batches to not block event loop
+      if (i + batchSize < allPosts.length) {
+        await new Promise((resolve) => setTimeout(resolve, delayBetweenBatches));
+      }
+    }
+
+    return {
+      total,
+      processed,
+      updated,
+      failed,
+    };
   }
 
   async blockPost(post_id: number) {
@@ -724,7 +863,10 @@ export class PostService {
   async share(
     userId: number,
   ): Promise<{ message: string; pointsAwarded: number }> {
-    const dailyPoints = this.configService.get('SHARE_YEPS') || 5;
+    const dailyPoints = await this.rewardService.getRewardPointsOrDefault(
+      RewardTypeEnum.SHARE_YEPS,
+      5,
+    );
     const now = new Date();
     const startOfToday = new Date(now.setHours(0, 0, 0, 0));
 

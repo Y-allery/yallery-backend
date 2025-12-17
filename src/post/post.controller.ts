@@ -25,6 +25,9 @@ import {
 import { POST_SWAGGER } from 'src/common/swagger';
 import { AuthenticatedRequest } from 'src/auth/types/auth.user.interface';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
+import { RoleGuard } from 'src/auth/guards/role.guard';
+import { Roles } from 'src/auth/decorators/role.decorator';
+import { RoleEnum } from 'src/user/types/role.enum';
 import { ReportPostDto } from './dto/report.post.dto';
 import { Response } from 'express';
 import { MarkViewedDto } from './dto/mark.viewed.dto';
@@ -192,5 +195,38 @@ export class PostController {
       },
     );
     return { message: 'Tweet request queued successfully' };
+  }
+
+  @Post('admin/update-dimensions')
+  @UseGuards(JwtAuthGuard, RoleGuard)
+  @Roles(RoleEnum.ADMIN)
+  @ApiOperation({
+    summary: 'Update image dimensions in generation_params for all posts',
+    description: 'Batch process all posts to get actual image dimensions and update generation_params. Processes posts in batches to avoid blocking event loop.',
+  })
+  @ApiQuery({ name: 'batchSize', required: false, type: Number, description: 'Number of posts to process in each batch (default: 10)' })
+  @ApiQuery({ name: 'delay', required: false, type: Number, description: 'Delay in milliseconds between batches (default: 100)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Batch processing started/completed',
+    schema: {
+      type: 'object',
+      properties: {
+        total: { type: 'number', description: 'Total posts found' },
+        processed: { type: 'number', description: 'Posts processed' },
+        updated: { type: 'number', description: 'Posts updated with dimensions' },
+        failed: { type: 'number', description: 'Posts that failed to process' },
+      },
+    },
+  })
+  async updatePostsDimensions(
+    @Query('batchSize') batchSize?: number,
+    @Query('delay') delay?: number,
+  ) {
+    const result = await this.postService.updatePostsDimensionsBatch(
+      batchSize ? Number(batchSize) : 10,
+      delay ? Number(delay) : 100,
+    );
+    return result;
   }
 }

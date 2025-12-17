@@ -8,6 +8,7 @@ import { LikeEntity } from './entities/like.entity';
 import { NotificationModule } from 'src/notification/notification.module';
 import { ActivityModule } from 'src/activity/activity.module';
 import { UserModule } from 'src/user/user.module';
+import { RewardModule } from 'src/reward/reward.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { UserModule } from 'src/user/user.module';
     NotificationModule,
     UserModule,
     ActivityModule,
+    RewardModule,
   ],
   providers: [LikeService],
   controllers: [LikeController],

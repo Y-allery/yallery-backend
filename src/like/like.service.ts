@@ -8,12 +8,14 @@ import { LikeEntity } from './entities/like.entity';
 import { CreateLikeDto } from './dto/create.like.dto';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
-import { Repository, DataSource, MoreThanOrEqual } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { NotificationGateway } from 'src/notification/notification.gateway';
 import { ActivityService } from 'src/activity/activity.service';
 import { ActivityEnum } from 'src/activity/types/activity.enum';
 import { ConfigService } from '@nestjs/config';
 import { UserService } from 'src/user/user.service';
+import { RewardService } from 'src/reward/reward.service';
+import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
 
 @Injectable()
 export class LikeService {
@@ -28,6 +30,7 @@ export class LikeService {
     private readonly userService: UserService,
     private readonly activityService: ActivityService,
     private readonly configService: ConfigService,
+    private readonly rewardService: RewardService,
     @InjectDataSource()
     private readonly dataSource: DataSource,
   ) {}
@@ -48,7 +51,13 @@ export class LikeService {
       throw new BadRequestException('You cannot like your own post');
     }
 
-    if (user.points < 15) {
+    // Отримуємо значення нагород до транзакції
+    const likeSpendPoints = await this.rewardService.getRewardPointsOrDefault(
+      RewardTypeEnum.LIKE_SPEND,
+      15,
+    );
+
+    if (user.points < likeSpendPoints) {
       throw new BadRequestException('User does not have enough points');
     }
 
@@ -59,6 +68,10 @@ export class LikeService {
     if (existingLike) {
       throw new BadRequestException('You have already liked this post');
     }
+    const likeEarnPoints = await this.rewardService.getRewardPointsOrDefault(
+      RewardTypeEnum.LIKE_EARN,
+      5,
+    );
 
     try {
       await this.dataSource.transaction(async (manager) => {
@@ -69,9 +82,9 @@ export class LikeService {
         await manager
           .getRepository(UserEntity)
           .decrement(
-            { id: user.id, points: MoreThanOrEqual(15) },
+            { id: user.id },
             'points',
-            +this.configService.get('LIKE_SPEND_YEPS'),
+            likeSpendPoints,
           );
 
         await manager
@@ -79,7 +92,7 @@ export class LikeService {
           .increment(
             { id: post.user.id },
             'points',
-            +this.configService.get('LIKE_EARN_YEPS'),
+            likeEarnPoints,
           );
       });
 

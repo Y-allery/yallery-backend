@@ -63,7 +63,5 @@ export class GenerateImageDto {
   })
   image_quantity: number;
 
-  width: number;
-  height: number;
   style: OctoAI.imageGen.SdxlStyles;
 }

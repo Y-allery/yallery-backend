@@ -49,11 +49,25 @@ export class VideoGenerationService {
     this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   }
 
-  private async verifyUserHasEnoughCredits(user: UserEntity) {
-    const totalCost = 100;
+  private async verifyUserHasEnoughCredits(user: UserEntity, aiService: VideoAIEnum) {
+    const totalCost = await this.getCostByService(aiService);
     if (user.points < totalCost) {
-      throw new BadRequestException('Not enough credits to generate images');
+      throw new BadRequestException('Not enough credits to generate video');
     }
+  }
+
+  async getCostByService(service: VideoAIEnum): Promise<number> {
+    const aiSetting = await this.aiSettingsRepository.findOne({
+      where: { ai_service: service, is_active: true, type: 'video' },
+    });
+
+    if (!aiSetting) {
+      throw new BadRequestException(
+        `AI service ${service} not found in ai_settings or is inactive`,
+      );
+    }
+
+    return aiSetting.cost;
   }
 
   async getAllAISettings() {
@@ -65,14 +79,19 @@ export class VideoGenerationService {
       order: { id: 'ASC' },
     });
 
-    const defaultSettings = videoAISettingsFromDb.length > 0
-      ? {
+    if (videoAISettingsFromDb.length === 0) {
+      return {
+        defaultSettings: {
           defaultAI: VideoAIEnum.BYTY_DANCE,
-          cost: videoAISettingsFromDb[0].cost,
-        }
-      : {
+          cost: 0,
+        },
+        aiSettings: [],
+      };
+    }
+
+    const defaultSettings = {
       defaultAI: VideoAIEnum.BYTY_DANCE,
-      cost: 100,
+      cost: videoAISettingsFromDb[0].cost,
     };
 
     const aiSettings = videoAISettingsFromDb.map((setting) => ({
@@ -82,23 +101,6 @@ export class VideoGenerationService {
       description: setting.description || 'Create animated videos from your image with BytyDance.',
       api_model: setting.api_model,
     }));
-    if (aiSettings.length === 0) {
-      return {
-        defaultSettings: {
-          defaultAI: VideoAIEnum.BYTY_DANCE,
-          cost: 100,
-        },
-        aiSettings: [
-      {
-        id: VideoAIEnum.BYTY_DANCE,
-        name: 'Byty Dance',
-        cost: 100,
-        description: 'Create animated videos from your image with BytyDance.',
-            api_model: 'fal-ai/bytedance/seedance/v1/lite/image-to-video',
-      },
-        ],
-      };
-    }
 
     return {
       defaultSettings,
@@ -108,7 +110,7 @@ export class VideoGenerationService {
   async addVideoTaskToQueue(dto: GenerateVideoDto, userId: number) {
     try {
       const user = await this.userService.findById(userId);
-      await this.verifyUserHasEnoughCredits(user);
+      await this.verifyUserHasEnoughCredits(user, dto.ai_service);
 
       const jobOptions = {
         attempts: 3,
@@ -279,10 +281,12 @@ export class VideoGenerationService {
     }
   }
 
-  async updateUserCredits(user: UserEntity) {
-    user.points -= 100;
+  async updateUserCredits(user: UserEntity, aiService: VideoAIEnum) {
+    const videoCost = await this.getCostByService(aiService);
+    user.points -= videoCost;
     await this.userEntity.save(user);
     await this.notificationGateway.emitProfileUpdate(user.id.toString());
+    return videoCost;
   }
 
   public async logActivityAndNotify(
@@ -291,6 +295,12 @@ export class VideoGenerationService {
     service?: VideoAIEnum,
     generationCost?: number,
   ) {
+    // Якщо generationCost не передано, беремо з ai_settings
+    let cost = generationCost;
+    if (!cost && service) {
+      cost = await this.getCostByService(service);
+    }
+
     const description = await this.activityService.createActivities(
       null,
       [userId],
@@ -300,7 +310,7 @@ export class VideoGenerationService {
       undefined,
       undefined,
       service as any,
-      generationCost,
+      cost,
     );
     await this.notificationGateway.sendNotification(
       userId.toString(),

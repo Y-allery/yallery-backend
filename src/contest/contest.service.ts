@@ -25,6 +25,8 @@ import { ActivityEnum } from 'src/activity/types/activity.enum';
 import { UpdateContestDto } from './dto/update.contest.dto';
 import { RoleEnum } from 'src/user/types/role.enum';
 import { FirebaseService } from 'src/firebase/firebase.service';
+import { RewardService } from 'src/reward/reward.service';
+import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
 const axios = require('axios');
 import * as https from 'https';
 
@@ -46,6 +48,7 @@ export class ContestService {
     private readonly activityService: ActivityService,
     private readonly firebaseService: FirebaseService,
     private readonly notificationGateway: NotificationGateway,
+    private readonly rewardService: RewardService,
   ) {
     this.tweetscoutApiKey = this.configService.get<string>('TWEETSCOUT_API_KEY');
   }
@@ -96,6 +99,7 @@ export class ContestService {
       is_approved: contest.is_approved,
       contestType: contest.contestType,
       examplePrompt: contest.prompt_example,
+      endTime: contest.endTime,
       tag: {
         id: contest?.tag?.id,
         name: contest?.tag?.name,
@@ -195,6 +199,13 @@ export class ContestService {
 
     contest.participants.push(user);
     await this.contestRepository.save(contest);
+
+    // Відмічаємо eligibility для одноразового реварду "участь у контесті"
+    await this.rewardService.markRewardEligible(
+      userId,
+      RewardTypeEnum.CONTEST_PARTICIPATION,
+    );
+
     return { success: true, message: 'You join to contest succesfully' };
   }
 
@@ -475,16 +486,16 @@ export class ContestService {
       }
 
       const batchUserIds = users.map(user => user.id);
-      
-      try {
-        await this.activityService.createActivities(
-          null,
+
+        try {
+          await this.activityService.createActivities(
+            null,
           batchUserIds,
-          ActivityEnum.CONTEST_OPEN,
-          undefined,
-          false,
-          contest,
-        );
+            ActivityEnum.CONTEST_OPEN,
+            undefined,
+            false,
+            contest,
+          );
       } catch (activityError) {
         console.error(`❌ Failed to create activities for batch (offset ${offset}):`, activityError.message);
       }
@@ -495,34 +506,34 @@ export class ContestService {
 
         const batchPromises = batch.map(async (user) => {
           try {
-            if (user.deviceTokens && user.deviceTokens.length > 0) {
-              const deviceTokenPromises = user.deviceTokens.map(async (deviceToken) => {
-                try {
-                  await this.firebaseService.sendNotification(
-                    deviceToken.token,
-                    title,
-                    body,
-                  );
-                  return { success: true };
-                } catch (deviceError) {
-                  console.error(`❌ Push notification failed for user ${user.id}:`, deviceError.message);
+          if (user.deviceTokens && user.deviceTokens.length > 0) {
+            const deviceTokenPromises = user.deviceTokens.map(async (deviceToken) => {
+              try {
+                await this.firebaseService.sendNotification(
+                  deviceToken.token,
+                  title,
+                  body,
+                );
+                return { success: true };
+              } catch (deviceError) {
+                console.error(`❌ Push notification failed for user ${user.id}:`, deviceError.message);
                   return { success: false };
-                }
-              });
-              
+              }
+            });
+            
               await Promise.all(deviceTokenPromises);
-            }
-            
-            await this.notificationGateway.emitProfileUpdate(user.id.toString());
-            
+          }
+          
+          await this.notificationGateway.emitProfileUpdate(user.id.toString());
+          
             totalSuccess++;
             return { success: true, userId: user.id };
-          } catch (userError) {
-            console.error(`❌ Error processing user ${user.id}:`, userError.message);
+        } catch (userError) {
+          console.error(`❌ Error processing user ${user.id}:`, userError.message);
             totalErrors++;
             return { success: false, userId: user.id, error: userError.message };
-          }
-        });
+        }
+      });
 
         await Promise.all(batchPromises);
         totalProcessed += batch.length;

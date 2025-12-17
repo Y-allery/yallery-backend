@@ -31,6 +31,8 @@ import { PartnershipActivityEntity } from 'src/admin/entities/partnership-activi
 import { PartnerUserLinkEntity } from 'src/admin/entities/partner-user-link.entity';
 import { ReportPostEntity } from 'src/post/entities/report.post.entity';
 import { PaymentEntity } from 'src/payment/entities/payment.entity';
+import { RewardService } from 'src/reward/reward.service';
+import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
 
 @Injectable()
 export class UserService {
@@ -47,6 +49,7 @@ export class UserService {
     private readonly deviceTokenModel: Repository<DeviceTokenEntity>,
     private readonly configService: ConfigService,
     private readonly activityService: ActivityService,
+    private readonly rewardService: RewardService,
     @Inject(forwardRef(() => NotificationGateway))
     private readonly notificationGateway: NotificationGateway,
 
@@ -116,7 +119,11 @@ export class UserService {
     const user = await this.findById(userId);
     if (!user) throw new NotFoundException('User not found');
 
-    user.points = 200;
+    const rewardPoints = await this.rewardService.getRewardPointsOrDefault(
+      RewardTypeEnum.REGISTRATION_BONUS,
+      3000,
+    );
+    user.points = (user.points || 0) + rewardPoints;
     user.twitterUsername = twitterUsername;
     await this.userModel.save(user);
     await this.notificationGateway.emitProfileUpdate(userId.toString());
@@ -150,7 +157,6 @@ export class UserService {
         throw new BadRequestException('Email already in use');
       }
       user.email = email;
-      user.points = user.points ? user.points + 100 : 100;
     }
 
     if (name) {
@@ -315,11 +321,10 @@ export class UserService {
   }
 
   async handleDailyReward() {
-    const dailyReward = +this.configService.get<number>('DAILY_REWARD_YEPS');
-    if (!dailyReward) {
-      console.error('Daily reward is not set in the configuration.');
-      return;
-    }
+    const dailyReward = await this.rewardService.getRewardPointsOrDefault(
+      RewardTypeEnum.DAILY_LOGIN,
+      10,
+    );
 
     const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
     const usersToUpdate = await this.userModel
@@ -653,7 +658,10 @@ export class UserService {
     referral.usedBy = user;
     await this.referralRepository.save(referral);
 
-    const rewardPoints = 500;
+    const rewardPoints = await this.rewardService.getRewardPointsOrDefault(
+      RewardTypeEnum.REFERRAL_REWARD,
+      500,
+    );
 
     user.points += rewardPoints;
     referral.user.points += rewardPoints;
@@ -731,120 +739,11 @@ export class UserService {
     return await this.partnerShipActivityRepository.save(activity);
   }
 
-  async processTopLikedPostRewards(): Promise<void> {
-    const tags = await this.tagModel.find();
-
-    for (const tag of tags) {
-      const result = await this.postModel
-        .createQueryBuilder('post')
-        .leftJoinAndSelect('post.user', 'user')
-        .leftJoinAndSelect('post.likes', 'like')
-        .where('post.tagId = :tagId', { tagId: tag.id })
-        .andWhere('post.hasWonDailyReward = false')
-        .groupBy('post.id')
-        .addGroupBy('user.id')
-        .orderBy('COUNT(like.id)', 'DESC')
-        .addOrderBy('post.createdAt', 'DESC')
-        .select(['post', 'user', 'COUNT(like.id) as likeCount'])
-        .getRawAndEntities();
-
-      if (!result.entities.length) {
-        continue;
-      }
-
-      const topPost = result.entities[0];
-      const rawData = result.raw[0];
-      const likeCount = parseInt(rawData.likeCount, 10);
-
-      if (likeCount === 0) {
-        continue;
-      }
-
-      const rewardPool = likeCount;
-      const authorReward = Math.floor(rewardPool / 2);
-      const usersReward = rewardPool - authorReward;
-
-      const likes = await this.likeModel.find({
-        where: { post: topPost },
-        relations: ['user'],
-      });
-
-      let userRewardEach = 0;
-      if (likes.length > 0 && usersReward > 0) {
-        userRewardEach = Math.floor(usersReward / likes.length);
-      }
-
-      if (authorReward > 0) {
-        await this.userModel
-          .createQueryBuilder()
-          .update(UserEntity)
-          .set({ points: () => `points + ${100}` })
-          .where('id = :userId', { userId: topPost.user.id })
-          .execute();
-
-        await this.notifyUser(topPost.user.id, true, topPost);
-      } else {
-        // Author reward is zero for this post; no notification
-      }
-
-      if (userRewardEach > 0) {
-        const likerIds = likes.map((l) => l.user.id);
-        await this.userModel
-          .createQueryBuilder()
-          .update(UserEntity)
-          .set({ points: () => `points + ${userRewardEach}` })
-          .where('id IN (:...ids)', { ids: likerIds })
-          .execute();
-
-        for (const liker of likes) {
-          await this.notifyUser(liker.user.id, false);
-        }
-      } else {
-        // No points awarded to likers for this post
-      }
-
-      await this.markPostAsWon(topPost.id);
-    }
-
-  }
-
-  private async markPostAsWon(postId: number): Promise<void> {
-    await this.postModel
-      .createQueryBuilder()
-      .update(PostEntity)
-      .set({ hasWonDailyReward: true })
-      .where('id = :postId', { postId })
-      .execute();
-  }
-
-  private async notifyUser(
-    userId: number,
-    isAuthor: boolean,
-    topPost?: PostEntity,
-  ): Promise<void> {
-    const activityType = isAuthor
-      ? ActivityEnum.TOP_POST_REWARD_AUTHOR
-      : ActivityEnum.TOP_POST_REWARD_LIKER;
-    const description = await this.activityService.createActivities(
-      null,
-      [userId],
-      activityType,
-      null,
-      false,
-      null,
-      topPost ? topPost : null,
-    );
-
-    await this.notificationGateway.sendNotification(
-      userId.toString(),
-      description,
-      activityType,
-    );
-
-    await this.sendPushNotificationIfEnabled(userId, activityType);
-  }
-
   async updateUserLastUpdated(user_id: string) {
     await this.userModel.update(user_id, { updatedAt: new Date() });
+  }
+
+  async incrementUserPoints(userId: number, points: number): Promise<void> {
+    await this.userModel.increment({ id: userId }, 'points', points);
   }
 }

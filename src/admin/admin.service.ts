@@ -41,6 +41,8 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { LikeEntity } from 'src/like/entities/like.entity';
 import { VideoAIEnum } from 'src/common/enums/ai.enum';
 import { PaymentEntity } from 'src/payment/entities/payment.entity';
+import { RewardService } from 'src/reward/reward.service';
+import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
 
 @Injectable()
 export class AdminService {
@@ -58,6 +60,7 @@ export class AdminService {
     private readonly postService: PostService,
     private readonly tagService: TagService,
     private readonly activityService: ActivityService,
+    private readonly rewardService: RewardService,
     @InjectRepository(PartnershipEntity)
     private readonly partnerShipRepo: Repository<PartnershipEntity>,
     @InjectRepository(PartnershipActivityEntity)
@@ -307,16 +310,37 @@ export class AdminService {
       },
     });
 
-    const productPointsMap: { [key: string]: number } = {
-      '5000yeps': 5000,
-      '15000yeps': 15000,
-      '30000yeps': 30000,
+    const productRewardMap: { [key: string]: RewardTypeEnum } = {
+      '5000yeps': RewardTypeEnum.PAYMENT_5000,
+      '15000yeps': RewardTypeEnum.PAYMENT_15000,
+      '30000yeps': RewardTypeEnum.PAYMENT_30000,
     };
 
-    const purchasedYeps7D = payments7D.reduce((total, payment) => {
-      const points = productPointsMap[payment.productId] || 0;
-      return total + points;
-    }, 0);
+    // Payment rewards не зберігаються в БД, використовуємо fallback значення
+    const paymentFallbackValues: { [key: string]: number } = {
+      [RewardTypeEnum.PAYMENT_5000]: 5000,
+      [RewardTypeEnum.PAYMENT_15000]: 15000,
+      [RewardTypeEnum.PAYMENT_30000]: 30000,
+    };
+
+    let purchasedYeps7D = 0;
+    for (const payment of payments7D) {
+      const rewardType = productRewardMap[payment.productId];
+      if (rewardType) {
+        try {
+          const points = await this.rewardService.getRewardPoints(rewardType);
+          purchasedYeps7D += points;
+        } catch (error) {
+          // Якщо не знайдено в БД, використовуємо fallback
+          const fallbackValue = paymentFallbackValues[rewardType];
+          if (fallbackValue) {
+            purchasedYeps7D += fallbackValue;
+          } else {
+            this.logger.warn(`Failed to get reward points for ${rewardType}:`, error);
+          }
+        }
+      }
+    }
 
     const snapshot = this.adminMetricsRepository.create({
       periodStart,
