@@ -65,8 +65,24 @@ export class TagService {
     const query = this.tagModel
       .createQueryBuilder('tag')
       .leftJoin('tag.users', 'user', 'user.id = :userId', { userId })
+      .leftJoin(
+        'tag.posts',
+        'post',
+        'post.is_published = :isPublished AND post.is_blocked = :isBlocked AND post.is_rejected = :isRejected',
+        {
+          isPublished: true,
+          isBlocked: false,
+          isRejected: false,
+        },
+      )
+      .select('tag.id', 'tag_id')
+      .addSelect('tag.name', 'tag_name')
+      .addSelect('tag.imageUrl', 'tag_imageUrl')
       .addSelect('COUNT(user.id) > 0', 'isFollowed')
-      .groupBy('tag.id');
+      .addSelect('COUNT(DISTINCT post.id)', 'totalPosts')
+      .groupBy('tag.id')
+      .addGroupBy('tag.name')
+      .addGroupBy('tag.imageUrl');
 
     if (name) {
       query.where('tag.name LIKE :name', { name: `%${name}%` });
@@ -79,6 +95,7 @@ export class TagService {
       name: tag.tag_name,
       imageUrl: tag.tag_imageUrl,
       isFollowed: tag.isFollowed === '1',
+      totalPosts: parseInt(tag.totalPosts) || 0,
     }));
   }
 
