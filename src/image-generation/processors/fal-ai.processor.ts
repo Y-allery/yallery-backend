@@ -85,6 +85,7 @@ export class FalAiProcessor extends BaseImageProcessor {
           dto,
           user,
           service,
+          suggestedTags,
         );
       } catch (error) {
         console.error(`[FalAiProcessor] Failed to save images for user ${userId}, credits already deducted:`, error);

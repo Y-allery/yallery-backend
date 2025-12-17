@@ -868,6 +868,7 @@ export class ImageGenerationService {
     dto: GenerateImageDto | EditImageDto,
     user: UserEntity,
     service: AIEnum,
+    suggestedTags?: { id: number; name: string }[],
   ) {
     if (!generatedImages || !Array.isArray(generatedImages) || generatedImages.length === 0) {
       throw new Error(
@@ -878,9 +879,9 @@ export class ImageGenerationService {
     const posts = await Promise.all(
       generatedImages.map(async (imageUrl) => {
         if (service === AIEnum.BYTEDANCE_EDIT) {
-          return await this.createPostForEditImage(dto as EditImageDto, imageUrl, user);
+          return await this.createPostForEditImage(dto as EditImageDto, imageUrl, user, suggestedTags);
         } else {
-          return await this.createPostForImage(dto as GenerateImageDto, imageUrl, user);
+          return await this.createPostForImage(dto as GenerateImageDto, imageUrl, user, suggestedTags);
         }
       }),
     );
@@ -940,6 +941,7 @@ export class ImageGenerationService {
     editImageDto: EditImageDto,
     imageUrl: string,
     user: UserEntity,
+    suggestedTags?: { id: number; name: string }[],
   ) {
     
     const tempDto = {
@@ -955,6 +957,7 @@ export class ImageGenerationService {
       imageUrl,
       user.id,
       null,
+      suggestedTags,
     );
   }
 
@@ -962,12 +965,14 @@ export class ImageGenerationService {
     createPostDto: GenerateImageDto,
     imageUrl: string,
     user: UserEntity,
+    suggestedTags?: { id: number; name: string }[],
   ) {
     return await this.postService.savePost(
       createPostDto,
       imageUrl,
       user.id,
       createPostDto.contest_id || null,
+      suggestedTags,
     );
   }
 

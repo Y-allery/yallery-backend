@@ -58,6 +58,7 @@ export class XRouterProcessor extends BaseImageProcessor {
         createPostDto,
         user,
         createPostDto.ai_service,
+        suggestedTags,
       );
     } catch (error) {
       console.error(`[XRouterProcessor] Failed to save images for user ${userId}, credits already deducted:`, error);

@@ -436,6 +436,7 @@ export class PostService {
     imageUrl: string,
     user_id: number,
     contest_id: number | null,
+    suggestedTags?: { id: number; name: string }[],
   ) {
     // Get actual image dimensions from the generated image
     let actualWidth: number | undefined = undefined;
@@ -455,7 +456,7 @@ export class PostService {
     const post = this.postEntity.create({
       user: { id: user_id },
       imageUrl,
-      tag: { id: dto.tag_id },
+      tag: null, // Don't assign tag automatically
       contest: { id: contest_id },
       is_published: false,
       generation_params: {
@@ -467,6 +468,7 @@ export class PostService {
         width: actualWidth,
         height: actualHeight,
         negative_prompt: undefined,
+        suggestedTags: suggestedTags || undefined,
       },
     });
     const savedPost = await this.postEntity.save(post);
@@ -477,10 +479,10 @@ export class PostService {
     batchSize: number = 10,
     delayBetweenBatches: number = 100,
   ): Promise<{ message: string; total: number }> {
-    // Use 3 seconds delay between batches to not block other processes
-    const delayBetweenBatchesMs = 3000;
-    // Small delay between individual posts in batch (100ms)
-    const delayBetweenPostsMs = 100;
+    // No delays - process as fast as possible
+    const delayBetweenBatchesMs = 0;
+    // No delay between individual posts
+    const delayBetweenPostsMs = 0;
     
     // Get total count first to return immediately
     const countResult = await this.postEntity.query(
@@ -624,25 +626,14 @@ export class PostService {
           processed++;
         }
 
-        // Small delay between posts to not block event loop
-        if (delayBetweenPostsMs > 0) {
-          await new Promise((resolve) => setTimeout(resolve, delayBetweenPostsMs));
-        }
+        // No delay between posts
       }
 
       // Log progress after each batch
       const progress = ((processed / total) * 100).toFixed(2);
       console.log(`[updatePostsDimensionsBatch] Batch ${batchNumber}/${totalBatches} completed. Progress: ${progress}% (${processed}/${total}) | Updated: ${updated} | Failed: ${failed}`);
 
-      // Always delay between batches (except after last batch) to not block other processes
-      if (i + batchSize < allPosts.length) {
-        console.log(`[updatePostsDimensionsBatch] Waiting ${delayBetweenBatchesMs}ms before next batch to avoid blocking other processes...`);
-        // Use setImmediate to yield to event loop before delay
-        await new Promise((resolve) => setImmediate(resolve));
-        await new Promise((resolve) => setTimeout(resolve, delayBetweenBatchesMs));
-      } else {
-        console.log(`[updatePostsDimensionsBatch] Last batch completed, no delay needed.`);
-      }
+      // No delay between batches - process as fast as possible
     }
 
     const endTime = Date.now();
