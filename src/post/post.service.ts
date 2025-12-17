@@ -9,7 +9,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, Not, Repository } from 'typeorm';
 import { PostEntity } from './entities/post.entity';
 import { TagEntity } from 'src/tag/entities/tag.entity';
 import { ViewedPostEntity } from './entities/viwed.entity';
@@ -471,6 +471,91 @@ export class PostService {
     });
     const savedPost = await this.postEntity.save(post);
     return savedPost;
+  }
+
+  async updatePostsDimensionsBatch(
+    batchSize: number = 10,
+    delayBetweenBatches: number = 100,
+  ): Promise<{ total: number; processed: number; updated: number; failed: number }> {
+    // Get all posts with imageUrl
+    const allPosts = await this.postEntity.find({
+      where: {
+        imageUrl: Not(null),
+      },
+      select: ['id', 'imageUrl', 'generation_params'],
+    });
+
+    let processed = 0;
+    let updated = 0;
+    let failed = 0;
+    const total = allPosts.length;
+
+    // Process posts in batches with delay to not block event loop
+    for (let i = 0; i < allPosts.length; i += batchSize) {
+      const batch = allPosts.slice(i, i + batchSize);
+      
+      // Process batch
+      const batchPromises = batch.map(async (post) => {
+        try {
+          // Skip if already has width and height
+          if (
+            post.generation_params?.width &&
+            post.generation_params?.height &&
+            typeof post.generation_params.width === 'number' &&
+            typeof post.generation_params.height === 'number'
+          ) {
+            processed++;
+            return;
+          }
+
+          // Skip if no imageUrl
+          if (!post.imageUrl) {
+            processed++;
+            return;
+          }
+
+          // Get image dimensions
+          const dimensions = await this.getImageDimensions(post.imageUrl);
+          
+          if (dimensions) {
+            // Update generation_params
+            const updatedParams = {
+              ...(post.generation_params || {}),
+              width: dimensions.width,
+              height: dimensions.height,
+            };
+
+            await this.postEntity.update(
+              { id: post.id },
+              { generation_params: updatedParams },
+            );
+            updated++;
+          } else {
+            failed++;
+          }
+          processed++;
+        } catch (error) {
+          console.error(`[updatePostsDimensionsBatch] Failed to process post ${post.id}:`, error?.message || error);
+          failed++;
+          processed++;
+        }
+      });
+
+      // Wait for batch to complete
+      await Promise.all(batchPromises);
+
+      // Delay between batches to not block event loop
+      if (i + batchSize < allPosts.length) {
+        await new Promise((resolve) => setTimeout(resolve, delayBetweenBatches));
+      }
+    }
+
+    return {
+      total,
+      processed,
+      updated,
+      failed,
+    };
   }
 
   async blockPost(post_id: number) {
