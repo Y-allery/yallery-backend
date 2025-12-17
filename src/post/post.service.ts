@@ -678,6 +678,8 @@ export class PostService {
     console.log(`[updatePostsSuggestedTagsBatch] Starting background batch processing...`);
     console.log(`[updatePostsSuggestedTagsBatch] Total posts to process: ${totalCount}`);
     console.log(`[updatePostsSuggestedTagsBatch] Batch size: ${batchSize}`);
+    console.log(`[updatePostsSuggestedTagsBatch] Delay between batches: ${delayBetweenBatchesMs}ms (fixed)`);
+    console.log(`[updatePostsSuggestedTagsBatch] Delay between posts: ${delayBetweenPostsMs}ms (fixed)`);
 
     // Start processing in background (don't await)
     this.processPostsSuggestedTagsInBackground(batchSize, delayBetweenBatchesMs, delayBetweenPostsMs).catch((error) => {
@@ -699,6 +701,13 @@ export class PostService {
     const startTime = Date.now();
     const defaultTag = { id: 48, name: 'other' };
 
+    // Get total count for logging
+    const totalPostsResult = await this.postEntity.query(
+      'SELECT COUNT(*) as count FROM posts',
+    );
+    const totalPosts = parseInt(totalPostsResult[0]?.count || '0', 10);
+    console.log(`[updatePostsSuggestedTagsBatch] Total posts in database: ${totalPosts}`);
+
     // Get all posts
     const allPostsRaw = await this.postEntity.query(`
       SELECT id, generation_params 
@@ -717,6 +726,12 @@ export class PostService {
     const total = allPosts.length;
 
     console.log(`[updatePostsSuggestedTagsBatch] Retrieved ${total} posts from database`);
+    
+    if (total !== totalPosts) {
+      console.warn(`[updatePostsSuggestedTagsBatch] ⚠️ WARNING: Retrieved ${total} posts but database has ${totalPosts} posts!`);
+    } else {
+      console.log(`[updatePostsSuggestedTagsBatch] ✅ Successfully retrieved all ${total} posts`);
+    }
 
     // Process posts in batches
     const totalBatches = Math.ceil(total / batchSize);
@@ -763,6 +778,8 @@ export class PostService {
       // Log progress after each batch
       const progress = ((processed / total) * 100).toFixed(2);
       console.log(`[updatePostsSuggestedTagsBatch] Batch ${batchNumber}/${totalBatches} completed. Progress: ${progress}% (${processed}/${total}) | Updated: ${updated} | Skipped: ${skipped}`);
+
+      // No delay between batches - process as fast as possible
     }
 
     const endTime = Date.now();
