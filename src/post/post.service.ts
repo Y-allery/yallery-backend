@@ -82,6 +82,7 @@ export class PostService {
         p.id, 
         p.imageUrl AS image_url, 
         p.videoUrl AS video_url, 
+        p.previewImageUrl AS preview_image_url,
         p.createdAt AS created_at,
         u.id AS user_id,
         t.id AS tag_id,
