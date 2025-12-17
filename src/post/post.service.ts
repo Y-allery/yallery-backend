@@ -515,18 +515,20 @@ export class PostService {
 
     // Get all posts with imageUrl (always process all posts)
     // Use raw SQL query to ensure we get ALL posts without any TypeORM limitations
+    // Check for both NULL and empty string (as some posts might have empty strings)
     const countResult = await this.postEntity.query(
-      'SELECT COUNT(*) as count FROM posts WHERE imageUrl IS NOT NULL',
+      'SELECT COUNT(*) as count FROM posts WHERE imageUrl IS NOT NULL AND imageUrl != ""',
     );
     const totalCount = parseInt(countResult[0]?.count || '0', 10);
     
     console.log(`[updatePostsDimensionsBatch] Total posts with imageUrl in database: ${totalCount}`);
 
     // Get all posts using raw SQL to avoid any limitations
+    // Also exclude empty strings
     const allPostsRaw = await this.postEntity.query(`
       SELECT id, imageUrl, generation_params 
       FROM posts 
-      WHERE imageUrl IS NOT NULL
+      WHERE imageUrl IS NOT NULL AND imageUrl != ""
     `);
 
     // Transform raw results to match expected format
