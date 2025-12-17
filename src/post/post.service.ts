@@ -476,12 +476,37 @@ export class PostService {
   async updatePostsDimensionsBatch(
     batchSize: number = 10,
     delayBetweenBatches: number = 100,
-  ): Promise<{ total: number; processed: number; updated: number; failed: number }> {
-    const startTime = Date.now();
+  ): Promise<{ message: string; total: number }> {
     // Always use 1 second delay between batches
     const delayMs = 1000;
-    console.log(`[updatePostsDimensionsBatch] Starting batch processing...`);
+    
+    // Get total count first to return immediately
+    const countResult = await this.postEntity.query(
+      'SELECT COUNT(*) as count FROM posts WHERE imageUrl IS NOT NULL',
+    );
+    const totalCount = parseInt(countResult[0]?.count || '0', 10);
+    
+    console.log(`[updatePostsDimensionsBatch] Starting background batch processing...`);
+    console.log(`[updatePostsDimensionsBatch] Total posts to process: ${totalCount}`);
     console.log(`[updatePostsDimensionsBatch] Batch size: ${batchSize}, Delay between batches: ${delayMs}ms (fixed)`);
+
+    // Start processing in background (don't await)
+    this.processPostsDimensionsInBackground(batchSize, delayMs).catch((error) => {
+      console.error(`[updatePostsDimensionsBatch] Background processing error:`, error);
+    });
+
+    // Return immediately
+    return {
+      message: 'Batch processing started in background. Check logs for progress.',
+      total: totalCount,
+    };
+  }
+
+  private async processPostsDimensionsInBackground(
+    batchSize: number,
+    delayMs: number,
+  ): Promise<void> {
+    const startTime = Date.now();
 
     // Get all posts with imageUrl (always process all posts)
     // Use raw SQL query to ensure we get ALL posts without any TypeORM limitations
@@ -592,13 +617,6 @@ export class PostService {
     console.log(`[updatePostsDimensionsBatch] Failed: ${failed}`);
     console.log(`[updatePostsDimensionsBatch] Duration: ${duration}s`);
     console.log(`[updatePostsDimensionsBatch] ==========================================`);
-
-    return {
-      total,
-      processed,
-      updated,
-      failed,
-    };
   }
 
   async blockPost(post_id: number) {
