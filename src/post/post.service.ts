@@ -484,6 +484,14 @@ export class PostService {
     console.log(`[updatePostsDimensionsBatch] Batch size: ${batchSize}, Delay between batches: ${delayMs}ms (fixed)`);
 
     // Get all posts with imageUrl (always process all posts)
+    // First, get total count to verify
+    const totalCount = await this.postEntity
+      .createQueryBuilder('post')
+      .where('post.imageUrl IS NOT NULL')
+      .getCount();
+    
+    console.log(`[updatePostsDimensionsBatch] Total posts with imageUrl in database: ${totalCount}`);
+
     // Use QueryBuilder to ensure we get all posts without any limits
     const allPosts = await this.postEntity
       .createQueryBuilder('post')
@@ -496,7 +504,11 @@ export class PostService {
     let failed = 0;
     const total = allPosts.length;
 
-    console.log(`[updatePostsDimensionsBatch] Found ${total} posts with imageUrl`);
+    console.log(`[updatePostsDimensionsBatch] Retrieved ${total} posts from database`);
+    
+    if (total !== totalCount) {
+      console.warn(`[updatePostsDimensionsBatch] ⚠️ WARNING: Retrieved ${total} posts but database has ${totalCount} posts!`);
+    }
 
     // Process posts in batches with delay to not block event loop
     const totalBatches = Math.ceil(total / batchSize);
