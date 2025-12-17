@@ -438,14 +438,14 @@ export class PostService {
     contest_id: number | null,
   ) {
     // Try to get actual image dimensions
-    let actualWidth = dto.width;
-    let actualHeight = dto.height;
+    let actualWidth: number | undefined = dto.width ? Number(dto.width) : undefined;
+    let actualHeight: number | undefined = dto.height ? Number(dto.height) : undefined;
     
     try {
       const dimensions = await this.getImageDimensions(imageUrl);
       if (dimensions) {
-        actualWidth = dimensions.width;
-        actualHeight = dimensions.height;
+        actualWidth = Number(dimensions.width);
+        actualHeight = Number(dimensions.height);
       }
     } catch (error) {
       // If failed to get dimensions, use expected dimensions from DTO
@@ -464,8 +464,8 @@ export class PostService {
         orientation: dto.orientation,
         style_id: dto.style_id || undefined,
         color_id: dto.color_id || undefined,
-        width: actualWidth || undefined,
-        height: actualHeight || undefined,
+        width: actualWidth,
+        height: actualHeight,
         negative_prompt: undefined,
       },
     });
