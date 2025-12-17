@@ -650,6 +650,124 @@ export class PostService {
     console.log(`[updatePostsDimensionsBatch] ==========================================`);
   }
 
+  async updatePostsSuggestedTagsBatch(
+    batchSize: number = 10,
+    delayBetweenBatches: number = 100,
+  ): Promise<{ message: string; total: number }> {
+    // No delays - process as fast as possible
+    const delayBetweenBatchesMs = 0;
+    const delayBetweenPostsMs = 0;
+    
+    // Get total count first to return immediately
+    const countResult = await this.postEntity.query(
+      'SELECT COUNT(*) as count FROM posts',
+    );
+    const totalCount = parseInt(countResult[0]?.count || '0', 10);
+    
+    console.log(`[updatePostsSuggestedTagsBatch] Starting background batch processing...`);
+    console.log(`[updatePostsSuggestedTagsBatch] Total posts to process: ${totalCount}`);
+    console.log(`[updatePostsSuggestedTagsBatch] Batch size: ${batchSize}`);
+
+    // Start processing in background (don't await)
+    this.processPostsSuggestedTagsInBackground(batchSize, delayBetweenBatchesMs, delayBetweenPostsMs).catch((error) => {
+      console.error(`[updatePostsSuggestedTagsBatch] Background processing error:`, error);
+    });
+
+    // Return immediately
+    return {
+      message: 'Batch processing started in background. Check logs for progress.',
+      total: totalCount,
+    };
+  }
+
+  private async processPostsSuggestedTagsInBackground(
+    batchSize: number,
+    delayBetweenBatchesMs: number,
+    delayBetweenPostsMs: number,
+  ): Promise<void> {
+    const startTime = Date.now();
+    const defaultTag = { id: 48, name: 'other' };
+
+    // Get all posts
+    const allPostsRaw = await this.postEntity.query(`
+      SELECT id, generation_params 
+      FROM posts
+    `);
+
+    // Transform raw results
+    const allPosts = allPostsRaw.map((post: any) => ({
+      id: post.id,
+      generation_params: post.generation_params,
+    }));
+
+    let processed = 0;
+    let updated = 0;
+    let skipped = 0;
+    const total = allPosts.length;
+
+    console.log(`[updatePostsSuggestedTagsBatch] Retrieved ${total} posts from database`);
+
+    // Process posts in batches
+    const totalBatches = Math.ceil(total / batchSize);
+    for (let i = 0; i < allPosts.length; i += batchSize) {
+      const batchNumber = Math.floor(i / batchSize) + 1;
+      const batch = allPosts.slice(i, i + batchSize);
+      
+      console.log(`[updatePostsSuggestedTagsBatch] Processing batch ${batchNumber}/${totalBatches} (${batch.length} posts)...`);
+      
+      // Process batch
+      for (const post of batch) {
+        try {
+          // Check if suggestedTags already exists
+          let existingParams = post.generation_params;
+          if (!existingParams || typeof existingParams !== 'object') {
+            existingParams = {};
+          }
+
+          // Skip if suggestedTags already exists
+          if (existingParams.suggestedTags && Array.isArray(existingParams.suggestedTags) && existingParams.suggestedTags.length > 0) {
+            skipped++;
+            processed++;
+            continue;
+          }
+
+          // Add default suggestedTags
+          const updatedParams = {
+            ...existingParams,
+            suggestedTags: [defaultTag],
+          };
+
+          await this.postEntity.update(
+            { id: post.id },
+            { generation_params: updatedParams },
+          );
+          updated++;
+          processed++;
+        } catch (error) {
+          console.error(`[updatePostsSuggestedTagsBatch] Failed to process post ${post.id}:`, error?.message || error);
+          processed++;
+        }
+      }
+
+      // Log progress after each batch
+      const progress = ((processed / total) * 100).toFixed(2);
+      console.log(`[updatePostsSuggestedTagsBatch] Batch ${batchNumber}/${totalBatches} completed. Progress: ${progress}% (${processed}/${total}) | Updated: ${updated} | Skipped: ${skipped}`);
+    }
+
+    const endTime = Date.now();
+    const duration = ((endTime - startTime) / 1000).toFixed(2);
+    
+    console.log(`[updatePostsSuggestedTagsBatch] ✅ All batches completed! Processing finished.`);
+    console.log(`[updatePostsSuggestedTagsBatch] ==========================================`);
+    console.log(`[updatePostsSuggestedTagsBatch] Final Statistics:`);
+    console.log(`[updatePostsSuggestedTagsBatch] Total posts: ${total}`);
+    console.log(`[updatePostsSuggestedTagsBatch] Processed: ${processed}`);
+    console.log(`[updatePostsSuggestedTagsBatch] Updated: ${updated}`);
+    console.log(`[updatePostsSuggestedTagsBatch] Skipped: ${skipped}`);
+    console.log(`[updatePostsSuggestedTagsBatch] Duration: ${duration}s`);
+    console.log(`[updatePostsSuggestedTagsBatch] ==========================================`);
+  }
+
   async blockPost(post_id: number) {
     const post = await this.postEntity.findOne({ where: { id: post_id } });
     if (!post) throw new NotFoundException('Post not found');
