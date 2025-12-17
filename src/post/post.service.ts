@@ -583,7 +583,7 @@ export class PostService {
       
       console.log(`[updatePostsDimensionsBatch] Processing batch ${batchNumber}/${totalBatches} (${batch.length} posts)...`);
       
-      // Process batch - always update all posts with real dimensions
+      // Process batch - only update posts missing width and height
       // Process posts sequentially with delay to not block event loop
       for (const post of batch) {
         try {
@@ -593,17 +593,28 @@ export class PostService {
             continue;
           }
 
-          // Always get image dimensions (even if already exist, update with real values)
+          // Check if width and height already exist in generation_params
+          let existingParams = post.generation_params;
+          if (!existingParams || typeof existingParams !== 'object') {
+            existingParams = {};
+          }
+
+          // Skip if already has width and height
+          if (
+            existingParams.width &&
+            existingParams.height &&
+            typeof existingParams.width === 'number' &&
+            typeof existingParams.height === 'number'
+          ) {
+            processed++;
+            continue;
+          }
+
+          // Get image dimensions only if missing
           const dimensions = await this.getImageDimensions(post.imageUrl);
           
           if (dimensions) {
             // Update generation_params with real dimensions
-            // Handle case when generation_params is null or empty
-            let existingParams = post.generation_params;
-            if (!existingParams || typeof existingParams !== 'object') {
-              existingParams = {};
-            }
-
             const updatedParams = {
               ...existingParams,
               width: dimensions.width,
