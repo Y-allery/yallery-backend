@@ -478,10 +478,12 @@ export class PostService {
     delayBetweenBatches: number = 100,
   ): Promise<{ total: number; processed: number; updated: number; failed: number }> {
     const startTime = Date.now();
+    // Always use 1 second delay between batches
+    const delayMs = 1000;
     console.log(`[updatePostsDimensionsBatch] Starting batch processing...`);
-    console.log(`[updatePostsDimensionsBatch] Batch size: ${batchSize}, Delay between batches: ${delayBetweenBatches}ms`);
+    console.log(`[updatePostsDimensionsBatch] Batch size: ${batchSize}, Delay between batches: ${delayMs}ms (fixed)`);
 
-    // Get all posts with imageUrl
+    // Get all posts with imageUrl (always process all posts)
     const allPosts = await this.postEntity.find({
       where: {
         imageUrl: Not(null),
@@ -492,7 +494,6 @@ export class PostService {
     let processed = 0;
     let updated = 0;
     let failed = 0;
-    let skipped = 0;
     const total = allPosts.length;
 
     console.log(`[updatePostsDimensionsBatch] Found ${total} posts with imageUrl`);
@@ -505,33 +506,20 @@ export class PostService {
       
       console.log(`[updatePostsDimensionsBatch] Processing batch ${batchNumber}/${totalBatches} (${batch.length} posts)...`);
       
-      // Process batch
+      // Process batch - always update all posts with real dimensions
       const batchPromises = batch.map(async (post) => {
         try {
-          // Skip if already has width and height
-          if (
-            post.generation_params?.width &&
-            post.generation_params?.height &&
-            typeof post.generation_params.width === 'number' &&
-            typeof post.generation_params.height === 'number'
-          ) {
-            skipped++;
-            processed++;
-            return;
-          }
-
           // Skip if no imageUrl
           if (!post.imageUrl) {
-            skipped++;
             processed++;
             return;
           }
 
-          // Get image dimensions
+          // Always get image dimensions (even if already exist, update with real values)
           const dimensions = await this.getImageDimensions(post.imageUrl);
           
           if (dimensions) {
-            // Update generation_params
+            // Update generation_params with real dimensions
             const updatedParams = {
               ...(post.generation_params || {}),
               width: dimensions.width,
@@ -560,11 +548,11 @@ export class PostService {
 
       // Log progress after each batch
       const progress = ((processed / total) * 100).toFixed(2);
-      console.log(`[updatePostsDimensionsBatch] Batch ${batchNumber}/${totalBatches} completed. Progress: ${progress}% (${processed}/${total}) | Updated: ${updated} | Failed: ${failed} | Skipped: ${skipped}`);
+      console.log(`[updatePostsDimensionsBatch] Batch ${batchNumber}/${totalBatches} completed. Progress: ${progress}% (${processed}/${total}) | Updated: ${updated} | Failed: ${failed}`);
 
-      // Delay between batches to not block event loop
+      // Always delay 1 second between batches
       if (i + batchSize < allPosts.length) {
-        await new Promise((resolve) => setTimeout(resolve, delayBetweenBatches));
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
       }
     }
 
@@ -576,7 +564,6 @@ export class PostService {
     console.log(`[updatePostsDimensionsBatch] Processed: ${processed}`);
     console.log(`[updatePostsDimensionsBatch] Updated: ${updated}`);
     console.log(`[updatePostsDimensionsBatch] Failed: ${failed}`);
-    console.log(`[updatePostsDimensionsBatch] Skipped: ${skipped}`);
     console.log(`[updatePostsDimensionsBatch] Duration: ${duration}s`);
 
     return {
