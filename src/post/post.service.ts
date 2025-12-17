@@ -595,8 +595,14 @@ export class PostService {
           
           if (dimensions) {
             // Update generation_params with real dimensions
+            // Handle case when generation_params is null or empty
+            let existingParams = post.generation_params;
+            if (!existingParams || typeof existingParams !== 'object') {
+              existingParams = {};
+            }
+
             const updatedParams = {
-              ...(post.generation_params || {}),
+              ...existingParams,
               width: dimensions.width,
               height: dimensions.height,
             };
