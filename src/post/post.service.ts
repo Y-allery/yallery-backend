@@ -477,8 +477,10 @@ export class PostService {
     batchSize: number = 10,
     delayBetweenBatches: number = 100,
   ): Promise<{ message: string; total: number }> {
-    // Always use 1 second delay between batches
-    const delayMs = 1000;
+    // Use 3 seconds delay between batches to not block other processes
+    const delayBetweenBatchesMs = 3000;
+    // Small delay between individual posts in batch (100ms)
+    const delayBetweenPostsMs = 100;
     
     // Get total count first to return immediately
     const countResult = await this.postEntity.query(
@@ -488,10 +490,12 @@ export class PostService {
     
     console.log(`[updatePostsDimensionsBatch] Starting background batch processing...`);
     console.log(`[updatePostsDimensionsBatch] Total posts to process: ${totalCount}`);
-    console.log(`[updatePostsDimensionsBatch] Batch size: ${batchSize}, Delay between batches: ${delayMs}ms (fixed)`);
+    console.log(`[updatePostsDimensionsBatch] Batch size: ${batchSize}`);
+    console.log(`[updatePostsDimensionsBatch] Delay between batches: ${delayBetweenBatchesMs}ms (fixed)`);
+    console.log(`[updatePostsDimensionsBatch] Delay between posts: ${delayBetweenPostsMs}ms (fixed)`);
 
     // Start processing in background (don't await)
-    this.processPostsDimensionsInBackground(batchSize, delayMs).catch((error) => {
+    this.processPostsDimensionsInBackground(batchSize, delayBetweenBatchesMs, delayBetweenPostsMs).catch((error) => {
       console.error(`[updatePostsDimensionsBatch] Background processing error:`, error);
     });
 
@@ -504,7 +508,8 @@ export class PostService {
 
   private async processPostsDimensionsInBackground(
     batchSize: number,
-    delayMs: number,
+    delayBetweenBatchesMs: number,
+    delayBetweenPostsMs: number,
   ): Promise<void> {
     const startTime = Date.now();
 
@@ -553,12 +558,13 @@ export class PostService {
       console.log(`[updatePostsDimensionsBatch] Processing batch ${batchNumber}/${totalBatches} (${batch.length} posts)...`);
       
       // Process batch - always update all posts with real dimensions
-      const batchPromises = batch.map(async (post) => {
+      // Process posts sequentially with delay to not block event loop
+      for (const post of batch) {
         try {
           // Skip if no imageUrl
           if (!post.imageUrl) {
             processed++;
-            return;
+            continue;
           }
 
           // Always get image dimensions (even if already exist, update with real values)
@@ -587,19 +593,23 @@ export class PostService {
           failed++;
           processed++;
         }
-      });
 
-      // Wait for batch to complete
-      await Promise.all(batchPromises);
+        // Small delay between posts to not block event loop
+        if (delayBetweenPostsMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, delayBetweenPostsMs));
+        }
+      }
 
       // Log progress after each batch
       const progress = ((processed / total) * 100).toFixed(2);
       console.log(`[updatePostsDimensionsBatch] Batch ${batchNumber}/${totalBatches} completed. Progress: ${progress}% (${processed}/${total}) | Updated: ${updated} | Failed: ${failed}`);
 
-      // Always delay 1 second between batches (except after last batch)
+      // Always delay between batches (except after last batch) to not block other processes
       if (i + batchSize < allPosts.length) {
-        console.log(`[updatePostsDimensionsBatch] Waiting ${delayMs}ms before next batch...`);
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        console.log(`[updatePostsDimensionsBatch] Waiting ${delayBetweenBatchesMs}ms before next batch to avoid blocking other processes...`);
+        // Use setImmediate to yield to event loop before delay
+        await new Promise((resolve) => setImmediate(resolve));
+        await new Promise((resolve) => setTimeout(resolve, delayBetweenBatchesMs));
       } else {
         console.log(`[updatePostsDimensionsBatch] Last batch completed, no delay needed.`);
       }
