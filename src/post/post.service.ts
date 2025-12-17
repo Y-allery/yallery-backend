@@ -800,6 +800,201 @@ export class PostService {
     console.log(`[updatePostsSuggestedTagsBatch] ==========================================`);
   }
 
+  private generateCloudinaryPreviewUrl(videoUrl: string): string | null {
+    try {
+      // Check if URL is from Cloudinary
+      if (!videoUrl.includes('cloudinary.com')) {
+        return null;
+      }
+
+      // Replace video extension with jpg for preview
+      // Example: https://res.cloudinary.com/account/video/upload/v123/video.mp4
+      // Becomes: https://res.cloudinary.com/account/video/upload/v123/video.jpg
+      const previewUrl = videoUrl.replace(/\.(mp4|webm|mov|avi)$/i, '.jpg');
+      
+      return previewUrl;
+    } catch (error) {
+      console.warn(`[generateCloudinaryPreviewUrl] Failed to generate preview URL from ${videoUrl}:`, error?.message || error);
+      return null;
+    }
+  }
+
+  async updateVideoPreviewsAndTagsBatch(
+    batchSize: number = 10,
+    delayBetweenBatches: number = 100,
+  ): Promise<{ message: string; total: number }> {
+    // No delays - process as fast as possible
+    const delayBetweenBatchesMs = 0;
+    const delayBetweenPostsMs = 0;
+    
+    // Get total count first to return immediately
+    const countResult = await this.postEntity.query(
+      'SELECT COUNT(*) as count FROM posts WHERE videoUrl IS NOT NULL AND LENGTH(videoUrl) > 0',
+    );
+    const totalCount = parseInt(countResult[0]?.count || '0', 10);
+    
+    console.log(`[updateVideoPreviewsAndTagsBatch] Starting background batch processing...`);
+    console.log(`[updateVideoPreviewsAndTagsBatch] Total video posts to process: ${totalCount}`);
+    console.log(`[updateVideoPreviewsAndTagsBatch] Batch size: ${batchSize}`);
+    console.log(`[updateVideoPreviewsAndTagsBatch] Delay between batches: ${delayBetweenBatchesMs}ms (fixed)`);
+    console.log(`[updateVideoPreviewsAndTagsBatch] Delay between posts: ${delayBetweenPostsMs}ms (fixed)`);
+
+    // Start processing in background (don't await)
+    this.processVideoPreviewsAndTagsInBackground(batchSize, delayBetweenBatchesMs, delayBetweenPostsMs).catch((error) => {
+      console.error(`[updateVideoPreviewsAndTagsBatch] Background processing error:`, error);
+    });
+
+    // Return immediately
+    return {
+      message: 'Batch processing started in background. Check logs for progress.',
+      total: totalCount,
+    };
+  }
+
+  private async processVideoPreviewsAndTagsInBackground(
+    batchSize: number,
+    delayBetweenBatchesMs: number,
+    delayBetweenPostsMs: number,
+  ): Promise<void> {
+    const startTime = Date.now();
+    const defaultTag = { id: 48, name: 'other' };
+
+    // Get total count for logging
+    const totalPostsResult = await this.postEntity.query(
+      'SELECT COUNT(*) as count FROM posts WHERE videoUrl IS NOT NULL AND LENGTH(videoUrl) > 0',
+    );
+    const totalPosts = parseInt(totalPostsResult[0]?.count || '0', 10);
+    console.log(`[updateVideoPreviewsAndTagsBatch] Total video posts in database: ${totalPosts}`);
+
+    // Get all video posts
+    const allPostsRaw = await this.postEntity.query(`
+      SELECT id, videoUrl, previewImageUrl, generation_params 
+      FROM posts 
+      WHERE videoUrl IS NOT NULL AND LENGTH(videoUrl) > 0
+    `);
+
+    // Transform raw results
+    const allPosts = allPostsRaw.map((post: any) => ({
+      id: post.id,
+      videoUrl: post.videoUrl,
+      previewImageUrl: post.previewImageUrl,
+      generation_params: post.generation_params,
+    }));
+
+    let processed = 0;
+    let previewUpdated = 0;
+    let tagsUpdated = 0;
+    let skipped = 0;
+    let failed = 0;
+    const total = allPosts.length;
+
+    console.log(`[updateVideoPreviewsAndTagsBatch] Retrieved ${total} video posts from database`);
+    
+    if (total !== totalPosts) {
+      console.warn(`[updateVideoPreviewsAndTagsBatch] ⚠️ WARNING: Retrieved ${total} posts but database has ${totalPosts} posts!`);
+    } else {
+      console.log(`[updateVideoPreviewsAndTagsBatch] ✅ Successfully retrieved all ${total} video posts`);
+    }
+
+    // Process posts in batches
+    const totalBatches = Math.ceil(total / batchSize);
+    for (let i = 0; i < allPosts.length; i += batchSize) {
+      const batchNumber = Math.floor(i / batchSize) + 1;
+      const batch = allPosts.slice(i, i + batchSize);
+      
+      console.log(`[updateVideoPreviewsAndTagsBatch] Processing batch ${batchNumber}/${totalBatches} (${batch.length} posts)...`);
+      
+      // Process batch - update previewImageUrl and suggestedTags
+      for (const post of batch) {
+        try {
+          let needsUpdate = false;
+          let updatedPreviewImageUrl = post.previewImageUrl;
+          let updatedGenerationParams = post.generation_params;
+
+          // Handle generation_params
+          if (!updatedGenerationParams || typeof updatedGenerationParams !== 'object') {
+            updatedGenerationParams = {};
+          }
+
+          // Check and update previewImageUrl if missing
+          if (!post.previewImageUrl || post.previewImageUrl.trim() === '') {
+            const previewUrl = this.generateCloudinaryPreviewUrl(post.videoUrl);
+            if (previewUrl) {
+              updatedPreviewImageUrl = previewUrl;
+              needsUpdate = true;
+              previewUpdated++;
+            } else {
+              console.warn(`[updateVideoPreviewsAndTagsBatch] Could not generate preview URL for post ${post.id} with videoUrl: ${post.videoUrl}`);
+            }
+          }
+
+          // Check and update suggestedTags if missing
+          if (
+            !updatedGenerationParams.suggestedTags ||
+            !Array.isArray(updatedGenerationParams.suggestedTags) ||
+            updatedGenerationParams.suggestedTags.length === 0
+          ) {
+            updatedGenerationParams = {
+              ...updatedGenerationParams,
+              suggestedTags: [defaultTag],
+            };
+            needsUpdate = true;
+            tagsUpdated++;
+          }
+
+          // Update post if needed
+          if (needsUpdate) {
+            const updateData: any = {};
+            
+            if (updatedPreviewImageUrl !== post.previewImageUrl) {
+              updateData.previewImageUrl = updatedPreviewImageUrl;
+            }
+            
+            if (JSON.stringify(updatedGenerationParams) !== JSON.stringify(post.generation_params)) {
+              updateData.generation_params = updatedGenerationParams;
+            }
+
+            if (Object.keys(updateData).length > 0) {
+              await this.postEntity.update(
+                { id: post.id },
+                updateData,
+              );
+            }
+          } else {
+            skipped++;
+          }
+
+          processed++;
+        } catch (error) {
+          console.error(`[updateVideoPreviewsAndTagsBatch] Failed to process post ${post.id}:`, error?.message || error);
+          failed++;
+          processed++;
+        }
+      }
+
+      // Log progress after each batch
+      const progress = ((processed / total) * 100).toFixed(2);
+      console.log(`[updateVideoPreviewsAndTagsBatch] Batch ${batchNumber}/${totalBatches} completed. Progress: ${progress}% (${processed}/${total}) | Preview Updated: ${previewUpdated} | Tags Updated: ${tagsUpdated} | Skipped: ${skipped} | Failed: ${failed}`);
+
+      // No delay between batches - process as fast as possible
+    }
+
+    const endTime = Date.now();
+    const duration = ((endTime - startTime) / 1000).toFixed(2);
+    
+    console.log(`[updateVideoPreviewsAndTagsBatch] ✅ All batches completed! Processing finished.`);
+    console.log(`[updateVideoPreviewsAndTagsBatch] ==========================================`);
+    console.log(`[updateVideoPreviewsAndTagsBatch] Final Statistics:`);
+    console.log(`[updateVideoPreviewsAndTagsBatch] Total video posts: ${total}`);
+    console.log(`[updateVideoPreviewsAndTagsBatch] Processed: ${processed}`);
+    console.log(`[updateVideoPreviewsAndTagsBatch] Preview ImageUrl Updated: ${previewUpdated}`);
+    console.log(`[updateVideoPreviewsAndTagsBatch] SuggestedTags Updated: ${tagsUpdated}`);
+    console.log(`[updateVideoPreviewsAndTagsBatch] Skipped: ${skipped}`);
+    console.log(`[updateVideoPreviewsAndTagsBatch] Failed: ${failed}`);
+    console.log(`[updateVideoPreviewsAndTagsBatch] Duration: ${duration}s`);
+    console.log(`[updateVideoPreviewsAndTagsBatch] ==========================================`);
+  }
+
   async blockPost(post_id: number) {
     const post = await this.postEntity.findOne({ where: { id: post_id } });
     if (!post) throw new NotFoundException('Post not found');
