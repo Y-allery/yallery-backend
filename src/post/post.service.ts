@@ -409,12 +409,49 @@ export class PostService {
 
     return response;
   }
+  private async getImageDimensions(imageUrl: string): Promise<{ width: number; height: number } | null> {
+    try {
+      const response = await axios.get(imageUrl, {
+        responseType: 'arraybuffer',
+        timeout: 10000, // 10 seconds timeout
+      });
+      const imageBuffer = Buffer.from(response.data, 'binary');
+      const metadata = await sharp(imageBuffer).metadata();
+      
+      if (metadata.width && metadata.height) {
+        return {
+          width: metadata.width,
+          height: metadata.height,
+        };
+      }
+      return null;
+    } catch (error) {
+      console.warn(`[savePost] Failed to get image dimensions from ${imageUrl}:`, error?.message || error);
+      return null;
+    }
+  }
+
   async savePost(
     dto: GenerateImageDto,
     imageUrl: string,
     user_id: number,
     contest_id: number | null,
   ) {
+    // Try to get actual image dimensions
+    let actualWidth = dto.width;
+    let actualHeight = dto.height;
+    
+    try {
+      const dimensions = await this.getImageDimensions(imageUrl);
+      if (dimensions) {
+        actualWidth = dimensions.width;
+        actualHeight = dimensions.height;
+      }
+    } catch (error) {
+      // If failed to get dimensions, use expected dimensions from DTO
+      console.warn(`[savePost] Using expected dimensions for image ${imageUrl}:`, error?.message || error);
+    }
+
     const post = this.postEntity.create({
       user: { id: user_id },
       imageUrl,
@@ -427,8 +464,8 @@ export class PostService {
         orientation: dto.orientation,
         style_id: dto.style_id || undefined,
         color_id: dto.color_id || undefined,
-        width: dto.width || undefined,
-        height: dto.height || undefined,
+        width: actualWidth || undefined,
+        height: actualHeight || undefined,
         negative_prompt: undefined,
       },
     });
