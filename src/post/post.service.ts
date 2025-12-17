@@ -550,21 +550,27 @@ export class PostService {
       const progress = ((processed / total) * 100).toFixed(2);
       console.log(`[updatePostsDimensionsBatch] Batch ${batchNumber}/${totalBatches} completed. Progress: ${progress}% (${processed}/${total}) | Updated: ${updated} | Failed: ${failed}`);
 
-      // Always delay 1 second between batches
+      // Always delay 1 second between batches (except after last batch)
       if (i + batchSize < allPosts.length) {
+        console.log(`[updatePostsDimensionsBatch] Waiting ${delayMs}ms before next batch...`);
         await new Promise((resolve) => setTimeout(resolve, delayMs));
+      } else {
+        console.log(`[updatePostsDimensionsBatch] Last batch completed, no delay needed.`);
       }
     }
 
     const endTime = Date.now();
     const duration = ((endTime - startTime) / 1000).toFixed(2);
     
-    console.log(`[updatePostsDimensionsBatch] ✅ Batch processing completed!`);
+    console.log(`[updatePostsDimensionsBatch] ✅ All batches completed! Processing finished.`);
+    console.log(`[updatePostsDimensionsBatch] ==========================================`);
+    console.log(`[updatePostsDimensionsBatch] Final Statistics:`);
     console.log(`[updatePostsDimensionsBatch] Total posts: ${total}`);
     console.log(`[updatePostsDimensionsBatch] Processed: ${processed}`);
     console.log(`[updatePostsDimensionsBatch] Updated: ${updated}`);
     console.log(`[updatePostsDimensionsBatch] Failed: ${failed}`);
     console.log(`[updatePostsDimensionsBatch] Duration: ${duration}s`);
+    console.log(`[updatePostsDimensionsBatch] ==========================================`);
 
     return {
       total,
