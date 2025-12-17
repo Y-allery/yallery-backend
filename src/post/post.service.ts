@@ -741,7 +741,7 @@ export class PostService {
       
       console.log(`[updatePostsSuggestedTagsBatch] Processing batch ${batchNumber}/${totalBatches} (${batch.length} posts)...`);
       
-      // Process batch
+      // Process batch - only update posts missing suggestedTags
       for (const post of batch) {
         try {
           // Check if suggestedTags already exists
@@ -750,14 +750,18 @@ export class PostService {
             existingParams = {};
           }
 
-          // Skip if suggestedTags already exists
-          if (existingParams.suggestedTags && Array.isArray(existingParams.suggestedTags) && existingParams.suggestedTags.length > 0) {
+          // Skip if suggestedTags already exists and is not empty
+          if (
+            existingParams.suggestedTags &&
+            Array.isArray(existingParams.suggestedTags) &&
+            existingParams.suggestedTags.length > 0
+          ) {
             skipped++;
             processed++;
             continue;
           }
 
-          // Add default suggestedTags
+          // Add default suggestedTags only if missing
           const updatedParams = {
             ...existingParams,
             suggestedTags: [defaultTag],
