@@ -64,7 +64,6 @@ export class TagService {
   async searchByName(name: string, userId: number): Promise<any[]> {
     const query = this.tagModel
       .createQueryBuilder('tag')
-      .leftJoin('tag.users', 'user', 'user.id = :userId', { userId })
       .leftJoin(
         'tag.posts',
         'post',
@@ -78,11 +77,16 @@ export class TagService {
       .select('tag.id', 'tag_id')
       .addSelect('tag.name', 'tag_name')
       .addSelect('tag.imageUrl', 'tag_imageUrl')
-      .addSelect('COUNT(user.id) > 0', 'isFollowed')
+      .addSelect(
+        `EXISTS(SELECT 1 FROM users_tags_tags utt WHERE utt.tagsId = tag.id AND utt.usersId = :userId)`,
+        'isFollowed',
+      )
       .addSelect('COUNT(DISTINCT post.id)', 'totalPosts')
+      .setParameter('userId', userId)
       .groupBy('tag.id')
       .addGroupBy('tag.name')
-      .addGroupBy('tag.imageUrl');
+      .addGroupBy('tag.imageUrl')
+      .limit(50); // Обмежуємо кількість результатів для продуктивності
 
     if (name) {
       query.where('tag.name LIKE :name', { name: `%${name}%` });
@@ -94,7 +98,7 @@ export class TagService {
       id: tag.tag_id,
       name: tag.tag_name,
       imageUrl: tag.tag_imageUrl,
-      isFollowed: tag.isFollowed === '1',
+      isFollowed: tag.isFollowed === 1 || tag.isFollowed === '1',
       totalPosts: parseInt(tag.totalPosts) || 0,
     }));
   }
