@@ -868,6 +868,7 @@ export class ImageGenerationService {
     dto: GenerateImageDto | EditImageDto,
     user: UserEntity,
     service: AIEnum,
+    suggestedTags?: { id: number; name: string }[],
   ) {
     if (!generatedImages || !Array.isArray(generatedImages) || generatedImages.length === 0) {
       throw new Error(
@@ -875,12 +876,12 @@ export class ImageGenerationService {
       );
     }
 
-    const posts = await Promise.all(
-      generatedImages.map(async (imageUrl) => {
+    const posts: PostEntity[] = await Promise.all(
+      generatedImages.map(async (imageUrl): Promise<PostEntity> => {
         if (service === AIEnum.BYTEDANCE_EDIT) {
-          return await this.createPostForEditImage(dto as EditImageDto, imageUrl, user);
+          return await this.createPostForEditImage(dto as EditImageDto, imageUrl, user, suggestedTags);
         } else {
-          return await this.createPostForImage(dto as GenerateImageDto, imageUrl, user);
+          return await this.createPostForImage(dto as GenerateImageDto, imageUrl, user, suggestedTags);
         }
       }),
     );
@@ -929,10 +930,10 @@ export class ImageGenerationService {
       );
     }
 
-    return posts.map((e) => {
+    return posts.map((post: PostEntity) => {
       return {
-        imageUrl: e.imageUrl,
-        id: e.id,
+        imageUrl: post.imageUrl,
+        id: post.id,
       };
     });
   }
@@ -940,6 +941,7 @@ export class ImageGenerationService {
     editImageDto: EditImageDto,
     imageUrl: string,
     user: UserEntity,
+    suggestedTags?: { id: number; name: string }[],
   ) {
     
     const tempDto = {
@@ -955,6 +957,7 @@ export class ImageGenerationService {
       imageUrl,
       user.id,
       null,
+      suggestedTags,
     );
   }
 
@@ -962,12 +965,14 @@ export class ImageGenerationService {
     createPostDto: GenerateImageDto,
     imageUrl: string,
     user: UserEntity,
+    suggestedTags?: { id: number; name: string }[],
   ) {
     return await this.postService.savePost(
       createPostDto,
       imageUrl,
       user.id,
       createPostDto.contest_id || null,
+      suggestedTags,
     );
   }
 

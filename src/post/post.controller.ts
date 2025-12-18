@@ -208,14 +208,12 @@ export class PostController {
   @ApiQuery({ name: 'delay', required: false, type: Number, description: 'Delay in milliseconds between batches (default: 100)' })
   @ApiResponse({
     status: 200,
-    description: 'Batch processing started/completed',
+    description: 'Batch processing started in background',
     schema: {
       type: 'object',
       properties: {
-        total: { type: 'number', description: 'Total posts found' },
-        processed: { type: 'number', description: 'Posts processed' },
-        updated: { type: 'number', description: 'Posts updated with dimensions' },
-        failed: { type: 'number', description: 'Posts that failed to process' },
+        message: { type: 'string', description: 'Status message' },
+        total: { type: 'number', description: 'Total posts to process' },
       },
     },
   })
@@ -226,6 +224,62 @@ export class PostController {
     const result = await this.postService.updatePostsDimensionsBatch(
       batchSize ? Number(batchSize) : 10,
       delay ? Number(delay) : 100,
+    );
+    return result;
+  }
+
+  @Post('admin/update-suggested-tags')
+  @UseGuards(JwtAuthGuard, RoleGuard)
+  @Roles(RoleEnum.ADMIN)
+  @ApiOperation({
+    summary: 'Update suggestedTags in generation_params for all posts',
+    description: 'Batch process all posts to add default suggestedTags (id: 48, name: "other") if missing. Processes posts in batches in background.',
+  })
+  @ApiQuery({ name: 'batchSize', required: false, type: Number, description: 'Number of posts to process in each batch (default: 10)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Batch processing started in background',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', description: 'Status message' },
+        total: { type: 'number', description: 'Total posts to process' },
+      },
+    },
+  })
+  async updatePostsSuggestedTags(
+    @Query('batchSize') batchSize?: number,
+  ) {
+    const result = await this.postService.updatePostsSuggestedTagsBatch(
+      batchSize ? Number(batchSize) : 10,
+    );
+    return result;
+  }
+
+  @Post('admin/update-video-previews')
+  @UseGuards(JwtAuthGuard, RoleGuard)
+  @Roles(RoleEnum.ADMIN)
+  @ApiOperation({
+    summary: 'Update previewImageUrl and suggestedTags for all video posts',
+    description: 'Batch process all video posts to add previewImageUrl (from Cloudinary) and default suggestedTags if missing. Processes posts in batches in background.',
+  })
+  @ApiQuery({ name: 'batchSize', required: false, type: Number, description: 'Number of posts to process in each batch (default: 10)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Batch processing started in background',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', description: 'Status message' },
+        total: { type: 'number', description: 'Total video posts to process' },
+      },
+    },
+  })
+  async updateVideoPreviewsAndTags(
+    @Query('batchSize') batchSize?: number,
+  ) {
+    const result = await this.postService.updateVideoPreviewsAndTagsBatch(
+      batchSize ? Number(batchSize) : 10,
     );
     return result;
   }
