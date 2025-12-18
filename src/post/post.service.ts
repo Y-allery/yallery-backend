@@ -166,6 +166,7 @@ export class PostService {
         'post.id AS post_id',
         'post.imageUrl AS post_imageUrl',
         'post.videoUrl AS post_videoUrl',
+        'post.previewImageUrl AS post_previewImageUrl',
         'post.createdAt AS post_createdAt',
         'user.id AS user_id',
         'tag.id AS tag_id',
