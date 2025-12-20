@@ -450,9 +450,10 @@ export class PostService {
 
       // Extract public_id from Cloudinary URL
       // Examples:
-      // https://res.cloudinary.com/account/video/upload/v123/folder/video.mp4
-      // https://res.cloudinary.com/account/video/upload/folder/video.mp4
+      // https://res.cloudinary.com/account/video/upload/v123/folder/video.mp4 -> public_id: folder/video
+      // https://res.cloudinary.com/account/video/upload/folder/video.mp4 -> public_id: folder/video
       // Pattern: /upload/[version]/[folder/]filename or /upload/[folder/]filename
+      // Note: version (v123) should NOT be included in public_id for API calls
       const urlParts = videoUrl.split('/');
       const uploadIndex = urlParts.indexOf('upload');
       
@@ -464,8 +465,14 @@ export class PostService {
       // Get all segments after 'upload'
       const segmentsAfterUpload = urlParts.slice(uploadIndex + 1);
       
+      // Remove version if present (starts with 'v' followed by digits)
+      // Example: ['v123', 'folder', 'video.mp4'] -> ['folder', 'video.mp4']
+      const segmentsWithoutVersion = segmentsAfterUpload.filter(
+        (segment, index) => !(index === 0 && /^v\d+$/.test(segment))
+      );
+      
       // Join segments and remove file extension
-      const publicIdWithExtension = segmentsAfterUpload.join('/');
+      const publicIdWithExtension = segmentsWithoutVersion.join('/');
       // Remove extension (mp4, webm, mov, avi, etc.)
       const publicId = publicIdWithExtension.replace(/\.[^/.]+$/, '');
 
