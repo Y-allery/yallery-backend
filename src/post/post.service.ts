@@ -33,6 +33,7 @@ import { PartnershipActivityEntity } from 'src/admin/entities/partnership-activi
 import { PartnerUserLinkEntity } from 'src/admin/entities/partner-user-link.entity';
 import { RewardService } from 'src/reward/reward.service';
 import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
+import { v2 as cloudinary } from 'cloudinary';
 
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 const randomSleep = async () =>
@@ -70,7 +71,14 @@ export class PostService {
     @InjectRepository(PartnershipActivityEntity)
     private readonly partnershipActivityRepo: Repository<PartnershipActivityEntity>,
     private readonly rewardService: RewardService,
-  ) {}
+  ) {
+    // Initialize Cloudinary config for video metadata
+    cloudinary.config({
+      cloud_name: this.configService.get('CLOUDINARY_CLOUD_NAME'),
+      api_key: this.configService.get('CLOUDINARY_API_KEY'),
+      api_secret: this.configService.get('CLOUDINARY_API_SECRET'),
+    });
+  }
 
   async getPosts(cursor: number | null, limit: number, userId: number) {
     // Безпечний ліміт: від 1 до 100, щоб не навантажувати БД
@@ -428,6 +436,59 @@ export class PostService {
       return null;
     } catch (error) {
       console.warn(`[savePost] Failed to get image dimensions from ${imageUrl}:`, error?.message || error);
+      return null;
+    }
+  }
+
+  private async getVideoDimensions(videoUrl: string): Promise<{ width: number; height: number } | null> {
+    try {
+      // Check if URL is from Cloudinary
+      if (!videoUrl.includes('cloudinary.com')) {
+        console.warn(`[getVideoDimensions] Video URL is not from Cloudinary: ${videoUrl}`);
+        return null;
+      }
+
+      // Extract public_id from Cloudinary URL
+      // Examples:
+      // https://res.cloudinary.com/account/video/upload/v123/folder/video.mp4
+      // https://res.cloudinary.com/account/video/upload/folder/video.mp4
+      // Pattern: /upload/[version]/[folder/]filename or /upload/[folder/]filename
+      const urlParts = videoUrl.split('/');
+      const uploadIndex = urlParts.indexOf('upload');
+      
+      if (uploadIndex === -1 || uploadIndex + 1 >= urlParts.length) {
+        console.warn(`[getVideoDimensions] Could not find 'upload' segment in URL: ${videoUrl}`);
+        return null;
+      }
+
+      // Get all segments after 'upload'
+      const segmentsAfterUpload = urlParts.slice(uploadIndex + 1);
+      
+      // Join segments and remove file extension
+      const publicIdWithExtension = segmentsAfterUpload.join('/');
+      // Remove extension (mp4, webm, mov, avi, etc.)
+      const publicId = publicIdWithExtension.replace(/\.[^/.]+$/, '');
+
+      if (!publicId) {
+        console.warn(`[getVideoDimensions] Could not extract public_id from URL: ${videoUrl}`);
+        return null;
+      }
+
+      // Get video metadata from Cloudinary API
+      const result = await cloudinary.api.resource(publicId, {
+        resource_type: 'video',
+      });
+
+      if (result && result.width && result.height) {
+        return {
+          width: Number(result.width),
+          height: Number(result.height),
+        };
+      }
+
+      return null;
+    } catch (error) {
+      console.warn(`[getVideoDimensions] Failed to get video dimensions from ${videoUrl}:`, error?.message || error);
       return null;
     }
   }
@@ -994,6 +1055,168 @@ export class PostService {
     console.log(`[updateVideoPreviewsAndTagsBatch] Failed: ${failed}`);
     console.log(`[updateVideoPreviewsAndTagsBatch] Duration: ${duration}s`);
     console.log(`[updateVideoPreviewsAndTagsBatch] ==========================================`);
+  }
+
+  async updateVideoDimensionsBatch(
+    batchSize: number = 10,
+    delayBetweenBatches: number = 100,
+  ): Promise<{ message: string; total: number }> {
+    // No delays - process as fast as possible
+    const delayBetweenBatchesMs = 0;
+    const delayBetweenPostsMs = 0;
+    
+    // Get total count first to return immediately
+    const countResult = await this.postEntity.query(
+      'SELECT COUNT(*) as count FROM posts WHERE videoUrl IS NOT NULL AND LENGTH(videoUrl) > 0',
+    );
+    const totalCount = parseInt(countResult[0]?.count || '0', 10);
+    
+    console.log(`[updateVideoDimensionsBatch] Starting background batch processing...`);
+    console.log(`[updateVideoDimensionsBatch] Total video posts to process: ${totalCount}`);
+    console.log(`[updateVideoDimensionsBatch] Batch size: ${batchSize}`);
+    console.log(`[updateVideoDimensionsBatch] Delay between batches: ${delayBetweenBatchesMs}ms (fixed)`);
+    console.log(`[updateVideoDimensionsBatch] Delay between posts: ${delayBetweenPostsMs}ms (fixed)`);
+
+    // Start processing in background (don't await)
+    this.processVideoDimensionsInBackground(batchSize, delayBetweenBatchesMs, delayBetweenPostsMs).catch((error) => {
+      console.error(`[updateVideoDimensionsBatch] Background processing error:`, error);
+    });
+
+    // Return immediately
+    return {
+      message: 'Batch processing started in background. Check logs for progress.',
+      total: totalCount,
+    };
+  }
+
+  private async processVideoDimensionsInBackground(
+    batchSize: number,
+    delayBetweenBatchesMs: number,
+    delayBetweenPostsMs: number,
+  ): Promise<void> {
+    const startTime = Date.now();
+
+    // Get total count for logging
+    const totalPostsResult = await this.postEntity.query(
+      'SELECT COUNT(*) as count FROM posts WHERE videoUrl IS NOT NULL AND LENGTH(videoUrl) > 0',
+    );
+    const totalPosts = parseInt(totalPostsResult[0]?.count || '0', 10);
+    console.log(`[updateVideoDimensionsBatch] Total video posts in database: ${totalPosts}`);
+
+    // Get all video posts
+    const allPostsRaw = await this.postEntity.query(`
+      SELECT id, videoUrl, generation_params 
+      FROM posts 
+      WHERE videoUrl IS NOT NULL AND LENGTH(videoUrl) > 0
+    `);
+
+    // Transform raw results
+    const allPosts = allPostsRaw.map((post: any) => ({
+      id: post.id,
+      videoUrl: post.videoUrl,
+      generation_params: post.generation_params,
+    }));
+
+    let processed = 0;
+    let updated = 0;
+    let failed = 0;
+    let skipped = 0;
+    const total = allPosts.length;
+
+    console.log(`[updateVideoDimensionsBatch] Retrieved ${total} video posts from database`);
+    
+    if (total !== totalPosts) {
+      console.warn(`[updateVideoDimensionsBatch] ⚠️ WARNING: Retrieved ${total} posts but database has ${totalPosts} posts!`);
+    } else {
+      console.log(`[updateVideoDimensionsBatch] ✅ Successfully retrieved all ${total} video posts`);
+    }
+
+    // Process posts in batches
+    const totalBatches = Math.ceil(total / batchSize);
+    for (let i = 0; i < allPosts.length; i += batchSize) {
+      const batchNumber = Math.floor(i / batchSize) + 1;
+      const batch = allPosts.slice(i, i + batchSize);
+      
+      console.log(`[updateVideoDimensionsBatch] Processing batch ${batchNumber}/${totalBatches} (${batch.length} posts)...`);
+      
+      // Process batch - only update posts missing width and height
+      for (const post of batch) {
+        try {
+          // Skip if no videoUrl
+          if (!post.videoUrl) {
+            processed++;
+            skipped++;
+            continue;
+          }
+
+          // Check if width and height already exist in generation_params
+          let existingParams = post.generation_params;
+          if (!existingParams || typeof existingParams !== 'object') {
+            existingParams = {};
+          }
+
+          // Skip if already has width and height
+          if (
+            existingParams.width &&
+            existingParams.height &&
+            typeof existingParams.width === 'number' &&
+            typeof existingParams.height === 'number'
+          ) {
+            processed++;
+            skipped++;
+            continue;
+          }
+
+          // Get video dimensions only if missing
+          const dimensions = await this.getVideoDimensions(post.videoUrl);
+          
+          if (dimensions) {
+            // Update generation_params with real dimensions
+            const updatedParams = {
+              ...existingParams,
+              width: dimensions.width,
+              height: dimensions.height,
+            };
+
+            await this.postEntity.update(
+              { id: post.id },
+              { generation_params: updatedParams },
+            );
+
+            updated++;
+            processed++;
+          } else {
+            console.warn(`[updateVideoDimensionsBatch] Could not get dimensions for post ${post.id} with videoUrl: ${post.videoUrl}`);
+            processed++;
+            skipped++;
+          }
+        } catch (error) {
+          console.error(`[updateVideoDimensionsBatch] Failed to process post ${post.id}:`, error?.message || error);
+          failed++;
+          processed++;
+        }
+      }
+
+      // Log progress after each batch
+      const progress = ((processed / total) * 100).toFixed(2);
+      console.log(`[updateVideoDimensionsBatch] Batch ${batchNumber}/${totalBatches} completed. Progress: ${progress}% (${processed}/${total}) | Updated: ${updated} | Skipped: ${skipped} | Failed: ${failed}`);
+
+      // No delay between batches - process as fast as possible
+    }
+
+    const endTime = Date.now();
+    const duration = ((endTime - startTime) / 1000).toFixed(2);
+    
+    console.log(`[updateVideoDimensionsBatch] ✅ All batches completed! Processing finished.`);
+    console.log(`[updateVideoDimensionsBatch] ==========================================`);
+    console.log(`[updateVideoDimensionsBatch] Final Statistics:`);
+    console.log(`[updateVideoDimensionsBatch] Total video posts: ${total}`);
+    console.log(`[updateVideoDimensionsBatch] Processed: ${processed}`);
+    console.log(`[updateVideoDimensionsBatch] Updated: ${updated}`);
+    console.log(`[updateVideoDimensionsBatch] Skipped: ${skipped}`);
+    console.log(`[updateVideoDimensionsBatch] Failed: ${failed}`);
+    console.log(`[updateVideoDimensionsBatch] Duration: ${duration}s`);
+    console.log(`[updateVideoDimensionsBatch] ==========================================`);
   }
 
   async blockPost(post_id: number) {
