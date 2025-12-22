@@ -607,6 +607,13 @@ export class UserService {
     });
     const puid = partnerUserLink?.partnerUserId ?? null;
     
+    // Get total likes count - count all likes on user's posts
+    const totalLikesCount = await this.likeModel
+      .createQueryBuilder('like')
+      .innerJoin('like.post', 'post')
+      .where('post.userId = :userId', { userId })
+      .getCount();
+    
     const { password, refreshToken, avatar, ...userData } = user;
 
     return {
@@ -623,6 +630,7 @@ export class UserService {
       unreadCollabsActivity,
       hasReceivedDailyRewardToday,
       puid,
+      totalLikesCount,
     };
   }
 
