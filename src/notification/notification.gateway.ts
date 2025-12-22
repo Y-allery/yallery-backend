@@ -57,8 +57,9 @@ export class NotificationGateway {
   ) {
     if (this.isUserConnected(to_user_id)) {
       if (Array.isArray(images)) {
+        // If images is already an array, use it directly
         this.server.to(to_user_id).emit('imageGenerated', {
-          images: { data: images, suggestedTags: [] },
+          images: { data: images },
           activity_type,
           isEdit,
         });
@@ -67,10 +68,10 @@ export class NotificationGateway {
           console.error(`[NotificationGateway] Empty images.data for user ${to_user_id}`);
           return;
         }
+        // Send full post data with generation_params (suggestedTags are inside generation_params)
         this.server.to(to_user_id).emit('imageGenerated', {
           images: {
             data: images.data,
-            suggestedTags: images.suggestedTags || [],
           },
           activity_type,
           isEdit,
