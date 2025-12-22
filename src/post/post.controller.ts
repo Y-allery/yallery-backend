@@ -283,4 +283,35 @@ export class PostController {
     );
     return result;
   }
+
+  @Post('admin/update-video-dimensions')
+  @UseGuards(JwtAuthGuard, RoleGuard)
+  @Roles(RoleEnum.ADMIN)
+  @ApiOperation({
+    summary: 'Update video dimensions in generation_params for all video posts',
+    description: 'Batch process all video posts to get actual video dimensions (width and height) from Cloudinary and update generation_params. Processes posts in batches to avoid blocking event loop.',
+  })
+  @ApiQuery({ name: 'batchSize', required: false, type: Number, description: 'Number of posts to process in each batch (default: 10)' })
+  @ApiQuery({ name: 'delay', required: false, type: Number, description: 'Delay in milliseconds between batches (default: 100)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Batch processing started in background',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', description: 'Status message' },
+        total: { type: 'number', description: 'Total video posts to process' },
+      },
+    },
+  })
+  async updateVideoDimensions(
+    @Query('batchSize') batchSize?: number,
+    @Query('delay') delay?: number,
+  ) {
+    const result = await this.postService.updateVideoDimensionsBatch(
+      batchSize ? Number(batchSize) : 10,
+      delay ? Number(delay) : 100,
+    );
+    return result;
+  }
 }
