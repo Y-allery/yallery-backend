@@ -930,10 +930,14 @@ export class ImageGenerationService {
       );
     }
 
+    // Return full post data with generation_params for socket notification
     return posts.map((post: PostEntity) => {
       return {
-        imageUrl: post.imageUrl,
         id: post.id,
+        imageUrl: post.imageUrl,
+        videoUrl: post.videoUrl,
+        previewImageUrl: post.previewImageUrl,
+        generation_params: post.generation_params,
       };
     });
   }
