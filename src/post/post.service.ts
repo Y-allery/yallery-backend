@@ -528,6 +528,7 @@ export class PostService {
       tag: null, // Don't assign tag automatically
       contest: { id: contest_id },
       is_published: false,
+      is_saved: true, // Mark as saved so it appears in unpublished gallery
       generation_params: {
         prompt: dto.prompt,
         ai_service: dto.ai_service,
