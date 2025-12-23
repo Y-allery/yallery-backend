@@ -169,6 +169,9 @@ export class NotificationGateway {
         .map((post) => ({
           id: post.id,
           imageUrl: post.imageUrl,
+          videoUrl: post.videoUrl,
+          previewImageUrl: post.previewImageUrl,
+          generation_params: post.generation_params,
           tagId: post.tag?.id,
         }));
 
@@ -178,6 +181,8 @@ export class NotificationGateway {
         .map((post) => ({
           id: post.id,
           videoUrl: post.videoUrl,
+          previewImageUrl: post.previewImageUrl,
+          generation_params: post.generation_params,
           tagId: post.tag?.id,
         }));
 
@@ -213,8 +218,13 @@ export class NotificationGateway {
         }
         client.emit('undeliveredImages', {
           images: {
-            data: images.map(({ id, imageUrl }) => ({ id, imageUrl })),
-            suggestedTags,
+            data: images.map(({ id, imageUrl, videoUrl, previewImageUrl, generation_params }) => ({
+              id,
+              imageUrl,
+              videoUrl: videoUrl || null,
+              previewImageUrl: previewImageUrl || null,
+              generation_params: generation_params || null,
+            })),
           },
         });
       }
@@ -237,8 +247,12 @@ export class NotificationGateway {
         }
         client.emit('undeliveredVideo', {
           video: {
-            data: videos.map(({ id, videoUrl }) => ({ id, videoUrl })),
-            suggestedTags,
+            data: videos.map(({ id, videoUrl, previewImageUrl, generation_params }) => ({
+              id,
+              videoUrl,
+              previewImageUrl: previewImageUrl || null,
+              generation_params: generation_params || null,
+            })),
           },
         });
       }
