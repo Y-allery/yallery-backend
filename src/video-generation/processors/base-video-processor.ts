@@ -87,6 +87,9 @@ export abstract class BaseVideoProcessor extends WorkerHost {
         {
           uploadedVideoUrl: generatedVideo,
           id: post.id,
+          videoUrl: post.videoUrl,
+          previewImageUrl: post.previewImageUrl,
+          generation_params: post.generation_params,
           suggestedTags,
         },
         ActivityEnum.VIDEO_GENERATE_SPEND,

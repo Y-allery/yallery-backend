@@ -23,6 +23,8 @@ import { PostEntity } from 'src/post/entities/post.entity';
 import { TagEntity } from 'src/tag/entities/tag.entity';
 import { AISettingsEntity } from 'src/image-generation/entities/ai-settings.entity';
 import OpenAI from 'openai';
+import { v2 as cloudinary } from 'cloudinary';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class VideoGenerationService {
@@ -45,8 +47,15 @@ export class VideoGenerationService {
     private aiSettingsRepository: Repository<AISettingsEntity>,
 
     private readonly notificationGateway: NotificationGateway,
+    private readonly configService: ConfigService,
   ) {
     this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    // Initialize Cloudinary config for video metadata
+    cloudinary.config({
+      cloud_name: this.configService.get('CLOUDINARY_CLOUD_NAME'),
+      api_key: this.configService.get('CLOUDINARY_API_KEY'),
+      api_secret: this.configService.get('CLOUDINARY_API_SECRET'),
+    });
   }
 
   private async verifyUserHasEnoughCredits(user: UserEntity, aiService: VideoAIEnum) {
@@ -145,7 +154,21 @@ export class VideoGenerationService {
     user: UserEntity,
     tag: TagEntity,
     dto?: GenerateVideoDto,
+    suggestedTags?: { id: number; name: string }[],
+    width?: number,
+    height?: number,
   ): Promise<PostEntity> {
+    // Ensure suggestedTags has at least "other" tag
+    let finalSuggestedTags = suggestedTags || [];
+    if (finalSuggestedTags.length === 0) {
+      const otherTag = await this.tagRepository.findOne({
+        where: { name: 'other' },
+      });
+      if (otherTag) {
+        finalSuggestedTags = [{ id: otherTag.id, name: otherTag.name }];
+      }
+    }
+
     const post = this.postRepository.create({
       user: { id: user.id },
       tag,
@@ -161,14 +184,23 @@ export class VideoGenerationService {
             orientation: undefined,
             style_id: undefined,
             color_id: undefined,
-            width: undefined,
-            height: undefined,
+            width: width || undefined,
+            height: height || undefined,
             negative_prompt: undefined,
+            suggestedTags: finalSuggestedTags.length > 0 ? finalSuggestedTags : undefined,
           }
-        : null,
+        : {
+            suggestedTags: finalSuggestedTags.length > 0 ? finalSuggestedTags : undefined,
+          },
     });
 
     return await this.postRepository.save(post);
+  }
+
+  async getPostById(postId: number): Promise<PostEntity | null> {
+    return await this.postRepository.findOne({
+      where: { id: postId },
+    });
   }
 
   async findBestTagByImage(imageUrl: string): Promise<TagEntity> {
@@ -350,5 +382,59 @@ export class VideoGenerationService {
     });
 
     return suggestedTags;
+  }
+
+  private async getVideoDimensions(videoUrl: string): Promise<{ width: number; height: number } | null> {
+    try {
+      // Check if URL is from Cloudinary
+      if (!videoUrl.includes('cloudinary.com')) {
+        console.warn(`[getVideoDimensions] Video URL is not from Cloudinary: ${videoUrl}`);
+        return null;
+      }
+
+      // Extract public_id from Cloudinary URL
+      const urlParts = videoUrl.split('/');
+      const uploadIndex = urlParts.indexOf('upload');
+      
+      if (uploadIndex === -1 || uploadIndex + 1 >= urlParts.length) {
+        console.warn(`[getVideoDimensions] Could not find 'upload' segment in URL: ${videoUrl}`);
+        return null;
+      }
+
+      // Get all segments after 'upload'
+      const segmentsAfterUpload = urlParts.slice(uploadIndex + 1);
+      
+      // Remove version if present (starts with 'v' followed by digits)
+      const segmentsWithoutVersion = segmentsAfterUpload.filter(
+        (segment, index) => !(index === 0 && /^v\d+$/.test(segment))
+      );
+      
+      // Join segments and remove file extension
+      const publicIdWithExtension = segmentsWithoutVersion.join('/');
+      // Remove extension (mp4, webm, mov, avi, etc.)
+      const publicId = publicIdWithExtension.replace(/\.[^/.]+$/, '');
+
+      if (!publicId) {
+        console.warn(`[getVideoDimensions] Could not extract public_id from URL: ${videoUrl}`);
+        return null;
+      }
+
+      // Get video metadata from Cloudinary API
+      const result = await cloudinary.api.resource(publicId, {
+        resource_type: 'video',
+      });
+
+      if (result && result.width && result.height) {
+        return {
+          width: Number(result.width),
+          height: Number(result.height),
+        };
+      }
+
+      return null;
+    } catch (error) {
+      console.warn(`[getVideoDimensions] Failed to get video dimensions from ${videoUrl}:`, error?.message || error);
+      return null;
+    }
   }
 }

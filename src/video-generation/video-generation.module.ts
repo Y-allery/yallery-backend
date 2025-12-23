@@ -15,9 +15,11 @@ import { ActivityModule } from 'src/activity/activity.module';
 import { TagEntity } from 'src/tag/entities/tag.entity';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { AISettingsEntity } from 'src/image-generation/entities/ai-settings.entity';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
+    ConfigModule,
     TypeOrmModule.forFeature([UserEntity, TagEntity, PostEntity, AISettingsEntity]),
     UserModule,
     ActivityModule,
