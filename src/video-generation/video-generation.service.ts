@@ -384,7 +384,7 @@ export class VideoGenerationService {
     return suggestedTags;
   }
 
-  private async getVideoDimensions(videoUrl: string): Promise<{ width: number; height: number } | null> {
+  async getVideoDimensions(videoUrl: string): Promise<{ width: number; height: number } | null> {
     try {
       // Check if URL is from Cloudinary
       if (!videoUrl.includes('cloudinary.com')) {
