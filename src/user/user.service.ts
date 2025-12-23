@@ -614,22 +614,27 @@ export class UserService {
       .where('post.userId = :userId', { userId })
       .getCount();
     
-    const { password, refreshToken, avatar, ...userData } = user;
-
+    // Return only specified fields
     return {
-      ...userData,
-      avatar: avatar ?? null,
+      id: user.id,
+      name: user.name,
+      nickname: user.nickname,
+      email: user.email,
+      notificationsEnabled: user.notificationsEnabled,
+      points: user.points,
+      tags: user.tags || [],
       is_auth_finished: !!(
         user.nickname &&
-        password &&
+        user.password &&
         user.email &&
         !user.email.includes('@telegram.local')
       ),
+      avatar: user.avatar ?? null,
       unreadCount,
       unreadContestActivity,
       unreadCollabsActivity,
-      hasReceivedDailyRewardToday,
-      puid,
+      emailVerified: user.emailVerified,
+      twitterUsername: user.twitterUsername,
       totalLikesCount,
     };
   }
