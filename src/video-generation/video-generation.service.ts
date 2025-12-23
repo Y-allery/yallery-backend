@@ -153,7 +153,7 @@ export class VideoGenerationService {
       imageUrl: null,
       previewImageUrl: dto?.image_url ?? null,
       is_published: false,
-      is_saved: false,
+      is_saved: true, // Mark as saved so it appears in unpublished gallery
       generation_params: dto
         ? {
             prompt: dto.prompt,
