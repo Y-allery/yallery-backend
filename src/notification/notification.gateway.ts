@@ -102,6 +102,9 @@ export class NotificationGateway {
     video: {
       uploadedVideoUrl: string;
       id: number;
+      videoUrl?: string;
+      previewImageUrl?: string;
+      generation_params?: any;
       suggestedTags: { id: number; name: string; imageUrl: string }[];
     },
     activity_type: ActivityEnum,
@@ -111,11 +114,12 @@ export class NotificationGateway {
         video: {
           data: [
             {
-              videoUrl: video.uploadedVideoUrl,
               id: video.id,
+              videoUrl: video.videoUrl || video.uploadedVideoUrl,
+              previewImageUrl: video.previewImageUrl || null,
+              generation_params: video.generation_params || null,
             },
           ],
-          suggestedTags: video.suggestedTags,
         },
         activity_type,
       });

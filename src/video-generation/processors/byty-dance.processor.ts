@@ -63,6 +63,27 @@ export class BytyDanceProcessor extends BaseVideoProcessor {
         throw new Error(`User with id ${userId} not found`);
       }
 
+      // Get video dimensions from Cloudinary
+      let videoWidth: number | undefined = undefined;
+      let videoHeight: number | undefined = undefined;
+      try {
+        const dimensions = await this.videoGenerationService.getVideoDimensions(response.uploadedVideoUrl);
+        if (dimensions) {
+          videoWidth = dimensions.width;
+          videoHeight = dimensions.height;
+        }
+      } catch (error) {
+        console.warn(`[BytyDanceProcessor] Failed to get video dimensions:`, error?.message || error);
+      }
+
+      // Build suggestedTags before creating post
+      const suggestedTags = await this.videoGenerationService.buildSuggestedTags(findRelatedTag);
+      // Convert to format without imageUrl for generation_params
+      const suggestedTagsForParams = suggestedTags.map(tag => ({
+        id: tag.id,
+        name: tag.name.replace('#', ''), // Remove # prefix for storage
+      }));
+
       let post;
       try {
         post = await this.videoGenerationService.createPostForVideo(
@@ -70,7 +91,12 @@ export class BytyDanceProcessor extends BaseVideoProcessor {
           user,
           findRelatedTag,
           dto,
+          suggestedTagsForParams,
+          videoWidth,
+          videoHeight,
         );
+        // Reload post to get full generation_params
+        post = await this.videoGenerationService.getPostById(post.id);
       } catch (error) {
         console.error(`[BytyDanceProcessor] Failed to create post for user ${userId}:`, error);
         throw new Error(`Failed to create post: ${error.message}`);
@@ -107,8 +133,6 @@ export class BytyDanceProcessor extends BaseVideoProcessor {
       } catch (error) {
         console.error(`[BytyDanceProcessor] Failed to log activity for user ${userId}:`, error);
       }
-
-      const suggestedTags = await this.videoGenerationService.buildSuggestedTags(findRelatedTag);
 
       console.log(`[BytyDanceProcessor] Successfully generated video | Job: ${job.id} | User: ${userId} | Service: ${dto?.ai_service}`);
       return {
