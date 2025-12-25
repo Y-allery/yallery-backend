@@ -302,7 +302,7 @@ export class PostService {
         COALESCE(COUNT(DISTINCT l.id), 0) AS like_count
       FROM posts p
       LEFT JOIN likes l ON l.postId = p.id
-      WHERE p.userId = ? AND p.is_saved = true
+      WHERE p.userId = ? AND p.is_saved = true AND p.is_published = false
       GROUP BY 
         p.id, p.imageUrl, p.videoUrl, p.previewImageUrl, p.createdAt, p.updatedAt,
         p.is_published, p.is_saved, p.is_blocked, p.is_rejected, p.is_delivered,
