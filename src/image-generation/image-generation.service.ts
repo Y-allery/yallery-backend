@@ -1164,7 +1164,7 @@ export class ImageGenerationService {
     const aiSettingsWithCost = await Promise.all(
       aiSettingsFromDb.map(async (setting) => {
         return {
-          id: String(setting.id),
+          id: setting.aiService,
           aiService: setting.aiService,
           name: setting.name,
           allowedOrientations: setting.allowedOrientations,
