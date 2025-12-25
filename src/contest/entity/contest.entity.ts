@@ -56,8 +56,8 @@ export class ContestEntity {
   @Column({ nullable: true })
   reward: number;
 
-  @Column({ type: 'boolean', default: false })
-  is_approved: boolean;
+  @Column({ type: 'boolean', default: false, name: 'isApproved' })
+  isApproved: boolean;
 
   @ManyToMany(() => UserEntity, { onDelete: 'CASCADE' })
   @JoinTable()
@@ -69,10 +69,10 @@ export class ContestEntity {
   @ManyToOne(() => UserEntity, { nullable: true, onDelete: 'SET NULL' })
   winner: UserEntity;
 
-  @Column('timestamp', { name: 'start_time' })
+  @Column('timestamp', { name: 'startTime' })
   startTime: Date;
 
-  @Column('timestamp', { name: 'end_time' })
+  @Column('timestamp', { name: 'endTime' })
   endTime: Date;
 
   @ManyToOne(() => TagEntity, (tag) => tag.contests, {
@@ -86,8 +86,8 @@ export class ContestEntity {
   })
   activities: ActivityEntity[];
 
-  @Column({ type: 'text', nullable: true })
-  prompt_example: string;
+  @Column({ type: 'text', nullable: true, name: 'promptExample' })
+  promptExample: string;
 
   @ManyToOne(() => PostEntity, (post) => post.id, {
     nullable: true,

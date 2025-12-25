@@ -55,7 +55,7 @@ export class ImageGenerationService {
   };
   private async getAISetting(aiService: AIEnum): Promise<AISettingsEntity | null> {
     return await this.aiSettingsRepository.findOne({
-      where: { ai_service: aiService, is_active: true, type: 'image' },
+      where: { aiService: aiService, isActive: true, type: 'image' },
     });
   }
   private openai;
@@ -262,11 +262,11 @@ export class ImageGenerationService {
 
       const aiSetting = await this.getAISetting(createPostDto.ai_service);
       
-      if (!aiSetting || !aiSetting.api_model) {
-        throw new BadRequestException(`AI service ${createPostDto.ai_service} not found or api_model not configured`);
+      if (!aiSetting || !aiSetting.apiModel) {
+        throw new BadRequestException(`AI service ${createPostDto.ai_service} not found or apiModel not configured`);
       }
 
-      const serviceName = aiSetting.api_model;
+      const serviceName = aiSetting.apiModel;
 
       if (!serviceName) {
         throw new BadRequestException('Invalid AI service selected');
@@ -696,7 +696,7 @@ export class ImageGenerationService {
   ): Promise<any> {
     try {
       const mapping = await this.getProcessorMapping(AIEnum.BYTEDANCE_EDIT);
-      const queue = this.getQueueByProcessorType(mapping.processor_type);
+      const queue = this.getQueueByProcessorType(mapping.processorType);
       
       const jobOptions = {
         attempts: 3,
@@ -724,7 +724,7 @@ export class ImageGenerationService {
   ): Promise<any> {
     try {
       const mapping = await this.getProcessorMapping(createPostDto.ai_service);
-      const queue = this.getQueueByProcessorType(mapping.processor_type);
+      const queue = this.getQueueByProcessorType(mapping.processorType);
       
       const jobOptions = {
         attempts: 3,
@@ -754,7 +754,7 @@ export class ImageGenerationService {
 
   private async getProcessorMapping(aiService: AIEnum): Promise<AIProcessorMappingEntity> {
     const mapping = await this.aiProcessorMappingRepository.findOne({
-      where: { ai_service: aiService },
+      where: { aiService: aiService },
     });
 
     if (!mapping) {
@@ -790,7 +790,7 @@ export class ImageGenerationService {
     mapping: AIProcessorMappingEntity,
   ): Promise<any> {
     try {
-      const jobData = mapping.is_edit
+      const jobData = mapping.isEdit
         ? {
             editImageDto: dto,
             userId,
@@ -937,7 +937,7 @@ export class ImageGenerationService {
         imageUrl: post.imageUrl,
         videoUrl: post.videoUrl,
         previewImageUrl: post.previewImageUrl,
-        generation_params: post.generation_params,
+        generationParams: post.generationParams,
       };
     });
   }
@@ -1157,7 +1157,7 @@ export class ImageGenerationService {
     }));
 
     const aiSettingsFromDb = await this.aiSettingsRepository.find({
-      where: { is_active: true, type: 'image' },
+      where: { isActive: true, type: 'image' },
       order: { id: 'ASC' },
     });
 
@@ -1173,7 +1173,7 @@ export class ImageGenerationService {
           sizes: setting.sizes || [],
           qualityOptions: setting.qualityOptions || [],
           styles: setting.styles || [],
-          is_artem: setting.is_artem,
+          isArtem: setting.isArtem,
           cost: setting.cost,
           description: setting.description,
         };
@@ -1195,7 +1195,7 @@ export class ImageGenerationService {
 
   async getCostByService(service: AIEnum, quantity: number = 1): Promise<number> {
     const aiSetting = await this.aiSettingsRepository.findOne({
-      where: { ai_service: service, is_active: true, type: 'image' },
+      where: { aiService: service, isActive: true, type: 'image' },
     });
 
     if (!aiSetting) {
@@ -1217,7 +1217,7 @@ export class ImageGenerationService {
         'Post not found or you do not have permission to update this post.',
       );
     }
-    post.is_saved = true;
+    post.isSaved = true;
     await this.postEntity.save(post);
     return { message: 'Post marked as saved successfully' };
   }

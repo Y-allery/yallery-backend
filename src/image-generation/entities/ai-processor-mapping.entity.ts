@@ -17,26 +17,26 @@ export class AIProcessorMappingEntity extends TimeStampEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', unique: true })
+  @Column({ type: 'varchar', unique: true, name: 'aiService' })
   @Index()
-  ai_service: string;
+  aiService: string;
 
-  @Column({ type: 'enum', enum: ProcessorType })
-  processor_type: ProcessorType;
+  @Column({ type: 'enum', enum: ProcessorType, name: 'processorType' })
+  processorType: ProcessorType;
 
-  @Column({ type: 'varchar', nullable: true })
-  queue_name: string | null;
+  @Column({ type: 'varchar', nullable: true, name: 'queueName' })
+  queueName: string | null;
 
   @Column({ type: 'int', default: 60 })
   concurrency: number;
 
-  @Column({ type: 'int', default: 120000 })
-  lock_duration: number;
+  @Column({ type: 'int', default: 120000, name: 'lockDuration' })
+  lockDuration: number;
 
-  @Column({ type: 'boolean', default: false })
-  is_edit: boolean;
+  @Column({ type: 'boolean', default: false, name: 'isEdit' })
+  isEdit: boolean;
 
-  @Column({ type: 'boolean', nullable: true })
-  completed_notification_param: boolean | null;
+  @Column({ type: 'boolean', nullable: true, name: 'completedNotificationParam' })
+  completedNotificationParam: boolean | null;
 }
 

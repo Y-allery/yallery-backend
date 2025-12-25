@@ -21,13 +21,13 @@ export class ActivityEntity {
     nullable: true,
     onDelete: 'CASCADE',
   })
-  @JoinColumn({ name: 'from_user_id' })
+  @JoinColumn({ name: 'fromUserId' })
   fromUser: UserEntity;
 
   @ManyToOne(() => UserEntity, (user) => user.activitiesReceived, {
     onDelete: 'CASCADE',
   })
-  @JoinColumn({ name: 'to_user_id' })
+  @JoinColumn({ name: 'toUserId' })
   toUser: UserEntity;
 
   @Column({ type: 'varchar' })
@@ -39,8 +39,8 @@ export class ActivityEntity {
   @Column()
   description: string;
 
-  @Column({ type: Boolean, default: false })
-  is_admin: boolean;
+  @Column({ type: Boolean, default: false, name: 'isAdmin' })
+  isAdmin: boolean;
 
   @CreateDateColumn()
   createdAt: Date;
@@ -52,13 +52,13 @@ export class ActivityEntity {
     nullable: true,
     onDelete: 'CASCADE',
   })
-  @JoinColumn({ name: 'contest_id' })
+  @JoinColumn({ name: 'contestId' })
   contest: ContestEntity | null;
 
   @ManyToOne(() => PostEntity, (post) => post.activities, {
     nullable: true,
     onDelete: 'CASCADE',
   })
-  @JoinColumn({ name: 'post_id' })
+  @JoinColumn({ name: 'postId' })
   post: PostEntity | null;
 }

@@ -52,8 +52,8 @@ export class UserEntity extends TimeStampEntity {
   @Column({ type: 'int', default: 0 })
   points: number;
 
-  @Column({ default: false })
-  is_deleted: boolean;
+  @Column({ default: false, name: 'isDeleted' })
+  isDeleted: boolean;
 
   @Column({
     default: RoleEnum.USER,

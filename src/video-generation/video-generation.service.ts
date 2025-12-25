@@ -67,7 +67,7 @@ export class VideoGenerationService {
 
   async getCostByService(service: VideoAIEnum): Promise<number> {
     const aiSetting = await this.aiSettingsRepository.findOne({
-      where: { ai_service: service, is_active: true, type: 'video' },
+      where: { aiService: service, isActive: true, type: 'video' },
     });
 
     if (!aiSetting) {
@@ -83,7 +83,7 @@ export class VideoGenerationService {
     const videoAISettingsFromDb = await this.aiSettingsRepository.find({
       where: { 
         type: 'video',
-        is_active: true 
+        isActive: true 
       },
       order: { id: 'ASC' },
     });
@@ -104,11 +104,11 @@ export class VideoGenerationService {
     };
 
     const aiSettings = videoAISettingsFromDb.map((setting) => ({
-      id: setting.ai_service,
+      id: setting.aiService,
       name: setting.name,
       cost: setting.cost,
       description: setting.description || 'Create animated videos from your image with BytyDance.',
-      api_model: setting.api_model,
+      api_model: setting.apiModel,
     }));
 
     return {
@@ -175,12 +175,12 @@ export class VideoGenerationService {
       videoUrl,
       imageUrl: null,
       previewImageUrl: dto?.image_url ?? null,
-      is_published: false,
-      is_saved: true, // Mark as saved so it appears in unpublished gallery
-      generation_params: dto
+      isPublished: false,
+      isSaved: true, // Mark as saved so it appears in unpublished gallery
+      generationParams: dto
         ? {
             prompt: dto.prompt,
-            ai_service: dto.ai_service,
+            aiService: dto.ai_service,
             orientation: undefined,
             style_id: undefined,
             color_id: undefined,
@@ -266,15 +266,15 @@ export class VideoGenerationService {
         where: { 
           ai_service: dto.ai_service,
           type: 'video',
-          is_active: true 
+          isActive: true 
         },
       });
 
-      if (!aiSetting || !aiSetting.api_model) {
-        throw new BadRequestException('Invalid AI service selected or api_model not found');
+      if (!aiSetting || !aiSetting.apiModel) {
+        throw new BadRequestException('Invalid AI service selected or apiModel not found');
       }
 
-      const serviceName = aiSetting.api_model;
+      const serviceName = aiSetting.apiModel;
 
       const generateMethod = fal.run.bind(fal, serviceName);
 

@@ -92,7 +92,7 @@ export class NotificationGateway {
       }
       await this.postRepository.update(
         { id: In(postIds) },
-        { is_delivered: false },
+        { isDelivered: false },
       );
       // User ${to_user_id} is not connected. Handling offline logic.
     }
@@ -117,7 +117,7 @@ export class NotificationGateway {
               id: video.id,
               videoUrl: video.videoUrl || video.uploadedVideoUrl,
               previewImageUrl: video.previewImageUrl || null,
-              generation_params: video.generation_params || null,
+              generationParams: video.generationParams || null,
             },
           ],
         },
@@ -151,7 +151,7 @@ export class NotificationGateway {
     client.join(userId);
 
     const undeliveredPosts = await this.postRepository.find({
-      where: { user: { id: userId }, is_delivered: false },
+      where: { user: { id: userId }, isDelivered: false },
       relations: ['tag'],
     });
 
@@ -171,7 +171,7 @@ export class NotificationGateway {
           imageUrl: post.imageUrl,
           videoUrl: post.videoUrl,
           previewImageUrl: post.previewImageUrl,
-          generation_params: post.generation_params,
+          generationParams: post.generationParams,
           tagId: post.tag?.id,
         }));
 
@@ -182,7 +182,7 @@ export class NotificationGateway {
           id: post.id,
           videoUrl: post.videoUrl,
           previewImageUrl: post.previewImageUrl,
-          generation_params: post.generation_params,
+          generationParams: post.generationParams,
           tagId: post.tag?.id,
         }));
 
@@ -261,7 +261,7 @@ export class NotificationGateway {
       const allUndeliveredIds = undeliveredPosts.map((post) => post.id);
       await this.postRepository.update(
         { id: In(allUndeliveredIds) },
-        { is_delivered: true },
+        { isDelivered: true },
       );
     }
 

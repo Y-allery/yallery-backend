@@ -70,7 +70,7 @@ export class AuthService {
     password: string,
   ): Promise<UserEntity | null> {
     const user = await this.userService.findByEmail(email);
-    if (!user || user.is_deleted) {
+    if (!user || user.isDeleted) {
       throw new BadRequestException('User not found or is deactivated');
     }
 
@@ -270,7 +270,7 @@ export class AuthService {
     const newUser = this.userRepository.create({
       ...dto,
       password: hashedPassword,
-      is_deleted: false,
+      isDeleted: false,
       points: registrationBonus,
       emailVerified: false,
     });

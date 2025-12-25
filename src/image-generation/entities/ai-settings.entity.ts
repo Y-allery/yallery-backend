@@ -11,9 +11,9 @@ export class AISettingsEntity extends TimeStampEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', unique: true })
+  @Column({ type: 'varchar', unique: true, name: 'aiService' })
   @Index()
-  ai_service: string; // 'aura_flow', 'flux', 'realistic_vision', etc.
+  aiService: string; // 'aura_flow', 'flux', 'realistic_vision', etc.
 
   @Column({ type: 'varchar' })
   name: string; // 'Ideogram', 'FLUX AI', etc.
@@ -42,8 +42,8 @@ export class AISettingsEntity extends TimeStampEntity {
   @Column({ type: 'int' })
   cost: number;
 
-  @Column({ type: 'varchar', nullable: true })
-  api_model: string | null; // 'fal-ai/ideogram/v2', etc.
+  @Column({ type: 'varchar', nullable: true, name: 'apiModel' })
+  apiModel: string | null; // 'fal-ai/ideogram/v2', etc.
 
   @Column({ type: 'text', nullable: true })
   description: string | null;
@@ -51,10 +51,10 @@ export class AISettingsEntity extends TimeStampEntity {
   @Column({ type: 'enum', enum: ['image', 'video'], default: 'image' })
   type: 'image' | 'video';
 
-  @Column({ type: 'boolean', default: false })
-  is_artem: boolean;
+  @Column({ type: 'boolean', default: false, name: 'isArtem' })
+  isArtem: boolean;
 
-  @Column({ type: 'boolean', default: true })
-  is_active: boolean;
+  @Column({ type: 'boolean', default: true, name: 'isActive' })
+  isActive: boolean;
 }
 

@@ -30,7 +30,7 @@ export class TagService {
       .leftJoin(
         'tag.posts',
         'post',
-        'post.is_published = :isPublished AND post.is_blocked = :isBlocked AND post.is_rejected = :isRejected',
+        'post.isPublished = :isPublished AND post.isBlocked = :isBlocked AND post.isRejected = :isRejected',
         {
           isPublished: true,
           isBlocked: false,
@@ -67,7 +67,7 @@ export class TagService {
       .leftJoin(
         'tag.posts',
         'post',
-        'post.is_published = :isPublished AND post.is_blocked = :isBlocked AND post.is_rejected = :isRejected',
+        'post.isPublished = :isPublished AND post.isBlocked = :isBlocked AND post.isRejected = :isRejected',
         {
           isPublished: true,
           isBlocked: false,

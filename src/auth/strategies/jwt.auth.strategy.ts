@@ -19,7 +19,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   async validate(payload: any): Promise<{ id: number; role: RoleEnum }> {
     const user = await this.userService.findById(payload.sub);
-    if (!user || user.is_deleted) {
+    if (!user || user.isDeleted) {
       throw new UnauthorizedException();
     }
     return {

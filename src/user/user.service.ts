@@ -368,7 +368,7 @@ export class UserService {
     });
     if (!user) throw new NotFoundException('User not found');
 
-    user.is_deleted = false;
+    user.isDeleted = false;
     await this.userModel.save(user);
     return { status: 'Success', message: 'User unblocked successfully' };
   }

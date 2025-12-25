@@ -47,16 +47,16 @@ export class PostEntity extends TimeStampEntity {
   @OneToMany(() => LikeEntity, (like) => like.post, { onDelete: 'CASCADE' })
   likes: LikeEntity[];
 
-  @Column({ type: Boolean, default: false })
+  @Column({ type: Boolean, default: false, name: 'isPublished' })
   @Index()
-  is_published: boolean;
+  isPublished: boolean;
 
-  @Column({ type: Boolean, default: false })
-  is_saved: boolean;
+  @Column({ type: Boolean, default: false, name: 'isSaved' })
+  isSaved: boolean;
 
-  @Column({ type: Boolean, default: false })
+  @Column({ type: Boolean, default: false, name: 'isBlocked' })
   @Index()
-  is_blocked: boolean;
+  isBlocked: boolean;
 
   @ManyToOne(() => ContestEntity, (contest) => contest.posts, {
     nullable: true,
@@ -65,15 +65,15 @@ export class PostEntity extends TimeStampEntity {
   @Index()
   contest: ContestEntity;
 
-  @Column({ type: 'boolean', default: false })
+  @Column({ type: 'boolean', default: false, name: 'isRejected' })
   @Index()
-  is_rejected: boolean;
+  isRejected: boolean;
 
   @OneToMany(() => ActivityEntity, (activity) => activity.post)
   activities: ActivityEntity[];
 
-  @Column({ type: 'boolean', default: true })
-  is_delivered: boolean;
+  @Column({ type: 'boolean', default: true, name: 'isDelivered' })
+  isDelivered: boolean;
 
   @Column({ type: 'boolean', default: false })
   hasWonDailyReward: boolean;
@@ -82,16 +82,16 @@ export class PostEntity extends TimeStampEntity {
   @Index()
   tweetLink: string;
 
-  @Column({ type: 'json', nullable: true })
-  generation_params: {
+  @Column({ type: 'json', nullable: true, name: 'generationParams' })
+  generationParams: {
     prompt?: string;
-    ai_service?: string;
+    aiService?: string;
     orientation?: 'horizontal' | 'vertical';
-    style_id?: number;
-    color_id?: number;
+    styleId?: number;
+    colorId?: number;
     width?: number;
     height?: number;
-    negative_prompt?: string;
+    negativePrompt?: string;
     suggestedTags?: { id: number; name: string }[];
   } | null;
 }

@@ -17,8 +17,8 @@ export class AiServiceToken {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'text' })
-  ai_service: string;
+  @Column({ type: 'text', name: 'ai_service' })
+  aiService: string;
 
   @Column({ type: 'text' })
   token: string;

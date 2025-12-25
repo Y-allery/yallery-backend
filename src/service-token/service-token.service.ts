@@ -23,7 +23,7 @@ export class ServiceTokenService {
     try {
       const token = await this.tokenRepository.findOne({
         where: {
-          ai_service: aiService,
+          aiService: aiService,
           status: TokenStatus.ACTIVE,
         },
         order: { updated_at: 'ASC' },

@@ -74,7 +74,7 @@ export class RewardService {
       return null;
     }
     return this.rewardRepository.findOne({
-      where: { reward_type: rewardType, is_active: true },
+      where: { reward_type: rewardType, isActive: true },
     });
   }
 
@@ -90,7 +90,7 @@ export class RewardService {
   // Внутрішній метод для отримання нагороди без фільтрації Payment
   private async getRewardByTypeInternal(rewardType: RewardTypeEnum): Promise<RewardEntity | null> {
     return this.rewardRepository.findOne({
-      where: { reward_type: rewardType, is_active: true },
+      where: { reward_type: rewardType, isActive: true },
     });
   }
 
@@ -113,7 +113,7 @@ export class RewardService {
       reward.description = updateDto.description;
     }
     if (updateDto.is_active !== undefined) {
-      reward.is_active = updateDto.is_active;
+      reward.isActive = updateDto.is_active;
     }
 
     return this.rewardRepository.save(reward);
@@ -207,7 +207,7 @@ export class RewardService {
     const rewards = await this.rewardRepository.find({
       where: {
         reward_type: In(this.claimableRewardTypes),
-        is_active: true,
+        isActive: true,
       },
     });
 
@@ -270,7 +270,7 @@ export class RewardService {
     const reward = await this.rewardRepository.findOne({
       where: {
         reward_type: RewardTypeEnum.REGISTRATION_REWARD,
-        is_active: true,
+        isActive: true,
       },
     });
 

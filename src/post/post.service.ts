@@ -102,14 +102,14 @@ export class PostService {
           ELSE FALSE 
         END AS is_liked,
         FALSE AS is_viewed,
-        p.generation_params
+        p.generationParams
       FROM 
         posts p
         JOIN users u ON p.userId = u.id
         JOIN tags t ON p.tagId = t.id
       WHERE 
-        p.is_published = true 
-        AND p.is_blocked = false
+        p.isPublished = true 
+        AND p.isBlocked = false
         AND NOT EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ${userId})
         AND p.tagId IN (
           SELECT tagsId
@@ -127,7 +127,7 @@ export class PostService {
 
     const normalizedPosts = posts.map((post) => ({
       ...post,
-      generation_params: this.normalizeGenerationParams(post.generation_params),
+      generationParams: this.normalizeGenerationParams(post.generationParams),
     }));
 
     return {
@@ -180,12 +180,12 @@ export class PostService {
         'tag.id AS tag_id',
         `CONCAT('#', tag.name) AS tag_name`,
         `(SELECT COUNT(*) FROM likes l WHERE l.postId = post.id) AS likeCount`,
-        'post.generation_params AS post_generation_params',
+        'post.generationParams AS post_generationParams',
       ])
       .where('tag.id = :tagId', { tagId })
-      .andWhere('post.is_published = :is_published', { is_published: true })
-      .andWhere('post.is_blocked = :is_blocked', { is_blocked: false })
-      .andWhere('post.is_rejected = :is_rejected', { is_rejected: false })
+      .andWhere('post.isPublished = :isPublished', { isPublished: true })
+      .andWhere('post.isBlocked = :isBlocked', { isBlocked: false })
+      .andWhere('post.isRejected = :isRejected', { isRejected: false })
       .groupBy('post.id')
       .orderBy('post.createdAt', 'DESC')
       .offset(offset)
@@ -246,7 +246,7 @@ export class PostService {
     }
 
     try {
-      post.is_published = true;
+      post.isPublished = true;
       
       if (post.contest) {
         await this.contestService.participateInContest(post.contest.id, userId);
@@ -288,13 +288,13 @@ export class PostService {
         p.previewImageUrl,
         p.createdAt,
         p.updatedAt,
-        p.is_published,
-        p.is_saved,
-        p.is_blocked,
-        p.is_rejected,
-        p.is_delivered,
+        p.isPublished,
+        p.isSaved,
+        p.isBlocked,
+        p.isRejected,
+        p.isDelivered,
         p.hasWonDailyReward,
-        p.generation_params,
+        p.generationParams,
         p.tweetLink,
         p.contestId,
         p.tagId,
@@ -302,11 +302,11 @@ export class PostService {
         COALESCE(COUNT(DISTINCT l.id), 0) AS like_count
       FROM posts p
       LEFT JOIN likes l ON l.postId = p.id
-      WHERE p.userId = ? AND p.is_saved = true AND p.is_published = false
+      WHERE p.userId = ? AND p.isSaved = true AND p.isPublished = false
       GROUP BY 
         p.id, p.imageUrl, p.videoUrl, p.previewImageUrl, p.createdAt, p.updatedAt,
-        p.is_published, p.is_saved, p.is_blocked, p.is_rejected, p.is_delivered,
-        p.hasWonDailyReward, p.generation_params, p.tweetLink, p.contestId, p.tagId, p.userId
+        p.isPublished, p.isSaved, p.isBlocked, p.isRejected, p.isDelivered,
+        p.hasWonDailyReward, p.generationParams, p.tweetLink, p.contestId, p.tagId, p.userId
       ORDER BY p.createdAt DESC
     `;
 
@@ -321,13 +321,13 @@ export class PostService {
         p.previewImageUrl,
         p.createdAt,
         p.updatedAt,
-        p.is_published,
-        p.is_saved,
-        p.is_blocked,
-        p.is_rejected,
-        p.is_delivered,
+        p.isPublished,
+        p.isSaved,
+        p.isBlocked,
+        p.isRejected,
+        p.isDelivered,
         p.hasWonDailyReward,
-        p.generation_params,
+        p.generationParams,
         p.tweetLink,
         p.contestId,
         p.tagId,
@@ -335,11 +335,11 @@ export class PostService {
         COALESCE(COUNT(DISTINCT l.id), 0) AS like_count
       FROM posts p
       LEFT JOIN likes l ON l.postId = p.id
-      WHERE p.userId = ? AND p.is_published = true
+      WHERE p.userId = ? AND p.isPublished = true
       GROUP BY 
         p.id, p.imageUrl, p.videoUrl, p.previewImageUrl, p.createdAt, p.updatedAt,
-        p.is_published, p.is_saved, p.is_blocked, p.is_rejected, p.is_delivered,
-        p.hasWonDailyReward, p.generation_params, p.tweetLink, p.contestId, p.tagId, p.userId
+        p.isPublished, p.isSaved, p.isBlocked, p.isRejected, p.isDelivered,
+        p.hasWonDailyReward, p.generationParams, p.tweetLink, p.contestId, p.tagId, p.userId
       ORDER BY p.createdAt DESC
     `;
 
@@ -527,17 +527,17 @@ export class PostService {
       imageUrl,
       tag: null, // Don't assign tag automatically
       contest: { id: contest_id },
-      is_published: false,
-      is_saved: true, // Mark as saved so it appears in unpublished gallery
-      generation_params: {
+      isPublished: false,
+      isSaved: true, // Mark as saved so it appears in unpublished gallery
+      generationParams: {
         prompt: dto.prompt,
-        ai_service: dto.ai_service,
+        aiService: dto.ai_service,
         orientation: dto.orientation,
-        style_id: dto.style_id || undefined,
-        color_id: dto.color_id || undefined,
+        styleId: dto.style_id || undefined,
+        colorId: dto.color_id || undefined,
         width: actualWidth,
         height: actualHeight,
-        negative_prompt: undefined,
+        negativePrompt: undefined,
         suggestedTags: suggestedTags || undefined,
       },
     });
@@ -620,7 +620,7 @@ export class PostService {
     // Get all posts using raw SQL to avoid any limitations
     // Also exclude empty strings using LENGTH
     const allPostsRaw = await this.postEntity.query(`
-      SELECT id, imageUrl, generation_params 
+      SELECT id, imageUrl, generationParams 
       FROM posts 
       WHERE imageUrl IS NOT NULL AND LENGTH(imageUrl) > 0
     `);
@@ -629,7 +629,7 @@ export class PostService {
     const allPosts = allPostsRaw.map((post: any) => ({
       id: post.id,
       imageUrl: post.imageUrl,
-      generation_params: post.generation_params,
+      generationParams: post.generationParams,
     }));
 
     let processed = 0;
@@ -663,8 +663,8 @@ export class PostService {
             continue;
           }
 
-          // Check if width and height already exist in generation_params
-          let existingParams = post.generation_params;
+          // Check if width and height already exist in generationParams
+          let existingParams = post.generationParams;
           if (!existingParams || typeof existingParams !== 'object') {
             existingParams = {};
           }
@@ -693,7 +693,7 @@ export class PostService {
 
             await this.postEntity.update(
               { id: post.id },
-              { generation_params: updatedParams },
+              { generationParams: updatedParams },
             );
             updated++;
             processed++;
@@ -780,14 +780,14 @@ export class PostService {
 
     // Get all posts
     const allPostsRaw = await this.postEntity.query(`
-      SELECT id, generation_params 
+      SELECT id, generationParams 
       FROM posts
     `);
 
     // Transform raw results
     const allPosts = allPostsRaw.map((post: any) => ({
       id: post.id,
-      generation_params: post.generation_params,
+      generationParams: post.generationParams,
     }));
 
     let processed = 0;
@@ -815,7 +815,7 @@ export class PostService {
       for (const post of batch) {
         try {
           // Check if suggestedTags already exists
-          let existingParams = post.generation_params;
+          let existingParams = post.generationParams;
           if (!existingParams || typeof existingParams !== 'object') {
             existingParams = {};
           }
@@ -839,7 +839,7 @@ export class PostService {
 
           await this.postEntity.update(
             { id: post.id },
-            { generation_params: updatedParams },
+            { generationParams: updatedParams },
           );
           updated++;
           processed++;
@@ -938,7 +938,7 @@ export class PostService {
 
     // Get all video posts
     const allPostsRaw = await this.postEntity.query(`
-      SELECT id, videoUrl, previewImageUrl, generation_params 
+      SELECT id, videoUrl, previewImageUrl, generationParams 
       FROM posts 
       WHERE videoUrl IS NOT NULL AND LENGTH(videoUrl) > 0
     `);
@@ -948,7 +948,7 @@ export class PostService {
       id: post.id,
       videoUrl: post.videoUrl,
       previewImageUrl: post.previewImageUrl,
-      generation_params: post.generation_params,
+      generationParams: post.generationParams,
     }));
 
     let processed = 0;
@@ -979,9 +979,9 @@ export class PostService {
         try {
           let needsUpdate = false;
           let updatedPreviewImageUrl = post.previewImageUrl;
-          let updatedGenerationParams = post.generation_params;
+          let updatedGenerationParams = post.generationParams;
 
-          // Handle generation_params
+          // Handle generationParams
           if (!updatedGenerationParams || typeof updatedGenerationParams !== 'object') {
             updatedGenerationParams = {};
           }
@@ -1020,8 +1020,8 @@ export class PostService {
               updateData.previewImageUrl = updatedPreviewImageUrl;
             }
             
-            if (JSON.stringify(updatedGenerationParams) !== JSON.stringify(post.generation_params)) {
-              updateData.generation_params = updatedGenerationParams;
+            if (JSON.stringify(updatedGenerationParams) !== JSON.stringify(post.generationParams)) {
+              updateData.generationParams = updatedGenerationParams;
             }
 
             if (Object.keys(updateData).length > 0) {
@@ -1122,7 +1122,7 @@ export class PostService {
     const allPosts = allPostsRaw.map((post: any) => ({
       id: post.id,
       videoUrl: post.videoUrl,
-      generation_params: post.generation_params,
+      generationParams: post.generationParams,
     }));
 
     let processed = 0;
@@ -1157,8 +1157,8 @@ export class PostService {
             continue;
           }
 
-          // Check if width and height already exist in generation_params
-          let existingParams = post.generation_params;
+          // Check if width and height already exist in generationParams
+          let existingParams = post.generationParams;
           if (!existingParams || typeof existingParams !== 'object') {
             existingParams = {};
           }
@@ -1188,7 +1188,7 @@ export class PostService {
 
             await this.postEntity.update(
               { id: post.id },
-              { generation_params: updatedParams },
+              { generationParams: updatedParams },
             );
 
             updated++;
@@ -1231,7 +1231,7 @@ export class PostService {
     const post = await this.postEntity.findOne({ where: { id: post_id } });
     if (!post) throw new NotFoundException('Post not found');
 
-    post.is_blocked = true;
+    post.isBlocked = true;
     await this.postEntity.save(post);
     return {
       success: true,
@@ -1291,8 +1291,8 @@ export class PostService {
       .leftJoinAndSelect('post.tag', 'tag')
       .leftJoinAndSelect('report.reportingUser', 'reportingUser')
       .leftJoinAndSelect('report.reportedUser', 'reportedUser')
-      .orderBy('reportedUser.is_deleted', 'ASC')
-      .addOrderBy('post.is_blocked', 'ASC')
+      .orderBy('reportedUser.isDeleted', 'ASC')
+      .addOrderBy('post.isBlocked', 'ASC')
       .addOrderBy('report.createdAt', 'DESC')
       .skip(offset)
       .take(limit);
@@ -1311,8 +1311,8 @@ export class PostService {
         reportedUserName: report.reportedUser.name,
         description: report.description,
         reportDate: report.createdAt,
-        is_user_blocked: report.reportedUser.is_deleted,
-        is_post_blocked: report.post.is_blocked,
+        is_user_blocked: report.reportedUser.isDeleted,
+        is_post_blocked: report.post.isBlocked,
       })),
       total,
       page,
@@ -1321,11 +1321,11 @@ export class PostService {
   }
   async unblockPost(post_id: number) {
     const post = await this.postEntity.findOne({
-      where: { id: post_id, is_blocked: true },
+      where: { id: post_id, isBlocked: true },
     });
     if (!post) throw new NotFoundException('Post not found');
 
-    post.is_blocked = false;
+    post.isBlocked = false;
     await this.postEntity.save(post);
     return {
       success: true,
@@ -1383,11 +1383,11 @@ export class PostService {
 
   async deleteUserAccount(user_id: number) {
     const user = await this.userEntity.findOne({
-      where: { id: user_id, is_deleted: false },
+      where: { id: user_id, isDeleted: false },
     });
     if (!user) throw new NotFoundException('User not found');
 
-    user.is_deleted = true;
+    user.isDeleted = true;
     await this.userEntity.save(user);
     return { status: 'Success', message: 'User deleted successfully' };
   }
@@ -1425,9 +1425,9 @@ export class PostService {
           }
         : null,
       likeCount: post.likes.length,
-      isPublished: post.is_published,
-      isBlocked: post.is_blocked,
-      isRejected: post.is_rejected,
+      isPublished: post.isPublished,
+      isBlocked: post.isBlocked,
+      isRejected: post.isRejected,
     };
   }
 

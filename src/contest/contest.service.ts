@@ -96,9 +96,9 @@ export class ContestService {
       reward: contest.reward,
       description: contest.description,
       is_won: contest.winner?.id === userId,
-      is_approved: contest.is_approved,
+      is_approved: contest.isApproved,
       contestType: contest.contestType,
-      examplePrompt: contest.prompt_example,
+      examplePrompt: contest.promptExample,
       endTime: contest.endTime,
       tag: {
         id: contest?.tag?.id,
@@ -263,7 +263,7 @@ export class ContestService {
           THEN TRUE 
           ELSE FALSE
         END AS is_viewed,
-        p.generation_params
+        p.generationParams
           FROM
             posts p
           LEFT JOIN
@@ -272,9 +272,9 @@ export class ContestService {
           LEFT JOIN tags t ON p.tagId = t.id
           WHERE
             p.contestId = ? AND
-            p.is_published = true
-            AND p.is_blocked = false
-            AND p.is_rejected = false
+            p.isPublished = true
+            AND p.isBlocked = false
+            AND p.isRejected = false
           GROUP BY
           p.id`;
 
@@ -294,9 +294,9 @@ export class ContestService {
       FROM (
         SELECT p.id
         FROM posts p
-        WHERE p.contestId = ? AND p.is_published = true
-          AND p.is_blocked = false
-          AND p.is_rejected = false
+        WHERE p.contestId = ? AND p.isPublished = true
+          AND p.isBlocked = false
+          AND p.isRejected = false
         GROUP BY p.id
       ) AS sub`;
 
@@ -310,7 +310,7 @@ export class ContestService {
 
     const normalizedPosts = posts.map((post) => ({
       ...post,
-      generation_params: this.normalizeGenerationParams(post.generation_params),
+      generationParams: this.normalizeGenerationParams(post.generationParams),
     }));
 
     return {
@@ -375,7 +375,7 @@ export class ContestService {
           },
         });
 
-      if (contest.status === ContestStatusEnum.CLOSED && contest.is_approved) {
+      if (contest.status === ContestStatusEnum.CLOSED && contest.isApproved) {
         continue;
       }
 
@@ -395,7 +395,7 @@ export class ContestService {
         updatedContests.push(contest);
       } else if (contest.endTime < currentDate && postsCount === 0) {
         contest.status = ContestStatusEnum.CLOSED;
-        contest.is_approved = true;
+        contest.isApproved = true;
         updatedContests.push(contest);
       } else if (
         contest.endTime < currentDate &&
@@ -416,7 +416,7 @@ export class ContestService {
       } else if (
         contest.endTime < currentDate &&
         contest.winner &&
-        !contest.is_approved &&
+        !contest.isApproved &&
         contest.status !== ContestStatusEnum.PENDING_REVIEW
       ) {
         await this.activityService.createActivities(
@@ -432,7 +432,7 @@ export class ContestService {
       } else if (
         contest.endTime < currentDate &&
         contest.winner &&
-        contest.is_approved &&
+        contest.isApproved &&
         contest.status !== ContestStatusEnum.CLOSED
       ) {
         contest.status = ContestStatusEnum.CLOSED;
@@ -475,7 +475,7 @@ export class ContestService {
 
     while (true) {
       const users = await this.userRepository.find({
-        where: { is_deleted: false, emailVerified: true },
+        where: { isDeleted: false, emailVerified: true },
         relations: { deviceTokens: true },
         take: USER_BATCH_SIZE,
         skip: offset,
@@ -598,7 +598,7 @@ export class ContestService {
                   })
                 : null;
 
-              if (!matchedPost || !matchedPost.is_rejected) {
+              if (!matchedPost || !matchedPost.isRejected) {
                 filtered.push(t);
               }
             }
@@ -637,7 +637,7 @@ export class ContestService {
               if (user) {
                 contest.winner = user;
                 contest.postWinner = matchedPost || null;
-                contest.is_approved = false;
+                contest.isApproved = false;
                 contest.status = ContestStatusEnum.PENDING_REVIEW;
                 const savedContest = await this.contestRepository.save(contest);
                 return savedContest;
@@ -651,7 +651,7 @@ export class ContestService {
 
           contest.winner = null;
           contest.postWinner = null;
-          contest.is_approved = true;
+          contest.isApproved = true;
           contest.status = ContestStatusEnum.CLOSED;
           const savedContest = await this.contestRepository.save(contest);
           return savedContest;
@@ -663,7 +663,7 @@ export class ContestService {
           );
           // Error occurred - closing contest without winner
           contest.status = ContestStatusEnum.CLOSED;
-          contest.is_approved = true;
+          contest.isApproved = true;
           contest.winner = null;
           contest.postWinner = null;
           const savedContest = await this.contestRepository.save(contest);
@@ -676,7 +676,7 @@ export class ContestService {
 
       // Contest type is not FINE_TUNE or no tag - closing without winner
       contest.status = ContestStatusEnum.CLOSED;
-      contest.is_approved = true;
+      contest.isApproved = true;
       contest.winner = null;
       contest.postWinner = null;
       const savedContest = await this.contestRepository.save(contest);
@@ -693,7 +693,7 @@ export class ContestService {
       .leftJoin('post.likes', 'like')
       .where('post.contestId = :contestId', { contestId: contest.id })
       .andWhere(
-        'post.is_published = true AND post.is_blocked = false AND post.is_rejected = false',
+        'post.isPublished = true AND post.isBlocked = false AND post.isRejected = false',
       )
       .groupBy('post.id')
       .orderBy('likeCount', 'DESC')
@@ -711,7 +711,7 @@ export class ContestService {
       if (winnerPost) {
         contest.winner = winnerPost.user;
         contest.postWinner = winnerPost;
-        contest.is_approved = false;
+        contest.isApproved = false;
         contest.status = ContestStatusEnum.PENDING_REVIEW;
         const savedContest = await this.contestRepository.save(contest);
         return savedContest;
@@ -752,7 +752,7 @@ export class ContestService {
         : ContestTypeEnum.DEFAULT,
       startTime: new Date(data.start_time),
       endTime: new Date(data.end_time),
-      is_approved: false,
+      isApproved: false,
     });
 
     await this.contestRepository.save(contest);
@@ -811,7 +811,7 @@ export class ContestService {
           likes l ON p.id = l.postId
       WHERE 
           p.contestId = ? AND
-          p.is_published = 1
+          p.isPublished = 1
       GROUP BY 
           p.id
       ORDER BY 
@@ -842,15 +842,15 @@ export class ContestService {
     const post = await this.postRepository.findOne({
       where: {
         id: post_id,
-        is_published: true,
-        is_blocked: false,
+        isPublished: true,
+        isBlocked: false,
         contest: { id: contest_id },
       },
       relations: { user: true },
     });
     if (!post) throw new NotFoundException('Post not found');
 
-    if (contest.winner && contest.is_approved)
+    if (contest.winner && contest.isApproved)
       throw new BadRequestException('Post already has a winner');
 
     if (contest.contestType === ContestTypeEnum.FINE_TUNE) {
@@ -1097,7 +1097,7 @@ export class ContestService {
       );
     }
 
-    post.is_rejected = true;
+    post.isRejected = true;
     await this.postRepository.save(post);
 
     const contest = await this.contestRepository.findOne({
@@ -1118,7 +1118,7 @@ export class ContestService {
 
       if (!updatedContest.winner) {
         updatedContest.status = ContestStatusEnum.CLOSED;
-        updatedContest.is_approved = true;
+        updatedContest.isApproved = true;
         await this.contestRepository.save(updatedContest);
         return {
           success: true,
@@ -1132,7 +1132,7 @@ export class ContestService {
 
       if (!updatedContest.winner) {
         updatedContest.status = ContestStatusEnum.CLOSED;
-        updatedContest.is_approved = true;
+        updatedContest.isApproved = true;
         await this.contestRepository.save(updatedContest);
         return {
           success: true,
@@ -1146,7 +1146,7 @@ export class ContestService {
 
   private transformContestToPendingReviewResponse(contest: ContestEntity) {
     const winningPosts = contest.posts.filter(
-      (post) => post.user.id === contest.winner.id && !post.is_rejected,
+      (post) => post.user.id === contest.winner.id && !post.isRejected,
     );
 
     winningPosts.sort((a, b) => b.likes.length - a.likes.length);
@@ -1168,9 +1168,9 @@ export class ContestService {
               name: winnerPost.user.name,
             },
             likeCount: winnerPost.likes.length,
-            isPublished: winnerPost.is_published,
-            isBlocked: winnerPost.is_blocked,
-            isRejected: winnerPost.is_rejected,
+            isPublished: winnerPost.isPublished,
+            isBlocked: winnerPost.isBlocked,
+            isRejected: winnerPost.isRejected,
           }
         : null,
     };
@@ -1202,7 +1202,7 @@ export class ContestService {
         contestId: contest.id,
         contestName: contest.name,
         contestStatus: contest.status,
-        contestIsApproved: contest.is_approved,
+        contestIsApproved: contest.isApproved,
         post: {
           id: contest.postWinner.id,
           imageUrl: contest.postWinner.imageUrl,
@@ -1212,10 +1212,10 @@ export class ContestService {
           },
           likeCount: contest.postWinner.likes?.length || 0,
           status:
-            contest.status === ContestStatusEnum.CLOSED && contest.is_approved
+            contest.status === ContestStatusEnum.CLOSED && contest.isApproved
               ? 'approved'
               : contest.status === ContestStatusEnum.PENDING_REVIEW &&
-                  !contest.is_approved
+                  !contest.isApproved
                 ? 'pending_review'
                 : 'rejected',
         },
@@ -1231,12 +1231,12 @@ export class ContestService {
           c.id AS contest_id,
           c.name AS contest_name,
           c.status AS contest_status,
-          c.is_approved AS contest_is_approved,
+          c.isApproved AS contest_is_approved,
           COUNT(l.id) AS like_count,
           ROW_NUMBER() OVER (PARTITION BY c.id ORDER BY COUNT(l.id) DESC) AS rn,
           CASE 
-            WHEN c.status = 'closed' AND c.is_approved = true THEN 'approved'
-            WHEN c.status = 'pending_review' AND c.is_approved = false THEN 'pending_review'
+            WHEN c.status = 'closed' AND c.isApproved = true THEN 'approved'
+            WHEN c.status = 'pending_review' AND c.isApproved = false THEN 'pending_review'
             ELSE 'rejected'
           END AS post_status
         FROM 
@@ -1245,9 +1245,9 @@ export class ContestService {
         JOIN contests c ON p.contestId = c.id
         LEFT JOIN likes l ON p.id = l.postId
         WHERE 
-          p.is_rejected = false 
-          AND p.is_blocked = false 
-          AND p.is_published = true
+          p.isRejected = false 
+          AND p.isBlocked = false 
+          AND p.isPublished = true
           AND c.contestType != 'FINE_TUNE'
           AND c.status IN ('pending_review', 'open', 'closed')
         GROUP BY 

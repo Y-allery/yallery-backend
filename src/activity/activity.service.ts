@@ -84,7 +84,7 @@ export class ActivityService {
     toUserIds: number[],
     type: ActivityEnum,
     contest_reward?: number,
-    is_admin: boolean = false,
+    isAdmin: boolean = false,
     contest?: ContestEntity,
     post?: PostEntity,
     service?: AIEnum,
@@ -107,7 +107,7 @@ export class ActivityService {
         activityType: type,
         description,
         points,
-        is_admin,
+        isAdmin,
         contest,
         post,
       }),
@@ -120,7 +120,7 @@ export class ActivityService {
   async deleteAdminContestActivity(contest_id: number) {
     const activities = await this.activityRepository.find({
       where: {
-        is_admin: true,
+        isAdmin: true,
         activityType: In([ActivityEnum.ADMIN_CONTEST_REVIEW]),
         contest: { id: contest_id },
       },
@@ -131,7 +131,7 @@ export class ActivityService {
   async deleteAdminPostActivity(post_id: number, from_user: number) {
     const activities = await this.activityRepository.find({
       where: {
-        is_admin: true,
+        isAdmin: true,
         activityType: In([ActivityEnum.ADMIN_REPORT]),
         post: { id: post_id },
         fromUser: { id: from_user },
@@ -217,13 +217,13 @@ export class ActivityService {
         id: true,
         activityType: true,
         description: true,
-        is_admin: true,
+        isAdmin: true,
         createdAt: true,
         contest: { id: true, name: true },
         post: { id: true, user: { name: true, email: true, avatar: true } },
       },
       where: {
-        is_admin: true,
+        isAdmin: true,
         activityType: In([
           ActivityEnum.ADMIN_CONTEST_REVIEW,
           ActivityEnum.ADMIN_REPORT,
@@ -250,13 +250,13 @@ export class ActivityService {
         id: true,
         activityType: true,
         description: true,
-        is_admin: true,
+        isAdmin: true,
         createdAt: true,
         contest: { id: true, name: true },
         post: { id: true, user: { nickname: true } },
       },
       where: {
-        is_admin: true,
+        isAdmin: true,
         activityType: In([
           ActivityEnum.ADMIN_CONTEST_WON,
           ActivityEnum.ADMIN_REPORT_REVIEW,
@@ -464,9 +464,9 @@ export class ActivityService {
         u.nickname AS username,
         t.id AS tag_id,
         t.name AS tag_name,
-        p.is_published,
-        p.is_blocked,
-        p.is_rejected,
+        p.isPublished,
+        p.isBlocked,
+        p.isRejected,
         (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS like_count,
         (SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id) AS view_count,
         CASE 
@@ -479,7 +479,7 @@ export class ActivityService {
           THEN TRUE 
           ELSE FALSE 
         END AS is_viewed,
-        p.generation_params
+        p.generationParams
       FROM 
         posts p
         JOIN users u ON p.userId = u.id
@@ -487,9 +487,9 @@ export class ActivityService {
       WHERE 
         p.createdAt >= '${today.toISOString()}' 
         AND p.createdAt < '${tomorrow.toISOString()}'
-        AND p.is_published = true 
-        AND p.is_blocked = false
-        AND p.is_rejected = false
+        AND p.isPublished = true 
+        AND p.isBlocked = false
+        AND p.isRejected = false
         AND (p.imageUrl IS NOT NULL OR p.videoUrl IS NOT NULL)
       ORDER BY 
         like_count DESC, view_count DESC
@@ -533,7 +533,7 @@ export class ActivityService {
             THEN TRUE 
             ELSE FALSE 
           END AS is_viewed,
-          p.generation_params
+          p.generationParams
         FROM 
           posts p
           JOIN users u ON p.userId = u.id
@@ -589,7 +589,7 @@ export class ActivityService {
             THEN TRUE 
             ELSE FALSE 
           END AS is_viewed,
-          p.generation_params
+          p.generationParams
         FROM 
           posts p
           JOIN users u ON p.userId = u.id
@@ -643,12 +643,12 @@ export class ActivityService {
         username: item.post.username || 'Unknown User',
         tagName: item.post.tag_name ? `#${item.post.tag_name}` : null,
         tagId: item.post.tag_id,
-        isPublished: item.post.is_published,
-        isBlocked: item.post.is_blocked,
-        isRejected: item.post.is_rejected,
+        isPublished: item.post.isPublished,
+        isBlocked: item.post.isBlocked,
+        isRejected: item.post.isRejected,
         isLiked: item.post.is_liked,
         isViewed: item.post.is_viewed,
-        generation_params: this.normalizeGenerationParams(item.post.generation_params),
+        generationParams: this.normalizeGenerationParams(item.post.generationParams),
       };
     });
 

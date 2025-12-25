@@ -212,26 +212,26 @@ export class AdminService {
 
     // Get valid AI service names from database to filter correctly
     const imageAiServices = await this.aiSettingsRepository.find({
-      where: { type: 'image', is_active: true },
-      select: ['ai_service'],
+      where: { type: 'image', isActive: true },
+      select: ['aiService'],
     });
     const videoAiServices = await this.aiSettingsRepository.find({
-      where: { type: 'video', is_active: true },
-      select: ['ai_service'],
+      where: { type: 'video', isActive: true },
+      select: ['aiService'],
     });
 
     const validImageServices = new Set(
-      imageAiServices.map((s) => s.ai_service),
+      imageAiServices.map((s) => s.aiService),
     );
     const validVideoServices = new Set(
-      videoAiServices.map((s) => s.ai_service),
+      videoAiServices.map((s) => s.aiService),
     );
 
-    // AI stats per service (image/video) based on generation_params.ai_service
+    // AI stats per service (image/video) based on generationParams.aiService
     const rawImageAi = await this.postRepository
       .createQueryBuilder('p')
       .select(
-        "JSON_UNQUOTE(JSON_EXTRACT(p.generation_params, '$.ai_service'))",
+        "JSON_UNQUOTE(JSON_EXTRACT(p.generationParams, '$.aiService'))",
         'ai_service',
       )
       .addSelect('COUNT(*)', 'count')
@@ -248,7 +248,7 @@ export class AdminService {
     const rawVideoAi = await this.postRepository
       .createQueryBuilder('p')
       .select(
-        "JSON_UNQUOTE(JSON_EXTRACT(p.generation_params, '$.ai_service'))",
+        "JSON_UNQUOTE(JSON_EXTRACT(p.generationParams, '$.aiService'))",
         'ai_service',
       )
       .addSelect('COUNT(*)', 'count')
@@ -268,7 +268,7 @@ export class AdminService {
       {};
 
     for (const row of rawImageAi) {
-      // Default to 'flux' for image posts without ai_service (legacy posts)
+      // Default to 'flux' for image posts without aiService (legacy posts)
       let key = row.ai_service || 'flux';
       // Only include if it's a valid image service (filter out video services that might be in generation_params)
       if (!validImageServices.has(key)) {
@@ -286,7 +286,7 @@ export class AdminService {
     }
 
     for (const row of rawVideoAi) {
-      // Default to 'byty_dance' for video posts without ai_service (legacy posts)
+      // Default to 'byty_dance' for video posts without aiService (legacy posts)
       let key = row.ai_service || 'byty_dance';
       // Only include if it's a valid video service (filter out image services like 'flux')
       if (!validVideoServices.has(key)) {
@@ -987,7 +987,7 @@ export class AdminService {
       const currentTime = new Date();
       contest.status = ContestStatusEnum.OPEN;
       contest.startTime = currentTime;
-      contest.is_approved = false;
+      contest.isApproved = false;
 
       // Зберігаємо контест
       await this.contestService.updateContest(contestId, {
@@ -1176,9 +1176,9 @@ export class AdminService {
       throw new NotFoundException(`AI settings with ID ${id} not found`);
     }
 
-    if (updateDto.ai_service && updateDto.ai_service !== aiSetting.ai_service) {
+    if (updateDto.ai_service && updateDto.ai_service !== aiSetting.aiService) {
       const existingService = await this.aiSettingsRepository.findOne({
-        where: { ai_service: updateDto.ai_service },
+        where: { aiService: updateDto.ai_service },
       });
 
       if (existingService && existingService.id !== id) {
