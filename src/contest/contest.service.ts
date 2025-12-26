@@ -369,9 +369,9 @@ export class ContestService {
         const postsCount = await this.postRepository.count({
           where: {
             contest: { id: contest.id },
-            is_published: true,
-            is_blocked: false,
-            is_rejected: false,
+            isPublished: true,
+            isBlocked: false,
+            isRejected: false,
           },
         });
 
@@ -594,7 +594,7 @@ export class ContestService {
               const matchedPost = postId
                 ? await this.postRepository.findOne({
                     where: { id: +postId },
-                    select: ['id', 'is_rejected'],
+                    select: ['id', 'isRejected'],
                   })
                 : null;
 
