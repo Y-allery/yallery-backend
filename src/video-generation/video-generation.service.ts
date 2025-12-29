@@ -264,7 +264,7 @@ export class VideoGenerationService {
 
       const aiSetting = await this.aiSettingsRepository.findOne({
         where: { 
-          ai_service: dto.ai_service,
+          aiService: dto.ai_service,
           type: 'video',
           isActive: true 
         },
