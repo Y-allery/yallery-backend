@@ -23,7 +23,7 @@ export class RewardEntity {
   @Column({ type: 'text', nullable: true })
   description: string | null;
 
-  @Column({ type: 'boolean', default: true, name: 'isActive' })
+  @Column({ type: 'boolean', default: true, name: 'is_active' })
   isActive: boolean;
 
   @Column({ type: 'boolean', default: false })
