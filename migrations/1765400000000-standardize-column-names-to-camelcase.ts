@@ -550,5 +550,11 @@ export class StandardizeColumnNamesToCamelcase1765400000000
     await queryRunner.query(`
       CREATE INDEX \`idx_posts_published_blocked_id\` ON \`posts\` (\`is_published\`, \`is_blocked\`, \`id\` DESC)
     `);
+
+    // REWARDS TABLE - rollback
+    await queryRunner.query(`
+      ALTER TABLE \`rewards\` 
+      CHANGE COLUMN \`isActive\` \`is_active\` tinyint NOT NULL DEFAULT '1'
+    `);
   }
 }
