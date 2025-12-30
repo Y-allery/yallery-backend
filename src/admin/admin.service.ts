@@ -349,8 +349,8 @@ export class AdminService {
       FROM contests_participants_users cpu
       INNER JOIN contests c ON c.id = cpu.contestsId
       WHERE c.startTime <= ? AND c.endTime >= ?
-        AND c.status = 'OPEN'
-    `, [periodEnd, periodStart]);
+        AND c.status = ?
+    `, [periodEnd, periodStart, ContestStatusEnum.OPEN]);
 
     const totalContestParticipants = await this.postRepository.query(`
       SELECT COUNT(DISTINCT usersId) as count
