@@ -197,8 +197,8 @@ export class AdminService {
       .andWhere('t.id IS NOT NULL')
       .groupBy('t.id')
       .addGroupBy('t.name')
-      .orderBy('posts', 'DESC')
-      .addOrderBy('likes', 'DESC')
+      .orderBy('COUNT(DISTINCT p.id)', 'DESC')
+      .addOrderBy('COUNT(DISTINCT l.id)', 'DESC')
       .limit(10)
       .getRawMany();
 
@@ -342,77 +342,6 @@ export class AdminService {
       }
     }
 
-    // Participants statistics - Contests
-    // Count unique users who participated in contests that were active (open) during the period
-    const contestParticipants7D = await this.postRepository.query(`
-      SELECT COUNT(DISTINCT cpu.usersId) as count
-      FROM contests_participants_users cpu
-      INNER JOIN contests c ON c.id = cpu.contestsId
-      WHERE c.startTime <= ? AND c.endTime >= ?
-        AND c.status = ?
-    `, [periodEnd, periodStart, ContestStatusEnum.OPEN]);
-
-    const totalContestParticipants = await this.postRepository.query(`
-      SELECT COUNT(DISTINCT usersId) as count
-      FROM contests_participants_users
-    `);
-
-    const contestParticipantsByContest = await this.postRepository.query(`
-      SELECT 
-        c.id as contestId,
-        c.name as contestName,
-        COUNT(DISTINCT cpu.usersId) as participants
-      FROM contests c
-      LEFT JOIN contests_participants_users cpu ON cpu.contestsId = c.id
-      GROUP BY c.id, c.name
-      HAVING participants > 0
-      ORDER BY participants DESC
-      LIMIT 20
-    `);
-
-    // Participants statistics - Partnerships
-    const partnershipUsers7D = await this.partnerUserLinkRepository.count({
-      where: {
-        createdAt: Between(periodStart, periodEnd),
-      },
-    });
-
-    const totalPartnershipUsers = await this.partnerUserLinkRepository.count();
-
-    const partnershipUsersByPartnership = await this.partnerUserLinkRepository
-      .createQueryBuilder('pul')
-      .leftJoin('pul.partnership', 'p')
-      .select('p.id', 'partnershipId')
-      .addSelect('p.name', 'partnershipName')
-      .addSelect('COUNT(DISTINCT pul.userId)', 'users')
-      .where('pul.userId IS NOT NULL')
-      .groupBy('p.id')
-      .addGroupBy('p.name')
-      .orderBy('users', 'DESC')
-      .limit(20)
-      .getRawMany();
-
-    const participantsStats = {
-      contests: {
-        newParticipants7D: Number(contestParticipants7D[0]?.count || 0),
-        totalParticipants: Number(totalContestParticipants[0]?.count || 0),
-        byContest: contestParticipantsByContest.map((row: any) => ({
-          contestId: Number(row.contestId),
-          contestName: row.contestName || 'Unknown',
-          participants: Number(row.participants || 0),
-        })),
-      },
-      partnerships: {
-        newUsers7D: partnershipUsers7D,
-        totalUsers: totalPartnershipUsers,
-        byPartnership: partnershipUsersByPartnership.map((row: any) => ({
-          partnershipId: Number(row.partnershipId),
-          partnershipName: row.partnershipName || 'Unknown',
-          users: Number(row.users || 0),
-        })),
-      },
-    };
-
     const snapshot = this.adminMetricsRepository.create({
       periodStart,
       periodEnd,
@@ -437,7 +366,6 @@ export class AdminService {
       postsPerUserAvg7D,
       topTags7D,
       purchasedYeps7D,
-      participantsStats,
     });
 
     await this.adminMetricsRepository.save(snapshot);
@@ -472,7 +400,6 @@ export class AdminService {
         postsPerUserAvg7D: 0,
         topTags7D: null,
         purchasedYeps7D: 0,
-        participantsStats: null,
       };
     }
 
@@ -497,7 +424,6 @@ export class AdminService {
       postsPerUserAvg7D: latest.postsPerUserAvg7D,
       topTags7D: latest.topTags7D,
       purchasedYeps7D: latest.purchasedYeps7D,
-      participantsStats: latest.participantsStats,
     };
   }
   async createAdminContest(data: CreateContestDto) {
