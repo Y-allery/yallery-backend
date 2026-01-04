@@ -18,6 +18,7 @@ import { AdminMetricsEntity } from './entities/admin-metrics.entity';
 import { LikeEntity } from 'src/like/entities/like.entity';
 import { PaymentEntity } from 'src/payment/entities/payment.entity';
 import { RewardModule } from 'src/reward/reward.module';
+import { ContestEntity } from 'src/contest/entity/contest.entity';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { RewardModule } from 'src/reward/reward.module';
       AdminMetricsEntity,
       LikeEntity,
       PaymentEntity,
+      ContestEntity,
     ]),
     ContestModule,
     UserModule,
