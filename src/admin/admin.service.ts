@@ -43,6 +43,7 @@ import { VideoAIEnum } from 'src/common/enums/ai.enum';
 import { PaymentEntity } from 'src/payment/entities/payment.entity';
 import { RewardService } from 'src/reward/reward.service';
 import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
+import { ContestEntity } from 'src/contest/entity/contest.entity';
 
 @Injectable()
 export class AdminService {
@@ -79,6 +80,8 @@ export class AdminService {
     private readonly likeRepository: Repository<LikeEntity>,
     @InjectRepository(PaymentEntity)
     private readonly paymentRepository: Repository<PaymentEntity>,
+    @InjectRepository(ContestEntity)
+    private readonly contestRepository: Repository<ContestEntity>,
   ) {
     this.apiKey = this.configService.get<string>('TWEETSCOUT_API_KEY');
     this.apiUrl = this.configService.get<string>('TWEETSCOUT_API_URL', 'https://api.tweetscout.io/v2');
@@ -342,6 +345,29 @@ export class AdminService {
       }
     }
 
+    // Contest participants statistics - get all contests with participants count
+    const contestParticipantsStatsRaw = await this.contestRepository
+      .createQueryBuilder('c')
+      .leftJoin('c.participants', 'p')
+      .select('c.id', 'contestId')
+      .addSelect('c.name', 'contestName')
+      .addSelect('COUNT(DISTINCT p.id)', 'participantsCount')
+      .where('(c.startTime >= :start OR c.endTime >= :start OR c.startTime <= :end)', {
+        start: periodStart,
+        end: periodEnd,
+      })
+      .groupBy('c.id')
+      .addGroupBy('c.name')
+      .having('COUNT(DISTINCT p.id) > 0')
+      .orderBy('COUNT(DISTINCT p.id)', 'DESC')
+      .getRawMany();
+
+    const contestParticipantsStats = contestParticipantsStatsRaw.map((row) => ({
+      contestId: Number(row.contestId),
+      contestName: row.contestName,
+      participantsCount: Number(row.participantsCount || 0),
+    }));
+
     const snapshot = this.adminMetricsRepository.create({
       periodStart,
       periodEnd,
@@ -366,6 +392,7 @@ export class AdminService {
       postsPerUserAvg7D,
       topTags7D,
       purchasedYeps7D,
+      contestParticipantsStats,
     });
 
     await this.adminMetricsRepository.save(snapshot);
@@ -400,6 +427,7 @@ export class AdminService {
         postsPerUserAvg7D: 0,
         topTags7D: null,
         purchasedYeps7D: 0,
+        contestParticipantsStats: null,
       };
     }
 
@@ -424,6 +452,7 @@ export class AdminService {
       postsPerUserAvg7D: latest.postsPerUserAvg7D,
       topTags7D: latest.topTags7D,
       purchasedYeps7D: latest.purchasedYeps7D,
+      contestParticipantsStats: latest.contestParticipantsStats,
     };
   }
   async createAdminContest(data: CreateContestDto) {

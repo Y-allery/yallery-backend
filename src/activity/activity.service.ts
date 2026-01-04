@@ -518,9 +518,9 @@ export class ActivityService {
           u.nickname AS username,
           t.id AS tag_id,
           t.name AS tag_name,
-          p.isPublished,
-          p.isBlocked,
-          p.isRejected,
+          p.is_published,
+          p.is_blocked,
+          p.is_rejected,
           (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS like_count,
           (SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id) AS view_count,
           CASE 
@@ -541,9 +541,9 @@ export class ActivityService {
         WHERE 
           p.createdAt >= '${yesterday.toISOString()}' 
           AND p.createdAt < '${today.toISOString()}'
-          AND p.isPublished = true 
-          AND p.isBlocked = false
-          AND p.isRejected = false
+          AND p.is_published = true 
+          AND p.is_blocked = false
+          AND p.is_rejected = false
           AND (p.imageUrl IS NOT NULL OR p.videoUrl IS NOT NULL)
         ORDER BY 
           like_count DESC, view_count DESC
@@ -574,9 +574,9 @@ export class ActivityService {
           u.nickname AS username,
           t.id AS tag_id,
           t.name AS tag_name,
-          p.isPublished,
-          p.isBlocked,
-          p.isRejected,
+          p.is_published,
+          p.is_blocked,
+          p.is_rejected,
           (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS like_count,
           (SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id) AS view_count,
           CASE 
@@ -595,9 +595,9 @@ export class ActivityService {
           JOIN users u ON p.userId = u.id
           LEFT JOIN tags t ON p.tagId = t.id
         WHERE 
-          p.isPublished = true 
-          AND p.isBlocked = false
-          AND p.isRejected = false
+          p.is_published = true 
+          AND p.is_blocked = false
+          AND p.is_rejected = false
           AND (p.imageUrl IS NOT NULL OR p.videoUrl IS NOT NULL)
         ORDER BY 
           like_count DESC, view_count DESC

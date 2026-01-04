@@ -44,12 +44,21 @@ export class RewardService {
     oneTime: RewardEntity[];
     other: RewardEntity[];
   }> {
-    const allRewards = await this.rewardRepository.find({
-      where: {
-        reward_type: Not(In(this.excludedRewardTypes)),
-      },
-      order: { reward_type: 'ASC' },
-    });
+    const allRewards = await this.rewardRepository
+      .createQueryBuilder('reward')
+      .select([
+        'reward.id',
+        'reward.reward_type',
+        'reward.points',
+        'reward.description',
+        'reward.is_active',
+        'reward.is_daily',
+        'reward.createdAt',
+        'reward.updatedAt',
+      ])
+      .where('reward.reward_type NOT IN (:...excluded)', { excluded: this.excludedRewardTypes })
+      .orderBy('reward.reward_type', 'ASC')
+      .getMany();
 
     const daily: RewardEntity[] = [];
     const oneTime: RewardEntity[] = [];
@@ -73,9 +82,21 @@ export class RewardService {
     if (this.excludedRewardTypes.includes(rewardType)) {
       return null;
     }
-    return this.rewardRepository.findOne({
-      where: { reward_type: rewardType, isActive: true },
-    });
+    return this.rewardRepository
+      .createQueryBuilder('reward')
+      .select([
+        'reward.id',
+        'reward.reward_type',
+        'reward.points',
+        'reward.description',
+        'reward.is_active',
+        'reward.is_daily',
+        'reward.createdAt',
+        'reward.updatedAt',
+      ])
+      .where('reward.reward_type = :rewardType', { rewardType })
+      .andWhere('reward.is_active = :isActive', { isActive: true })
+      .getOne();
   }
 
   async getRewardPoints(rewardType: RewardTypeEnum): Promise<number> {
@@ -89,18 +110,41 @@ export class RewardService {
 
   // Внутрішній метод для отримання нагороди без фільтрації Payment
   private async getRewardByTypeInternal(rewardType: RewardTypeEnum): Promise<RewardEntity | null> {
-    return this.rewardRepository.findOne({
-      where: { reward_type: rewardType, isActive: true },
-    });
+    return this.rewardRepository
+      .createQueryBuilder('reward')
+      .select([
+        'reward.id',
+        'reward.reward_type',
+        'reward.points',
+        'reward.description',
+        'reward.is_active',
+        'reward.is_daily',
+        'reward.createdAt',
+        'reward.updatedAt',
+      ])
+      .where('reward.reward_type = :rewardType', { rewardType })
+      .andWhere('reward.is_active = :isActive', { isActive: true })
+      .getOne();
   }
 
   async updateReward(
     rewardType: RewardTypeEnum,
     updateDto: UpdateRewardDto,
   ): Promise<RewardEntity> {
-    const reward = await this.rewardRepository.findOne({
-      where: { reward_type: rewardType },
-    });
+    const reward = await this.rewardRepository
+      .createQueryBuilder('reward')
+      .select([
+        'reward.id',
+        'reward.reward_type',
+        'reward.points',
+        'reward.description',
+        'reward.is_active',
+        'reward.is_daily',
+        'reward.createdAt',
+        'reward.updatedAt',
+      ])
+      .where('reward.reward_type = :rewardType', { rewardType })
+      .getOne();
 
     if (!reward) {
       throw new NotFoundException(`Reward type ${rewardType} not found`);
@@ -204,12 +248,21 @@ export class RewardService {
     await this.ensureRegistrationRewardAutoClaimed(userId, today);
 
     // Fetch claimable rewards
-    const rewards = await this.rewardRepository.find({
-      where: {
-        reward_type: In(this.claimableRewardTypes),
-        isActive: true,
-      },
-    });
+    const rewards = await this.rewardRepository
+      .createQueryBuilder('reward')
+      .select([
+        'reward.id',
+        'reward.reward_type',
+        'reward.points',
+        'reward.description',
+        'reward.is_active',
+        'reward.is_daily',
+        'reward.createdAt',
+        'reward.updatedAt',
+      ])
+      .where('reward.reward_type IN (:...types)', { types: this.claimableRewardTypes })
+      .andWhere('reward.is_active = :isActive', { isActive: true })
+      .getMany();
 
     // Fetch user reward entries for today
     const userRewards = await this.userRewardRepository.find({
@@ -267,12 +320,21 @@ export class RewardService {
       return;
     }
 
-    const reward = await this.rewardRepository.findOne({
-      where: {
-        reward_type: RewardTypeEnum.REGISTRATION_REWARD,
-        isActive: true,
-      },
-    });
+    const reward = await this.rewardRepository
+      .createQueryBuilder('reward')
+      .select([
+        'reward.id',
+        'reward.reward_type',
+        'reward.points',
+        'reward.description',
+        'reward.is_active',
+        'reward.is_daily',
+        'reward.createdAt',
+        'reward.updatedAt',
+      ])
+      .where('reward.reward_type = :rewardType', { rewardType: RewardTypeEnum.REGISTRATION_REWARD })
+      .andWhere('reward.is_active = :isActive', { isActive: true })
+      .getOne();
 
     if (!reward) {
       return;

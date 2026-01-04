@@ -91,26 +91,11 @@ export class AdminMetricsEntity {
   purchasedYeps7D: number;
 
   @Column({ type: 'json', nullable: true })
-  participantsStats: {
-    contests: {
-      newParticipants7D: number;
-      totalParticipants: number;
-      byContest: {
-        contestId: number;
-        contestName: string;
-        participants: number;
-      }[];
-    };
-    partnerships: {
-      newUsers7D: number;
-      totalUsers: number;
-      byPartnership: {
-        partnershipId: number;
-        partnershipName: string;
-        users: number;
-      }[];
-    };
-  } | null;
+  contestParticipantsStats: {
+    contestId: number;
+    contestName: string;
+    participantsCount: number;
+  }[] | null;
 }
 
 
