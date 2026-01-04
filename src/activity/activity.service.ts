@@ -464,9 +464,9 @@ export class ActivityService {
         u.nickname AS username,
         t.id AS tag_id,
         t.name AS tag_name,
-        p.isPublished,
-        p.isBlocked,
-        p.isRejected,
+        p.\`isPublished\`,
+        p.\`isBlocked\`,
+        p.\`isRejected\`,
         (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS like_count,
         (SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id) AS view_count,
         CASE 
@@ -487,9 +487,9 @@ export class ActivityService {
       WHERE 
         p.createdAt >= '${today.toISOString()}' 
         AND p.createdAt < '${tomorrow.toISOString()}'
-        AND p.isPublished = true 
-        AND p.isBlocked = false
-        AND p.isRejected = false
+        AND p.\`isPublished\` = true 
+        AND p.\`isBlocked\` = false
+        AND p.\`isRejected\` = false
         AND (p.imageUrl IS NOT NULL OR p.videoUrl IS NOT NULL)
       ORDER BY 
         like_count DESC, view_count DESC
