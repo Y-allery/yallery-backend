@@ -213,16 +213,58 @@ export class ContestService {
     return {
       data: [
         {
-          image_url:
+          id: null,
+          imageUrl:
             'https://res.cloudinary.com/dsypundib/image/upload/v1740997871/negr_rzp2mc.jpg',
+          videoUrl: null,
+          previewImageUrl: null,
+          createdAt: null,
+          userId: null,
+          username: null,
+          tagId: null,
+          tagName: null,
+          likeCount: 0,
+          viewCount: 0,
+          isLiked: false,
+          isViewed: false,
+          isPublished: true,
+          generationParams: null,
         },
         {
-          image_url:
+          id: null,
+          imageUrl:
             'https://res.cloudinary.com/dsypundib/image/upload/v1740997871/ne_negr_d2srly.jpg',
+          videoUrl: null,
+          previewImageUrl: null,
+          createdAt: null,
+          userId: null,
+          username: null,
+          tagId: null,
+          tagName: null,
+          likeCount: 0,
+          viewCount: 0,
+          isLiked: false,
+          isViewed: false,
+          isPublished: true,
+          generationParams: null,
         },
         {
-          image_url:
+          id: null,
+          imageUrl:
             'https://res.cloudinary.com/dsypundib/image/upload/v1740997871/girl_xak05c.jpg',
+          videoUrl: null,
+          previewImageUrl: null,
+          createdAt: null,
+          userId: null,
+          username: null,
+          tagId: null,
+          tagName: null,
+          likeCount: 0,
+          viewCount: 0,
+          isLiked: false,
+          isViewed: false,
+          isPublished: true,
+          generationParams: null,
         },
       ],
     };
@@ -246,24 +288,29 @@ export class ContestService {
 
     const baseQuery = `
       SELECT 
-        p.id,
-        p.imageUrl as image_url,
-        p.createdAt as created_at,
-        u.id AS user_id,
-        t.id AS tag_id,
-        CONCAT('#', t.name) AS tag_name,
-        COUNT(l.id) AS like_count,
+        p.id AS id,
+        p.imageUrl AS imageUrl,
+        p.videoUrl AS videoUrl,
+        p.previewImageUrl AS previewImageUrl,
+        p.createdAt AS createdAt,
+        u.id AS userId,
+        u.nickname AS username,
+        t.id AS tagId,
+        CONCAT('#', t.name) AS tagName,
+        COUNT(l.id) AS likeCount,
+        (SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id) AS viewCount,
         CASE 
           WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ?) 
           THEN TRUE 
           ELSE FALSE 
-        END AS is_liked,
+        END AS isLiked,
         CASE
           WHEN EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ?)
           THEN TRUE 
           ELSE FALSE
-        END AS is_viewed,
-        p.generationParams
+        END AS isViewed,
+        p.generationParams AS generationParams,
+        p.isPublished AS isPublished
           FROM
             posts p
           LEFT JOIN
@@ -308,6 +355,7 @@ export class ContestService {
     const total = parseInt(totalResult[0].total, 10);
     const lastPage = Math.ceil(total / limit);
 
+    // Normalize generationParams
     const normalizedPosts = posts.map((post) => ({
       ...post,
       generationParams: this.normalizeGenerationParams(post.generationParams),
@@ -723,7 +771,7 @@ export class ContestService {
     }
 
     contest.status = ContestStatusEnum.CLOSED;
-    contest.is_approved = true;
+    contest.isApproved = true;
     contest.winner = null;
     contest.postWinner = null;
     const savedContest = await this.contestRepository.save(contest);
@@ -746,7 +794,7 @@ export class ContestService {
     const contest = this.contestRepository.create({
       ...data,
       tag,
-      prompt_example: data.examplePrompt,
+      promptExample: data.examplePrompt,
       contestType: data.fineTuneToken
         ? ContestTypeEnum.FINE_TUNE
         : ContestTypeEnum.DEFAULT,
@@ -878,7 +926,7 @@ export class ContestService {
     contest.postWinner = post;
     contest.winner = post.user;
     contest.status = ContestStatusEnum.CLOSED;
-    contest.is_approved = true;
+    contest.isApproved = true;
     await this.contestRepository.save(contest);
     post.user.points += contest.reward;
     await this.userRepository.save(post.user);

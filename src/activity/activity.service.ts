@@ -456,31 +456,31 @@ export class ActivityService {
 
     const todayQuery = `
       SELECT DISTINCT
-        p.id, 
-        p.imageUrl AS image_url, 
-        p.videoUrl AS video_url, 
-        p.previewImageUrl AS preview_image_url,
-        p.createdAt AS created_at,
-        u.id AS user_id,
+        p.id AS id, 
+        p.imageUrl AS imageUrl, 
+        p.videoUrl AS videoUrl, 
+        p.previewImageUrl AS previewImageUrl,
+        p.createdAt AS createdAt,
+        u.id AS userId,
         u.nickname AS username,
-        t.id AS tag_id,
-        t.name AS tag_name,
-        p.\`isPublished\`,
-        p.\`isBlocked\`,
-        p.\`isRejected\`,
-        (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS like_count,
-        (SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id) AS view_count,
+        t.id AS tagId,
+        CONCAT('#', t.name) AS tagName,
+        p.\`isPublished\` AS isPublished,
+        p.\`isBlocked\` AS isBlocked,
+        p.\`isRejected\` AS isRejected,
+        (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS likeCount,
+        (SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id) AS viewCount,
         CASE 
           WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ${userId}) 
           THEN TRUE 
           ELSE FALSE 
-        END AS is_liked,
+        END AS isLiked,
         CASE 
           WHEN EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ${userId}) 
           THEN TRUE 
           ELSE FALSE 
-        END AS is_viewed,
-        p.generationParams
+        END AS isViewed,
+        p.generationParams AS generationParams
       FROM 
         posts p
         JOIN users u ON p.userId = u.id
@@ -493,7 +493,7 @@ export class ActivityService {
         AND p.\`isRejected\` = false
         AND (p.imageUrl IS NOT NULL OR p.videoUrl IS NOT NULL)
       ORDER BY 
-        like_count DESC, view_count DESC
+        likeCount DESC, viewCount DESC
       LIMIT 6;
     `;
 
@@ -511,31 +511,31 @@ export class ActivityService {
     if (allFoundPosts.length < 6) {
       const yesterdayQuery = `
         SELECT DISTINCT
-          p.id, 
-          p.imageUrl AS image_url, 
-          p.videoUrl AS video_url, 
-          p.previewImageUrl AS preview_image_url,
-          p.createdAt AS created_at,
-          u.id AS user_id,
+          p.id AS id, 
+          p.imageUrl AS imageUrl, 
+          p.videoUrl AS videoUrl, 
+          p.previewImageUrl AS previewImageUrl,
+          p.createdAt AS createdAt,
+          u.id AS userId,
           u.nickname AS username,
-          t.id AS tag_id,
-          t.name AS tag_name,
-          p.isPublished,
-          p.isBlocked,
-          p.isRejected,
-          (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS like_count,
-          (SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id) AS view_count,
+          t.id AS tagId,
+          CONCAT('#', t.name) AS tagName,
+          p.isPublished AS isPublished,
+          p.isBlocked AS isBlocked,
+          p.isRejected AS isRejected,
+          (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS likeCount,
+          (SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id) AS viewCount,
           CASE 
             WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ${userId}) 
             THEN TRUE 
             ELSE FALSE 
-          END AS is_liked,
+          END AS isLiked,
           CASE 
             WHEN EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ${userId}) 
             THEN TRUE 
             ELSE FALSE 
-          END AS is_viewed,
-          p.generationParams
+          END AS isViewed,
+          p.generationParams AS generationParams
         FROM 
           posts p
           JOIN users u ON p.userId = u.id
@@ -548,7 +548,7 @@ export class ActivityService {
           AND p.isRejected = false
           AND (p.imageUrl IS NOT NULL OR p.videoUrl IS NOT NULL)
         ORDER BY 
-          like_count DESC, view_count DESC
+          likeCount DESC, viewCount DESC
         LIMIT ${6 - allFoundPosts.length};
       `;
 
@@ -568,31 +568,31 @@ export class ActivityService {
     if (allFoundPosts.length < 6) {
       const allTimeQuery = `
         SELECT DISTINCT
-          p.id, 
-          p.imageUrl AS image_url, 
-          p.videoUrl AS video_url, 
-          p.previewImageUrl AS preview_image_url,
-          p.createdAt AS created_at,
-          u.id AS user_id,
+          p.id AS id, 
+          p.imageUrl AS imageUrl, 
+          p.videoUrl AS videoUrl, 
+          p.previewImageUrl AS previewImageUrl,
+          p.createdAt AS createdAt,
+          u.id AS userId,
           u.nickname AS username,
-          t.id AS tag_id,
-          t.name AS tag_name,
-          p.isPublished,
-          p.isBlocked,
-          p.isRejected,
-          (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS like_count,
-          (SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id) AS view_count,
+          t.id AS tagId,
+          CONCAT('#', t.name) AS tagName,
+          p.isPublished AS isPublished,
+          p.isBlocked AS isBlocked,
+          p.isRejected AS isRejected,
+          (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS likeCount,
+          (SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id) AS viewCount,
           CASE 
             WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ${userId}) 
             THEN TRUE 
             ELSE FALSE 
-          END AS is_liked,
+          END AS isLiked,
           CASE 
             WHEN EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ${userId}) 
             THEN TRUE 
             ELSE FALSE 
-          END AS is_viewed,
-          p.generationParams
+          END AS isViewed,
+          p.generationParams AS generationParams
         FROM 
           posts p
           JOIN users u ON p.userId = u.id
@@ -603,7 +603,7 @@ export class ActivityService {
           AND p.isRejected = false
           AND (p.imageUrl IS NOT NULL OR p.videoUrl IS NOT NULL)
         ORDER BY 
-          like_count DESC, view_count DESC
+          likeCount DESC, viewCount DESC
         LIMIT ${6 - allFoundPosts.length};
       `;
 
@@ -619,10 +619,10 @@ export class ActivityService {
 
 
     allFoundPosts.sort((a, b) => {
-      const aLikes = parseInt(a.post.like_count) || 0;
-      const bLikes = parseInt(b.post.like_count) || 0;
-      const aViews = parseInt(a.post.view_count) || 0;
-      const bViews = parseInt(b.post.view_count) || 0;
+      const aLikes = a.post.likeCount || 0;
+      const bLikes = b.post.likeCount || 0;
+      const aViews = a.post.viewCount || 0;
+      const bViews = b.post.viewCount || 0;
       
       if (bLikes !== aLikes) {
         return bLikes - aLikes;
@@ -637,22 +637,22 @@ export class ActivityService {
     const formattedPosts = topPosts.map((item) => {
       return {
         id: item.post.id,
-        imageUrl: item.post.image_url,
-        videoUrl: item.post.video_url,
-        previewImageUrl: item.post.preview_image_url,
-        likeCount: parseInt(item.post.like_count) || 0,
-        viewCount: parseInt(item.post.view_count) || 0,
-        createdAt: new Date(item.post.created_at),
-        userId: item.post.user_id,
+        imageUrl: item.post.imageUrl,
+        videoUrl: item.post.videoUrl,
+        previewImageUrl: item.post.previewImageUrl,
+        likeCount: item.post.likeCount || 0,
+        viewCount: item.post.viewCount || 0,
+        createdAt: item.post.createdAt,
+        userId: item.post.userId,
         username: item.post.username || 'Unknown User',
-        tagName: item.post.tag_name ? `#${item.post.tag_name}` : null,
-        tagId: item.post.tag_id,
+        tagName: item.post.tagName,
+        tagId: item.post.tagId,
         isPublished: item.post.isPublished,
-        isBlocked: item.post.isBlocked,
-        isRejected: item.post.isRejected,
-        isLiked: item.post.is_liked,
-        isViewed: item.post.is_viewed,
-        generationParams: this.normalizeGenerationParams(item.post.generationParams),
+        isBlocked: item.post.isBlocked || false,
+        isRejected: item.post.isRejected || false,
+        isLiked: item.post.isLiked,
+        isViewed: item.post.isViewed,
+        generationParams: this.normalizeGenerationParams(item.post.generationParams) || null,
       };
     });
 

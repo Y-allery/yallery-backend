@@ -34,6 +34,7 @@ import { PartnerUserLinkEntity } from 'src/admin/entities/partner-user-link.enti
 import { RewardService } from 'src/reward/reward.service';
 import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
 import { v2 as cloudinary } from 'cloudinary';
+import { StandardPost } from 'src/common/types/standard-post.type';
 
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 const randomSleep = async () =>
@@ -87,22 +88,29 @@ export class PostService {
 
     const query = `
       SELECT DISTINCT
-        p.id, 
-        p.imageUrl AS image_url, 
-        p.videoUrl AS video_url, 
-        p.previewImageUrl AS preview_image_url,
-        p.createdAt AS created_at,
-        u.id AS user_id,
-        t.id AS tag_id,
-        CONCAT('#', t.name) AS tag_name,
-        (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS like_count,
+        p.id AS id, 
+        p.imageUrl AS imageUrl, 
+        p.videoUrl AS videoUrl, 
+        p.previewImageUrl AS previewImageUrl,
+        p.createdAt AS createdAt,
+        u.id AS userId,
+        u.nickname AS username,
+        t.id AS tagId,
+        CONCAT('#', t.name) AS tagName,
+        (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS likeCount,
+        (SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id) AS viewCount,
         CASE 
           WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ${userId}) 
           THEN TRUE 
           ELSE FALSE 
-        END AS is_liked,
-        FALSE AS is_viewed,
-        p.generationParams
+        END AS isLiked,
+        CASE 
+          WHEN EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ${userId}) 
+          THEN TRUE 
+          ELSE FALSE 
+        END AS isViewed,
+        p.generationParams AS generationParams,
+        p.isPublished AS isPublished
       FROM 
         posts p
         JOIN users u ON p.userId = u.id
@@ -125,6 +133,7 @@ export class PostService {
     const posts = await this.postEntity.query(query);
     const nextCursor = posts.length > 0 ? posts[posts.length - 1].id : null;
 
+    // Normalize generationParams
     const normalizedPosts = posts.map((post) => ({
       ...post,
       generationParams: this.normalizeGenerationParams(post.generationParams),
@@ -162,46 +171,66 @@ export class PostService {
     tagId: number,
     page: number,
     limit: number,
+    userId?: number,
   ): Promise<{ data: any[]; total: number; page: number; limit: number }> {
     const offset = (page - 1) * limit;
 
-    const postsQuery = this.tagEntity
-      .createQueryBuilder('tag')
-      .leftJoinAndSelect('tag.posts', 'post')
-      .leftJoinAndSelect('post.user', 'user')
-      .leftJoin('post.likes', 'like')
-      .select([
-        'post.id AS post_id',
-        'post.imageUrl AS post_imageUrl',
-        'post.videoUrl AS post_videoUrl',
-        'post.previewImageUrl AS post_previewImageUrl',
-        'post.createdAt AS post_createdAt',
-        'user.id AS user_id',
-        'tag.id AS tag_id',
-        `CONCAT('#', tag.name) AS tag_name`,
-        `(SELECT COUNT(*) FROM likes l WHERE l.postId = post.id) AS likeCount`,
-        'post.generationParams AS post_generationParams',
-      ])
-      .where('tag.id = :tagId', { tagId })
-      .andWhere('post.isPublished = :isPublished', { isPublished: true })
-      .andWhere('post.isBlocked = :isBlocked', { isBlocked: false })
-      .andWhere('post.isRejected = :isRejected', { isRejected: false })
-      .groupBy('post.id')
-      .orderBy('post.createdAt', 'DESC')
-      .offset(offset)
-      .limit(limit)
-      .getRawMany();
+    const postsQuery = `
+      SELECT DISTINCT
+        p.id AS id,
+        p.imageUrl AS imageUrl,
+        p.videoUrl AS videoUrl,
+        p.previewImageUrl AS previewImageUrl,
+        p.createdAt AS createdAt,
+        u.id AS userId,
+        u.nickname AS username,
+        t.id AS tagId,
+        CONCAT('#', t.name) AS tagName,
+        (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS likeCount,
+        (SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id) AS viewCount,
+        CASE 
+          WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ${userId || 0}) 
+          THEN TRUE 
+          ELSE FALSE 
+        END AS isLiked,
+        CASE 
+          WHEN EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ${userId || 0}) 
+          THEN TRUE 
+          ELSE FALSE 
+        END AS isViewed,
+        p.generationParams AS generationParams,
+        p.isPublished AS isPublished
+      FROM posts p
+      JOIN users u ON p.userId = u.id
+      JOIN tags t ON p.tagId = t.id
+      WHERE t.id = ? 
+        AND p.isPublished = true
+        AND p.isBlocked = false
+        AND p.isRejected = false
+      ORDER BY p.createdAt DESC
+      LIMIT ? OFFSET ?
+    `;
 
-    const totalQuery = this.postEntity
-      .createQueryBuilder('post')
-      .where('post.tagId = :tagId', { tagId })
-      .getCount();
+    const totalQuery = `
+      SELECT COUNT(*) AS total
+      FROM posts p
+      WHERE p.tagId = ? 
+        AND p.isPublished = true
+        AND p.isBlocked = false
+        AND p.isRejected = false
+    `;
 
-    const [posts, total] = await Promise.all([postsQuery, totalQuery]);
+    const [posts, totalResult] = await Promise.all([
+      this.postEntity.query(postsQuery, [tagId, limit, offset]),
+      this.postEntity.query(totalQuery, [tagId]),
+    ]);
 
+    const total = parseInt(totalResult[0]?.total || '0', 10);
+    
+    // Normalize generationParams
     const normalizedPosts = posts.map((post) => ({
       ...post,
-      post_generation_params: this.normalizeGenerationParams(post.post_generation_params),
+      generationParams: this.normalizeGenerationParams(post.generationParams),
     }));
 
     return {
@@ -282,68 +311,72 @@ export class PostService {
   async getUnpublishedPosts(userId: number) {
     const query = `
       SELECT 
-        p.id,
-        p.imageUrl,
-        p.videoUrl,
-        p.previewImageUrl,
-        p.createdAt,
-        p.updatedAt,
-        p.isPublished,
-        p.isSaved,
-        p.isBlocked,
-        p.isRejected,
-        p.isDelivered,
-        p.hasWonDailyReward,
-        p.generationParams,
-        p.tweetLink,
-        p.contestId,
-        p.tagId,
-        p.userId,
-        COALESCE(COUNT(DISTINCT l.id), 0) AS like_count
+        p.id AS id,
+        p.imageUrl AS imageUrl,
+        p.videoUrl AS videoUrl,
+        p.previewImageUrl AS previewImageUrl,
+        p.createdAt AS createdAt,
+        u.id AS userId,
+        u.nickname AS username,
+        t.id AS tagId,
+        CASE WHEN t.name IS NOT NULL THEN CONCAT('#', t.name) ELSE NULL END AS tagName,
+        COALESCE((SELECT COUNT(*) FROM likes WHERE postId = p.id), 0) AS likeCount,
+        COALESCE((SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id), 0) AS viewCount,
+        FALSE AS isLiked,
+        FALSE AS isViewed,
+        p.generationParams AS generationParams,
+        p.isPublished AS isPublished
       FROM posts p
-      LEFT JOIN likes l ON l.postId = p.id
+      LEFT JOIN users u ON p.userId = u.id
+      LEFT JOIN tags t ON p.tagId = t.id
       WHERE p.userId = ? AND p.isSaved = true AND p.isPublished = false
-      GROUP BY 
-        p.id, p.imageUrl, p.videoUrl, p.previewImageUrl, p.createdAt, p.updatedAt,
-        p.isPublished, p.isSaved, p.isBlocked, p.isRejected, p.isDelivered,
-        p.hasWonDailyReward, p.generationParams, p.tweetLink, p.contestId, p.tagId, p.userId
       ORDER BY p.createdAt DESC
     `;
 
-    return await this.postEntity.query(query, [userId]);
+    const posts = await this.postEntity.query(query, [userId]);
+    return posts.map((post) => ({
+      ...post,
+      generationParams: this.normalizeGenerationParams(post.generationParams),
+    }));
   }
   async getPublishedPosts(userId: number) {
     const query = `
       SELECT 
-        p.id,
-        p.imageUrl,
-        p.videoUrl,
-        p.previewImageUrl,
-        p.createdAt,
-        p.updatedAt,
-        p.isPublished,
-        p.isSaved,
-        p.isBlocked,
-        p.isRejected,
-        p.isDelivered,
-        p.hasWonDailyReward,
-        p.generationParams,
-        p.tweetLink,
-        p.contestId,
-        p.tagId,
-        p.userId,
-        COALESCE(COUNT(DISTINCT l.id), 0) AS like_count
+        p.id AS id,
+        p.imageUrl AS imageUrl,
+        p.videoUrl AS videoUrl,
+        p.previewImageUrl AS previewImageUrl,
+        p.createdAt AS createdAt,
+        u.id AS userId,
+        u.nickname AS username,
+        t.id AS tagId,
+        CASE WHEN t.name IS NOT NULL THEN CONCAT('#', t.name) ELSE NULL END AS tagName,
+        COALESCE((SELECT COUNT(*) FROM likes WHERE postId = p.id), 0) AS likeCount,
+        COALESCE((SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id), 0) AS viewCount,
+        CASE 
+          WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ?) 
+          THEN TRUE 
+          ELSE FALSE 
+        END AS isLiked,
+        CASE 
+          WHEN EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ?) 
+          THEN TRUE 
+          ELSE FALSE 
+        END AS isViewed,
+        p.generationParams AS generationParams,
+        p.isPublished AS isPublished
       FROM posts p
-      LEFT JOIN likes l ON l.postId = p.id
+      LEFT JOIN users u ON p.userId = u.id
+      LEFT JOIN tags t ON p.tagId = t.id
       WHERE p.userId = ? AND p.isPublished = true
-      GROUP BY 
-        p.id, p.imageUrl, p.videoUrl, p.previewImageUrl, p.createdAt, p.updatedAt,
-        p.isPublished, p.isSaved, p.isBlocked, p.isRejected, p.isDelivered,
-        p.hasWonDailyReward, p.generationParams, p.tweetLink, p.contestId, p.tagId, p.userId
       ORDER BY p.createdAt DESC
     `;
 
-    return await this.postEntity.query(query, [userId]);
+    const posts = await this.postEntity.query(query, [userId, userId, userId]);
+    return posts.map((post) => ({
+      ...post,
+      generationParams: this.normalizeGenerationParams(post.generationParams),
+    }));
   }
   async markAllAsUnviewed(userId: number) {
     const result = await this.viewedPostRepository.delete({

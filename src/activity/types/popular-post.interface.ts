@@ -15,15 +15,13 @@ export interface PopularPost {
   isRejected: boolean;
   isLiked: boolean;
   isViewed: boolean;
-  generation_params?: {
+  generationParams?: {
     prompt?: string;
-    ai_service?: string;
+    aiService?: string;
     orientation?: 'horizontal' | 'vertical';
-    style_id?: number;
-    color_id?: number;
     width?: number;
     height?: number;
-    negative_prompt?: string;
+    suggestedTags?: { id: number | null; name: string | null }[] | null;
   } | null;
 }
 

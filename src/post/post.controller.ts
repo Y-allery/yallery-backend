@@ -62,6 +62,7 @@ export class PostController {
   }
 
   @Get('get-posts-by-tag')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation(POST_SWAGGER.getPostsByTag)
   @ApiQuery({ name: 'page', required: true })
   @ApiQuery({ name: 'limit', required: true })
@@ -72,8 +73,9 @@ export class PostController {
     @Query('tagId') tagId: number,
     @Query('page') page: number,
     @Query('limit') limit: number,
+    @Req() req: AuthenticatedRequest,
   ): Promise<any> {
-    return this.postService.findPostsByTag(tagId, page, limit);
+    return this.postService.findPostsByTag(tagId, page, limit, req.user.id);
   }
 
   @Patch('publish/:id')
