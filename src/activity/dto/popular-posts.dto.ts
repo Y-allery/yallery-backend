@@ -11,6 +11,9 @@ export class PopularPostDto implements PopularPost {
   @ApiProperty({ description: 'Video URL', nullable: true })
   videoUrl: string | null;
 
+  @ApiProperty({ description: 'Preview image URL', nullable: true })
+  previewImageUrl: string | null;
+
   @ApiProperty({ description: 'Number of likes' })
   likeCount: number;
 

@@ -2,6 +2,7 @@ export interface PopularPost {
   id: number;
   imageUrl: string | null;
   videoUrl: string | null;
+  previewImageUrl: string | null;
   likeCount: number;
   viewCount: number;
   createdAt: Date;
