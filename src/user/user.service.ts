@@ -477,11 +477,25 @@ export class UserService {
       });
 
       for (const deviceToken of deviceTokens) {
-        await this.firebaseService.sendNotification(
-          deviceToken.token,
-          title,
-          body,
-        );
+        try {
+          const result = await this.firebaseService.sendNotification(
+            deviceToken.token,
+            title,
+            body,
+          );
+          
+          // Якщо токен невалідний - видаляємо його з бази
+          if (!result.success && result.isInvalidToken) {
+            console.log(`🗑️ Removing invalid token for user ${userId} (token: ${deviceToken.token.substring(0, 10)}...)`);
+            try {
+              await this.deviceTokenModel.remove(deviceToken);
+            } catch (removeError) {
+              console.error(`❌ Failed to remove invalid token:`, removeError.message);
+            }
+          }
+        } catch (error) {
+          console.error(`❌ Failed to send notification to token:`, error.message);
+        }
       }
     }
   }

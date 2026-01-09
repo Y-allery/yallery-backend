@@ -11,6 +11,7 @@ import { ContestEntity } from './entity/contest.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { UserService } from 'src/user/user.service';
+import { DeviceTokenEntity } from 'src/user/entities/device-token.entity';
 import { CreateContestDto } from 'src/admin/dto/create-contest.dto';
 import { TagEntity } from 'src/tag/entities/tag.entity';
 import {
@@ -44,6 +45,8 @@ export class ContestService {
     private readonly postRepository: Repository<PostEntity>,
     @InjectRepository(TagEntity)
     private readonly tagRepository: Repository<TagEntity>,
+    @InjectRepository(DeviceTokenEntity)
+    private readonly deviceTokenModel: Repository<DeviceTokenEntity>,
     private readonly userService: UserService,
     private readonly activityService: ActivityService,
     private readonly firebaseService: FirebaseService,
@@ -557,15 +560,27 @@ export class ContestService {
           if (user.deviceTokens && user.deviceTokens.length > 0) {
             const deviceTokenPromises = user.deviceTokens.map(async (deviceToken) => {
               try {
-                await this.firebaseService.sendNotification(
+                const result = await this.firebaseService.sendNotification(
                   deviceToken.token,
                   title,
                   body,
                 );
-                return { success: true };
+                
+                // Якщо токен невалідний - видаляємо його з бази
+                if (!result.success && result.isInvalidToken) {
+                  console.log(`🗑️ Removing invalid token for user ${user.id} (token: ${deviceToken.token.substring(0, 10)}...)`);
+                  try {
+                    await this.deviceTokenModel.remove(deviceToken);
+                  } catch (removeError) {
+                    console.error(`❌ Failed to remove invalid token:`, removeError.message);
+                  }
+                  return { success: false, removed: true };
+                }
+                
+                return { success: result.success };
               } catch (deviceError) {
                 console.error(`❌ Push notification failed for user ${user.id}:`, deviceError.message);
-                  return { success: false };
+                return { success: false };
               }
             });
             

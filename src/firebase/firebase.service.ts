@@ -34,7 +34,23 @@ export class FirebaseService implements OnModuleInit {
       return { success: true, response };
     } catch (error) {
       console.error(`❌ Firebase notification failed for token: ${token.substring(0, 10)}...`, error.message);
-      return { success: false, error };
+      
+      // Перевіряємо, чи токен невалідний
+      const errorCode = error.code || '';
+      const errorMessage = error.message || '';
+      const isInvalidToken = 
+        errorCode === 'messaging/registration-token-not-registered' ||
+        errorCode === 'messaging/invalid-registration-token' ||
+        errorMessage.includes('Requested entity was not found') ||
+        errorMessage.includes('UNREGISTERED') ||
+        errorMessage.includes('registration-token-not-registered') ||
+        errorMessage.includes('invalid-registration-token');
+      
+      return { 
+        success: false, 
+        error,
+        isInvalidToken,
+      };
     }
   }
 }

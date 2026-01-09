@@ -12,6 +12,7 @@ import { ActivityModule } from 'src/activity/activity.module';
 import { FirebaseModule } from 'src/firebase/firebase.module';
 import { RedisService } from 'src/database/redis.service.connect';
 import { RewardModule } from 'src/reward/reward.module';
+import { DeviceTokenEntity } from 'src/user/entities/device-token.entity';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { RewardModule } from 'src/reward/reward.module';
       UserEntity,
       PostEntity,
       TagEntity,
+      DeviceTokenEntity,
     ]),
     UserModule,
     NotificationModule,
