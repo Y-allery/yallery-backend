@@ -22,7 +22,14 @@ export class UploadService {
       const workerPath = path.resolve(__dirname, 'image-worker.js');
       const worker = new Worker(workerPath);
 
-      worker.postMessage({ buffer, mimetype });
+      // Передаємо конфігурацію Cloudinary з основного процесу
+      const cloudinaryConfig = {
+        cloud_name: this.configService.get('CLOUDINARY_CLOUD_NAME'),
+        api_key: this.configService.get('CLOUDINARY_API_KEY'),
+        api_secret: this.configService.get('CLOUDINARY_API_SECRET'),
+      };
+
+      worker.postMessage({ buffer, mimetype, cloudinaryConfig });
 
       worker.on('message', (message) => {
         if (message.success) {

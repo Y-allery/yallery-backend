@@ -1,21 +1,37 @@
 import { parentPort } from 'worker_threads';
 import { v2 as cloudinary } from 'cloudinary';
-import { ConfigService } from '@nestjs/config';
 import * as streamifier from 'streamifier';
-
-const configService = new ConfigService();
-
-cloudinary.config({
-  cloud_name: configService.get<string>('CLOUDINARY_CLOUD_NAME'),
-  api_key: configService.get<string>('CLOUDINARY_API_KEY'),
-  api_secret: configService.get<string>('CLOUDINARY_API_SECRET'),
-});
 
 parentPort?.on(
   'message',
-  async (data: { buffer: Buffer; mimetype: string }) => {
-    const { buffer } = data;
+  async (data: { 
+    buffer: Buffer; 
+    mimetype: string; 
+    cloudinaryConfig: { 
+      cloud_name: string; 
+      api_key: string; 
+      api_secret: string;
+    };
+  }) => {
+    const { buffer, cloudinaryConfig } = data;
+    
+    // Перевіряємо конфігурацію
+    if (!cloudinaryConfig || !cloudinaryConfig.cloud_name) {
+      parentPort?.postMessage({
+        success: false,
+        error: 'Cloudinary configuration is missing or invalid',
+      });
+      return;
+    }
+
     try {
+      // Налаштовуємо Cloudinary з переданої конфігурації
+      cloudinary.config({
+        cloud_name: cloudinaryConfig.cloud_name,
+        api_key: cloudinaryConfig.api_key,
+        api_secret: cloudinaryConfig.api_secret,
+      });
+
       const uploadStream = cloudinary.uploader.upload_stream(
         { folder: 'octoai_images' },
         (error, result) => {
