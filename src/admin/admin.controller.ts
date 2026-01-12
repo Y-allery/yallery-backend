@@ -36,6 +36,7 @@ import { PaginatioDto } from 'src/common/dto/pagination.dto';
 import { CreatePartnershipDto } from './dto/create.refferal.dto';
 import { ForceStartContestDto } from './dto/force-start-contest.dto';
 import { UpdateAISettingsDto } from './dto/update-ai-settings.dto';
+import { BroadcastNotificationDto } from './dto/broadcast-notification.dto';
 @Controller('admin')
 @ApiTags('Admin')
 @UseGuards(JwtAuthGuard, RoleGuard)
@@ -502,5 +503,33 @@ export class AdminController {
   })
   async getAdminMetricsOverview() {
     return this.adminService.getAdminMetricsOverview();
+  }
+
+  @Post('broadcast-notification')
+  @ApiOperation({
+    summary: 'Broadcast notification to all users',
+    description:
+      'Sends push notifications or email notifications to all verified users. ' +
+      'Notifications are sent in batches to prevent system overload. ' +
+      'Event loop is preserved with delays between batches.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Notification broadcast started successfully.',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        type: { type: 'string', enum: ['push', 'email'] },
+        totalProcessed: { type: 'number' },
+        totalSuccess: { type: 'number' },
+        totalErrors: { type: 'number' },
+        message: { type: 'string' },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Bad request - invalid input' })
+  async broadcastNotification(@Body() dto: BroadcastNotificationDto) {
+    return this.adminService.broadcastNotification(dto);
   }
 }

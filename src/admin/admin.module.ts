@@ -19,6 +19,9 @@ import { LikeEntity } from 'src/like/entities/like.entity';
 import { PaymentEntity } from 'src/payment/entities/payment.entity';
 import { RewardModule } from 'src/reward/reward.module';
 import { ContestEntity } from 'src/contest/entity/contest.entity';
+import { FirebaseModule } from 'src/firebase/firebase.module';
+import { MailModule } from 'src/mail/mail.module';
+import { DeviceTokenEntity } from 'src/user/entities/device-token.entity';
 
 @Module({
   imports: [
@@ -33,6 +36,7 @@ import { ContestEntity } from 'src/contest/entity/contest.entity';
       LikeEntity,
       PaymentEntity,
       ContestEntity,
+      DeviceTokenEntity,
     ]),
     ContestModule,
     UserModule,
@@ -40,6 +44,8 @@ import { ContestEntity } from 'src/contest/entity/contest.entity';
     TagModule,
     ActivityModule,
     RewardModule,
+    FirebaseModule,
+    MailModule,
   ],
   providers: [AdminService],
   controllers: [AdminController, PartnerController],
