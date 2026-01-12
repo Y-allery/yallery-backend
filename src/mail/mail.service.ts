@@ -41,4 +41,15 @@ export class MailService {
     };
     await sgMail.send(msg);
   }
+
+  async sendBroadcastEmail(to: string, subject: string, body: string) {
+    const msg = {
+      to,
+      from: { email: process.env.SENDGRID_FROM_EMAIL, name: 'Yallery team' },
+      subject,
+      text: body,
+      html: `<p>${body.replace(/\n/g, '<br>')}</p>`,
+    };
+    await sgMail.send(msg);
+  }
 }
