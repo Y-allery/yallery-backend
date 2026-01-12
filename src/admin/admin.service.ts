@@ -48,10 +48,6 @@ import { FirebaseService } from 'src/firebase/firebase.service';
 import { MailService } from 'src/mail/mail.service';
 import { DeviceTokenEntity } from 'src/user/entities/device-token.entity';
 import { BroadcastNotificationDto, NotificationType } from './dto/broadcast-notification.dto';
-import { FirebaseService } from 'src/firebase/firebase.service';
-import { MailService } from 'src/mail/mail.service';
-import { DeviceTokenEntity } from 'src/user/entities/device-token.entity';
-import { BroadcastNotificationDto, NotificationType } from './dto/broadcast-notification.dto';
 
 @Injectable()
 export class AdminService {
@@ -1233,7 +1229,6 @@ export class AdminService {
 
     return await this.aiSettingsRepository.save(aiSetting);
   }
-}
 
   async broadcastNotification(dto: BroadcastNotificationDto) {
     const { type, title, body, emailSubject } = dto;
