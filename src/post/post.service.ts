@@ -269,6 +269,23 @@ export class PostService {
       throw new ForbiddenException('You are not allowed to publish this post');
     }
 
+    // Якщо є contest_id і у контесту є tag, встановлюємо tag з контесту
+    if (post.contest && !post.tag) {
+      try {
+        const contest = await this.contestService.findContestById(post.contest.id);
+        if (contest && contest.tag) {
+          post.tag = contest.tag;
+          console.log(`[publishPost] Setting tag from contest:`, { 
+            postId, 
+            contestId: post.contest.id, 
+            tagId: contest.tag.id 
+          });
+        }
+      } catch (error) {
+        console.warn(`[publishPost] Failed to load contest tag:`, error.message);
+      }
+    }
+
     if (!post?.tag?.id) {
       console.error(`[publishPost] No tag selected:`, { postId, userId });
       throw new BadRequestException('Select tag first');
