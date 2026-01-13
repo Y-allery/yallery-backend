@@ -6,6 +6,7 @@ import { UserRewardEntity } from './entities/user-reward.entity';
 import { RewardTypeEnum } from './types/reward-type.enum';
 import { UpdateRewardDto } from './dto/update-reward.dto';
 import { UserService } from 'src/user/user.service';
+import { NotificationGateway } from 'src/notification/notification.gateway';
 
 @Injectable()
 export class RewardService {
@@ -37,6 +38,7 @@ export class RewardService {
     private readonly userRewardRepository: Repository<UserRewardEntity>,
     @Inject(forwardRef(() => UserService))
     private readonly userService: UserService,
+    private readonly notificationGateway: NotificationGateway,
   ) {}
 
   async getAllRewards(): Promise<{
@@ -48,16 +50,16 @@ export class RewardService {
       .createQueryBuilder('reward')
       .select([
         'reward.id',
-        'reward.reward_type',
+        'reward.rewardType',
         'reward.points',
         'reward.description',
         'reward.isActive',
-        'reward.is_daily',
+        'reward.isDaily',
         'reward.createdAt',
         'reward.updatedAt',
       ])
-      .where('reward.reward_type NOT IN (:...excluded)', { excluded: this.excludedRewardTypes })
-      .orderBy('reward.reward_type', 'ASC')
+      .where('reward.rewardType NOT IN (:...excluded)', { excluded: this.excludedRewardTypes })
+      .orderBy('reward.rewardType', 'ASC')
       .getMany();
 
     const daily: RewardEntity[] = [];
@@ -65,9 +67,9 @@ export class RewardService {
     const other: RewardEntity[] = [];
 
     for (const reward of allRewards) {
-      if (reward.is_daily) {
+      if (reward.isDaily) {
         daily.push(reward);
-      } else if (this.oneTimeRewardTypes.includes(reward.reward_type as RewardTypeEnum)) {
+      } else if (this.oneTimeRewardTypes.includes(reward.rewardType as RewardTypeEnum)) {
         oneTime.push(reward);
       } else {
         other.push(reward);
@@ -86,15 +88,15 @@ export class RewardService {
       .createQueryBuilder('reward')
       .select([
         'reward.id',
-        'reward.reward_type',
+        'reward.rewardType',
         'reward.points',
         'reward.description',
         'reward.isActive',
-        'reward.is_daily',
+        'reward.isDaily',
         'reward.createdAt',
         'reward.updatedAt',
       ])
-      .where('reward.reward_type = :rewardType', { rewardType })
+      .where('reward.rewardType = :rewardType', { rewardType })
       .andWhere('reward.isActive = :isActive', { isActive: true })
       .getOne();
   }
@@ -114,15 +116,15 @@ export class RewardService {
       .createQueryBuilder('reward')
       .select([
         'reward.id',
-        'reward.reward_type',
+        'reward.rewardType',
         'reward.points',
         'reward.description',
         'reward.isActive',
-        'reward.is_daily',
+        'reward.isDaily',
         'reward.createdAt',
         'reward.updatedAt',
       ])
-      .where('reward.reward_type = :rewardType', { rewardType })
+      .where('reward.rewardType = :rewardType', { rewardType })
       .andWhere('reward.isActive = :isActive', { isActive: true })
       .getOne();
   }
@@ -135,15 +137,15 @@ export class RewardService {
       .createQueryBuilder('reward')
       .select([
         'reward.id',
-        'reward.reward_type',
+        'reward.rewardType',
         'reward.points',
         'reward.description',
         'reward.isActive',
-        'reward.is_daily',
+        'reward.isDaily',
         'reward.createdAt',
         'reward.updatedAt',
       ])
-      .where('reward.reward_type = :rewardType', { rewardType })
+      .where('reward.rewardType = :rewardType', { rewardType })
       .getOne();
 
     if (!reward) {
@@ -252,15 +254,15 @@ export class RewardService {
       .createQueryBuilder('reward')
       .select([
         'reward.id',
-        'reward.reward_type',
+        'reward.rewardType',
         'reward.points',
         'reward.description',
         'reward.isActive',
-        'reward.is_daily',
+        'reward.isDaily',
         'reward.createdAt',
         'reward.updatedAt',
       ])
-      .where('reward.reward_type IN (:...types)', { types: this.claimableRewardTypes })
+      .where('reward.rewardType IN (:...types)', { types: this.claimableRewardTypes })
       .andWhere('reward.isActive = :isActive', { isActive: true })
       .getMany();
 
@@ -281,18 +283,18 @@ export class RewardService {
     const oneTime = [];
 
     for (const reward of rewards) {
-      const userReward = userRewardsMap.get(reward.reward_type as RewardTypeEnum);
+      const userReward = userRewardsMap.get(reward.rewardType as RewardTypeEnum);
       const dto = {
-        rewardType: reward.reward_type as RewardTypeEnum,
+        rewardType: reward.rewardType as RewardTypeEnum,
         reward,
         isEligible: !!userReward,
         isClaimed: !!userReward?.claimedDate,
         eligibleDate: userReward?.eligibleDate || null,
         claimedDate: userReward?.claimedDate || null,
-        isDaily: !!reward.is_daily,
+        isDaily: !!reward.isDaily,
       };
 
-      if (reward.is_daily) {
+      if (reward.isDaily) {
         daily.push(dto);
       } else {
         oneTime.push(dto);
@@ -324,15 +326,15 @@ export class RewardService {
       .createQueryBuilder('reward')
       .select([
         'reward.id',
-        'reward.reward_type',
+        'reward.rewardType',
         'reward.points',
         'reward.description',
         'reward.isActive',
-        'reward.is_daily',
+        'reward.isDaily',
         'reward.createdAt',
         'reward.updatedAt',
       ])
-      .where('reward.reward_type = :rewardType', { rewardType: RewardTypeEnum.REGISTRATION_REWARD })
+      .where('reward.rewardType = :rewardType', { rewardType: RewardTypeEnum.REGISTRATION_REWARD })
       .andWhere('reward.isActive = :isActive', { isActive: true })
       .getOne();
 
@@ -350,6 +352,7 @@ export class RewardService {
 
     if (reward.points && reward.points > 0) {
       await this.userService.incrementUserPoints(userId, reward.points);
+      await this.notificationGateway.emitProfileUpdate(userId.toString());
     }
 
     await this.userRewardRepository.save(claimed);
@@ -426,6 +429,7 @@ export class RewardService {
 
     // Add points
     await this.userService.incrementUserPoints(userId, points);
+    await this.notificationGateway.emitProfileUpdate(userId.toString());
 
     const todayDate = new Date();
     todayDate.setHours(0, 0, 0, 0);

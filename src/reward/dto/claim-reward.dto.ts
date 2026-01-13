@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { RewardTypeEnum } from '../types/reward-type.enum';
+import { RewardEntity } from '../entities/reward.entity';
 
 export class ClaimRewardResponseDto {
   @ApiProperty({
@@ -32,14 +33,7 @@ export class AvailableRewardDto {
   @ApiProperty({
     description: 'Reward details',
   })
-  reward: {
-    id: number;
-    reward_type: string;
-    points: number;
-    description: string | null;
-    is_active: boolean;
-    is_daily: boolean;
-  };
+  reward: RewardEntity;
 
   @ApiProperty({
     description: 'Whether this reward is daily (claimable once per day)',

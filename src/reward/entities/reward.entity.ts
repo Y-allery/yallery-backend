@@ -13,9 +13,9 @@ export class RewardEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', unique: true })
+  @Column({ type: 'varchar', unique: true, name: 'reward_type' })
   @Index()
-  reward_type: RewardTypeEnum;
+  rewardType: RewardTypeEnum;
 
   @Column({ type: 'int' })
   points: number;
@@ -28,8 +28,8 @@ export class RewardEntity {
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
 
-  @Column({ type: 'boolean', default: false })
-  is_daily: boolean;
+  @Column({ type: 'boolean', default: false, name: 'is_daily' })
+  isDaily: boolean;
 
   @CreateDateColumn()
   createdAt: Date;
