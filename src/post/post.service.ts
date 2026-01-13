@@ -247,6 +247,8 @@ export class PostService {
       relations: { user: true, contest: true, tag: true },
       select: {
         id: true,
+        imageUrl: true,
+        videoUrl: true,
         user: { id: true },
         contest: { id: true },
         tag: { id: true },
@@ -304,10 +306,11 @@ export class PostService {
       
       // Відмічаємо доступність нагороди за публікацію
       try {
-        if (savedPost.videoUrl) {
+        // IMPORTANT: use the loaded `post` fields; `save()` won't populate non-selected columns.
+        if (post.videoUrl) {
           // Це відео пост
           await this.rewardService.markRewardEligible(userId, RewardTypeEnum.POST_VIDEO_REWARD);
-        } else if (savedPost.imageUrl) {
+        } else if (post.imageUrl) {
           // Це фото пост
           await this.rewardService.markRewardEligible(userId, RewardTypeEnum.POST_PHOTO_REWARD);
         }
