@@ -435,11 +435,6 @@ export class ActivityService {
     return this.rewardService.hasClaimedRewardToday(userId, RewardTypeEnum.DAILY_LOGIN);
   }
 
-  async claimDailyReward(userId: number): Promise<{ success: boolean; message: string; pointsAwarded: number }> {
-    // Використовуємо нову систему клеймування нагород
-    return this.rewardService.claimReward(userId, RewardTypeEnum.DAILY_LOGIN);
-  }
-
   async getPopularPosts(userId: number): Promise<PopularPostsResponse> {
     try {
     const today = new Date();

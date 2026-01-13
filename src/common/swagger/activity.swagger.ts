@@ -41,25 +41,6 @@ export const ACTIVITY_SWAGGER = {
       success: { status: 200, description: 'Activity types retrieved successfully' }
     }
   },
-  claimDailyReward: {
-    summary: 'Claim daily reward',
-    description: `Claim the daily login reward. Available once per day. Returns credits or other rewards based on the reward system.`,
-    responses: {
-      success: { 
-        status: 200, 
-        description: 'Daily reward claimed successfully',
-        schema: {
-          type: 'object',
-          properties: {
-            claimed: { type: 'boolean' },
-            reward: { type: 'number' },
-            message: { type: 'string' }
-          }
-        }
-      },
-      badRequest: { status: 400, description: 'Reward already claimed today' }
-    }
-  },
   getPopularPosts: {
     summary: 'Get popular posts',
     description: `Retrieve the 6 most popular posts based on likes and views. Used for showcasing trending content.`,

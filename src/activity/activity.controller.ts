@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Query, Req, UseGuards, Post, Patch, Body } from '@nestjs/common';
+import { Controller, Get, Put, Query, Req, UseGuards, Patch, Body } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { ActivityService } from './activity.service';
 import { AuthenticatedRequest } from 'src/auth/types/auth.user.interface';
@@ -6,7 +6,6 @@ import { ApiOperation, ApiQuery, ApiResponse, ApiTags, ApiBody } from '@nestjs/s
 import { ACTIVITY_SWAGGER } from 'src/common/swagger';
 import { ActivityEntity } from './entities/activity.entity';
 import { ActivityEnum } from './types/activity.enum';
-import { ClaimDailyRewardResponseDto } from './dto/claim-daily-reward.dto';
 import { PopularPostsResponseDto } from './dto/popular-posts.dto';
 import { MarkViewedDto } from '../post/dto/mark.viewed.dto';
 
@@ -93,16 +92,6 @@ export class ActivityController {
       ActivityEnum.LIKE_EARN,
       ActivityEnum.LIKE_SPEND,
     ]);
-  }
-
-  @Post('claim-daily-reward')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation(ACTIVITY_SWAGGER.claimDailyReward)
-  @ApiResponse(ACTIVITY_SWAGGER.claimDailyReward.responses.success)
-  @ApiResponse(ACTIVITY_SWAGGER.claimDailyReward.responses.badRequest)
-  async claimDailyReward(@Req() req: AuthenticatedRequest): Promise<ClaimDailyRewardResponseDto> {
-    const userId = req.user.id;
-    return await this.activityService.claimDailyReward(userId);
   }
 
   @Get('popular-posts')

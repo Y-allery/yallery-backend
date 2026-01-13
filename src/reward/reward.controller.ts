@@ -1,5 +1,5 @@
 import { Controller, Get, Put, Post, Param, Body, UseGuards, NotFoundException, Req } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { RewardService } from './reward.service';
 import { RewardTypeEnum } from './types/reward-type.enum';
 import { UpdateRewardDto } from './dto/update-reward.dto';
@@ -41,24 +41,13 @@ export class RewardController {
   }
 
   @Get()
-  @ApiOperation({ 
-    summary: 'Get all rewards', 
-    description: 'Retrieve all reward types grouped by daily/one-time/other with their point values' 
-  })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Rewards grouped by type',
-    type: GetAllRewardsResponseDto,
-  })
+  @ApiExcludeEndpoint()
   async getAllRewards(): Promise<GetAllRewardsResponseDto> {
     return this.rewardService.getAllRewards();
   }
 
   @Get(':rewardType')
-  @ApiOperation({ summary: 'Get reward by type', description: 'Retrieve a specific reward type (Payment rewards are not available via GET)' })
-  @ApiParam({ name: 'rewardType', enum: RewardTypeEnum, description: 'Type of reward' })
-  @ApiResponse({ status: 200, description: 'Reward details' })
-  @ApiResponse({ status: 404, description: 'Reward not found' })
+  @ApiExcludeEndpoint()
   async getRewardByType(@Param('rewardType') rewardType: RewardTypeEnum) {
     const reward = await this.rewardService.getRewardByType(rewardType);
     if (!reward) {
@@ -99,11 +88,7 @@ export class RewardController {
 
   @Put(':rewardType')
   @Roles(RoleEnum.ADMIN)
-  @ApiOperation({ summary: 'Update reward', description: 'Update points, description, or active status of a reward (Admin only)' })
-  @ApiParam({ name: 'rewardType', enum: RewardTypeEnum, description: 'Type of reward to update' })
-  @ApiBody({ type: UpdateRewardDto })
-  @ApiResponse({ status: 200, description: 'Reward updated successfully' })
-  @ApiResponse({ status: 404, description: 'Reward not found' })
+  @ApiExcludeEndpoint()
   async updateReward(
     @Param('rewardType') rewardType: RewardTypeEnum,
     @Body() updateDto: UpdateRewardDto,
