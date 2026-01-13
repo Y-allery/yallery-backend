@@ -95,7 +95,7 @@ export class RewardService {
         'reward.updatedAt',
       ])
       .where('reward.reward_type = :rewardType', { rewardType })
-      .andWhere('reward.is_active = :isActive', { isActive: true })
+      .andWhere('reward.isActive = :isActive', { isActive: true })
       .getOne();
   }
 
@@ -123,7 +123,7 @@ export class RewardService {
         'reward.updatedAt',
       ])
       .where('reward.reward_type = :rewardType', { rewardType })
-      .andWhere('reward.is_active = :isActive', { isActive: true })
+      .andWhere('reward.isActive = :isActive', { isActive: true })
       .getOne();
   }
 
@@ -261,7 +261,7 @@ export class RewardService {
         'reward.updatedAt',
       ])
       .where('reward.reward_type IN (:...types)', { types: this.claimableRewardTypes })
-      .andWhere('reward.is_active = :isActive', { isActive: true })
+      .andWhere('reward.isActive = :isActive', { isActive: true })
       .getMany();
 
     // Fetch user reward entries for today
@@ -333,7 +333,7 @@ export class RewardService {
         'reward.updatedAt',
       ])
       .where('reward.reward_type = :rewardType', { rewardType: RewardTypeEnum.REGISTRATION_REWARD })
-      .andWhere('reward.is_active = :isActive', { isActive: true })
+      .andWhere('reward.isActive = :isActive', { isActive: true })
       .getOne();
 
     if (!reward) {
