@@ -266,26 +266,44 @@ export class RewardService {
       .andWhere('reward.isActive = :isActive', { isActive: true })
       .getMany();
 
-    // Fetch user reward entries for today
-    const userRewards = await this.userRewardRepository.find({
+    // Daily rewards: eligibility is day-bound (today)
+    const dailyUserRewards = await this.userRewardRepository.find({
       where: {
         userId,
-        rewardType: In(this.claimableRewardTypes),
+        rewardType: In(
+          this.claimableRewardTypes.filter(
+            (t) => !this.oneTimeRewardTypes.includes(t),
+          ),
+        ),
         eligibleDate: today,
       },
     });
 
-    const userRewardsMap = new Map(
-      userRewards.map((ur) => [ur.rewardType, ur]),
+    // One-time rewards: eligibility is not day-bound
+    const oneTimeUserRewards = await this.userRewardRepository.find({
+      where: {
+        userId,
+        rewardType: In(this.oneTimeRewardTypes),
+      },
+    });
+
+    const dailyRewardsMap = new Map(
+      dailyUserRewards.map((ur) => [ur.rewardType, ur]),
+    );
+    const oneTimeRewardsMap = new Map(
+      oneTimeUserRewards.map((ur) => [ur.rewardType, ur]),
     );
 
     const daily = [];
     const oneTime = [];
 
     for (const reward of rewards) {
-      const userReward = userRewardsMap.get(reward.rewardType as RewardTypeEnum);
+      const key = reward.rewardType as RewardTypeEnum;
+      const userReward = reward.isDaily
+        ? dailyRewardsMap.get(key)
+        : oneTimeRewardsMap.get(key);
       const dto = {
-        rewardType: reward.rewardType as RewardTypeEnum,
+        rewardType: key,
         reward,
         isEligible: !!userReward,
         isClaimed: !!userReward?.claimedDate,
@@ -369,16 +387,22 @@ export class RewardService {
       return false;
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const userReward = await this.userRewardRepository.findOne({
-      where: {
-        userId,
-        rewardType,
-        eligibleDate: today,
-      },
-    });
+    // One-time rewards: eligibility is not day-bound
+    const userReward = this.oneTimeRewardTypes.includes(rewardType)
+      ? await this.userRewardRepository.findOne({
+          where: { userId, rewardType },
+        })
+      : await this.userRewardRepository.findOne({
+          where: {
+            userId,
+            rewardType,
+            eligibleDate: (() => {
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              return today;
+            })(),
+          },
+        });
 
     return !!userReward && !userReward.claimedDate;
   }
@@ -396,17 +420,22 @@ export class RewardService {
       );
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
     // Check availability
-    const userReward = await this.userRewardRepository.findOne({
-      where: {
-        userId,
-        rewardType,
-        eligibleDate: today,
-      },
-    });
+    const userReward = this.oneTimeRewardTypes.includes(rewardType)
+      ? await this.userRewardRepository.findOne({
+          where: { userId, rewardType },
+        })
+      : await this.userRewardRepository.findOne({
+          where: {
+            userId,
+            rewardType,
+            eligibleDate: (() => {
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              return today;
+            })(),
+          },
+        });
 
     if (!userReward) {
       return {
@@ -419,7 +448,9 @@ export class RewardService {
     if (userReward.claimedDate) {
       return {
         success: false,
-        message: `Reward ${rewardType} has already been claimed today.`,
+        message: this.oneTimeRewardTypes.includes(rewardType)
+          ? `Reward ${rewardType} has already been claimed.`
+          : `Reward ${rewardType} has already been claimed today.`,
         pointsAwarded: 0,
       };
     }
@@ -431,9 +462,9 @@ export class RewardService {
     await this.userService.incrementUserPoints(userId, points);
     await this.notificationGateway.emitProfileUpdate(userId.toString());
 
-    const todayDate = new Date();
-    todayDate.setHours(0, 0, 0, 0);
-    userReward.claimedDate = todayDate;
+    const claimedDate = new Date();
+    claimedDate.setHours(0, 0, 0, 0);
+    userReward.claimedDate = claimedDate;
     userReward.pointsAwarded = points;
     await this.userRewardRepository.save(userReward);
 
@@ -451,16 +482,21 @@ export class RewardService {
     userId: number,
     rewardType: RewardTypeEnum,
   ): Promise<boolean> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const userReward = await this.userRewardRepository.findOne({
-      where: {
-        userId,
-        rewardType,
-        eligibleDate: today,
-      },
-    });
+    const userReward = this.oneTimeRewardTypes.includes(rewardType)
+      ? await this.userRewardRepository.findOne({
+          where: { userId, rewardType },
+        })
+      : await this.userRewardRepository.findOne({
+          where: {
+            userId,
+            rewardType,
+            eligibleDate: (() => {
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              return today;
+            })(),
+          },
+        });
 
     return !!userReward?.claimedDate;
   }
