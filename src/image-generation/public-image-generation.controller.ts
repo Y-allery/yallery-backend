@@ -4,6 +4,7 @@ import { ImageGenerationService } from './image-generation.service';
 import {
   PublicFineTuneGenerateRequestDto,
   PublicFineTuneGenerateResponseDto,
+  PublicFineTunePresetEnum,
 } from './dto/public-finetune-generate.dto';
 
 @ApiTags('Public Image Generation')
@@ -13,12 +14,13 @@ export class PublicImageGenerationController {
 
   @Post('fine-tune/generate')
   @ApiOperation({
-    summary: 'Generate images (public, no auth, no credits) using a fixed fine-tune token',
+    summary: 'Generate images (public, no auth, no credits) using a selected fine-tune preset',
     description: [
       'This endpoint is **public** (no JWT required) and does **not** charge user credits.',
       '',
-      'It always uses the fixed fine-tune token on the backend:',
-      '`fca9b669-380a-4d5e-873b-ac0b116c82a0`',
+      'It uses a fine-tune token based on the `preset` selector:',
+      `- \`xoob\` → \`fca9b669-380a-4d5e-873b-ac0b116c82a0\``,
+      `- \`nomisma\` → \`62a50ee2-5e66-4fe2-ad6b-64cead6834e8\``,
       '',
       'The request accepts only a prompt and number of images. The response returns the generated image URLs (uploaded to Cloudinary) directly in HTTP.',
       '',
@@ -44,6 +46,7 @@ export class PublicImageGenerationController {
     const result = await this.imageGenerationService.generateFineTuneImagesPublic(
       dto.prompt,
       dto.imageQuantity,
+      dto.preset ?? PublicFineTunePresetEnum.XOOB,
     );
 
     return {

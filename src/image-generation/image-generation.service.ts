@@ -12,6 +12,7 @@ import { UploadService } from 'src/upload/upload.service';
 import { GenerateImageDto } from './dto/generate.image.dto';
 import { EditImageDto } from './dto/edit-image.dto';
 import { AIEnum } from 'src/common/enums/ai.enum';
+import { PublicFineTunePresetEnum } from './dto/public-finetune-generate.dto';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TagEntity } from 'src/tag/entities/tag.entity';
@@ -424,8 +425,15 @@ export class ImageGenerationService {
   async generateFineTuneImagesPublic(
     prompt: string,
     imageQuantity: number,
+    preset: PublicFineTunePresetEnum = PublicFineTunePresetEnum.XOOB,
   ): Promise<{ images: string[]; fineTuneToken: string; providerModel: string }> {
-    const FIXED_FINE_TUNE_TOKEN = 'fca9b669-380a-4d5e-873b-ac0b116c82a0';
+    const fineTuneTokenByPreset: Record<PublicFineTunePresetEnum, string> = {
+      [PublicFineTunePresetEnum.XOOB]:
+        'fca9b669-380a-4d5e-873b-ac0b116c82a0',
+      [PublicFineTunePresetEnum.NOMISMA]:
+        '62a50ee2-5e66-4fe2-ad6b-64cead6834e8',
+    };
+    const fineTuneToken = fineTuneTokenByPreset[preset] ?? fineTuneTokenByPreset[PublicFineTunePresetEnum.XOOB];
     let token: AiServiceToken;
 
     try {
@@ -467,7 +475,7 @@ export class ImageGenerationService {
       const generateMethod = fal.run.bind(fal, aiSetting.apiModel);
       const inputParams: any = {
         prompt: trimmedPrompt,
-        finetune_id: FIXED_FINE_TUNE_TOKEN,
+        finetune_id: fineTuneToken,
         output_format: 'jpeg',
         safety_tolerance: 2,
         num_images: imageQuantity,
@@ -495,7 +503,7 @@ export class ImageGenerationService {
 
       return {
         images: uploadResponses,
-        fineTuneToken: FIXED_FINE_TUNE_TOKEN,
+        fineTuneToken,
         providerModel: aiSetting.apiModel,
       };
     } catch (error) {

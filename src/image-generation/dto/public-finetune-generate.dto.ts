@@ -1,14 +1,35 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsString, Max, Min } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+
+export enum PublicFineTunePresetEnum {
+  XOOB = 'xoob',
+  NOMISMA = 'nomisma',
+}
 
 export class PublicFineTuneGenerateRequestDto {
   @ApiProperty({
     description:
-      'Prompt for the fine-tuned model. This endpoint always uses a fixed fine-tune token on the backend.',
+      'Prompt for the fine-tuned model. Fine-tune preset is selected via `preset`.',
     example: 'A cinematic portrait photo of a cyberpunk samurai, ultra-detailed, 85mm lens',
   })
   @IsString()
   prompt: string;
+
+  @ApiPropertyOptional({
+    description: [
+      'Fine-tune preset selector.',
+      '',
+      '**Available:**',
+      '- `xoob` → `fca9b669-380a-4d5e-873b-ac0b116c82a0`',
+      '- `nomisma` → `62a50ee2-5e66-4fe2-ad6b-64cead6834e8`',
+    ].join('\n'),
+    enum: PublicFineTunePresetEnum,
+    default: PublicFineTunePresetEnum.XOOB,
+    example: PublicFineTunePresetEnum.XOOB,
+  })
+  @IsOptional()
+  @IsEnum(PublicFineTunePresetEnum)
+  preset?: PublicFineTunePresetEnum;
 
   @ApiProperty({
     description: 'How many images to generate in a single request.',
@@ -37,7 +58,7 @@ export class PublicFineTuneGenerateResponseDto {
   images: string[];
 
   @ApiProperty({
-    description: 'Fine-tune token used for generation (fixed).',
+    description: 'Fine-tune token used for generation (selected by preset).',
     example: 'fca9b669-380a-4d5e-873b-ac0b116c82a0',
   })
   fineTuneToken: string;
