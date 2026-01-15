@@ -414,6 +414,105 @@ export class ImageGenerationService {
     }
   }
 
+  /**
+   * Public fine-tune generation:
+   * - no auth (controller-level)
+   * - no user / no credits charging
+   * - no DB writes
+   * - always uses fixed fine-tune token
+   */
+  async generateFineTuneImagesPublic(
+    prompt: string,
+    imageQuantity: number,
+  ): Promise<{ images: string[]; fineTuneToken: string; providerModel: string }> {
+    const FIXED_FINE_TUNE_TOKEN = 'fca9b669-380a-4d5e-873b-ac0b116c82a0';
+    let token: AiServiceToken;
+
+    try {
+      const trimmedPrompt = (prompt || '').trim();
+      if (!trimmedPrompt) {
+        throw new BadRequestException('prompt is required');
+      }
+
+      const aiSetting = await this.getAISetting(AIEnum.FLUX_PRO_FINE_TUNE);
+      if (!aiSetting || !aiSetting.apiModel) {
+        throw new BadRequestException(
+          `AI service ${AIEnum.FLUX_PRO_FINE_TUNE} not found or apiModel not configured`,
+        );
+      }
+
+      if (trimmedPrompt.length > aiSetting.maxPromptLength) {
+        throw new BadRequestException(
+          `Prompt length must not exceed ${aiSetting.maxPromptLength} characters for ${aiSetting.name}`,
+        );
+      }
+
+      if (imageQuantity < aiSetting.minImages || imageQuantity > aiSetting.maxImages) {
+        throw new BadRequestException(
+          `imageQuantity must be between ${aiSetting.minImages} and ${aiSetting.maxImages} for ${aiSetting.name}`,
+        );
+      }
+
+      token = await this.serviceTokenService.getNextAvailableToken(
+        AIEnum.FLUX_PRO_FINE_TUNE,
+      );
+      if (!token) {
+        throw new BadRequestException(
+          'No tokens available for the selected AI service',
+        );
+      }
+
+      fal.config({ credentials: token.token });
+
+      const generateMethod = fal.run.bind(fal, aiSetting.apiModel);
+      const inputParams: any = {
+        prompt: trimmedPrompt,
+        finetune_id: FIXED_FINE_TUNE_TOKEN,
+        output_format: 'jpeg',
+        safety_tolerance: 2,
+        num_images: imageQuantity,
+        guidance_scale: 15,
+        num_inference_steps: 28,
+        finetune_strength: 1,
+      };
+
+      const result = await generateMethod({ input: inputParams });
+
+      if (!result?.images || !Array.isArray(result.images) || result.images.length === 0) {
+        throw new Error(
+          `FalAI service returned no images. Result: ${JSON.stringify(result)}`,
+        );
+      }
+
+      const uploadResponses = await Promise.all(
+        result.images.map(async (image) => {
+          if (!image?.url) {
+            throw new Error('FalAI returned an image without url');
+          }
+          return await this.uploadService.uploadByUrl(image.url);
+        }),
+      );
+
+      return {
+        images: uploadResponses,
+        fineTuneToken: FIXED_FINE_TUNE_TOKEN,
+        providerModel: aiSetting.apiModel,
+      };
+    } catch (error) {
+      if (token?.token) {
+        try {
+          await this.serviceTokenService.markTokenAsRateLimited(
+            token,
+            AIEnum.FLUX_PRO_FINE_TUNE,
+          );
+        } catch {
+          // ignore secondary failures
+        }
+      }
+      throw error;
+    }
+  }
+
   async generateXRouter(createPostDto: GenerateImageDto): Promise<{
     generatedImages: string[];
     suggestedTags: { id: number; name: string }[];

@@ -23,6 +23,7 @@ import { BullBoardModule } from '@bull-board/nestjs';
 import { FalAiProcessor } from './processors/fal-ai.processor';
 import { XRouterProcessor } from './processors/x-router.queue.processor';
 import { AIProcessorMappingEntity } from './entities/ai-processor-mapping.entity';
+import { PublicImageGenerationController } from './public-image-generation.controller';
 
 @Module({
   imports: [
@@ -64,7 +65,7 @@ import { AIProcessorMappingEntity } from './entities/ai-processor-mapping.entity
     FalAiProcessor,
     XRouterProcessor,
   ],
-  controllers: [ImageGenerationController],
+  controllers: [ImageGenerationController, PublicImageGenerationController],
   exports: [ImageGenerationService],
 })
 export class ImageGenerationModule {}
