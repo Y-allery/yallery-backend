@@ -1315,15 +1315,13 @@ export class PostService {
       return { message: 'You have already reported this post' };
     }
 
-    await this.activityService.createActivities(
-      userId,
-      [post.user.id],
-      ActivityEnum.ADMIN_REPORT,
-      undefined,
-      true,
-      undefined,
+    await this.activityService.createActivitiesV2({
+      fromUserId: userId,
+      toUserIds: [post.user.id],
+      type: ActivityEnum.ADMIN_REPORT,
+      isAdmin: true,
       post,
-    );
+    });
     const newReport = this.reportPostEntity.create({
       reportingUser: { id: userId },
       reportedUser: { id: post.user.id },
@@ -1502,15 +1500,13 @@ export class PostService {
       report.post.id,
       report.reportingUser.id,
     );
-    await this.activityService.createActivities(
-      null,
-      admins.map((e) => e.id),
-      ActivityEnum.ADMIN_REPORT_REVIEW,
-      undefined,
-      true,
-      undefined,
-      report.post,
-    );
+    await this.activityService.createActivitiesV2({
+      fromUserId: null,
+      toUserIds: admins.map((e) => e.id),
+      type: ActivityEnum.ADMIN_REPORT_REVIEW,
+      isAdmin: true,
+      post: report.post,
+    });
 
     await this.reportPostEntity.delete(reportId);
     return {

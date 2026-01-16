@@ -96,25 +96,21 @@ export class LikeService {
           );
       });
 
-      const descriptionEarn = await this.activityService.createActivities(
-        user.id,
-        [post.user.id],
-        ActivityEnum.LIKE_EARN,
-        undefined,
-        false,
-        undefined,
+      const descriptionEarn = await this.activityService.createActivitiesV2({
+        fromUserId: user.id,
+        toUserIds: [post.user.id],
+        type: ActivityEnum.LIKE_EARN,
+        isAdmin: false,
         post,
-      );
+      });
 
-      const descriptionSpend = await this.activityService.createActivities(
-        post.user.id,
-        [user.id],
-        ActivityEnum.LIKE_SPEND,
-        undefined,
-        false,
-        undefined,
+      const descriptionSpend = await this.activityService.createActivitiesV2({
+        fromUserId: post.user.id,
+        toUserIds: [user.id],
+        type: ActivityEnum.LIKE_SPEND,
+        isAdmin: false,
         post,
-      );
+      });
       await this.notificationGateway.sendNotification(
         user.id.toString(),
         descriptionSpend,

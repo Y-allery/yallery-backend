@@ -342,11 +342,11 @@ export class UserService {
           .where('id = :id', { id: user.id })
           .execute();
 
-        const description = await this.activityService.createActivities(
-          null,
-          [user.id],
-          ActivityEnum.DAILY_REWARD,
-        );
+        const description = await this.activityService.createActivitiesV2({
+          fromUserId: null,
+          toUserIds: [user.id],
+          type: ActivityEnum.DAILY_REWARD,
+        });
 
         await this.notificationGateway.sendNotification(
           user.id.toString(),
@@ -697,15 +697,12 @@ export class UserService {
 
     await this.updateUser(user);
     await this.updateUser(referral.user);
-    const userReward = await this.activityService.createActivities(
-      user.id,
-      [user.id],
-      ActivityEnum.SHARE_REWARD,
-      undefined,
-      false,
-      undefined,
-      undefined,
-    );
+    const userReward = await this.activityService.createActivitiesV2({
+      fromUserId: user.id,
+      toUserIds: [user.id],
+      type: ActivityEnum.SHARE_REWARD,
+      isAdmin: false,
+    });
 
     await this.notificationGateway.sendNotification(
       user.id.toString(),
@@ -713,15 +710,12 @@ export class UserService {
       ActivityEnum.SHARE_REWARD,
     );
 
-    const refferalUserReward = await this.activityService.createActivities(
-      user.id,
-      [user.id],
-      ActivityEnum.SHARE_REWARD,
-      undefined,
-      false,
-      undefined,
-      undefined,
-    );
+    const refferalUserReward = await this.activityService.createActivitiesV2({
+      fromUserId: user.id,
+      toUserIds: [user.id],
+      type: ActivityEnum.SHARE_REWARD,
+      isAdmin: false,
+    });
 
     await this.notificationGateway.sendNotification(
       user.id.toString(),

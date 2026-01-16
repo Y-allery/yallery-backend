@@ -18,8 +18,40 @@ import { ViewedPostEntity } from 'src/post/entities/viwed.entity';
 import { RewardService } from 'src/reward/reward.service';
 import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
 
+type CreateActivitiesOptions = {
+  fromUserId: number | null;
+  toUserIds: number[];
+  type: ActivityEnum;
+  contestReward?: number;
+  isAdmin?: boolean;
+  contest?: ContestEntity;
+  post?: PostEntity;
+  /**
+   * Points/cost that comes from external calculation (e.g. ai_settings cost).
+   * Used for IMAGE/VIDEO_GENERATE_SPEND.
+   */
+  generationCost?: number;
+  /**
+   * @deprecated Not persisted in `activity` table and not used for points/message building.
+   * Kept only for backward compatibility with existing call sites.
+   */
+  service?: AIEnum;
+};
+
+const ACTIVITY_TO_REWARD_TYPE: Partial<Record<ActivityEnum, RewardTypeEnum>> = {
+  [ActivityEnum.LIKE_EARN]: RewardTypeEnum.LIKE_EARN,
+  [ActivityEnum.LIKE_SPEND]: RewardTypeEnum.LIKE_SPEND,
+  [ActivityEnum.DAILY_REWARD]: RewardTypeEnum.DAILY_LOGIN,
+  [ActivityEnum.SHARE_REWARD]: RewardTypeEnum.SHARE_REWARD,
+};
+
 @Injectable()
 export class ActivityService {
+  private readonly rewardPointsCache = new Map<
+    RewardTypeEnum,
+    { points: number; expiresAt: number }
+  >();
+
   constructor(
     @InjectRepository(ActivityEntity)
     private activityRepository: Repository<ActivityEntity>,
@@ -36,41 +68,21 @@ export class ActivityService {
     private readonly rewardService: RewardService,
   ) {}
 
-  async getActivityMessage(
+  private buildActivityMessage(
     type: ActivityEnum,
-    generationCost?: number,
+    points: number,
     contest?: ContestEntity,
-  ): Promise<string> {
-    // Отримуємо значення з RewardService для fallback, якщо generationCost не передано
-    let points = generationCost;
-    
-    if (!generationCost) {
-      switch (type) {
-        case ActivityEnum.LIKE_EARN:
-          points = await this.rewardService.getRewardPointsOrDefault(RewardTypeEnum.LIKE_EARN, 5);
-          break;
-        case ActivityEnum.LIKE_SPEND:
-          points = await this.rewardService.getRewardPointsOrDefault(RewardTypeEnum.LIKE_SPEND, 15);
-          break;
-        case ActivityEnum.DAILY_REWARD:
-          points = await this.rewardService.getRewardPointsOrDefault(RewardTypeEnum.DAILY_LOGIN, 10);
-          break;
-        case ActivityEnum.SHARE_REWARD:
-          points = await this.rewardService.getRewardPointsOrDefault(RewardTypeEnum.SHARE_REWARD, 500);
-          break;
-      }
-    }
-
+  ): string {
     const messages = {
-      [ActivityEnum.LIKE_EARN]: `You earned ${points || generationCost || 5} YEPs for a like`,
-      [ActivityEnum.LIKE_SPEND]: `You spent ${points || generationCost || 15} YEPs on a like`,
-      [ActivityEnum.IMAGE_GENERATE_SPEND]: `You spent ${generationCost || this.configService.get('IMAGE_GENERATE_COST_YEPS') || 0} YEPs on image generation`,
-      [ActivityEnum.VIDEO_GENERATE_SPEND]: `You spent ${generationCost || this.configService.get('VIDEO_GENERATE_COST_YEPS') || 0} YEPs on video generation`,
+      [ActivityEnum.LIKE_EARN]: `You earned ${points} YEPs for a like`,
+      [ActivityEnum.LIKE_SPEND]: `You spent ${points} YEPs on a like`,
+      [ActivityEnum.IMAGE_GENERATE_SPEND]: `You spent ${points} YEPs on image generation`,
+      [ActivityEnum.VIDEO_GENERATE_SPEND]: `You spent ${points} YEPs on video generation`,
       [ActivityEnum.CONTEST_OPEN]: `The contest ${contest?.name} is now open! Join us for an exciting challenge and show off your skills.`,
       [ActivityEnum.CONTEST_CLOSE]: `The contest is closed. Unfortunately, you didn't win a prize this time`,
-      [ActivityEnum.CONTEST_WIN]: `Congratulations! You won first place in the ${contest?.name} contest and received a reward of ${generationCost} YEPs`,
-      [ActivityEnum.DAILY_REWARD]: `You received a daily login reward of ${points || generationCost || 10} YEPs`,
-      [ActivityEnum.SHARE_REWARD]: `You received a reward of ${points || generationCost || 500} YEPs for invite new users`,
+      [ActivityEnum.CONTEST_WIN]: `Congratulations! You won first place in the ${contest?.name} contest and received a reward of ${points} YEPs`,
+      [ActivityEnum.DAILY_REWARD]: `You received a daily login reward of ${points} YEPs`,
+      [ActivityEnum.SHARE_REWARD]: `You received a reward of ${points} YEPs for invite new users`,
       [ActivityEnum.ADMIN_REPORT]: `A new report has been submitted for review`,
       [ActivityEnum.ADMIN_CONTEST_REVIEW]: `A contest review has been initiated`,
       [ActivityEnum.ADMIN_REPORT_REVIEW]: `A report review has been completed`,
@@ -79,44 +91,90 @@ export class ActivityService {
     return messages[type];
   }
 
-  async createActivities(
-    fromUserId: number | null,
-    toUserIds: number[],
-    type: ActivityEnum,
-    contest_reward?: number,
-    isAdmin: boolean = false,
-    contest?: ContestEntity,
-    post?: PostEntity,
-    service?: AIEnum,
-    generation_cost?: number,
-  ) {
-    const points =
+  private getRewardTypeForActivity(type: ActivityEnum): RewardTypeEnum | null {
+    return ACTIVITY_TO_REWARD_TYPE[type] ?? null;
+  }
+
+  private normalizeToUserIds(toUserIds: number[]): number[] {
+    // de-dupe + drop invalid ids
+    const normalized = Array.from(new Set(toUserIds))
+      .map((id) => Number(id))
+      .filter((id) => Number.isInteger(id) && id > 0);
+    return normalized;
+  }
+
+  private normalizePoints(points: number): number {
+    const n = Number(points);
+    if (!Number.isFinite(n) || n < 0) {
+      return 0;
+    }
+    return n;
+  }
+
+  private async getRewardPointsCached(rewardType: RewardTypeEnum): Promise<number> {
+    const now = Date.now();
+    const cached = this.rewardPointsCache.get(rewardType);
+    if (cached && cached.expiresAt > now) {
+      return cached.points;
+    }
+    const points = await this.rewardService.getRewardPointsOrDefault(rewardType, 0);
+    // short TTL to reduce DB hits without risking stale config for too long
+    this.rewardPointsCache.set(rewardType, { points, expiresAt: now + 60_000 });
+    return points;
+  }
+
+  private async resolveActivityPoints(opts: CreateActivitiesOptions): Promise<number> {
+    const { type } = opts;
+    if (
       type === ActivityEnum.IMAGE_GENERATE_SPEND ||
       type === ActivityEnum.VIDEO_GENERATE_SPEND
-        ? generation_cost
-        : await this.getPointsForActivity(type, contest_reward);
+    ) {
+      // cost comes from ai_settings (computed by caller)
+      return this.normalizePoints(opts.generationCost ?? 0);
+    }
+    if (type === ActivityEnum.CONTEST_WIN) {
+      // contest win is dynamic (contest.reward)
+      return this.normalizePoints(opts.contestReward ?? 0);
+    }
 
+    const rewardType = this.getRewardTypeForActivity(type);
+    if (!rewardType) {
+      // admin/system activities, contest open/close etc.
+      return 0;
+    }
+    return this.normalizePoints(await this.getRewardPointsCached(rewardType));
+  }
 
-    const messageGenerationCost = points;
-    
-    const description = await this.getActivityMessage(type, messageGenerationCost, contest);
+  async createActivitiesV2(opts: CreateActivitiesOptions): Promise<string> {
+    const toUserIds = this.normalizeToUserIds(opts.toUserIds ?? []);
+    const points = await this.resolveActivityPoints(opts);
+    const description = this.buildActivityMessage(opts.type, points, opts.contest);
+
+    if (toUserIds.length === 0) {
+      // keep previous behavior: return message even if nothing is written
+      return description;
+    }
+
     const activities = toUserIds.map((toUserId) =>
       this.activityRepository.create({
-        fromUser: fromUserId ? { id: fromUserId } : null,
+        fromUser: opts.fromUserId != null ? { id: opts.fromUserId } : null,
         toUser: { id: toUserId },
-        activityType: type,
+        activityType: opts.type,
         description,
         points,
-        isAdmin,
-        contest,
-        post,
+        isAdmin: !!opts.isAdmin,
+        contest: opts.contest,
+        post: opts.post,
       }),
     );
 
-    await this.activityRepository.save(activities);
-
+    // Save in chunks for safety/perf when there are many recipients.
+    await this.activityRepository.save(activities, { chunk: 500 });
     return description;
   }
+
+  // NOTE: legacy positional createActivities/getPointsForActivity removed after full migration to createActivitiesV2.
+
   async deleteAdminContestActivity(contest_id: number) {
     const activities = await this.activityRepository.find({
       where: {
@@ -187,27 +245,6 @@ export class ActivityService {
       order: { createdAt: 'DESC' },
       select: ['id', 'activityType', 'description', 'createdAt', 'points'],
     });
-  }
-
-  async getPointsForActivity(type: ActivityEnum, contest_reward?: number): Promise<number> {
-    switch (type) {
-      case ActivityEnum.LIKE_EARN:
-        return await this.rewardService.getRewardPointsOrDefault(RewardTypeEnum.LIKE_EARN, 5);
-      case ActivityEnum.LIKE_SPEND:
-        return await this.rewardService.getRewardPointsOrDefault(RewardTypeEnum.LIKE_SPEND, 15);
-      case ActivityEnum.IMAGE_GENERATE_SPEND:
-        // IMAGE_GENERATE_SPEND вартість береться з ai_settings, не з rewards
-        // Цей метод не використовується для IMAGE_GENERATE_SPEND, бо вартість передається через generation_cost
-        return 0;
-      case ActivityEnum.DAILY_REWARD:
-        return await this.rewardService.getRewardPointsOrDefault(RewardTypeEnum.DAILY_LOGIN, 10);
-      case ActivityEnum.SHARE_REWARD:
-        return await this.rewardService.getRewardPointsOrDefault(RewardTypeEnum.SHARE_REWARD, 500);
-      case ActivityEnum.CONTEST_WIN:
-        return contest_reward || 0;
-      default:
-        return 0;
-    }
   }
 
   async getAdminActiveNotifications(dto: PaginatioDto) {
