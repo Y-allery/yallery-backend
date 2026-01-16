@@ -182,11 +182,11 @@ export class VideoGenerationService {
             prompt: dto.prompt,
             aiService: dto.ai_service,
             orientation: undefined,
-            style_id: undefined,
-            color_id: undefined,
+            styleId: undefined,
+            colorId: undefined,
             width: width || undefined,
             height: height || undefined,
-            negative_prompt: undefined,
+            negativePrompt: undefined,
             suggestedTags: finalSuggestedTags.length > 0 ? finalSuggestedTags : undefined,
           }
         : {
@@ -333,17 +333,14 @@ export class VideoGenerationService {
       cost = await this.getCostByService(service);
     }
 
-    const description = await this.activityService.createActivities(
-      null,
-      [userId],
-      activityType,
-      undefined,
-      false,
-      undefined,
-      undefined,
-      service as any,
-      cost,
-    );
+    const description = await this.activityService.createActivitiesV2({
+      fromUserId: null,
+      toUserIds: [userId],
+      type: activityType,
+      isAdmin: false,
+      service: service as any,
+      generationCost: cost,
+    });
     await this.notificationGateway.sendNotification(
       userId.toString(),
       description,

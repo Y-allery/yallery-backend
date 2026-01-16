@@ -1,4 +1,11 @@
 export const NOTIFICATION_SWAGGER = {
+  getNotificationTypes: {
+    summary: 'Get notification types',
+    description: `Retrieve available notification types with current user preferences. Used for configuring which activities trigger notifications.`,
+    responses: {
+      success: { status: 200, description: 'Notification types retrieved successfully' },
+    },
+  },
   setPreference: {
     summary: 'Set notification preference',
     description: `Configure notification preferences for specific activity types. Users can enable or disable notifications for different types of activities (likes, comments, contests, etc.).`,

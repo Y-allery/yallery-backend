@@ -454,14 +454,13 @@ export class ContestService {
         postsCount > 0 &&
         contest.status !== ContestStatusEnum.PENDING_REVIEW
       ) {
-        await this.activityService.createActivities(
-          null,
-          admins.map((e) => e.id),
-          ActivityEnum.ADMIN_CONTEST_REVIEW,
-          undefined,
-          true,
+        await this.activityService.createActivitiesV2({
+          fromUserId: null,
+          toUserIds: admins.map((e) => e.id),
+          type: ActivityEnum.ADMIN_CONTEST_REVIEW,
+          isAdmin: true,
           contest,
-        );
+        });
         contest = await this.setAutomaticContestWinner(contest);
         updatedContests.push(contest);
       } else if (
@@ -470,14 +469,13 @@ export class ContestService {
         !contest.isApproved &&
         contest.status !== ContestStatusEnum.PENDING_REVIEW
       ) {
-        await this.activityService.createActivities(
-          null,
-          admins.map((e) => e.id),
-          ActivityEnum.ADMIN_CONTEST_REVIEW,
-          undefined,
-          true,
+        await this.activityService.createActivitiesV2({
+          fromUserId: null,
+          toUserIds: admins.map((e) => e.id),
+          type: ActivityEnum.ADMIN_CONTEST_REVIEW,
+          isAdmin: true,
           contest,
-        );
+        });
         contest.status = ContestStatusEnum.PENDING_REVIEW;
         updatedContests.push(contest);
       } else if (
@@ -539,14 +537,13 @@ export class ContestService {
       const batchUserIds = users.map(user => user.id);
 
         try {
-          await this.activityService.createActivities(
-            null,
-          batchUserIds,
-            ActivityEnum.CONTEST_OPEN,
-            undefined,
-            false,
+          await this.activityService.createActivitiesV2({
+            fromUserId: null,
+            toUserIds: batchUserIds,
+            type: ActivityEnum.CONTEST_OPEN,
+            isAdmin: false,
             contest,
-          );
+          });
       } catch (activityError) {
         console.error(`❌ Failed to create activities for batch (offset ${offset}):`, activityError.message);
       }
@@ -946,25 +943,25 @@ export class ContestService {
     post.user.points += contest.reward;
     await this.userRepository.save(post.user);
 
-    const description = await this.activityService.createActivities(
-      null,
-      [post.user.id],
-      ActivityEnum.CONTEST_WIN,
-      contest.reward,
-      false,
+    const description = await this.activityService.createActivitiesV2({
+      fromUserId: null,
+      toUserIds: [post.user.id],
+      type: ActivityEnum.CONTEST_WIN,
+      contestReward: contest.reward,
+      isAdmin: false,
       contest,
       post,
-    );
+    });
 
-    await this.activityService.createActivities(
-      null,
-      [post.user.id],
-      ActivityEnum.ADMIN_CONTEST_WON,
-      contest.reward,
-      true,
+    await this.activityService.createActivitiesV2({
+      fromUserId: null,
+      toUserIds: [post.user.id],
+      type: ActivityEnum.ADMIN_CONTEST_WON,
+      contestReward: contest.reward,
+      isAdmin: true,
       contest,
       post,
-    );
+    });
 
     await this.activityService.deleteAdminContestActivity(contest.id);
 

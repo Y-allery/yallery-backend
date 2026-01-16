@@ -5,7 +5,6 @@ import { AuthenticatedRequest } from 'src/auth/types/auth.user.interface';
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags, ApiBody } from '@nestjs/swagger';
 import { ACTIVITY_SWAGGER } from 'src/common/swagger';
 import { ActivityEntity } from './entities/activity.entity';
-import { ActivityEnum } from './types/activity.enum';
 import { PopularPostsResponseDto } from './dto/popular-posts.dto';
 import { MarkViewedDto } from '../post/dto/mark.viewed.dto';
 
@@ -31,25 +30,6 @@ export class ActivityController {
   ) {
     const userId = req.user.id;
     return this.activityService.getFilteredActivities(userId, filter, period);
-  }
-
-  @Get('user')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation(ACTIVITY_SWAGGER.getPaginatedActivities)
-  @ApiQuery({ name: 'skip', required: false, type: 'number', example: 0 })
-  @ApiQuery({ name: 'take', required: false, type: 'number', example: 10 })
-  @ApiResponse(ACTIVITY_SWAGGER.getPaginatedActivities.responses.success)
-  async getPaginatedActivitiesForUser(
-    @Req() req: AuthenticatedRequest,
-    @Query('skip') skip = 0,
-    @Query('take') take = 10,
-  ) {
-    const userId = req.user.id;
-    return this.activityService.getPaginatedActivitiesForUser(
-      userId,
-      skip,
-      take,
-    );
   }
 
   @Put('user/activities/mark-all-as-read')
@@ -80,18 +60,6 @@ export class ActivityController {
     const userId = req.user.id;
     await this.activityService.markContestCollabsAsRead(userId);
     return { status: 'success', message: 'All activities marked as read' };
-  }
-
-  @Get('types')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation(ACTIVITY_SWAGGER.getActivityTypes)
-  @ApiResponse(ACTIVITY_SWAGGER.getActivityTypes.responses.success)
-  async getAllActivityTypes(@Req() req: AuthenticatedRequest) {
-    const userId = req.user.id;
-    return await this.activityService.getNotificationPreferences(userId, [
-      ActivityEnum.LIKE_EARN,
-      ActivityEnum.LIKE_SPEND,
-    ]);
   }
 
   @Get('popular-posts')

@@ -1369,17 +1369,14 @@ export class ImageGenerationService {
     service?: AIEnum,
     generationCost?: number,
   ) {
-    const description = await this.activityService.createActivities(
-      null,
-      [userId],
-      activityType,
-      undefined,
-      false,
-      undefined,
-      undefined,
+    const description = await this.activityService.createActivitiesV2({
+      fromUserId: null,
+      toUserIds: [userId],
+      type: activityType,
+      isAdmin: false,
       service,
       generationCost,
-    );
+    });
     await this.notificationGateway.sendNotification(
       userId.toString(),
       description,

@@ -104,11 +104,16 @@ export class NotificationGateway {
       id: number;
       videoUrl?: string;
       previewImageUrl?: string;
+      // Support both naming styles for backward compatibility.
+      generationParams?: any;
       generation_params?: any;
       suggestedTags: { id: number; name: string; imageUrl: string }[];
     },
     activity_type: ActivityEnum,
   ) {
+    const generationParams =
+      video.generationParams ?? video.generation_params ?? null;
+
     if (this.isUserConnected(to_user_id)) {
       this.server.to(to_user_id).emit('videoGenerated', {
         video: {
@@ -117,16 +122,20 @@ export class NotificationGateway {
               id: video.id,
               videoUrl: video.videoUrl || video.uploadedVideoUrl,
               previewImageUrl: video.previewImageUrl || null,
-              generationParams: video.generationParams || null,
+              generationParams,
             },
           ],
         },
         activity_type,
       });
     } else {
+      const suggestedTagId = video.suggestedTags?.[0]?.id ?? null;
       await this.postRepository.update(
         { id: video.id },
-        { is_delivered: false, tag: {id:video.suggestedTags[0].id || null} },
+        {
+          isDelivered: false,
+          ...(suggestedTagId ? { tag: { id: suggestedTagId } } : {}),
+        },
       );
     }
   }
@@ -218,12 +227,13 @@ export class NotificationGateway {
         }
         client.emit('undeliveredImages', {
           images: {
-            data: images.map(({ id, imageUrl, videoUrl, previewImageUrl, generation_params }) => ({
+            data: images.map(({ id, imageUrl, videoUrl, previewImageUrl, generationParams }) => ({
               id,
               imageUrl,
               videoUrl: videoUrl || null,
               previewImageUrl: previewImageUrl || null,
-              generation_params: generation_params || null,
+              // Keep payload key as snake_case for client compatibility.
+              generation_params: generationParams || null,
             })),
           },
         });
@@ -247,11 +257,11 @@ export class NotificationGateway {
         }
         client.emit('undeliveredVideo', {
           video: {
-            data: videos.map(({ id, videoUrl, previewImageUrl, generation_params }) => ({
+            data: videos.map(({ id, videoUrl, previewImageUrl, generationParams }) => ({
               id,
               videoUrl,
               previewImageUrl: previewImageUrl || null,
-              generation_params: generation_params || null,
+              generation_params: generationParams || null,
             })),
           },
         });
