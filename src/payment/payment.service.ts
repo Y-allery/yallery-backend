@@ -8,6 +8,13 @@ import { NotificationGateway } from 'src/notification/notification.gateway';
 import { RewardService } from 'src/reward/reward.service';
 import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
 
+type AdaptyWebhookMeta = {
+  method?: string;
+  url?: string;
+  ip?: string;
+  headers?: Record<string, any>;
+};
+
 @Injectable()
 export class PaymentService {
   private readonly logger = new Logger(PaymentService.name);
@@ -26,12 +33,35 @@ export class PaymentService {
     private readonly rewardService: RewardService,
   ) {}
 
-  async processWebhook(webhookData: Buffer): Promise<void> {
+  private isDevVerboseWebhookLogging(): boolean {
+    return this.configService.get<string>('NODE_ENV') !== 'production';
+  }
+
+  async processWebhook(webhookData: Buffer, meta?: AdaptyWebhookMeta): Promise<void> {
     try {
       const dataString = webhookData.toString('utf-8');
-      this.logger.log(`📥 Received webhook data: ${dataString.substring(0, 200)}...`);
+      const verbose = this.isDevVerboseWebhookLogging();
+
+      // Full logging in DEV only (requested)
+      if (verbose) {
+        this.logger.log(`📥 [Adapty webhook] ===== START =====`);
+        this.logger.log(`📥 [Adapty webhook] meta: ${JSON.stringify({
+          method: meta?.method,
+          url: meta?.url,
+          ip: meta?.ip,
+          headers: meta?.headers,
+        })}`);
+        this.logger.log(`📥 [Adapty webhook] rawLength=${webhookData.length}`);
+        this.logger.log(`📥 [Adapty webhook] rawBody=${dataString}`);
+      } else {
+        // Keep prod log short
+        this.logger.log(`📥 Received webhook data: ${dataString.substring(0, 200)}...`);
+      }
 
       const parsedData = JSON.parse(dataString);
+      if (verbose) {
+        this.logger.log(`📥 [Adapty webhook] parsedJson=${JSON.stringify(parsedData)}`);
+      }
 
       const profileId = parsedData.customer_user_id;
       const eventType = parsedData.event_type;
@@ -56,6 +86,9 @@ export class PaymentService {
           const productId = eventProperties?.vendor_product_id;
           
           this.logger.log(`💰 Processing purchase - productId: ${productId}, userId: ${profileId}`);
+          if (verbose) {
+            this.logger.log(`💰 [Adapty webhook] event_properties=${JSON.stringify(eventProperties)}`);
+          }
           
           if (!productId) {
             this.logger.warn(`⚠️ Missing productId in event_properties`);
@@ -70,6 +103,10 @@ export class PaymentService {
           }
 
           const isTest = parsedData.is_sandbox === true || parsedData.environment === 'sandbox' || parsedData.test === true;
+          if (verbose) {
+            this.logger.log(`💰 [Adapty webhook] isTest=${isTest} environment=${parsedData.environment ?? null}`);
+            this.logger.log(`💰 [Adapty webhook] userBeforePoints=${user.points} pointsToAdd=${pointsToAdd}`);
+          }
 
           user.points += pointsToAdd;
           await this.userService.updateUser(user);
@@ -93,6 +130,18 @@ export class PaymentService {
           this.logger.log(
             `✅ Added ${pointsToAdd} points to user ${profileId} for product ${productId} and saved payment record (ID: ${payment.id}, Test: ${isTest})`,
           );
+          if (verbose) {
+            this.logger.log(`✅ [Adapty webhook] paymentSaved=${JSON.stringify({
+              id: payment.id,
+              paymentIntentId,
+              userId: user.id,
+              productId,
+              amount: typeof amount === 'number' ? amount : pointsToAdd,
+              currency,
+              status: 'completed',
+            })}`);
+            this.logger.log(`📥 [Adapty webhook] ===== END =====`);
+          }
           break;
 
         default:
