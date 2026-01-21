@@ -23,8 +23,9 @@ export class RewardEntity {
   @Column({ type: 'text', nullable: true })
   description: string | null;
 
-  // NOTE: Database column is `is_active` (snake_case), mapped to `isActive` property (camelCase).
-  @Column({ type: 'boolean', default: true, name: 'is_active' })
+  // NOTE: Column name was standardized to camelCase (`isActive`) in newer DBs.
+  // A migration ensures legacy `is_active` is renamed to `isActive`.
+  @Column({ type: 'boolean', default: true, name: 'isActive' })
   isActive: boolean;
 
   @Column({ type: 'boolean', default: false, name: 'is_daily' })
