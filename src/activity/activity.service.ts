@@ -201,7 +201,21 @@ export class ActivityService {
     userId: number,
     filter: 'earned' | 'spent',
     period: 'day' | 'week' | 'month' | 'year',
-  ): Promise<ActivityEntity[]> {
+  ): Promise<
+    Array<{
+      id: number;
+      activityType: ActivityEnum;
+      description: string;
+      createdAt: Date;
+      points: number;
+      /**
+       * Image to display for this activity:
+       * - if post has imageUrl -> imageUrl
+       * - else if post is video -> previewImageUrl
+       */
+      imageUrl: string | null;
+    }>
+  > {
     const earnedTypes = [
       ActivityEnum.LIKE_EARN,
       ActivityEnum.DAILY_REWARD,
@@ -236,14 +250,40 @@ export class ActivityService {
         break;
     }
 
-    return this.activityRepository.find({
-      where: {
-        toUser: { id: userId },
-        activityType: In(activityTypes),
-        createdAt: Between(dateFrom, now),
-      },
-      order: { createdAt: 'DESC' },
-      select: ['id', 'activityType', 'description', 'createdAt', 'points'],
+    const activities = await this.activityRepository
+      .createQueryBuilder('activity')
+      .leftJoin('activity.post', 'post')
+      .where('activity.toUserId = :userId', { userId })
+      .andWhere('activity.activityType IN (:...types)', { types: activityTypes })
+      .andWhere('activity.createdAt BETWEEN :dateFrom AND :now', {
+        dateFrom,
+        now,
+      })
+      .orderBy('activity.createdAt', 'DESC')
+      .select([
+        'activity.id',
+        'activity.activityType',
+        'activity.description',
+        'activity.createdAt',
+        'activity.points',
+        'post.imageUrl',
+        'post.videoUrl',
+        'post.previewImageUrl',
+      ])
+      .getMany();
+
+    return activities.map((a) => {
+      const post = a.post as any;
+      const imageUrl =
+        post?.imageUrl ?? (post?.videoUrl ? post?.previewImageUrl ?? null : null);
+      return {
+        id: a.id,
+        activityType: a.activityType,
+        description: a.description,
+        createdAt: a.createdAt,
+        points: a.points,
+        imageUrl,
+      };
     });
   }
 
