@@ -12,6 +12,7 @@ import { UploadService } from 'src/upload/upload.service';
 import { GenerateImageDto } from './dto/generate.image.dto';
 import { EditImageDto } from './dto/edit-image.dto';
 import { AIEnum } from 'src/common/enums/ai.enum';
+import { PublicFineTunePresetEnum } from './dto/public-finetune-generate.dto';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TagEntity } from 'src/tag/entities/tag.entity';
@@ -411,6 +412,112 @@ export class ImageGenerationService {
       }
 
       throw new Error(`Failed to generate images: ${error.message}`);
+    }
+  }
+
+  /**
+   * Public fine-tune generation:
+   * - no auth (controller-level)
+   * - no user / no credits charging
+   * - no DB writes
+   * - always uses fixed fine-tune token
+   */
+  async generateFineTuneImagesPublic(
+    prompt: string,
+    imageQuantity: number,
+    preset: PublicFineTunePresetEnum = PublicFineTunePresetEnum.XOOB,
+  ): Promise<{ images: string[]; fineTuneToken: string; providerModel: string }> {
+    const fineTuneTokenByPreset: Record<PublicFineTunePresetEnum, string> = {
+      [PublicFineTunePresetEnum.XOOB]:
+        'fca9b669-380a-4d5e-873b-ac0b116c82a0',
+      [PublicFineTunePresetEnum.NOMISMA]:
+        '62a50ee2-5e66-4fe2-ad6b-64cead6834e8',
+    };
+    const fineTuneToken = fineTuneTokenByPreset[preset] ?? fineTuneTokenByPreset[PublicFineTunePresetEnum.XOOB];
+    let token: AiServiceToken;
+
+    try {
+      const trimmedPrompt = (prompt || '').trim();
+      if (!trimmedPrompt) {
+        throw new BadRequestException('prompt is required');
+      }
+
+      const aiSetting = await this.getAISetting(AIEnum.FLUX_PRO_FINE_TUNE);
+      if (!aiSetting || !aiSetting.apiModel) {
+        throw new BadRequestException(
+          `AI service ${AIEnum.FLUX_PRO_FINE_TUNE} not found or apiModel not configured`,
+        );
+      }
+
+      if (trimmedPrompt.length > aiSetting.maxPromptLength) {
+        throw new BadRequestException(
+          `Prompt length must not exceed ${aiSetting.maxPromptLength} characters for ${aiSetting.name}`,
+        );
+      }
+
+      if (imageQuantity < aiSetting.minImages || imageQuantity > aiSetting.maxImages) {
+        throw new BadRequestException(
+          `imageQuantity must be between ${aiSetting.minImages} and ${aiSetting.maxImages} for ${aiSetting.name}`,
+        );
+      }
+
+      token = await this.serviceTokenService.getNextAvailableToken(
+        AIEnum.FLUX_PRO_FINE_TUNE,
+      );
+      if (!token) {
+        throw new BadRequestException(
+          'No tokens available for the selected AI service',
+        );
+      }
+
+      fal.config({ credentials: token.token });
+
+      const generateMethod = fal.run.bind(fal, aiSetting.apiModel);
+      const inputParams: any = {
+        prompt: trimmedPrompt,
+        finetune_id: fineTuneToken,
+        output_format: 'jpeg',
+        safety_tolerance: 2,
+        num_images: imageQuantity,
+        guidance_scale: 15,
+        num_inference_steps: 28,
+        finetune_strength: 1,
+      };
+
+      const result = await generateMethod({ input: inputParams });
+
+      if (!result?.images || !Array.isArray(result.images) || result.images.length === 0) {
+        throw new Error(
+          `FalAI service returned no images. Result: ${JSON.stringify(result)}`,
+        );
+      }
+
+      const uploadResponses = await Promise.all(
+        result.images.map(async (image) => {
+          if (!image?.url) {
+            throw new Error('FalAI returned an image without url');
+          }
+          return await this.uploadService.uploadByUrl(image.url);
+        }),
+      );
+
+      return {
+        images: uploadResponses,
+        fineTuneToken,
+        providerModel: aiSetting.apiModel,
+      };
+    } catch (error) {
+      if (token?.token) {
+        try {
+          await this.serviceTokenService.markTokenAsRateLimited(
+            token,
+            AIEnum.FLUX_PRO_FINE_TUNE,
+          );
+        } catch {
+          // ignore secondary failures
+        }
+      }
+      throw error;
     }
   }
 
