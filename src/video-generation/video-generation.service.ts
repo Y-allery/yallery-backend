@@ -149,6 +149,34 @@ export class VideoGenerationService {
     }
   }
 
+  private generateCloudinaryPreviewUrl(videoUrl: string): string | null {
+    try {
+      if (!videoUrl || typeof videoUrl !== 'string') return null;
+      if (!videoUrl.includes('cloudinary.com')) return null;
+      
+      const base = videoUrl.split('?')[0];
+      
+      // Use Cloudinary's so_0 transformation to get a frame from the video
+      if (base.includes('/video/upload/')) {
+        const withFrame = base.replace('/video/upload/', '/video/upload/so_0/');
+        if (/\.(mp4|webm|mov|avi)$/i.test(withFrame)) {
+          return withFrame.replace(/\.(mp4|webm|mov|avi)$/i, '.jpg');
+        }
+        return `${withFrame}.jpg`;
+      }
+      
+      // Fallback: replace extension
+      if (/\.(mp4|webm|mov|avi)$/i.test(base)) {
+        return base.replace(/\.(mp4|webm|mov|avi)$/i, '.jpg');
+      }
+      
+      return `${base}.jpg`;
+    } catch (error) {
+      console.warn(`[generateCloudinaryPreviewUrl] Failed to generate preview URL from ${videoUrl}:`, error?.message || error);
+      return null;
+    }
+  }
+
   async createPostForVideo(
     videoUrl: string,
     user: UserEntity,
@@ -169,12 +197,20 @@ export class VideoGenerationService {
       }
     }
 
+    // Determine previewImageUrl:
+    // 1. If dto.image_url is provided and not empty, use it
+    // 2. Otherwise, generate from videoUrl using Cloudinary
+    const inputPreview = dto?.image_url?.trim() || '';
+    const previewImageUrl = inputPreview.length > 0 
+      ? inputPreview 
+      : this.generateCloudinaryPreviewUrl(videoUrl);
+
     const post = this.postRepository.create({
       user: { id: user.id },
       tag,
       videoUrl,
       imageUrl: null,
-      previewImageUrl: dto?.image_url ?? null,
+      previewImageUrl,
       isPublished: false,
       isSaved: true, // Mark as saved so it appears in unpublished gallery
       generationParams: dto
