@@ -1,11 +1,16 @@
-import { IsEnum, IsString } from 'class-validator';
+import { IsEnum, IsOptional, IsString, ValidateIf } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { VideoAIEnum } from 'src/common/enums/ai.enum';
 
 export class GenerateVideoDto {
+  @ValidateIf((o: GenerateVideoDto) => o.ai_service === VideoAIEnum.BYTY_DANCE)
   @IsString()
-  @ApiProperty({ description: 'Image url' })
-  image_url: string;
+  @IsOptional()
+  @ApiProperty({
+    description: 'Image url (required for image-to-video models)',
+    required: false,
+  })
+  image_url?: string;
 
   @IsString()
   @ApiProperty({ description: 'The prompt text for the post' })

@@ -9,4 +9,5 @@ export enum AIEnum {
 
 export enum VideoAIEnum {
   BYTY_DANCE = 'byty_dance',
+  KLING_TEXT_TO_VIDEO = 'kling_text_to_video',
 }

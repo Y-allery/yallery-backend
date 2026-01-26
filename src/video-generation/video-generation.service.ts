@@ -32,6 +32,8 @@ export class VideoGenerationService {
 
   constructor(
     @InjectQueue(VideoAIEnum.BYTY_DANCE) private readonly bytyDance: Queue,
+    @InjectQueue(VideoAIEnum.KLING_TEXT_TO_VIDEO)
+    private readonly klingTextToVideo: Queue,
     private readonly serviceTokenService: ServiceTokenService,
     private readonly uploadService: UploadService,
     private readonly activityService: ActivityService,
@@ -134,6 +136,9 @@ export class VideoGenerationService {
       switch (aiService) {
         case VideoAIEnum.BYTY_DANCE:
           queue = this.bytyDance;
+          break;
+        case VideoAIEnum.KLING_TEXT_TO_VIDEO:
+          queue = this.klingTextToVideo;
           break;
 
         default:
@@ -242,6 +247,33 @@ export class VideoGenerationService {
     return selectedTag ?? tags[0];
   }
 
+  async findBestTagByPrompt(prompt: string): Promise<TagEntity> {
+    const tags = await this.tagRepository.find();
+    const tagNames = tags.map((t) => t.name);
+
+    const messages = [
+      {
+        role: 'user',
+        content: `Given the following prompt: "${prompt}" and the following list of tags: [${tagNames.join(
+          ', ',
+        )}], please return only the most relevant tag name.`,
+      },
+    ];
+
+    const response = await this.openai.chat.completions.create({
+      model: 'o4-mini-2025-04-16',
+      messages,
+      max_completion_tokens: 200,
+    });
+
+    const tagName = response.choices?.[0]?.message?.content?.trim();
+    const selectedTag = tags.find(
+      (t) => t.name.toLowerCase() === tagName?.toLowerCase(),
+    );
+
+    return selectedTag ?? tags[0];
+  }
+
   async generateVideo(dto: GenerateVideoDto): Promise<{
     uploadedVideoUrl: string;
   }> {
@@ -278,10 +310,11 @@ export class VideoGenerationService {
 
       const generateMethod = fal.run.bind(fal, serviceName);
 
-      const inputParams: any = {
-        prompt: dto.prompt,
-        image_url: dto.image_url,
-      };
+      const inputParams: any = { prompt: dto.prompt };
+      // image_url is only required for image-to-video models
+      if (dto.image_url) {
+        inputParams.image_url = dto.image_url;
+      }
       const result = await generateMethod({
         input: inputParams,
       });

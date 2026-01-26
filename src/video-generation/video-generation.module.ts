@@ -5,6 +5,7 @@ import { Module } from '@nestjs/common';
 import { VideoAIEnum } from 'src/common/enums/ai.enum';
 import { VideoGenerationService } from './video-generation.service';
 import { BytyDanceProcessor } from './processors/byty-dance.processor';
+import { KlingTextToVideoProcessor } from './processors/kling-text-to-video.processor';
 import { NotificationModule } from 'src/notification/notification.module';
 import { ServiceTokenModule } from 'src/service-token/service-token.module';
 import { UploadModule } from 'src/upload/upload.module';
@@ -28,12 +29,17 @@ import { ConfigModule } from '@nestjs/config';
     ServiceTokenModule,
     NotificationModule,
     BullModule.registerQueue({ name: VideoAIEnum.BYTY_DANCE }),
+    BullModule.registerQueue({ name: VideoAIEnum.KLING_TEXT_TO_VIDEO }),
     BullBoardModule.forFeature({
       name: VideoAIEnum.BYTY_DANCE,
       adapter: BullMQAdapter,
     }),
+    BullBoardModule.forFeature({
+      name: VideoAIEnum.KLING_TEXT_TO_VIDEO,
+      adapter: BullMQAdapter,
+    }),
   ],
-  providers: [VideoGenerationService, BytyDanceProcessor],
+  providers: [VideoGenerationService, BytyDanceProcessor, KlingTextToVideoProcessor],
   exports: [VideoGenerationService],
 })
 export class VideoGenerationModule {}
