@@ -33,10 +33,29 @@ export class VideoGenerationService {
   private generateCloudinaryPreviewUrl(videoUrl: string): string | null {
     try {
       if (!videoUrl || typeof videoUrl !== 'string') return null;
-      // Cloudinary secure_url: .../video/upload/.../<public>.mp4
       if (!videoUrl.includes('cloudinary.com')) return null;
-      const base = videoUrl.split('?')[0]; // strip query params if any
-      return base.replace(/\.(mp4|webm|mov|avi)$/i, '.jpg');
+
+      // Strip query params if any
+      const base = videoUrl.split('?')[0];
+
+      // Prefer explicit thumbnail frame transformation for videos
+      // Example:
+      //  .../video/upload/v123/folder/file.mp4
+      //  -> .../video/upload/so_0/v123/folder/file.jpg
+      if (base.includes('/video/upload/')) {
+        const withFrame = base.replace('/video/upload/', '/video/upload/so_0/');
+        // If URL ends with known video extension, replace with jpg; otherwise just append .jpg
+        if (/\.(mp4|webm|mov|avi)$/i.test(withFrame)) {
+          return withFrame.replace(/\.(mp4|webm|mov|avi)$/i, '.jpg');
+        }
+        return `${withFrame}.jpg`;
+      }
+
+      // Fallback: replace extension if present
+      if (/\.(mp4|webm|mov|avi)$/i.test(base)) {
+        return base.replace(/\.(mp4|webm|mov|avi)$/i, '.jpg');
+      }
+      return `${base}.jpg`;
     } catch {
       return null;
     }
@@ -189,8 +208,11 @@ export class VideoGenerationService {
     // preview:
     // - if image-to-video: keep preview as input image_url
     // - if text-to-video: generate preview from the uploaded Cloudinary video URL
+    const inputPreview = (dto?.image_url ?? '').trim();
     const previewImageUrl =
-      dto?.image_url ?? this.generateCloudinaryPreviewUrl(videoUrl) ?? null;
+      inputPreview.length > 0
+        ? inputPreview
+        : this.generateCloudinaryPreviewUrl(videoUrl) ?? null;
 
     const post = this.postRepository.create({
       user: { id: user.id },
