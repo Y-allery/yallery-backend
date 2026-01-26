@@ -30,6 +30,18 @@ import { ConfigService } from '@nestjs/config';
 export class VideoGenerationService {
   private openai;
 
+  private generateCloudinaryPreviewUrl(videoUrl: string): string | null {
+    try {
+      if (!videoUrl || typeof videoUrl !== 'string') return null;
+      // Cloudinary secure_url: .../video/upload/.../<public>.mp4
+      if (!videoUrl.includes('cloudinary.com')) return null;
+      const base = videoUrl.split('?')[0]; // strip query params if any
+      return base.replace(/\.(mp4|webm|mov|avi)$/i, '.jpg');
+    } catch {
+      return null;
+    }
+  }
+
   constructor(
     @InjectQueue(VideoAIEnum.BYTY_DANCE) private readonly bytyDance: Queue,
     @InjectQueue(VideoAIEnum.KLING_TEXT_TO_VIDEO)
@@ -174,12 +186,18 @@ export class VideoGenerationService {
       }
     }
 
+    // preview:
+    // - if image-to-video: keep preview as input image_url
+    // - if text-to-video: generate preview from the uploaded Cloudinary video URL
+    const previewImageUrl =
+      dto?.image_url ?? this.generateCloudinaryPreviewUrl(videoUrl) ?? null;
+
     const post = this.postRepository.create({
       user: { id: user.id },
       tag,
       videoUrl,
       imageUrl: null,
-      previewImageUrl: dto?.image_url ?? null,
+      previewImageUrl,
       isPublished: false,
       isSaved: true, // Mark as saved so it appears in unpublished gallery
       generationParams: dto
