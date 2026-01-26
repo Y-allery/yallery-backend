@@ -81,10 +81,16 @@ export class PostService {
     });
   }
 
-  async getPosts(cursor: number | null, limit: number, userId: number) {
+  async getPosts(
+    cursor: number | null,
+    limit: number,
+    userId: number,
+    tagId: number | null = null,
+  ) {
     // Безпечний ліміт: від 1 до 100, щоб не навантажувати БД
     const safeLimit = Math.min(Math.max(limit || 20, 1), 100);
     const cursorCondition = cursor ? `AND p.id < ${cursor}` : '';
+    const tagCondition = tagId ? `AND p.tagId = ${tagId}` : '';
 
     const query = `
       SELECT DISTINCT
@@ -124,6 +130,7 @@ export class PostService {
           FROM users_tags_tags t
           WHERE t.usersId = ${userId}
         )
+        ${tagCondition} -- Optional tag filter
         ${cursorCondition} -- Додаємо умову курсора
       ORDER BY 
         p.id DESC -- Порядок для курсора

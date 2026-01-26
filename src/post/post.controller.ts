@@ -49,16 +49,20 @@ export class PostController {
   @ApiOperation(POST_SWAGGER.getFeed)
   @ApiQuery({ name: 'cursor', required: false, type: String })
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+  @ApiQuery({ name: 'tagId', required: false, type: Number, description: 'Optional tag filter for feed' })
   @ApiResponse(POST_SWAGGER.getFeed.responses.success)
   getPosts(
     @Req() req: AuthenticatedRequest,
     @Query('cursor') cursor?: string,
     @Query('limit') limit: number = 10,
+    @Query('tagId') tagId?: string,
   ) {
     const cursorNum = cursor ? parseInt(cursor, 10) : null;
     if (isNaN(limit) || limit <= 0) limit = 10;
 
-    return this.postService.getPosts(cursorNum, limit, req.user.id);
+    const tagIdNum = tagId != null ? parseInt(tagId, 10) : null;
+    const tagFilter = tagIdNum != null && !isNaN(tagIdNum) && tagIdNum > 0 ? tagIdNum : null;
+    return this.postService.getPosts(cursorNum, limit, req.user.id, tagFilter);
   }
 
   @Get('get-posts-by-tag')
