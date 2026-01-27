@@ -30,37 +30,6 @@ import { ConfigService } from '@nestjs/config';
 export class VideoGenerationService {
   private openai;
 
-  private generateCloudinaryPreviewUrl(videoUrl: string): string | null {
-    try {
-      if (!videoUrl || typeof videoUrl !== 'string') return null;
-      if (!videoUrl.includes('cloudinary.com')) return null;
-
-      // Strip query params if any
-      const base = videoUrl.split('?')[0];
-
-      // Prefer explicit thumbnail frame transformation for videos
-      // Example:
-      //  .../video/upload/v123/folder/file.mp4
-      //  -> .../video/upload/so_0/v123/folder/file.jpg
-      if (base.includes('/video/upload/')) {
-        const withFrame = base.replace('/video/upload/', '/video/upload/so_0/');
-        // If URL ends with known video extension, replace with jpg; otherwise just append .jpg
-        if (/\.(mp4|webm|mov|avi)$/i.test(withFrame)) {
-          return withFrame.replace(/\.(mp4|webm|mov|avi)$/i, '.jpg');
-        }
-        return `${withFrame}.jpg`;
-      }
-
-      // Fallback: replace extension if present
-      if (/\.(mp4|webm|mov|avi)$/i.test(base)) {
-        return base.replace(/\.(mp4|webm|mov|avi)$/i, '.jpg');
-      }
-      return `${base}.jpg`;
-    } catch {
-      return null;
-    }
-  }
-
   constructor(
     @InjectQueue(VideoAIEnum.BYTY_DANCE) private readonly bytyDance: Queue,
     @InjectQueue(VideoAIEnum.KLING_TEXT_TO_VIDEO)
@@ -124,16 +93,22 @@ export class VideoGenerationService {
     if (videoAISettingsFromDb.length === 0) {
       return {
         defaultSettings: {
-          defaultAI: VideoAIEnum.BYTY_DANCE,
+          defaultAI: VideoAIEnum.KLING_TEXT_TO_VIDEO,
           cost: 0,
         },
         aiSettings: [],
       };
     }
 
+    // Find Kling text-to-video setting, fallback to first available
+    const klingSetting = videoAISettingsFromDb.find(
+      (setting) => setting.aiService === VideoAIEnum.KLING_TEXT_TO_VIDEO
+    );
+    const defaultSetting = klingSetting || videoAISettingsFromDb[0];
+
     const defaultSettings = {
-      defaultAI: VideoAIEnum.BYTY_DANCE,
-      cost: videoAISettingsFromDb[0].cost,
+      defaultAI: VideoAIEnum.KLING_TEXT_TO_VIDEO,
+      cost: defaultSetting.cost,
     };
 
     const aiSettings = videoAISettingsFromDb.map((setting) => ({
