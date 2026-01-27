@@ -93,22 +93,16 @@ export class VideoGenerationService {
     if (videoAISettingsFromDb.length === 0) {
       return {
         defaultSettings: {
-          defaultAI: VideoAIEnum.KLING_TEXT_TO_VIDEO,
+          defaultAI: VideoAIEnum.BYTY_DANCE,
           cost: 0,
         },
         aiSettings: [],
       };
     }
 
-    // Find Kling text-to-video setting, fallback to first available
-    const klingSetting = videoAISettingsFromDb.find(
-      (setting) => setting.aiService === VideoAIEnum.KLING_TEXT_TO_VIDEO
-    );
-    const defaultSetting = klingSetting || videoAISettingsFromDb[0];
-
     const defaultSettings = {
-      defaultAI: VideoAIEnum.KLING_TEXT_TO_VIDEO,
-      cost: defaultSetting.cost,
+      defaultAI: VideoAIEnum.BYTY_DANCE,
+      cost: videoAISettingsFromDb[0].cost,
     };
 
     const aiSettings = videoAISettingsFromDb.map((setting) => ({
