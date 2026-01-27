@@ -1284,6 +1284,7 @@ export class ImageGenerationService {
           isArtem: setting.isArtem,
           cost: setting.cost,
           description: setting.description,
+          modelType: setting.aiService === AIEnum.BYTEDANCE_EDIT ? 'IMAGE_EDITING' : 'TEXT_TO_IMAGE',
         };
       }),
     );
