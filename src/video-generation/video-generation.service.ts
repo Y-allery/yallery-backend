@@ -111,6 +111,7 @@ export class VideoGenerationService {
       cost: setting.cost,
       description: setting.description || 'Create animated videos from your image with BytyDance.',
       api_model: setting.apiModel,
+      modelType: setting.aiService === VideoAIEnum.KLING_TEXT_TO_VIDEO ? 'TEXT_TO_VIDEO' : 'IMAGE_TO_VIDEO',
     }));
 
     return {
