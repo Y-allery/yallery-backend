@@ -12,6 +12,6 @@ export enum VideoAIEnum {
   KLING_TEXT_TO_VIDEO = 'kling_text_to_video',
 }
 
-export enum SfxAIEnum {
+export enum AudioAIEnum {
   MIRELO_SFX_VIDEO_TO_VIDEO = 'mirelo_sfx_video_to_video',
 }

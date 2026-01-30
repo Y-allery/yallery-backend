@@ -29,8 +29,8 @@ import { APP_FILTER } from '@nestjs/core';
 import { VideoGenerationController } from './video-generation/video-generation.controller';
 import { VideoGenerationModule } from './video-generation/video-generation.module';
 import { RewardModule } from './reward/reward.module';
-import { SfxGenerationModule } from './sfx-generation/sfx-generation.module';
-import { SfxGenerationController } from './sfx-generation/sfx-generation.controller';
+import { AudioGenerationModule } from './audio-generation/audio-generation.module';
+import { AudioGenerationController } from './audio-generation/audio-generation.controller';
 
 @Module({
   imports: [
@@ -82,10 +82,10 @@ import { SfxGenerationController } from './sfx-generation/sfx-generation.control
     ServiceTokenModule,
     PaymentModule,
     VideoGenerationModule,
-    SfxGenerationModule,
+    AudioGenerationModule,
     RewardModule,
   ],
-  controllers: [VideoGenerationController, SfxGenerationController],
+  controllers: [VideoGenerationController, AudioGenerationController],
   providers: [
     {
       provide: APP_FILTER,

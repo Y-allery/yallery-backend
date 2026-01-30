@@ -4,18 +4,18 @@ import { Injectable } from '@nestjs/common';
 import { NotificationGateway } from 'src/notification/notification.gateway';
 import { ActivityEnum } from 'src/activity/types/activity.enum';
 import { UserService } from 'src/user/user.service';
-import { SfxAIEnum } from 'src/common/enums/ai.enum';
-import { SfxGenerationService } from '../sfx-generation.service';
-import { BaseSfxProcessor } from './base-sfx-processor';
+import { AudioAIEnum } from 'src/common/enums/ai.enum';
+import { AudioGenerationService } from '../audio-generation.service';
+import { BaseAudioProcessor } from './base-audio-processor';
 
 @Injectable()
-@Processor(SfxAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO, {
+@Processor(AudioAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO, {
   concurrency: 30,
   lockDuration: 180000,
 })
-export class MireloSfxVideoToVideoProcessor extends BaseSfxProcessor {
+export class MireloAudioVideoToVideoProcessor extends BaseAudioProcessor {
   constructor(
-    private readonly sfxGenerationService: SfxGenerationService,
+    private readonly audioGenerationService: AudioGenerationService,
     private readonly userService: UserService,
     notificationGateway: NotificationGateway,
   ) {
@@ -24,38 +24,37 @@ export class MireloSfxVideoToVideoProcessor extends BaseSfxProcessor {
 
   async process(job: Job<any, any, string>) {
     const { dto, userId } = job.data;
-    if (!userId) throw new Error('userId is required for SFX generation');
+    if (!userId) throw new Error('userId is required for audio generation');
 
     const srcVideoUrl = (dto?.video_url || '').trim();
     if (!srcVideoUrl) throw new Error('video_url is required');
 
     console.log(
-      `[MireloSfxVideoToVideoProcessor] Starting | Job: ${job.id} | User: ${userId} | video_url: ${srcVideoUrl.substring(0, 60)}...`,
+      `[MireloAudioVideoToVideoProcessor] Starting | Job: ${job.id} | User: ${userId} | video_url: ${srcVideoUrl.substring(0, 60)}...`,
     );
 
-    const response = await this.sfxGenerationService.generateSfx(dto);
+    const response = await this.audioGenerationService.generateAudio(dto);
     if (!response.uploadedVideoUrl) {
-      throw new Error('SFX generation returned no uploadedVideoUrl');
+      throw new Error('Audio generation returned no uploadedVideoUrl');
     }
 
     const user = await this.userService.findById(userId);
     if (!user) throw new Error(`User with id ${userId} not found`);
 
-    // Choose tag by text_prompt if provided; else default.
     const prompt = (dto?.text_prompt || '').trim();
-    const tag = await this.sfxGenerationService.resolveTag(prompt);
+    const tag = await this.audioGenerationService.resolveTag(prompt);
 
-    const dimensions = await this.sfxGenerationService.getVideoDimensionsSafe(
+    const dimensions = await this.audioGenerationService.getVideoDimensionsSafe(
       response.uploadedVideoUrl,
     );
 
-    const suggestedTags = await this.sfxGenerationService.buildSuggestedTags(tag);
+    const suggestedTags = await this.audioGenerationService.buildSuggestedTags(tag);
     const suggestedTagsForParams = suggestedTags.map((t) => ({
       id: t.id,
       name: t.name.replace('#', ''),
     }));
 
-    let post = await this.sfxGenerationService.createPostForSfxVideo(
+    let post = await this.audioGenerationService.createPostForAudioVideo(
       response.uploadedVideoUrl,
       user,
       tag,
@@ -64,9 +63,9 @@ export class MireloSfxVideoToVideoProcessor extends BaseSfxProcessor {
       dimensions?.width,
       dimensions?.height,
     );
-    post = await this.sfxGenerationService.getPostById(post.id);
+    post = await this.audioGenerationService.getPostById(post.id);
 
-    const cost = await this.sfxGenerationService.updateUserCredits(
+    const cost = await this.audioGenerationService.updateUserCredits(
       user,
       dto.ai_service,
     );
@@ -79,7 +78,7 @@ export class MireloSfxVideoToVideoProcessor extends BaseSfxProcessor {
     } catch {}
 
     try {
-      await this.sfxGenerationService.logActivityAndNotify(
+      await this.audioGenerationService.logActivityAndNotify(
         userId,
         ActivityEnum.VIDEO_GENERATE_SPEND,
         dto.ai_service,

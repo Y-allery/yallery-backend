@@ -3,7 +3,7 @@ import { Job } from 'bullmq';
 import { NotificationGateway } from 'src/notification/notification.gateway';
 import { ActivityEnum } from 'src/activity/types/activity.enum';
 
-export abstract class BaseSfxProcessor extends WorkerHost {
+export abstract class BaseAudioProcessor extends WorkerHost {
   constructor(protected readonly notificationGateway: NotificationGateway) {
     super();
   }
@@ -27,10 +27,7 @@ export abstract class BaseSfxProcessor extends WorkerHost {
       return;
     }
 
-    if (!userId) {
-      console.error(`[${processorName}] onFailed: userId is missing for job ${job.id}`);
-      return;
-    }
+    if (!userId) return;
 
     try {
       await this.notificationGateway.sendErrorNotification(

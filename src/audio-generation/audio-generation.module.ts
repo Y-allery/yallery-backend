@@ -5,10 +5,10 @@ import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 
-import { SfxAIEnum } from 'src/common/enums/ai.enum';
-import { SfxGenerationService } from './sfx-generation.service';
-import { SfxGenerationController } from './sfx-generation.controller';
-import { MireloSfxVideoToVideoProcessor } from './processors/mirelo-sfx-video-to-video.processor';
+import { AudioAIEnum } from 'src/common/enums/ai.enum';
+import { AudioGenerationService } from './audio-generation.service';
+import { AudioGenerationController } from './audio-generation.controller';
+import { MireloAudioVideoToVideoProcessor } from './processors/mirelo-audio-video-to-video.processor';
 
 import { NotificationModule } from 'src/notification/notification.module';
 import { ServiceTokenModule } from 'src/service-token/service-token.module';
@@ -30,15 +30,15 @@ import { AISettingsEntity } from 'src/image-generation/entities/ai-settings.enti
     NotificationModule,
     UploadModule,
     ServiceTokenModule,
-    BullModule.registerQueue({ name: SfxAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO }),
+    BullModule.registerQueue({ name: AudioAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO }),
     BullBoardModule.forFeature({
-      name: SfxAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO,
+      name: AudioAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO,
       adapter: BullMQAdapter,
     }),
   ],
-  controllers: [SfxGenerationController],
-  providers: [SfxGenerationService, MireloSfxVideoToVideoProcessor],
-  exports: [SfxGenerationService],
+  controllers: [AudioGenerationController],
+  providers: [AudioGenerationService, MireloAudioVideoToVideoProcessor],
+  exports: [AudioGenerationService],
 })
-export class SfxGenerationModule {}
+export class AudioGenerationModule {}
 

@@ -1,8 +1,8 @@
 import { IsEnum, IsOptional, IsString, IsUrl, IsInt, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { SfxAIEnum } from 'src/common/enums/ai.enum';
+import { AudioAIEnum } from 'src/common/enums/ai.enum';
 
-export class GenerateSfxDto {
+export class GenerateAudioDto {
   @IsUrl()
   @IsString()
   @ApiProperty({
@@ -29,8 +29,8 @@ export class GenerateSfxDto {
   })
   num_samples?: number;
 
-  @IsEnum(SfxAIEnum)
-  @ApiProperty({ description: 'The AI service to be used', enum: SfxAIEnum })
-  ai_service: SfxAIEnum;
+  @IsEnum(AudioAIEnum)
+  @ApiProperty({ description: 'The AI service to be used', enum: AudioAIEnum })
+  ai_service: AudioAIEnum;
 }
 

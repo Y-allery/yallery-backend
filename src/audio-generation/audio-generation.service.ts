@@ -8,7 +8,7 @@ import OpenAI from 'openai';
 import { v2 as cloudinary } from 'cloudinary';
 import { ConfigService } from '@nestjs/config';
 
-import { SfxAIEnum } from 'src/common/enums/ai.enum';
+import { AudioAIEnum } from 'src/common/enums/ai.enum';
 import { AISettingsEntity } from 'src/image-generation/entities/ai-settings.entity';
 import { ServiceTokenService } from 'src/service-token/service-token.service';
 import { UploadService } from 'src/upload/upload.service';
@@ -19,14 +19,14 @@ import { ActivityEnum } from 'src/activity/types/activity.enum';
 import { UserEntity } from 'src/user/entities/user.entity';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { TagEntity } from 'src/tag/entities/tag.entity';
-import { GenerateSfxDto } from './dto/generate-sfx.dto';
+import { GenerateAudioDto } from './dto/generate-audio.dto';
 
 @Injectable()
-export class SfxGenerationService {
+export class AudioGenerationService {
   private openai: OpenAI;
 
   constructor(
-    @InjectQueue(SfxAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO)
+    @InjectQueue(AudioAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO)
     private readonly mireloQueue: Queue,
     private readonly serviceTokenService: ServiceTokenService,
     private readonly uploadService: UploadService,
@@ -50,7 +50,7 @@ export class SfxGenerationService {
     });
   }
 
-  async addSfxTaskToQueue(dto: GenerateSfxDto, userId: number) {
+  async addAudioTaskToQueue(dto: GenerateAudioDto, userId: number) {
     const user = await this.userEntity.findOne({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');
 
@@ -66,14 +66,14 @@ export class SfxGenerationService {
     return await this.mireloQueue.add(dto.ai_service, { dto, userId }, jobOptions);
   }
 
-  private async verifyUserHasEnoughCredits(user: UserEntity, aiService: SfxAIEnum) {
+  private async verifyUserHasEnoughCredits(user: UserEntity, aiService: AudioAIEnum) {
     const cost = await this.getCostByService(aiService);
     if (user.points < cost) {
-      throw new BadRequestException('Not enough credits to generate SFX video');
+      throw new BadRequestException('Not enough credits to generate audio');
     }
   }
 
-  async getCostByService(service: SfxAIEnum): Promise<number> {
+  async getCostByService(service: AudioAIEnum): Promise<number> {
     const aiSetting = await this.aiSettingsRepository.findOne({
       where: { aiService: service, isActive: true, type: 'video' },
     });
@@ -86,24 +86,28 @@ export class SfxGenerationService {
   }
 
   async getAllAISettings() {
-    const sfxSettings = await this.aiSettingsRepository.find({
-      where: { type: 'video', isActive: true, aiService: SfxAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO },
+    const settings = await this.aiSettingsRepository.find({
+      where: {
+        type: 'video',
+        isActive: true,
+        aiService: AudioAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO,
+      },
       order: { id: 'ASC' },
     });
 
-    if (sfxSettings.length === 0) {
+    if (settings.length === 0) {
       return {
-        defaultSettings: { defaultAI: SfxAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO, cost: 0 },
+        defaultSettings: { defaultAI: AudioAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO, cost: 0 },
         aiSettings: [],
       };
     }
 
     return {
       defaultSettings: {
-        defaultAI: SfxAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO,
-        cost: sfxSettings[0].cost,
+        defaultAI: AudioAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO,
+        cost: settings[0].cost,
       },
-      aiSettings: sfxSettings.map((s) => ({
+      aiSettings: settings.map((s) => ({
         id: s.aiService,
         name: s.name,
         cost: s.cost,
@@ -113,7 +117,7 @@ export class SfxGenerationService {
     };
   }
 
-  async generateSfx(dto: GenerateSfxDto): Promise<{ uploadedVideoUrl: string }> {
+  async generateAudio(dto: GenerateAudioDto): Promise<{ uploadedVideoUrl: string }> {
     const token = await this.serviceTokenService.getNextAvailableToken(dto.ai_service);
     fal.config({ credentials: token.token });
 
@@ -133,7 +137,7 @@ export class SfxGenerationService {
     const result = await (fal.run as any)(aiSetting.apiModel, { input });
     const rawVideoUrl = (result as any)?.video?.[0]?.url ?? (result as any)?.video?.url;
     if (!rawVideoUrl) {
-      throw new Error(`SFX model returned no video. Result: ${JSON.stringify(result)}`);
+      throw new Error(`Audio model returned no video. Result: ${JSON.stringify(result)}`);
     }
 
     const uploadedVideoUrl = await this.uploadService.uploadVideoByUrl(rawVideoUrl);
@@ -200,7 +204,7 @@ export class SfxGenerationService {
       const messages: any = [
         {
           role: 'user' as const,
-          content: `Given the following prompt: "${prompt}" and the following list of tags: [${tagNames.join(
+          content: `Given the following prompt: \"${prompt}\" and the following list of tags: [${tagNames.join(
             ', ',
           )}], please return only the most relevant tag name.`,
         },
@@ -222,7 +226,9 @@ export class SfxGenerationService {
     return tags[0];
   }
 
-  async buildSuggestedTags(tag: TagEntity): Promise<{ id: number; name: string; imageUrl: string }[]> {
+  async buildSuggestedTags(
+    tag: TagEntity,
+  ): Promise<{ id: number; name: string; imageUrl: string }[]> {
     const suggestedTags: { id: number; name: string; imageUrl: string }[] = [];
     if (tag) {
       suggestedTags.push({ id: tag.id, name: '#' + tag.name, imageUrl: tag.imageUrl });
@@ -238,7 +244,7 @@ export class SfxGenerationService {
     return suggestedTags;
   }
 
-  async createPostForSfxVideo(
+  async createPostForAudioVideo(
     videoUrl: string,
     user: UserEntity,
     tag: TagEntity,
@@ -258,7 +264,7 @@ export class SfxGenerationService {
       isSaved: true,
       generationParams: {
         prompt,
-        aiService: SfxAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO,
+        aiService: AudioAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO,
         width: width || undefined,
         height: height || undefined,
         suggestedTags: suggestedTags?.length ? suggestedTags : undefined,
@@ -271,7 +277,7 @@ export class SfxGenerationService {
     return await this.postRepository.findOne({ where: { id: postId } });
   }
 
-  async updateUserCredits(user: UserEntity, aiService: SfxAIEnum) {
+  async updateUserCredits(user: UserEntity, aiService: AudioAIEnum) {
     const cost = await this.getCostByService(aiService);
     user.points -= cost;
     await this.userEntity.save(user);
@@ -282,7 +288,7 @@ export class SfxGenerationService {
   public async logActivityAndNotify(
     userId: number,
     activityType: ActivityEnum,
-    service?: SfxAIEnum,
+    service?: AudioAIEnum,
     generationCost?: number,
   ) {
     let cost = generationCost;
