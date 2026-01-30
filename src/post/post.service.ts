@@ -335,6 +335,51 @@ export class PostService {
       throw error;
     }
   }
+
+  async updatePostMedia(
+    postId: number,
+    userId: number,
+    dto: { imageUrl?: string; videoUrl?: string; previewImageUrl?: string },
+  ) {
+    const post = await this.postEntity.findOne({
+      where: { id: postId, user: { id: userId } },
+      relations: { user: true },
+      select: { id: true, imageUrl: true, videoUrl: true, previewImageUrl: true, user: { id: true } },
+    });
+
+    if (!post) {
+      throw new NotFoundException('Post not found or you are not the owner');
+    }
+
+    const imageUrl = dto.imageUrl?.trim();
+    const videoUrl = dto.videoUrl?.trim();
+    const hasImage = imageUrl && imageUrl.length > 0;
+    const hasVideo = videoUrl && videoUrl.length > 0;
+
+    if (!hasImage && !hasVideo) {
+      throw new BadRequestException('Provide imageUrl or videoUrl');
+    }
+    if (hasImage && hasVideo) {
+      throw new BadRequestException('Provide either imageUrl or videoUrl, not both');
+    }
+
+    if (hasImage) {
+      post.imageUrl = imageUrl!;
+      post.videoUrl = null;
+      post.previewImageUrl = null;
+    } else {
+      post.videoUrl = videoUrl!;
+      post.previewImageUrl = dto.previewImageUrl?.trim() || post.previewImageUrl || null;
+      post.imageUrl = null;
+    }
+
+    await this.postEntity.save(post);
+    return this.postEntity.findOne({
+      where: { id: postId },
+      relations: { user: true, tag: true },
+    });
+  }
+
   async getUnpublishedPosts(userId: number) {
     const query = `
       SELECT 

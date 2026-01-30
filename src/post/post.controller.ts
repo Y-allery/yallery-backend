@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseIntPipe,
   Patch,
   Post,
   Query,
@@ -32,6 +33,7 @@ import { ReportPostDto } from './dto/report.post.dto';
 import { Response } from 'express';
 import { MarkViewedDto } from './dto/mark.viewed.dto';
 import { TweetDto } from './dto/tweet.dto';
+import { UpdatePostMediaDto } from './dto/update-post-media.dto';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 
@@ -91,6 +93,25 @@ export class PostController {
   @ApiResponse(POST_SWAGGER.publishPost.responses.forbidden)
   publishPost(@Param('id') id: number, @Req() req: AuthenticatedRequest) {
     return this.postService.publishPost(id, req.user.id);
+  }
+
+  @Patch('update-media/:id')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: 'Update post media',
+    description: 'Update image URL or video URL (and optional previewImageUrl) of an existing post. Provide either imageUrl or videoUrl, not both. Only the post owner can update.',
+  })
+  @ApiParam({ name: 'id', required: true, description: 'Post ID' })
+  @ApiBody({ type: UpdatePostMediaDto })
+  @ApiResponse({ status: 200, description: 'Post media updated successfully' })
+  @ApiResponse({ status: 400, description: 'Provide imageUrl or videoUrl (not both)' })
+  @ApiResponse({ status: 404, description: 'Post not found or not owner' })
+  async updatePostMedia(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdatePostMediaDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.postService.updatePostMedia(id, req.user.id, dto);
   }
 
   @Get('published')
