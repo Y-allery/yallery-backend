@@ -155,7 +155,7 @@ export class AudioGenerationService {
       video_url: dto.video_url,
       text_prompt: dto.text_prompt ?? '',
       // docs default: 2
-      num_samples: dto.num_samples ?? 2,
+      num_samples: 2,
       // docs default: 10 seconds
       duration: dto.duration ?? 10,
       // docs default: 0

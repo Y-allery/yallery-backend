@@ -1,4 +1,4 @@
-import { IsEnum, IsOptional, IsString, IsUrl, IsInt, Min, IsNumber } from 'class-validator';
+import { IsEnum, IsOptional, IsString, IsUrl, IsNumber } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AudioAIEnum } from 'src/common/enums/ai.enum';
 
@@ -19,15 +19,6 @@ export class GenerateAudioDto {
     example: 'Add dramatic explosions and footsteps',
   })
   text_prompt?: string;
-
-  @IsOptional()
-  @IsInt()
-  @Min(2)
-  @ApiPropertyOptional({
-    description: 'Number of samples to generate (default: 2)',
-    example: 2,
-  })
-  num_samples?: number;
 
   @IsOptional()
   @IsNumber()
