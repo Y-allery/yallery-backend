@@ -10,14 +10,15 @@ export abstract class BaseAudioProcessor extends WorkerHost {
 
   @OnWorkerEvent('failed')
   async onFailed(job: Job, err: Error) {
-    const { aiService, userId } = job.data;
+    const { aiService, userId, dto } = job.data ?? {};
+    const resolvedService = aiService || dto?.ai_service;
     const processorName = this.constructor.name;
 
     const attemptsMade = job.attemptsMade || 0;
     const maxAttempts = job.opts?.attempts ?? 3;
 
     console.error(
-      `Job ${job.id} for ${aiService || 'unknown'} failed in ${processorName}: ${err.message} | Attempts: ${attemptsMade}/${maxAttempts}`,
+      `Job ${job.id} for ${resolvedService || 'unknown'} failed in ${processorName}: ${err.message} | Attempts: ${attemptsMade}/${maxAttempts}`,
     );
 
     if (attemptsMade < maxAttempts) {

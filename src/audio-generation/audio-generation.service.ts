@@ -7,6 +7,7 @@ import * as fal from '@fal-ai/serverless-client';
 import OpenAI from 'openai';
 import { v2 as cloudinary } from 'cloudinary';
 import { ConfigService } from '@nestjs/config';
+import axios from 'axios';
 
 import { AudioAIEnum } from 'src/common/enums/ai.enum';
 import { AISettingsEntity } from 'src/image-generation/entities/ai-settings.entity';
@@ -63,7 +64,11 @@ export class AudioGenerationService {
       removeOnFail: false,
     };
 
-    return await this.mireloQueue.add(dto.ai_service, { dto, userId }, jobOptions);
+    return await this.mireloQueue.add(
+      dto.ai_service,
+      { dto, userId, aiService: dto.ai_service },
+      jobOptions,
+    );
   }
 
   private async verifyUserHasEnoughCredits(user: UserEntity, aiService: AudioAIEnum) {
@@ -128,13 +133,49 @@ export class AudioGenerationService {
       throw new BadRequestException('Invalid AI service selected or apiModel not found');
     }
 
+    // Preflight check: ensure the video URL is publicly reachable (common cause of 422)
+    try {
+      const head = await axios.head(dto.video_url, {
+        timeout: 8000,
+        validateStatus: () => true,
+      });
+      if (head.status < 200 || head.status >= 400) {
+        throw new BadRequestException(
+          `video_url is not reachable (status ${head.status}). Make sure it's a public direct video URL.`,
+        );
+      }
+    } catch (e: any) {
+      const msg = e?.message || e?.toString?.() || 'unknown';
+      throw new BadRequestException(
+        `video_url preflight failed: ${msg}. Make sure it's a public direct video URL.`,
+      );
+    }
+
     const input: any = {
       video_url: dto.video_url,
       text_prompt: dto.text_prompt ?? '',
       num_samples: dto.num_samples ?? 1,
     };
 
-    const result = await (fal.run as any)(aiSetting.apiModel, { input });
+    let result: any;
+    try {
+      result = await (fal.run as any)(aiSetting.apiModel, { input });
+    } catch (error: any) {
+      // fal errors often include useful JSON details for 422; log everything we can
+      const details =
+        error?.body ??
+        error?.response?.data ??
+        error?.data ??
+        error?.message ??
+        error;
+      console.error('[AudioGenerationService.generateAudio] fal.run failed', {
+        aiService: dto.ai_service,
+        apiModel: aiSetting.apiModel,
+        input,
+        error: details,
+      });
+      throw error;
+    }
     const rawVideoUrl = (result as any)?.video?.[0]?.url ?? (result as any)?.video?.url;
     if (!rawVideoUrl) {
       throw new Error(`Audio model returned no video. Result: ${JSON.stringify(result)}`);
