@@ -1,0 +1,308 @@
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import * as fal from '@fal-ai/serverless-client';
+import OpenAI from 'openai';
+import { v2 as cloudinary } from 'cloudinary';
+import { ConfigService } from '@nestjs/config';
+
+import { SfxAIEnum } from 'src/common/enums/ai.enum';
+import { AISettingsEntity } from 'src/image-generation/entities/ai-settings.entity';
+import { ServiceTokenService } from 'src/service-token/service-token.service';
+import { UploadService } from 'src/upload/upload.service';
+import { NotificationGateway } from 'src/notification/notification.gateway';
+import { ActivityService } from 'src/activity/activity.service';
+import { ActivityEnum } from 'src/activity/types/activity.enum';
+
+import { UserEntity } from 'src/user/entities/user.entity';
+import { PostEntity } from 'src/post/entities/post.entity';
+import { TagEntity } from 'src/tag/entities/tag.entity';
+import { GenerateSfxDto } from './dto/generate-sfx.dto';
+
+@Injectable()
+export class SfxGenerationService {
+  private openai: OpenAI;
+
+  constructor(
+    @InjectQueue(SfxAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO)
+    private readonly mireloQueue: Queue,
+    private readonly serviceTokenService: ServiceTokenService,
+    private readonly uploadService: UploadService,
+    private readonly activityService: ActivityService,
+    private readonly notificationGateway: NotificationGateway,
+    private readonly configService: ConfigService,
+    @InjectRepository(UserEntity)
+    private userEntity: Repository<UserEntity>,
+    @InjectRepository(PostEntity)
+    private postRepository: Repository<PostEntity>,
+    @InjectRepository(TagEntity)
+    private tagRepository: Repository<TagEntity>,
+    @InjectRepository(AISettingsEntity)
+    private aiSettingsRepository: Repository<AISettingsEntity>,
+  ) {
+    this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    cloudinary.config({
+      cloud_name: this.configService.get('CLOUDINARY_CLOUD_NAME'),
+      api_key: this.configService.get('CLOUDINARY_API_KEY'),
+      api_secret: this.configService.get('CLOUDINARY_API_SECRET'),
+    });
+  }
+
+  async addSfxTaskToQueue(dto: GenerateSfxDto, userId: number) {
+    const user = await this.userEntity.findOne({ where: { id: userId } });
+    if (!user) throw new BadRequestException('User not found');
+
+    await this.verifyUserHasEnoughCredits(user, dto.ai_service);
+
+    const jobOptions = {
+      attempts: 3,
+      backoff: 15000,
+      removeOnComplete: true,
+      removeOnFail: false,
+    };
+
+    return await this.mireloQueue.add(dto.ai_service, { dto, userId }, jobOptions);
+  }
+
+  private async verifyUserHasEnoughCredits(user: UserEntity, aiService: SfxAIEnum) {
+    const cost = await this.getCostByService(aiService);
+    if (user.points < cost) {
+      throw new BadRequestException('Not enough credits to generate SFX video');
+    }
+  }
+
+  async getCostByService(service: SfxAIEnum): Promise<number> {
+    const aiSetting = await this.aiSettingsRepository.findOne({
+      where: { aiService: service, isActive: true, type: 'video' },
+    });
+    if (!aiSetting) {
+      throw new BadRequestException(
+        `AI service ${service} not found in ai_settings or is inactive`,
+      );
+    }
+    return aiSetting.cost;
+  }
+
+  async getAllAISettings() {
+    const sfxSettings = await this.aiSettingsRepository.find({
+      where: { type: 'video', isActive: true, aiService: SfxAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO },
+      order: { id: 'ASC' },
+    });
+
+    if (sfxSettings.length === 0) {
+      return {
+        defaultSettings: { defaultAI: SfxAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO, cost: 0 },
+        aiSettings: [],
+      };
+    }
+
+    return {
+      defaultSettings: {
+        defaultAI: SfxAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO,
+        cost: sfxSettings[0].cost,
+      },
+      aiSettings: sfxSettings.map((s) => ({
+        id: s.aiService,
+        name: s.name,
+        cost: s.cost,
+        description: s.description,
+        api_model: s.apiModel,
+      })),
+    };
+  }
+
+  async generateSfx(dto: GenerateSfxDto): Promise<{ uploadedVideoUrl: string }> {
+    const token = await this.serviceTokenService.getNextAvailableToken(dto.ai_service);
+    fal.config({ credentials: token.token });
+
+    const aiSetting = await this.aiSettingsRepository.findOne({
+      where: { aiService: dto.ai_service, type: 'video', isActive: true },
+    });
+    if (!aiSetting?.apiModel) {
+      throw new BadRequestException('Invalid AI service selected or apiModel not found');
+    }
+
+    const input: any = {
+      video_url: dto.video_url,
+      text_prompt: dto.text_prompt ?? '',
+      num_samples: dto.num_samples ?? 1,
+    };
+
+    const result = await (fal.run as any)(aiSetting.apiModel, { input });
+    const rawVideoUrl = (result as any)?.video?.[0]?.url ?? (result as any)?.video?.url;
+    if (!rawVideoUrl) {
+      throw new Error(`SFX model returned no video. Result: ${JSON.stringify(result)}`);
+    }
+
+    const uploadedVideoUrl = await this.uploadService.uploadVideoByUrl(rawVideoUrl);
+    if (!uploadedVideoUrl) {
+      throw new Error('Failed to upload video: upload service returned no URL');
+    }
+    return { uploadedVideoUrl };
+  }
+
+  private generateCloudinaryPreviewUrl(videoUrl: string): string | null {
+    try {
+      if (!videoUrl || typeof videoUrl !== 'string') return null;
+      if (!videoUrl.includes('cloudinary.com')) return null;
+      const base = videoUrl.split('?')[0];
+      if (base.includes('/video/upload/')) {
+        const withFrame = base.replace('/video/upload/', '/video/upload/so_0/');
+        if (/\.(mp4|webm|mov|avi)$/i.test(withFrame)) {
+          return withFrame.replace(/\.(mp4|webm|mov|avi)$/i, '.jpg');
+        }
+        return `${withFrame}.jpg`;
+      }
+      if (/\.(mp4|webm|mov|avi)$/i.test(base)) {
+        return base.replace(/\.(mp4|webm|mov|avi)$/i, '.jpg');
+      }
+      return `${base}.jpg`;
+    } catch {
+      return null;
+    }
+  }
+
+  async getVideoDimensionsSafe(
+    videoUrl: string,
+  ): Promise<{ width: number; height: number } | null> {
+    try {
+      if (!videoUrl.includes('cloudinary.com')) return null;
+
+      const urlParts = videoUrl.split('/');
+      const uploadIndex = urlParts.indexOf('upload');
+      if (uploadIndex === -1 || uploadIndex + 1 >= urlParts.length) return null;
+
+      const segmentsAfterUpload = urlParts.slice(uploadIndex + 1);
+      const segmentsWithoutVersion = segmentsAfterUpload.filter(
+        (segment, index) => !(index === 0 && /^v\d+$/.test(segment)),
+      );
+      const publicIdWithExtension = segmentsWithoutVersion.join('/');
+      const publicId = publicIdWithExtension.replace(/\.[^/.]+$/, '');
+      if (!publicId) return null;
+
+      const result = await cloudinary.api.resource(publicId, { resource_type: 'video' });
+      if (result?.width && result?.height) {
+        return { width: Number(result.width), height: Number(result.height) };
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  async resolveTag(prompt: string): Promise<TagEntity> {
+    if (!prompt?.trim()) return this.getDefaultTag();
+    try {
+      const tags = await this.tagRepository.find();
+      const tagNames = tags.map((t) => t.name);
+      const messages: any = [
+        {
+          role: 'user' as const,
+          content: `Given the following prompt: "${prompt}" and the following list of tags: [${tagNames.join(
+            ', ',
+          )}], please return only the most relevant tag name.`,
+        },
+      ];
+      const response = await this.openai.chat.completions.create({
+        model: 'o4-mini-2025-04-16',
+        messages,
+        max_completion_tokens: 200,
+      });
+      const tagName = response.choices?.[0]?.message?.content?.trim();
+      return tags.find((t) => t.name.toLowerCase() === tagName?.toLowerCase()) ?? tags[0];
+    } catch {
+      return this.getDefaultTag();
+    }
+  }
+
+  async getDefaultTag(): Promise<TagEntity> {
+    const tags = await this.tagRepository.find();
+    return tags[0];
+  }
+
+  async buildSuggestedTags(tag: TagEntity): Promise<{ id: number; name: string; imageUrl: string }[]> {
+    const suggestedTags: { id: number; name: string; imageUrl: string }[] = [];
+    if (tag) {
+      suggestedTags.push({ id: tag.id, name: '#' + tag.name, imageUrl: tag.imageUrl });
+    }
+    const otherTag = await this.tagRepository.findOne({ where: { name: 'other' } });
+    if (otherTag && (!tag || otherTag.id !== tag.id)) {
+      suggestedTags.push({
+        id: otherTag.id,
+        name: '#' + otherTag.name,
+        imageUrl: otherTag.imageUrl,
+      });
+    }
+    return suggestedTags;
+  }
+
+  async createPostForSfxVideo(
+    videoUrl: string,
+    user: UserEntity,
+    tag: TagEntity,
+    prompt: string,
+    suggestedTags?: { id: number; name: string }[],
+    width?: number,
+    height?: number,
+  ): Promise<PostEntity> {
+    const previewImageUrl = this.generateCloudinaryPreviewUrl(videoUrl);
+    const post = this.postRepository.create({
+      user: { id: user.id } as any,
+      tag,
+      videoUrl,
+      imageUrl: null,
+      previewImageUrl,
+      isPublished: false,
+      isSaved: true,
+      generationParams: {
+        prompt,
+        aiService: SfxAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO,
+        width: width || undefined,
+        height: height || undefined,
+        suggestedTags: suggestedTags?.length ? suggestedTags : undefined,
+      },
+    });
+    return await this.postRepository.save(post);
+  }
+
+  async getPostById(postId: number): Promise<PostEntity | null> {
+    return await this.postRepository.findOne({ where: { id: postId } });
+  }
+
+  async updateUserCredits(user: UserEntity, aiService: SfxAIEnum) {
+    const cost = await this.getCostByService(aiService);
+    user.points -= cost;
+    await this.userEntity.save(user);
+    await this.notificationGateway.emitProfileUpdate(user.id.toString());
+    return cost;
+  }
+
+  public async logActivityAndNotify(
+    userId: number,
+    activityType: ActivityEnum,
+    service?: SfxAIEnum,
+    generationCost?: number,
+  ) {
+    let cost = generationCost;
+    if (!cost && service) {
+      cost = await this.getCostByService(service);
+    }
+
+    const description = await this.activityService.createActivitiesV2({
+      fromUserId: null,
+      toUserIds: [userId],
+      type: activityType,
+      isAdmin: false,
+      service: service as any,
+      generationCost: cost,
+    });
+    await this.notificationGateway.sendNotification(
+      userId.toString(),
+      description,
+      activityType,
+    );
+  }
+}
+

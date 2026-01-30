@@ -350,20 +350,24 @@ export class VideoGenerationService {
 
       const inputParams: any = { prompt: dto.prompt };
       // image_url is only required for image-to-video models
-      if (dto.image_url) {
-        inputParams.image_url = dto.image_url;
+      if ((dto as any)?.image_url) {
+        inputParams.image_url = (dto as any).image_url;
       }
       const result = await generateMethod({
         input: inputParams,
       });
 
-      if (!result || !result.video || !result.video.url) {
+      const rawVideoUrl =
+        (result as any)?.video?.url ??
+        (result as any)?.video?.[0]?.url;
+
+      if (!rawVideoUrl) {
         throw new Error(
           `Video generation service ${dto.ai_service} returned no video. Result: ${JSON.stringify(result)}`,
         );
       }
 
-      const videoUrl = result.video.url;
+      const videoUrl = rawVideoUrl;
 
       const uploadedVideoUrl = await this.uploadService.uploadVideoByUrl(videoUrl);
 
