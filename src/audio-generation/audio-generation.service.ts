@@ -154,7 +154,12 @@ export class AudioGenerationService {
     const input: any = {
       video_url: dto.video_url,
       text_prompt: dto.text_prompt ?? '',
-      num_samples: dto.num_samples ?? 1,
+      // docs default: 2
+      num_samples: dto.num_samples ?? 2,
+      // docs default: 10 seconds
+      duration: dto.duration ?? 10,
+      // docs default: 0
+      start_offset: dto.start_offset ?? 0,
     };
 
     let result: any;
@@ -168,12 +173,19 @@ export class AudioGenerationService {
         error?.data ??
         error?.message ??
         error;
-      console.error('[AudioGenerationService.generateAudio] fal.run failed', {
-        aiService: dto.ai_service,
-        apiModel: aiSetting.apiModel,
-        input,
-        error: details,
-      });
+      console.error(
+        '[AudioGenerationService.generateAudio] fal.run failed',
+        JSON.stringify(
+          {
+            aiService: dto.ai_service,
+            apiModel: aiSetting.apiModel,
+            input,
+            error: details,
+          },
+          null,
+          2,
+        ),
+      );
       throw error;
     }
     const rawVideoUrl = (result as any)?.video?.[0]?.url ?? (result as any)?.video?.url;
