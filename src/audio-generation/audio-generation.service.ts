@@ -309,6 +309,7 @@ export class AudioGenerationService {
       tag,
       videoUrl,
       imageUrl: null,
+      hasAudio: true,
       previewImageUrl,
       isPublished: false,
       isSaved: true,
