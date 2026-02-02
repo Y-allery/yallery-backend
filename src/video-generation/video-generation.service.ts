@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { GenerateVideoDto } from './dto/generate-video.dto';
 import { Queue } from 'bullmq';
-import { AIEnum, VideoAIEnum } from 'src/common/enums/ai.enum';
+import { AIEnum, AudioAIEnum, ModelInputEnum, VideoAIEnum } from 'src/common/enums/ai.enum';
 import { InjectQueue } from '@nestjs/bullmq';
 import { AiServiceToken } from 'src/service-token/entities/service-token.entity';
 import { ServiceTokenService } from 'src/service-token/service-token.service';
@@ -29,6 +29,24 @@ import { ConfigService } from '@nestjs/config';
 @Injectable()
 export class VideoGenerationService {
   private openai;
+
+  private getSupportedInputs(aiService: string): ModelInputEnum[] {
+    if (aiService === VideoAIEnum.BYTY_DANCE) {
+      return [ModelInputEnum.TEXT_PROMPT, ModelInputEnum.IMAGE_SOURCE];
+    }
+    if (aiService === VideoAIEnum.KLING_TEXT_TO_VIDEO) {
+      return [ModelInputEnum.TEXT_PROMPT];
+    }
+    if (aiService === AudioAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO) {
+      return [
+        ModelInputEnum.TEXT_PROMPT,
+        ModelInputEnum.SOUND_PROMPT,
+        ModelInputEnum.VIDEO_SOURCE,
+      ];
+    }
+    // default fallback for unknown models
+    return [ModelInputEnum.TEXT_PROMPT];
+  }
 
   constructor(
     @InjectQueue(VideoAIEnum.BYTY_DANCE) private readonly bytyDance: Queue,
@@ -112,6 +130,7 @@ export class VideoGenerationService {
       description: setting.description || 'Create animated videos from your image with BytyDance.',
       api_model: setting.apiModel,
       modelType: setting.aiService === VideoAIEnum.KLING_TEXT_TO_VIDEO ? 'TEXT_TO_VIDEO' : 'IMAGE_TO_VIDEO',
+      supportedInputs: this.getSupportedInputs(setting.aiService),
     }));
 
     return {

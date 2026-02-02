@@ -15,3 +15,11 @@ export enum VideoAIEnum {
 export enum AudioAIEnum {
   MIRELO_SFX_VIDEO_TO_VIDEO = 'mirelo_sfx_video_to_video',
 }
+
+// Describes what inputs a generation model supports (for UI/options).
+export enum ModelInputEnum {
+  TEXT_PROMPT = 'TEXT_PROMPT',
+  IMAGE_SOURCE = 'IMAGE_SOURCE',
+  VIDEO_SOURCE = 'VIDEO_SOURCE',
+  SOUND_PROMPT = 'SOUND_PROMPT',
+}
