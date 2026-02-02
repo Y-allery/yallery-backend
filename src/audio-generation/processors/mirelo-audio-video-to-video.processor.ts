@@ -41,7 +41,7 @@ export class MireloAudioVideoToVideoProcessor extends BaseAudioProcessor {
     const user = await this.userService.findById(userId);
     if (!user) throw new Error(`User with id ${userId} not found`);
 
-    const prompt = (dto?.sound_prompt || dto?.text_prompt || '').trim();
+    const prompt = (dto?.prompt || '').trim();
     const tag = await this.audioGenerationService.resolveTag(prompt);
 
     const dimensions = await this.audioGenerationService.getVideoDimensionsSafe(

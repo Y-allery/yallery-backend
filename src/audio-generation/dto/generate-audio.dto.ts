@@ -15,21 +15,10 @@ export class GenerateAudioDto {
   @IsOptional()
   @IsString()
   @ApiPropertyOptional({
-    description: 'Optional sound prompt to guide the sound effects generation.',
+    description: 'Optional prompt to guide the sound effects generation.',
     example: 'Add dramatic explosions and footsteps',
   })
-  sound_prompt?: string;
-
-  // Backward-compatible alias (old clients)
-  @IsOptional()
-  @IsString()
-  @ApiPropertyOptional({
-    description:
-      '[Deprecated] Use sound_prompt. Optional text prompt to guide the sound effects generation.',
-    example: 'Add dramatic explosions and footsteps',
-    required: false,
-  })
-  text_prompt?: string;
+  prompt?: string;
 
   @IsEnum(AudioAIEnum)
   @ApiProperty({ description: 'The AI service to be used', enum: AudioAIEnum })

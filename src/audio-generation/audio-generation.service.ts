@@ -154,7 +154,7 @@ export class AudioGenerationService {
 
     const input: any = {
       video_url: dto.video_url,
-      text_prompt: dto.sound_prompt ?? dto.text_prompt ?? '',
+      text_prompt: dto.prompt ?? '',
       // docs default: 2
       num_samples: 2,
     };
