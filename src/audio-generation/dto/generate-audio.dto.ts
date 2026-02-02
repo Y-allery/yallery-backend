@@ -1,4 +1,4 @@
-import { IsEnum, IsOptional, IsString, IsUrl, IsNumber } from 'class-validator';
+import { IsEnum, IsOptional, IsString, IsUrl } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AudioAIEnum } from 'src/common/enums/ai.enum';
 
@@ -30,22 +30,6 @@ export class GenerateAudioDto {
     required: false,
   })
   text_prompt?: string;
-
-  @IsOptional()
-  @IsNumber()
-  @ApiPropertyOptional({
-    description: 'Duration of generated audio in seconds (default: 10)',
-    example: 10,
-  })
-  duration?: number;
-
-  @IsOptional()
-  @IsNumber()
-  @ApiPropertyOptional({
-    description: 'Start offset in seconds for audio generation (default: 0)',
-    example: 0,
-  })
-  start_offset?: number;
 
   @IsEnum(AudioAIEnum)
   @ApiProperty({ description: 'The AI service to be used', enum: AudioAIEnum })

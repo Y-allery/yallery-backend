@@ -157,10 +157,6 @@ export class AudioGenerationService {
       text_prompt: dto.sound_prompt ?? dto.text_prompt ?? '',
       // docs default: 2
       num_samples: 2,
-      // docs default: 10 seconds
-      duration: dto.duration ?? 10,
-      // docs default: 0
-      start_offset: dto.start_offset ?? 0,
     };
 
     let result: any;
