@@ -31,6 +31,11 @@ export abstract class BaseAudioProcessor extends WorkerHost {
     if (!userId) return;
 
     try {
+      // Dedicated audio failure socket event
+      await this.notificationGateway.sendAudioErrorNotification(userId.toString(), {
+        message: `Audio generation failed: ${err.message}`,
+        ai_service: resolvedService || undefined,
+      });
       await this.notificationGateway.sendErrorNotification(
         userId.toString(),
         `Generation failed: ${err.message}`,
@@ -55,7 +60,7 @@ export abstract class BaseAudioProcessor extends WorkerHost {
       const { generatedVideo, post, suggestedTags } = result;
       if (!generatedVideo || !post || !post.id) return;
 
-      await this.notificationGateway.sendVideoNotification(
+      await this.notificationGateway.sendAudioNotification(
         userId.toString(),
         {
           uploadedVideoUrl: generatedVideo,
