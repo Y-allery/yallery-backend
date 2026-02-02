@@ -38,11 +38,7 @@ export class VideoGenerationService {
       return [ModelInputEnum.TEXT_PROMPT];
     }
     if (aiService === AudioAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO) {
-      return [
-        ModelInputEnum.TEXT_PROMPT,
-        ModelInputEnum.SOUND_PROMPT,
-        ModelInputEnum.VIDEO_SOURCE,
-      ];
+      return [ModelInputEnum.SOUND_PROMPT, ModelInputEnum.VIDEO_SOURCE];
     }
     // default fallback for unknown models
     return [ModelInputEnum.TEXT_PROMPT];
