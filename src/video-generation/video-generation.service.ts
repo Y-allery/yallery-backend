@@ -104,7 +104,12 @@ export class VideoGenerationService {
       order: { id: 'ASC' },
     });
 
-    if (videoAISettingsFromDb.length === 0) {
+    // Exclude audio-only models from video settings endpoint
+    const filtered = videoAISettingsFromDb.filter(
+      (s) => s.aiService !== AudioAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO,
+    );
+
+    if (filtered.length === 0) {
       return {
         defaultSettings: {
           defaultAI: VideoAIEnum.BYTY_DANCE,
@@ -116,10 +121,10 @@ export class VideoGenerationService {
 
     const defaultSettings = {
       defaultAI: VideoAIEnum.BYTY_DANCE,
-      cost: videoAISettingsFromDb[0].cost,
+      cost: filtered[0].cost,
     };
 
-    const aiSettings = videoAISettingsFromDb.map((setting) => ({
+    const aiSettings = filtered.map((setting) => ({
       id: setting.aiService,
       name: setting.name,
       cost: setting.cost,
