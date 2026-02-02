@@ -9,7 +9,7 @@ import { v2 as cloudinary } from 'cloudinary';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 
-import { AudioAIEnum } from 'src/common/enums/ai.enum';
+import { AudioAIEnum, ModelInputEnum } from 'src/common/enums/ai.enum';
 import { AISettingsEntity } from 'src/image-generation/entities/ai-settings.entity';
 import { ServiceTokenService } from 'src/service-token/service-token.service';
 import { UploadService } from 'src/upload/upload.service';
@@ -118,6 +118,7 @@ export class AudioGenerationService {
         cost: s.cost,
         description: s.description,
         api_model: s.apiModel,
+        supportedInputs: [ModelInputEnum.TEXT_PROMPT, ModelInputEnum.VIDEO_SOURCE],
       })),
     };
   }
