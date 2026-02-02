@@ -132,6 +132,7 @@ export class VideoGenerationService {
       api_model: setting.apiModel,
       modelType: setting.aiService === VideoAIEnum.KLING_TEXT_TO_VIDEO ? 'TEXT_TO_VIDEO' : 'IMAGE_TO_VIDEO',
       supportedInputs: this.getSupportedInputs(setting.aiService),
+      durations: [5, 10],
     }));
 
     return {
@@ -249,6 +250,7 @@ export class VideoGenerationService {
             colorId: undefined,
             width: width || undefined,
             height: height || undefined,
+            duration: dto.duration ?? undefined,
             negativePrompt: undefined,
             suggestedTags: finalSuggestedTags.length > 0 ? finalSuggestedTags : undefined,
           }
@@ -368,7 +370,7 @@ export class VideoGenerationService {
 
       const generateMethod = fal.run.bind(fal, serviceName);
 
-      const inputParams: any = { prompt: dto.prompt };
+      const inputParams: any = { prompt: dto.prompt, duration: dto.duration ?? 5 };
       // image_url is only required for image-to-video models
       if ((dto as any)?.image_url) {
         inputParams.image_url = (dto as any).image_url;
