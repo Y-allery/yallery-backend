@@ -134,6 +134,11 @@ export class AudioGenerationService {
       throw new BadRequestException('Invalid AI service selected or apiModel not found');
     }
 
+    const prompt = (dto?.prompt ?? '').trim();
+    if (!prompt) {
+      throw new BadRequestException('prompt is required');
+    }
+
     // Preflight check: ensure the video URL is publicly reachable (common cause of 422)
     try {
       const head = await axios.head(dto.video_url, {
@@ -154,9 +159,10 @@ export class AudioGenerationService {
 
     const input: any = {
       video_url: dto.video_url,
-      text_prompt: dto.prompt ?? '',
-      // docs default: 2
-      num_samples: 2,
+      // MMAudio expects `prompt` (required)
+      prompt,
+      // Keep duration internal (not exposed to client)
+      duration: 8,
     };
 
     let result: any;
