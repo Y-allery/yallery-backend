@@ -14,7 +14,7 @@ import { TagEntity } from 'src/tag/entities/tag.entity';
 import { NotificationGateway } from 'src/notification/notification.gateway';
 import { ActivityService } from 'src/activity/activity.service';
 import { ActivityEnum } from 'src/activity/types/activity.enum';
-import { AUDIO_GENERATION_QUEUE } from './processors/audio-generation.processor';
+import { AUDIO_GENERATION_JOB, AUDIO_GENERATION_QUEUE } from './audio-generation.constants';
 import { GenerateAudioDto } from './dto/generate-audio.dto';
 
 @Injectable()
@@ -88,7 +88,7 @@ export class AudioGenerationService {
     };
 
     return await this.audioQueue.add(
-      'audio_generation',
+      AUDIO_GENERATION_JOB,
       { dto, userId, aiService: dto.ai_service },
       jobOptions,
     );

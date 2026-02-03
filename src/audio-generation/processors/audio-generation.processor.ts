@@ -6,8 +6,7 @@ import { ActivityEnum } from 'src/activity/types/activity.enum';
 import { UserService } from 'src/user/user.service';
 import { AudioGenerationService } from '../audio-generation.service';
 import { BaseAudioProcessor } from './base-audio-processor';
-
-export const AUDIO_GENERATION_QUEUE = 'audio_generation';
+import { AUDIO_GENERATION_QUEUE } from '../audio-generation.constants';
 
 @Injectable()
 @Processor(AUDIO_GENERATION_QUEUE, {
