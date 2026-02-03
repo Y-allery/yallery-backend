@@ -27,7 +27,7 @@ export class AudioGenerationService {
   private openai: OpenAI;
 
   constructor(
-    @InjectQueue(AudioAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO)
+    @InjectQueue(AudioAIEnum.MMAUDIO_V2)
     private readonly mireloQueue: Queue,
     private readonly serviceTokenService: ServiceTokenService,
     private readonly uploadService: UploadService,
@@ -95,21 +95,21 @@ export class AudioGenerationService {
       where: {
         type: 'video',
         isActive: true,
-        aiService: AudioAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO,
+        aiService: AudioAIEnum.MMAUDIO_V2,
       },
       order: { id: 'ASC' },
     });
 
     if (settings.length === 0) {
       return {
-        defaultSettings: { defaultAI: AudioAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO, cost: 0 },
+        defaultSettings: { defaultAI: AudioAIEnum.MMAUDIO_V2, cost: 0 },
         aiSettings: [],
       };
     }
 
     return {
       defaultSettings: {
-        defaultAI: AudioAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO,
+        defaultAI: AudioAIEnum.MMAUDIO_V2,
         cost: settings[0].cost,
       },
       aiSettings: settings.map((s) => ({
@@ -154,9 +154,10 @@ export class AudioGenerationService {
 
     const input: any = {
       video_url: dto.video_url,
-      text_prompt: dto.prompt ?? '',
-      // docs default: 2
-      num_samples: 2,
+      // MMAudio v2 expects `prompt`
+      prompt: (dto.prompt ?? '').toString(),
+      // Keep duration internal (not exposed to client)
+      duration: 8,
     };
 
     let result: any;

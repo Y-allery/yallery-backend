@@ -13,6 +13,7 @@ export enum VideoAIEnum {
 }
 
 export enum AudioAIEnum {
+  MMAUDIO_V2 = 'mmaudio_v2',
   MIRELO_SFX_VIDEO_TO_VIDEO = 'mirelo_sfx_video_to_video',
 }
 
