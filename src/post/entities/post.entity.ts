@@ -27,6 +27,9 @@ export class PostEntity extends TimeStampEntity {
   @Index()
   videoUrl: string | null;
 
+  @Column({ type: 'boolean', default: false, name: 'hasAudio' })
+  hasAudio: boolean;
+
   @Column({ type: 'varchar', nullable: true })
   @Index()
   previewImageUrl: string | null;
