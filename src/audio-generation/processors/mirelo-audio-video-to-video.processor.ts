@@ -9,7 +9,7 @@ import { AudioGenerationService } from '../audio-generation.service';
 import { BaseAudioProcessor } from './base-audio-processor';
 
 @Injectable()
-@Processor(AudioAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO, {
+@Processor(AudioAIEnum.MMAUDIO_V2, {
   concurrency: 30,
   lockDuration: 180000,
 })

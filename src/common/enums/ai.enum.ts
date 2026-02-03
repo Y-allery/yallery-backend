@@ -13,6 +13,8 @@ export enum VideoAIEnum {
 }
 
 export enum AudioAIEnum {
+  MMAUDIO_V2 = 'mmaudio_v2',
+  // Deprecated legacy identifier (kept for backward compatibility with existing DB rows / posts)
   MIRELO_SFX_VIDEO_TO_VIDEO = 'mirelo_sfx_video_to_video',
 }
 

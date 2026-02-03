@@ -238,9 +238,7 @@ export class NotificationGateway {
       const audioVideos = undeliveredPosts
         .filter(
           (post) =>
-            post.videoUrl &&
-            (post.generationParams as any)?.aiService ===
-              AudioAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO,
+            post.videoUrl && post.hasAudio === true,
         )
         .map((post) => ({
           id: post.id,
@@ -253,9 +251,7 @@ export class NotificationGateway {
       const videos = undeliveredPosts
         .filter(
           (post) =>
-            post.videoUrl &&
-            (post.generationParams as any)?.aiService !==
-              AudioAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO,
+            post.videoUrl && post.hasAudio !== true,
         )
         .map((post) => ({
           id: post.id,
