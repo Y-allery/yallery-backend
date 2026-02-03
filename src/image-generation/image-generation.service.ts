@@ -343,6 +343,19 @@ export class ImageGenerationService {
 
       // [FalAI] Calling ${serviceName} with params (omitted from logs in production)
 
+      if (process.env.NODE_ENV === 'development') {
+        const sentPrompt = (inputParams?.prompt ?? '').toString();
+        console.log('[generateFalAi] fal.run input', {
+          ai_service: createPostDto.ai_service,
+          api_model: serviceName,
+          promptPreview:
+            sentPrompt.length > 200 ? `${sentPrompt.slice(0, 200)}…` : sentPrompt,
+          promptLength: sentPrompt.length,
+          num_images: inputParams?.num_images ?? inputParams?.numImages,
+          aspect_ratio: inputParams?.aspect_ratio,
+        });
+      }
+
       const start = Date.now();
       const result = await generateMethod({
         input: inputParams,
