@@ -83,11 +83,11 @@ export class UpdateAISettingsDto {
 
   @ApiPropertyOptional({ 
     description: 'Type of AI model', 
-    enum: ['image', 'video']
+    enum: ['image', 'video', 'audio']
   })
   @IsOptional()
-  @IsEnum(['image', 'video'])
-  type?: 'image' | 'video';
+  @IsEnum(['image', 'video', 'audio'])
+  type?: 'image' | 'video' | 'audio';
 
   @ApiPropertyOptional({ description: 'Whether this is an Artem model' })
   @IsOptional()

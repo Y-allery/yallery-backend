@@ -1185,6 +1185,7 @@ export class AdminService {
   async getAllAISettings(): Promise<{
     image: AISettingsEntity[];
     video: AISettingsEntity[];
+    audio: AISettingsEntity[];
     all: AISettingsEntity[];
   }> {
     const allSettings = await this.aiSettingsRepository.find({
@@ -1193,10 +1194,12 @@ export class AdminService {
 
     const imageSettings = allSettings.filter((s) => s.type === 'image');
     const videoSettings = allSettings.filter((s) => s.type === 'video');
+    const audioSettings = allSettings.filter((s) => s.type === 'audio');
 
     return {
       image: imageSettings,
       video: videoSettings,
+      audio: audioSettings,
       all: allSettings,
     };
   }
