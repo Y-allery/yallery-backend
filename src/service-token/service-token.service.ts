@@ -18,7 +18,7 @@ export class ServiceTokenService {
   ) {}
 
   async getNextAvailableToken(
-    aiService: AIEnum | VideoAIEnum,
+    aiService: AIEnum | VideoAIEnum | string,
   ): Promise<AiServiceToken | null> {
     try {
       const token = await this.tokenRepository.findOne({
@@ -42,7 +42,7 @@ export class ServiceTokenService {
 
   async markTokenAsRateLimited(
     token: AiServiceToken,
-    aiService: AIEnum | VideoAIEnum,
+    aiService: AIEnum | VideoAIEnum | string,
   ) {
     const rateLimit = RATE_LIMITS[aiService as AIEnum];
     const window = rateLimit?.window ?? DEFAULT_WINDOW;

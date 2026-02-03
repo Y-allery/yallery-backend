@@ -1,7 +1,9 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { AudioGenerationService } from './audio-generation.service';
+import { GenerateAudioDto } from './dto/generate-audio.dto';
+import { AuthenticatedRequest } from 'src/auth/types/auth.user.interface';
 
 @ApiTags('Audio Generation')
 @Controller('audio-generation')
@@ -18,6 +20,22 @@ export class AudioGenerationController {
   @ApiResponse({ status: 200, description: 'Audio AI settings retrieved successfully' })
   getAllAISettings() {
     return this.audioGenerationService.getAllAISettings();
+  }
+
+  @Post('generate')
+  @ApiOperation({
+    summary: 'Generate audio for video (async)',
+    description:
+      'Adds a job to audio generation queue. Uses ai_settings(type=audio) to resolve apiModel and cost.',
+  })
+  @ApiBody({ type: GenerateAudioDto })
+  @ApiResponse({ status: 201, description: 'Audio generation task added to queue' })
+  async generate(
+    @Body() dto: GenerateAudioDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    await this.audioGenerationService.addAudioTaskToQueue(dto, req.user.id);
+    return { message: 'Audio generation task has been added to the queue.' };
   }
 }
 
