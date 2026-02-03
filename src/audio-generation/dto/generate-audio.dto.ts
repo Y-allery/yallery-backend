@@ -12,12 +12,13 @@ export class GenerateAudioDto {
   })
   video_url: string;
 
+  @IsOptional()
   @IsString()
   @ApiPropertyOptional({
-    description: 'Prompt to guide the audio generation.',
+    description: 'Optional prompt to guide the sound effects generation.',
     example: 'Add dramatic explosions and footsteps',
   })
-  prompt: string;
+  prompt?: string;
 
   @IsEnum(AudioAIEnum)
   @ApiProperty({ description: 'The AI service to be used', enum: AudioAIEnum })
