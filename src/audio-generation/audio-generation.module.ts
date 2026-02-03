@@ -30,9 +30,9 @@ import { AISettingsEntity } from 'src/image-generation/entities/ai-settings.enti
     NotificationModule,
     UploadModule,
     ServiceTokenModule,
-    BullModule.registerQueue({ name: AudioAIEnum.MMAUDIO_V2 }),
+    BullModule.registerQueue({ name: AudioAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO }),
     BullBoardModule.forFeature({
-      name: AudioAIEnum.MMAUDIO_V2,
+      name: AudioAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO,
       adapter: BullMQAdapter,
     }),
   ],
