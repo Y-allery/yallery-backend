@@ -13,7 +13,6 @@ import { In, Repository } from 'typeorm';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TagEntity } from 'src/tag/entities/tag.entity';
-import { AudioAIEnum } from 'src/common/enums/ai.enum';
 
 @WebSocketGateway({
   cors: {
@@ -141,55 +140,6 @@ export class NotificationGateway {
     }
   }
 
-  async sendAudioNotification(
-    to_user_id: string,
-    audio: {
-      uploadedVideoUrl: string;
-      id: number;
-      videoUrl?: string;
-      previewImageUrl?: string;
-      generationParams?: any;
-      generation_params?: any;
-      suggestedTags: { id: number; name: string; imageUrl: string }[];
-    },
-    activity_type: ActivityEnum,
-  ) {
-    const generationParams =
-      audio.generationParams ?? audio.generation_params ?? null;
-
-    if (this.isUserConnected(to_user_id)) {
-      this.server.to(to_user_id).emit('audioGenerated', {
-        audio: {
-          data: [
-            {
-              id: audio.id,
-              videoUrl: audio.videoUrl || audio.uploadedVideoUrl,
-              previewImageUrl: audio.previewImageUrl || null,
-              generationParams,
-            },
-          ],
-        },
-        activity_type,
-      });
-    } else {
-      const suggestedTagId = audio.suggestedTags?.[0]?.id ?? null;
-      await this.postRepository.update(
-        { id: audio.id },
-        {
-          isDelivered: false,
-          ...(suggestedTagId ? { tag: { id: suggestedTagId } } : {}),
-        },
-      );
-    }
-  }
-
-  async sendAudioErrorNotification(
-    to_user_id: string,
-    payload: { message: string; ai_service?: string },
-  ) {
-    this.server.to(to_user_id).emit('audioGenerationFailed', payload);
-  }
-
   async sendErrorNotification(to_user_id: string, errorMessage: string) {
     this.server.to(to_user_id).emit('error', {
       error: errorMessage,
@@ -235,28 +185,8 @@ export class NotificationGateway {
         }));
 
       
-      const audioVideos = undeliveredPosts
-        .filter(
-          (post) =>
-            post.videoUrl &&
-            (post.generationParams as any)?.aiService ===
-              AudioAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO,
-        )
-        .map((post) => ({
-          id: post.id,
-          videoUrl: post.videoUrl,
-          previewImageUrl: post.previewImageUrl,
-          generationParams: post.generationParams,
-          tagId: post.tag?.id,
-        }));
-
       const videos = undeliveredPosts
-        .filter(
-          (post) =>
-            post.videoUrl &&
-            (post.generationParams as any)?.aiService !==
-              AudioAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO,
-        )
+        .filter((post) => post.videoUrl)
         .map((post) => ({
           id: post.id,
           videoUrl: post.videoUrl,
@@ -268,7 +198,6 @@ export class NotificationGateway {
       
       const allTagIds = [
         ...images.map((img) => img.tagId),
-        ...audioVideos.map((aud) => aud.tagId),
         ...videos.map((vid) => vid.tagId),
       ]
         .filter((id) => id && id !== 48)
@@ -306,21 +235,6 @@ export class NotificationGateway {
               // Keep payload key as snake_case for client compatibility.
               generation_params: generationParams || null,
             })),
-          },
-        });
-      }
-
-      if (audioVideos.length > 0 && client.connected) {
-        client.emit('undeliveredAudio', {
-          audio: {
-            data: audioVideos.map(
-              ({ id, videoUrl, previewImageUrl, generationParams }) => ({
-                id,
-                videoUrl,
-                previewImageUrl: previewImageUrl || null,
-                generation_params: generationParams || null,
-              }),
-            ),
           },
         });
       }

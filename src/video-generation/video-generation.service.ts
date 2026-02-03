@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { GenerateVideoDto } from './dto/generate-video.dto';
 import { Queue } from 'bullmq';
-import { AIEnum, AudioAIEnum, ModelInputEnum, VideoAIEnum } from 'src/common/enums/ai.enum';
+import { AIEnum, ModelInputEnum, VideoAIEnum } from 'src/common/enums/ai.enum';
 import { InjectQueue } from '@nestjs/bullmq';
 import { AiServiceToken } from 'src/service-token/entities/service-token.entity';
 import { ServiceTokenService } from 'src/service-token/service-token.service';
@@ -36,9 +36,6 @@ export class VideoGenerationService {
     }
     if (aiService === VideoAIEnum.KLING_TEXT_TO_VIDEO) {
       return [ModelInputEnum.TEXT_PROMPT];
-    }
-    if (aiService === AudioAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO) {
-      return [ModelInputEnum.SOUND_PROMPT, ModelInputEnum.VIDEO_SOURCE];
     }
     // default fallback for unknown models
     return [ModelInputEnum.TEXT_PROMPT];
@@ -104,12 +101,7 @@ export class VideoGenerationService {
       order: { id: 'ASC' },
     });
 
-    // Exclude audio-only models from video settings endpoint
-    const filtered = videoAISettingsFromDb.filter(
-      (s) => s.aiService !== AudioAIEnum.MIRELO_SFX_VIDEO_TO_VIDEO,
-    );
-
-    if (filtered.length === 0) {
+    if (videoAISettingsFromDb.length === 0) {
       return {
         defaultSettings: {
           defaultAI: VideoAIEnum.BYTY_DANCE,
@@ -121,10 +113,10 @@ export class VideoGenerationService {
 
     const defaultSettings = {
       defaultAI: VideoAIEnum.BYTY_DANCE,
-      cost: filtered[0].cost,
+      cost: videoAISettingsFromDb[0].cost,
     };
 
-    const aiSettings = filtered.map((setting) => ({
+    const aiSettings = videoAISettingsFromDb.map((setting) => ({
       id: setting.aiService,
       name: setting.name,
       cost: setting.cost,

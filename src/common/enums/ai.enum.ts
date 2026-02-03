@@ -12,11 +12,6 @@ export enum VideoAIEnum {
   KLING_TEXT_TO_VIDEO = 'kling_text_to_video',
 }
 
-export enum AudioAIEnum {
-  MMAUDIO_V2 = 'mmaudio_v2',
-  MIRELO_SFX_VIDEO_TO_VIDEO = 'mirelo_sfx_video_to_video',
-}
-
 // Describes what inputs a generation model supports (for UI/options).
 export enum ModelInputEnum {
   TEXT_PROMPT = 'TEXT_PROMPT',
