@@ -66,6 +66,7 @@ export class AudioGenerationService {
       cost: setting.cost,
       description: setting.description,
       api_model: setting.apiModel,
+      supportedInputs: ['VIDEO_SOURCE'],
     }));
 
     return {
