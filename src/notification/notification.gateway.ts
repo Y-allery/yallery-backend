@@ -160,7 +160,7 @@ export class NotificationGateway {
     if (this.isUserConnected(to_user_id)) {
       // Keep payload shape identical to `videoGenerated`, only event name differs.
       this.server.to(to_user_id).emit('audioGenerated', {
-        video: {
+        audio: {
           data: [
             {
               id: video.id,
@@ -324,7 +324,7 @@ export class NotificationGateway {
 
       if (audioVideos.length > 0 && client.connected) {
         client.emit('undeliveredAudio', {
-          video: {
+          audio: {
             data: audioVideos.map(
               ({ id, videoUrl, previewImageUrl, generationParams }) => ({
                 id,
