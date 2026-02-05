@@ -88,9 +88,9 @@ export class AudioGenerationProcessor extends BaseAudioProcessor {
       );
     } catch {}
 
-    // reuse video socket event (video with audio track)
+    // audio socket event (video with audio track)
     try {
-      await this.notificationGateway.sendVideoNotification(
+      await this.notificationGateway.sendAudioNotification(
         userId.toString(),
         {
           uploadedVideoUrl: response.uploadedVideoUrl,

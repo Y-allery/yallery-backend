@@ -140,6 +140,50 @@ export class NotificationGateway {
     }
   }
 
+  async sendAudioNotification(
+    to_user_id: string,
+    video: {
+      uploadedVideoUrl: string;
+      id: number;
+      videoUrl?: string;
+      previewImageUrl?: string;
+      // Support both naming styles for backward compatibility.
+      generationParams?: any;
+      generation_params?: any;
+      suggestedTags: { id: number; name: string; imageUrl: string }[];
+    },
+    activity_type: ActivityEnum,
+  ) {
+    const generationParams =
+      video.generationParams ?? video.generation_params ?? null;
+
+    if (this.isUserConnected(to_user_id)) {
+      // Keep payload shape identical to `videoGenerated`, only event name differs.
+      this.server.to(to_user_id).emit('audioGenerated', {
+        video: {
+          data: [
+            {
+              id: video.id,
+              videoUrl: video.videoUrl || video.uploadedVideoUrl,
+              previewImageUrl: video.previewImageUrl || null,
+              generationParams,
+            },
+          ],
+        },
+        activity_type,
+      });
+    } else {
+      const suggestedTagId = video.suggestedTags?.[0]?.id ?? null;
+      await this.postRepository.update(
+        { id: video.id },
+        {
+          isDelivered: false,
+          ...(suggestedTagId ? { tag: { id: suggestedTagId } } : {}),
+        },
+      );
+    }
+  }
+
   async sendErrorNotification(to_user_id: string, errorMessage: string) {
     this.server.to(to_user_id).emit('error', {
       error: errorMessage,
@@ -186,7 +230,17 @@ export class NotificationGateway {
 
       
       const videos = undeliveredPosts
-        .filter((post) => post.videoUrl)
+        .filter((post) => post.videoUrl && !post.hasAudio)
+        .map((post) => ({
+          id: post.id,
+          videoUrl: post.videoUrl,
+          previewImageUrl: post.previewImageUrl,
+          generationParams: post.generationParams,
+          tagId: post.tag?.id,
+        }));
+
+      const audioVideos = undeliveredPosts
+        .filter((post) => post.videoUrl && post.hasAudio)
         .map((post) => ({
           id: post.id,
           videoUrl: post.videoUrl,
@@ -199,6 +253,7 @@ export class NotificationGateway {
       const allTagIds = [
         ...images.map((img) => img.tagId),
         ...videos.map((vid) => vid.tagId),
+        ...audioVideos.map((aud) => aud.tagId),
       ]
         .filter((id) => id && id !== 48)
         .filter((id, idx, arr) => arr.indexOf(id) === idx);
@@ -263,6 +318,21 @@ export class NotificationGateway {
               previewImageUrl: previewImageUrl || null,
               generation_params: generationParams || null,
             })),
+          },
+        });
+      }
+
+      if (audioVideos.length > 0 && client.connected) {
+        client.emit('undeliveredAudio', {
+          video: {
+            data: audioVideos.map(
+              ({ id, videoUrl, previewImageUrl, generationParams }) => ({
+                id,
+                videoUrl,
+                previewImageUrl: previewImageUrl || null,
+                generation_params: generationParams || null,
+              }),
+            ),
           },
         });
       }
