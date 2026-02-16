@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -11,6 +11,7 @@ import { ServiceTokenService } from 'src/service-token/service-token.service';
 import { UserEntity } from 'src/user/entities/user.entity';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { TagEntity } from 'src/tag/entities/tag.entity';
+import { ContestEntity } from 'src/contest/entity/contest.entity';
 import { NotificationGateway } from 'src/notification/notification.gateway';
 import { ActivityService } from 'src/activity/activity.service';
 import { ActivityEnum } from 'src/activity/types/activity.enum';
@@ -28,6 +29,8 @@ export class AudioGenerationService {
     private readonly postRepository: Repository<PostEntity>,
     @InjectRepository(TagEntity)
     private readonly tagRepository: Repository<TagEntity>,
+    @InjectRepository(ContestEntity)
+    private readonly contestRepository: Repository<ContestEntity>,
     @InjectQueue(AUDIO_GENERATION_QUEUE)
     private readonly audioQueue: Queue,
     private readonly serviceTokenService: ServiceTokenService,
@@ -75,11 +78,24 @@ export class AudioGenerationService {
     };
   }
 
+  private async ensureUserCanParticipateInContest(
+    userId: number,
+    contestId: number | null,
+  ): Promise<void> {
+    if (contestId) {
+      const contest = await this.contestRepository.findOne({
+        where: { id: contestId },
+      });
+      if (!contest) throw new NotFoundException('Contest not found');
+    }
+  }
+
   async addAudioTaskToQueue(dto: GenerateAudioDto, userId: number) {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');
 
     await this.verifyUserHasEnoughCredits(user, dto.ai_service);
+    await this.ensureUserCanParticipateInContest(userId, dto.contest_id ?? null);
 
     const jobOptions = {
       attempts: 3,
@@ -235,11 +251,13 @@ export class AudioGenerationService {
     suggestedTags?: { id: number; name: string }[],
     width?: number,
     height?: number,
+    contestId?: number | null,
   ): Promise<PostEntity> {
     const previewImageUrl = this.generateCloudinaryPreviewUrl(videoUrl);
     const post = this.postRepository.create({
       user: { id: user.id } as any,
       tag,
+      ...(contestId != null && contestId > 0 ? { contest: { id: contestId } } : {}),
       videoUrl,
       imageUrl: null,
       hasAudio: true,

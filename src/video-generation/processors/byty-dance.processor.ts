@@ -94,6 +94,7 @@ export class BytyDanceProcessor extends BaseVideoProcessor {
           suggestedTagsForParams,
           videoWidth,
           videoHeight,
+          dto.contest_id ?? null,
         );
         // Reload post to get full generation_params
         post = await this.videoGenerationService.getPostById(post.id);

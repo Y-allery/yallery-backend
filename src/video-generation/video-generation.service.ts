@@ -3,6 +3,7 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { GenerateVideoDto } from './dto/generate-video.dto';
 import { Queue } from 'bullmq';
@@ -22,6 +23,7 @@ import { UserService } from 'src/user/user.service';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { TagEntity } from 'src/tag/entities/tag.entity';
 import { AISettingsEntity } from 'src/image-generation/entities/ai-settings.entity';
+import { ContestEntity } from 'src/contest/entity/contest.entity';
 import OpenAI from 'openai';
 import { v2 as cloudinary } from 'cloudinary';
 import { ConfigService } from '@nestjs/config';
@@ -58,6 +60,8 @@ export class VideoGenerationService {
     private tagRepository: Repository<TagEntity>,
     @InjectRepository(AISettingsEntity)
     private aiSettingsRepository: Repository<AISettingsEntity>,
+    @InjectRepository(ContestEntity)
+    private contestRepository: Repository<ContestEntity>,
 
     private readonly notificationGateway: NotificationGateway,
     private readonly configService: ConfigService,
@@ -132,10 +136,23 @@ export class VideoGenerationService {
       aiSettings,
     };
   }
+  private async ensureUserCanParticipateInContest(
+    userId: number,
+    contestId: number | null,
+  ): Promise<void> {
+    if (contestId) {
+      const contest = await this.contestRepository.findOne({
+        where: { id: contestId },
+      });
+      if (!contest) throw new NotFoundException('Contest not found');
+    }
+  }
+
   async addVideoTaskToQueue(dto: GenerateVideoDto, userId: number) {
     try {
       const user = await this.userService.findById(userId);
       await this.verifyUserHasEnoughCredits(user, dto.ai_service);
+      await this.ensureUserCanParticipateInContest(userId, dto.contest_id ?? null);
 
       const jobOptions = {
         attempts: 3,
@@ -204,6 +221,7 @@ export class VideoGenerationService {
     suggestedTags?: { id: number; name: string }[],
     width?: number,
     height?: number,
+    contestId?: number | null,
   ): Promise<PostEntity> {
     // Ensure suggestedTags has at least "other" tag
     let finalSuggestedTags = suggestedTags || [];
@@ -228,6 +246,7 @@ export class VideoGenerationService {
     const post = this.postRepository.create({
       user: { id: user.id },
       tag,
+      ...(contestId != null && contestId > 0 ? { contest: { id: contestId } } : {}),
       videoUrl,
       imageUrl: null,
       previewImageUrl,

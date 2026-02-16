@@ -11,6 +11,7 @@ import { AUDIO_GENERATION_QUEUE } from './audio-generation.constants';
 import { UserEntity } from 'src/user/entities/user.entity';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { TagEntity } from 'src/tag/entities/tag.entity';
+import { ContestEntity } from 'src/contest/entity/contest.entity';
 import { UploadModule } from 'src/upload/upload.module';
 import { ServiceTokenModule } from 'src/service-token/service-token.module';
 import { NotificationModule } from 'src/notification/notification.module';
@@ -19,7 +20,7 @@ import { UserModule } from 'src/user/user.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([AISettingsEntity, UserEntity, PostEntity, TagEntity]),
+    TypeOrmModule.forFeature([AISettingsEntity, UserEntity, PostEntity, TagEntity, ContestEntity]),
     UploadModule,
     ServiceTokenModule,
     NotificationModule,

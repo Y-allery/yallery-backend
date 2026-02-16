@@ -64,6 +64,7 @@ export class AudioGenerationProcessor extends BaseAudioProcessor {
       suggestedTagsForParams,
       dimensions?.width,
       dimensions?.height,
+      dto.contest_id ?? null,
     );
 
     // charge credits

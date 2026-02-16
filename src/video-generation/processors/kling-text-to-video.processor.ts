@@ -94,6 +94,7 @@ export class KlingTextToVideoProcessor extends BaseVideoProcessor {
         suggestedTagsForParams,
         videoWidth,
         videoHeight,
+        dto.contest_id ?? null,
       );
       post = await this.videoGenerationService.getPostById(post.id);
 

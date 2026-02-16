@@ -1,4 +1,4 @@
-import { IsEnum, IsIn, IsOptional, IsString, ValidateIf } from 'class-validator';
+import { IsEnum, IsIn, IsNumber, IsOptional, IsString, ValidateIf } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { VideoAIEnum } from 'src/common/enums/ai.enum';
 
@@ -11,6 +11,11 @@ export class GenerateVideoDto {
     required: false,
   })
   image_url?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @ApiPropertyOptional({ description: 'Contest ID to attach the post to' })
+  contest_id?: number;
 
   @IsString()
   @ApiProperty({ description: 'The prompt text for the post' })

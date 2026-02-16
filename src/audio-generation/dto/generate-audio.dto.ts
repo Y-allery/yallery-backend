@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsUrl } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNumber, IsOptional, IsString, IsUrl } from 'class-validator';
 
 export class GenerateAudioDto {
   @IsUrl()
@@ -8,6 +8,11 @@ export class GenerateAudioDto {
     example: 'https://res.cloudinary.com/.../video.mp4',
   })
   video_url: string;
+
+  @IsOptional()
+  @IsNumber()
+  @ApiPropertyOptional({ description: 'Contest ID to attach the post to' })
+  contest_id?: number;
 
   @IsString()
   @ApiProperty({
