@@ -803,6 +803,11 @@ export class ContestService {
     });
     if (!tag) throw new BadRequestException('Tag not found');
 
+    const socialPostSettings = {
+      postToTwitter: data.socialPostSettings?.postToTwitter ?? false,
+      postToInstagram: data.socialPostSettings?.postToInstagram ?? false,
+    };
+
     const contest = this.contestRepository.create({
       ...data,
       tag,
@@ -813,6 +818,7 @@ export class ContestService {
       startTime: new Date(data.start_time),
       endTime: new Date(data.end_time),
       isApproved: false,
+      socialPostSettings,
     });
 
     await this.contestRepository.save(contest);
@@ -1136,6 +1142,15 @@ export class ContestService {
         );
       }
       contest.tag = tag;
+    }
+
+    if (updateContestDto.socialPostSettings !== undefined) {
+      contest.socialPostSettings = {
+        postToTwitter:
+          updateContestDto.socialPostSettings.postToTwitter ?? false,
+        postToInstagram:
+          updateContestDto.socialPostSettings.postToInstagram ?? false,
+      };
     }
 
     return this.contestRepository.save(contest);

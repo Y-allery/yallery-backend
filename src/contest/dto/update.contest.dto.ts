@@ -1,5 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsNumber,
@@ -7,8 +9,10 @@ import {
   IsString,
   MaxLength,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 import { ContestStatusEnum } from 'src/contest/types/contest.status.enum';
+import { SocialPostSettingsDto } from 'src/admin/dto/create-contest.dto';
 
 export class UpdateContestDto {
   @IsString()
@@ -76,4 +80,13 @@ export class UpdateContestDto {
     enum: ContestStatusEnum,
   })
   status?: ContestStatusEnum;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SocialPostSettingsDto)
+  @ApiPropertyOptional({
+    type: () => SocialPostSettingsDto,
+    description: 'Post winner to Twitter / Instagram',
+  })
+  socialPostSettings?: SocialPostSettingsDto;
 }

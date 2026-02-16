@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsNumber,
@@ -9,8 +11,21 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 import { ContestStatusEnum } from 'src/contest/types/contest.status.enum';
+
+export class SocialPostSettingsDto {
+  @IsOptional()
+  @IsBoolean()
+  @ApiProperty({ default: false, type: Boolean, required: false })
+  postToTwitter?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  @ApiProperty({ default: false, type: Boolean, required: false })
+  postToInstagram?: boolean;
+}
 
 export class CreateContestDto {
   @IsString()
@@ -115,4 +130,14 @@ export class CreateContestDto {
     nullable: true,
   })
   fineTuneStrength: number | null;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SocialPostSettingsDto)
+  @ApiProperty({
+    type: SocialPostSettingsDto,
+    required: false,
+    default: { postToTwitter: false, postToInstagram: false },
+  })
+  socialPostSettings?: SocialPostSettingsDto;
 }

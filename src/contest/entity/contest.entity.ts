@@ -89,6 +89,13 @@ export class ContestEntity {
   @Column({ type: 'text', nullable: true, name: 'promptExample' })
   promptExample: string;
 
+  @Column({
+    type: 'json',
+    nullable: true,
+    name: 'socialPostSettings',
+  })
+  socialPostSettings: { postToTwitter: boolean; postToInstagram: boolean } | null;
+
   @ManyToOne(() => PostEntity, (post) => post.id, {
     nullable: true,
     onDelete: 'SET NULL',
