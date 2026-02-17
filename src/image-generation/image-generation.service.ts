@@ -1050,16 +1050,30 @@ export class ImageGenerationService {
       );
     }
 
-    // Return full post data with generation_params for socket notification
-    return posts.map((post: PostEntity) => {
-      return {
-        id: post.id,
-        imageUrl: post.imageUrl,
-        videoUrl: post.videoUrl,
-        previewImageUrl: post.previewImageUrl,
-        generationParams: post.generationParams,
-      };
-    });
+    const contestId =
+      'contest_id' in dto && dto.contest_id ? dto.contest_id : null;
+    let publishTo = { postToTwitter: false, postToInstagram: false };
+    if (contestId) {
+      const contest = await this.contestRepository.findOne({
+        where: { id: contestId },
+        select: ['socialPostSettings'],
+      });
+      if (contest?.socialPostSettings) {
+        publishTo = {
+          postToTwitter: contest.socialPostSettings.postToTwitter ?? false,
+          postToInstagram: contest.socialPostSettings.postToInstagram ?? false,
+        };
+      }
+    }
+
+    return posts.map((post: PostEntity) => ({
+      id: post.id,
+      imageUrl: post.imageUrl,
+      videoUrl: post.videoUrl,
+      previewImageUrl: post.previewImageUrl,
+      generationParams: post.generationParams,
+      publishTo,
+    }));
   }
   private async createPostForEditImage(
     editImageDto: EditImageDto,

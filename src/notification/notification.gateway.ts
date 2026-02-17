@@ -104,15 +104,19 @@ export class NotificationGateway {
       id: number;
       videoUrl?: string;
       previewImageUrl?: string;
-      // Support both naming styles for backward compatibility.
       generationParams?: any;
       generation_params?: any;
       suggestedTags: { id: number; name: string; imageUrl: string }[];
+      publishTo?: { postToTwitter: boolean; postToInstagram: boolean };
     },
     activity_type: ActivityEnum,
   ) {
     const generationParams =
       video.generationParams ?? video.generation_params ?? null;
+    const publishTo = video.publishTo ?? {
+      postToTwitter: false,
+      postToInstagram: false,
+    };
 
     if (this.isUserConnected(to_user_id)) {
       this.server.to(to_user_id).emit('videoGenerated', {
@@ -123,6 +127,7 @@ export class NotificationGateway {
               videoUrl: video.videoUrl || video.uploadedVideoUrl,
               previewImageUrl: video.previewImageUrl || null,
               generationParams,
+              publishTo,
             },
           ],
         },
@@ -147,18 +152,21 @@ export class NotificationGateway {
       id: number;
       videoUrl?: string;
       previewImageUrl?: string;
-      // Support both naming styles for backward compatibility.
       generationParams?: any;
       generation_params?: any;
       suggestedTags: { id: number; name: string; imageUrl: string }[];
+      publishTo?: { postToTwitter: boolean; postToInstagram: boolean };
     },
     activity_type: ActivityEnum,
   ) {
     const generationParams =
       video.generationParams ?? video.generation_params ?? null;
+    const publishTo = video.publishTo ?? {
+      postToTwitter: false,
+      postToInstagram: false,
+    };
 
     if (this.isUserConnected(to_user_id)) {
-      // Keep payload shape identical to `videoGenerated`, only event name differs.
       this.server.to(to_user_id).emit('audioGenerated', {
         audio: {
           data: [
@@ -167,6 +175,7 @@ export class NotificationGateway {
               videoUrl: video.videoUrl || video.uploadedVideoUrl,
               previewImageUrl: video.previewImageUrl || null,
               generationParams,
+              publishTo,
             },
           ],
         },

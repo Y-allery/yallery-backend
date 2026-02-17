@@ -89,7 +89,10 @@ export class AudioGenerationProcessor extends BaseAudioProcessor {
       );
     } catch {}
 
-    // audio socket event (video with audio track)
+    const publishTo = await this.audioGenerationService.getPublishToFromContestId(
+      dto?.contest_id ?? null,
+    );
+
     try {
       await this.notificationGateway.sendAudioNotification(
         userId.toString(),
@@ -100,6 +103,7 @@ export class AudioGenerationProcessor extends BaseAudioProcessor {
           previewImageUrl: post.previewImageUrl,
           generationParams: post.generationParams,
           suggestedTags,
+          publishTo,
         },
         ActivityEnum.VIDEO_GENERATE_SPEND,
       );

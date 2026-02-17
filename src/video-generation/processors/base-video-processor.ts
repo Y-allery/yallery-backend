@@ -1,11 +1,35 @@
 import { WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
+import { Repository } from 'typeorm';
 import { NotificationGateway } from 'src/notification/notification.gateway';
 import { ActivityEnum } from 'src/activity/types/activity.enum';
+import { ContestEntity } from 'src/contest/entity/contest.entity';
 
 export abstract class BaseVideoProcessor extends WorkerHost {
-  constructor(protected readonly notificationGateway: NotificationGateway) {
+  constructor(
+    protected readonly notificationGateway: NotificationGateway,
+    protected readonly contestRepository: Repository<ContestEntity>,
+  ) {
     super();
+  }
+
+  protected getPublishToDefault() {
+    return { postToTwitter: false, postToInstagram: false };
+  }
+
+  protected async getPublishToFromContestId(
+    contestId: number | null | undefined,
+  ): Promise<{ postToTwitter: boolean; postToInstagram: boolean }> {
+    if (!contestId) return this.getPublishToDefault();
+    const contest = await this.contestRepository.findOne({
+      where: { id: contestId },
+      select: ['socialPostSettings'],
+    });
+    const s = contest?.socialPostSettings;
+    return {
+      postToTwitter: s?.postToTwitter ?? false,
+      postToInstagram: s?.postToInstagram ?? false,
+    };
   }
 
   @OnWorkerEvent('failed')
@@ -81,6 +105,9 @@ export abstract class BaseVideoProcessor extends WorkerHost {
         return;
       }
 
+      const dto = job.data?.dto;
+      const publishTo = await this.getPublishToFromContestId(dto?.contest_id);
+
       console.log(`[${processorName}] Sending success notification for job ${job.id}`);
       await this.notificationGateway.sendVideoNotification(
         userId.toString(),
@@ -91,6 +118,7 @@ export abstract class BaseVideoProcessor extends WorkerHost {
           previewImageUrl: post.previewImageUrl,
           generationParams: post.generationParams,
           suggestedTags,
+          publishTo,
         },
         ActivityEnum.VIDEO_GENERATE_SPEND,
       );

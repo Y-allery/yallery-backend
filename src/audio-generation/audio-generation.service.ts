@@ -242,6 +242,21 @@ export class AudioGenerationService {
     return null;
   }
 
+  async getPublishToFromContestId(
+    contestId: number | null | undefined,
+  ): Promise<{ postToTwitter: boolean; postToInstagram: boolean }> {
+    if (!contestId) return { postToTwitter: false, postToInstagram: false };
+    const contest = await this.contestRepository.findOne({
+      where: { id: contestId },
+      select: ['socialPostSettings'],
+    });
+    const s = contest?.socialPostSettings;
+    return {
+      postToTwitter: s?.postToTwitter ?? false,
+      postToInstagram: s?.postToInstagram ?? false,
+    };
+  }
+
   async createPostForAudioVideo(
     videoUrl: string,
     user: UserEntity,

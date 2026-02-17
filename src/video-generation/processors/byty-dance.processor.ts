@@ -2,11 +2,14 @@ import { UserService } from './../../user/user.service';
 import { Processor, OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { ActivityEnum } from 'src/activity/types/activity.enum';
 import { NotificationGateway } from 'src/notification/notification.gateway';
 import { VideoAIEnum } from 'src/common/enums/ai.enum';
 import { VideoGenerationService } from '../video-generation.service';
 import { BaseVideoProcessor } from './base-video-processor';
+import { ContestEntity } from 'src/contest/entity/contest.entity';
 
 @Injectable()
 @Processor(VideoAIEnum.BYTY_DANCE, {
@@ -18,8 +21,10 @@ export class BytyDanceProcessor extends BaseVideoProcessor {
     private readonly videoGenerationService: VideoGenerationService,
     private readonly userService: UserService,
     notificationGateway: NotificationGateway,
+    @InjectRepository(ContestEntity)
+    contestRepository: Repository<ContestEntity>,
   ) {
-    super(notificationGateway);
+    super(notificationGateway, contestRepository);
   }
 
   async process(job: Job<any, any, string>) {
