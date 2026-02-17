@@ -159,6 +159,7 @@ export class PostService {
         prompt: 'Unknown',
         ai_service: 'flux',
         orientation: 'vertical',
+        suggestedTags: [],
       };
     }
 
@@ -171,6 +172,7 @@ export class PostService {
       width: params.width,
       height: params.height,
       negative_prompt: params.negative_prompt,
+      suggestedTags: Array.isArray(params.suggestedTags) ? params.suggestedTags : [],
     };
   }
 
