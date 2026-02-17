@@ -289,8 +289,46 @@ export class ContestService {
       throw new BadRequestException('Contest not found');
     }
 
-    const baseQuery = `
-      SELECT 
+    const countQuery = `
+      SELECT COUNT(*) AS total
+      FROM posts p
+      WHERE p.contestId = ? AND p.isPublished = true
+        AND p.isBlocked = false
+        AND p.isRejected = false`;
+
+    let idsOrderClause = ' ORDER BY p.createdAt DESC';
+    const idsQueryParams: any[] = [contestId];
+    if (contest.winner) {
+      idsOrderClause = ' ORDER BY (p.userId = ?) DESC, p.createdAt DESC';
+      idsQueryParams.push(contest.winner.id);
+    }
+    idsQueryParams.push(limit, offset);
+
+    const idsQuery = `
+      SELECT p.id FROM posts p
+      WHERE p.contestId = ? AND p.isPublished = true
+        AND p.isBlocked = false
+        AND p.isRejected = false
+      ${idsOrderClause}
+      LIMIT ? OFFSET ?`;
+
+    const [idRows, totalResult] = await Promise.all([
+      this.postRepository.query(idsQuery, idsQueryParams),
+      this.postRepository.query(countQuery, [contestId]),
+    ]);
+
+    const total = parseInt(totalResult[0].total, 10);
+    const lastPage = Math.ceil(total / limit);
+
+    if (idRows.length === 0) {
+      return { data: [], total, page, lastPage };
+    }
+
+    const ids = idRows.map((r: { id: number }) => r.id);
+    const placeholders = ids.map(() => '?').join(',');
+
+    const dataQuery = `
+      SELECT
         p.id AS id,
         p.imageUrl AS imageUrl,
         p.videoUrl AS videoUrl,
@@ -300,66 +338,30 @@ export class ContestService {
         u.nickname AS username,
         t.id AS tagId,
         CONCAT('#', t.name) AS tagName,
-        COUNT(l.id) AS likeCount,
+        (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS likeCount,
         (SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id) AS viewCount,
-        CASE 
-          WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ?) 
-          THEN TRUE 
-          ELSE FALSE 
+        CASE
+          WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ?)
+          THEN TRUE
+          ELSE FALSE
         END AS isLiked,
         CASE
           WHEN EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ?)
-          THEN TRUE 
+          THEN TRUE
           ELSE FALSE
         END AS isViewed,
         p.generationParams AS generationParams,
         p.isPublished AS isPublished
-          FROM
-            posts p
-          LEFT JOIN
-            likes l ON p.id = l.postId
-          LEFT JOIN users u ON p.userId = u.id
-          LEFT JOIN tags t ON p.tagId = t.id
-          WHERE
-            p.contestId = ? AND
-            p.isPublished = true
-            AND p.isBlocked = false
-            AND p.isRejected = false
-          GROUP BY
-          p.id`;
+      FROM posts p
+      LEFT JOIN users u ON p.userId = u.id
+      LEFT JOIN tags t ON p.tagId = t.id
+      WHERE p.id IN (${placeholders})
+      ORDER BY CASE ${ids.map((id: number, i: number) => `WHEN p.id = ${id} THEN ${i}`).join(' ')} END`;
 
-    let orderByClause = ' ORDER BY p.createdAt DESC';
-    const queryParams: any[] = [userId, userId, contestId];
-    
-    if (contest.winner) {
-      orderByClause = ` ORDER BY (p.userId = ?) DESC, p.createdAt DESC`;
-      queryParams.push(contest.winner.id);
-    }
+    const dataParams = [userId, userId, ...ids];
+    const posts = await this.postRepository.query(dataQuery, dataParams);
 
-    const rawQuery = `${baseQuery}${orderByClause} LIMIT ? OFFSET ?;`;
-    queryParams.push(limit, offset);
-
-    const countQuery = `
-      SELECT COUNT(*) AS total
-      FROM (
-        SELECT p.id
-        FROM posts p
-        WHERE p.contestId = ? AND p.isPublished = true
-          AND p.isBlocked = false
-          AND p.isRejected = false
-        GROUP BY p.id
-      ) AS sub`;
-
-    const [posts, totalResult] = await Promise.all([
-      this.postRepository.query(rawQuery, queryParams),
-      this.postRepository.query(countQuery, [contestId]),
-    ]);
-
-    const total = parseInt(totalResult[0].total, 10);
-    const lastPage = Math.ceil(total / limit);
-
-    // Normalize generationParams
-    const normalizedPosts = posts.map((post) => ({
+    const normalizedPosts = posts.map((post: any) => ({
       ...post,
       generationParams: this.normalizeGenerationParams(post.generationParams),
     }));
