@@ -205,8 +205,16 @@ export class NotificationGateway {
 
     const undeliveredPosts = await this.postRepository.find({
       where: { user: { id: userId }, isDelivered: false },
-      relations: ['tag'],
+      relations: ['tag', 'contest'],
     });
+
+    const getPublishTo = (contest: { socialPostSettings?: { postToTwitter?: boolean; postToInstagram?: boolean } | null } | null) => {
+      const s = contest?.socialPostSettings;
+      return {
+        postToTwitter: s?.postToTwitter ?? false,
+        postToInstagram: s?.postToInstagram ?? false,
+      };
+    };
 
     if (undeliveredPosts.length > 0) {
       const OTHER_TAG = {
@@ -226,6 +234,7 @@ export class NotificationGateway {
           previewImageUrl: post.previewImageUrl,
           generationParams: post.generationParams,
           tagId: post.tag?.id,
+          publishTo: getPublishTo(post.contest ?? null),
         }));
 
       
@@ -237,6 +246,7 @@ export class NotificationGateway {
           previewImageUrl: post.previewImageUrl,
           generationParams: post.generationParams,
           tagId: post.tag?.id,
+          publishTo: getPublishTo(post.contest ?? null),
         }));
 
       const audioVideos = undeliveredPosts
@@ -247,6 +257,7 @@ export class NotificationGateway {
           previewImageUrl: post.previewImageUrl,
           generationParams: post.generationParams,
           tagId: post.tag?.id,
+          publishTo: getPublishTo(post.contest ?? null),
         }));
 
       
@@ -282,13 +293,14 @@ export class NotificationGateway {
         }
         client.emit('undeliveredImages', {
           images: {
-            data: images.map(({ id, imageUrl, videoUrl, previewImageUrl, generationParams }) => ({
+            data: images.map(({ id, imageUrl, videoUrl, previewImageUrl, generationParams, publishTo }) => ({
               id,
               imageUrl,
               videoUrl: videoUrl || null,
               previewImageUrl: previewImageUrl || null,
               // Keep payload key as snake_case for client compatibility.
               generation_params: generationParams || null,
+              publishTo,
             })),
           },
         });
@@ -312,11 +324,12 @@ export class NotificationGateway {
         }
         client.emit('undeliveredVideo', {
           video: {
-            data: videos.map(({ id, videoUrl, previewImageUrl, generationParams }) => ({
+            data: videos.map(({ id, videoUrl, previewImageUrl, generationParams, publishTo }) => ({
               id,
               videoUrl,
               previewImageUrl: previewImageUrl || null,
               generation_params: generationParams || null,
+              publishTo,
             })),
           },
         });
@@ -326,11 +339,12 @@ export class NotificationGateway {
         client.emit('undeliveredAudio', {
           audio: {
             data: audioVideos.map(
-              ({ id, videoUrl, previewImageUrl, generationParams }) => ({
+              ({ id, videoUrl, previewImageUrl, generationParams, publishTo }) => ({
                 id,
                 videoUrl,
                 previewImageUrl: previewImageUrl || null,
                 generation_params: generationParams || null,
+                publishTo,
               }),
             ),
           },
