@@ -1,7 +1,12 @@
-import { IsString, IsNotEmpty, IsUrl, MinLength, MaxLength } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsNotEmpty, IsUrl, MinLength, MaxLength, IsNumber, IsOptional } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class EditImageDto {
+  @IsOptional()
+  @IsNumber()
+  @ApiPropertyOptional({ description: 'Contest ID to attach the post to' })
+  contest_id?: number;
+
   @IsString()
   @IsNotEmpty()
   @IsUrl()

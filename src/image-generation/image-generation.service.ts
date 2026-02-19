@@ -671,14 +671,15 @@ export class ImageGenerationService {
 
   async editImage(editImageDto: EditImageDto, userId: number) {
     const user = await this.getUser(userId);
-    
-    
-    const tempDto = {
+
+    await this.verifyUserHasEnoughCredits(user, {
       ai_service: AIEnum.BYTEDANCE_EDIT,
       image_quantity: 1,
-    } as any;
-    
-    await this.verifyUserHasEnoughCredits(user, tempDto);
+    } as any);
+    await this.ensureUserCanParticipateInContest(
+      user.id,
+      editImageDto.contest_id ?? null,
+    );
 
     return await this.editImageUsingService(editImageDto, userId);
   }
@@ -1094,7 +1095,7 @@ export class ImageGenerationService {
       tempDto,
       imageUrl,
       user.id,
-      null,
+      editImageDto.contest_id ?? null,
       suggestedTags,
     );
   }
