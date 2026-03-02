@@ -80,6 +80,7 @@ export class MemeGenerationProcessor extends WorkerHost {
           mode: 'pro',
           image: imageUrl,
           video: meme.referenceVideoUrl,
+          character_orientation: 'video',
         },
       }) as { url?: () => string } | string;
 
