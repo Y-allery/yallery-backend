@@ -73,6 +73,11 @@ export class EnvironmentVariables {
   @IsString()
   CLOUDINARY_API_SECRET: string;
 
+  /** Optional: unsigned upload preset for direct video upload from client (avoids 413 via nginx) */
+  @IsOptional()
+  @IsString()
+  CLOUDINARY_VIDEO_UPLOAD_PRESET?: string;
+
   // OpenAI
   @IsString()
   OPENAI_API_KEY: string;
