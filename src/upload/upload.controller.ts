@@ -51,4 +51,35 @@ export class UploadController {
       );
     }
   }
+
+  @Post('video')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({ summary: 'Upload video file' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Video URL' })
+  @ApiResponse({ status: 400, description: 'No file provided' })
+  async uploadVideo(
+    @UploadedFile() file: Express.Multer.File,
+  ): Promise<{ videoUrl: string }> {
+    if (!file) {
+      throw new HttpException('No file provided', HttpStatus.BAD_REQUEST);
+    }
+    try {
+      const videoUrl = await this.uploadService.uploadVideoByBuffer(file.buffer);
+      return { videoUrl };
+    } catch (error) {
+      throw new HttpException(
+        `Failed to upload video: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
 }

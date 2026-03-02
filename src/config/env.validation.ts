@@ -138,6 +138,11 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   X_ROUTER_MODEL?: string; // Model name, default: flux-schnell
+
+  // Replicate (Meme / Kling motion control)
+  @IsOptional()
+  @IsString()
+  REPLICATE_API_TOKEN?: string;
 }
 
 export function validate(config: Record<string, unknown>) {

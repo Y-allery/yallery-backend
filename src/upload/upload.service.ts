@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { v2 as cloudinary } from 'cloudinary';
 import * as path from 'path';
+import { Readable } from 'stream';
 import { Worker } from 'worker_threads';
 
 @Injectable()
@@ -67,6 +68,26 @@ export class UploadService {
           }
         },
       );
+    });
+  }
+
+  async uploadVideoByBuffer(buffer: Buffer): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const readStream = Readable.from(buffer);
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          resource_type: 'video',
+          folder: 'meme_reference_videos',
+        },
+        (error, result) => {
+          if (error) {
+            reject(error);
+          } else {
+            resolve(result.secure_url);
+          }
+        },
+      );
+      readStream.pipe(uploadStream);
     });
   }
 

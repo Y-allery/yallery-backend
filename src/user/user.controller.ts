@@ -9,6 +9,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
   Req,
   UploadedFile,
   UseGuards,
@@ -35,6 +36,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { UseReferralCodeDto } from './dto/use-refferal-code.dto';
 import { UpdateTwitterUsernameDto } from './dto/update.twitter.user.name.dto';
 import { LogReferralActivityDto } from './dto/log-referral-activity.dto';
+import { PaginatioDto } from 'src/common/dto/pagination.dto';
 
 @Controller('user')
 @ApiTags('User')
@@ -64,6 +66,13 @@ export class UserController {
       useReferralCodeDto.code,
     );
     return { message: 'Successfuly received' };
+  }
+
+  @Get()
+  @ApiOperation({ summary: 'Get users (test endpoint)' })
+  @ApiResponse({ status: 200, description: 'List of users with pagination' })
+  async getUsers(@Query() pagination: PaginatioDto) {
+    return this.userService.getAllUsers(pagination);
   }
 
   @Get('profile')

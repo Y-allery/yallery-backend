@@ -31,6 +31,7 @@ import { VideoGenerationModule } from './video-generation/video-generation.modul
 import { RewardModule } from './reward/reward.module';
 import { AudioGenerationModule } from './audio-generation/audio-generation.module';
 import { AudioGenerationController } from './audio-generation/audio-generation.controller';
+import { MemeModule } from './meme/meme.module';
 
 @Module({
   imports: [
@@ -84,6 +85,7 @@ import { AudioGenerationController } from './audio-generation/audio-generation.c
     VideoGenerationModule,
     AudioGenerationModule,
     RewardModule,
+    MemeModule,
   ],
   controllers: [VideoGenerationController, AudioGenerationController],
   providers: [

@@ -22,6 +22,7 @@ import { ContestEntity } from 'src/contest/entity/contest.entity';
 import { FirebaseModule } from 'src/firebase/firebase.module';
 import { MailModule } from 'src/mail/mail.module';
 import { DeviceTokenEntity } from 'src/user/entities/device-token.entity';
+import { MemeModule } from 'src/meme/meme.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { DeviceTokenEntity } from 'src/user/entities/device-token.entity';
     RewardModule,
     FirebaseModule,
     MailModule,
+    MemeModule,
   ],
   providers: [AdminService],
   controllers: [AdminController, PartnerController],

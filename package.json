@@ -6,6 +6,9 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage",
     "build": "node --max-old-space-size=4096 ./node_modules/.bin/nest build && cp -r public dist/",
     "build:prod": "node --max-old-space-size=4096 ./node_modules/.bin/nest build && cp -r public dist/",
     "build:fallback": "npx tsc && cp -r public dist/",
@@ -95,6 +98,8 @@
     "x402-fetch": "^0.7.0"
   },
   "devDependencies": {
+    "@nestjs/testing": "^10.0.0",
+    "@types/jest": "^29.5.0",
     "@types/node": "^20.3.1",
     "@types/passport-google-oauth20": "^2.0.16",
     "@types/passport-jwt": "^4.0.1",
@@ -120,6 +125,9 @@
       "json",
       "ts"
     ],
+    "moduleNameMapper": {
+      "^src/(.*)$": "<rootDir>/$1"
+    },
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {

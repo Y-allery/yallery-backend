@@ -199,6 +199,35 @@ export class NotificationGateway {
     });
   }
 
+  /** Meme generation: progress (e.g. "started", "processing") */
+  async sendMemeGenerationProgress(
+    toUserId: string,
+    payload: { jobId: string; status: string; message?: string },
+  ) {
+    this.server.to(toUserId).emit('memeGenerationProgress', payload);
+  }
+
+  /** Meme generation: completed with video result */
+  async sendMemeGenerated(
+    toUserId: string,
+    payload: {
+      jobId: string;
+      postId: number;
+      videoUrl: string;
+      previewImageUrl?: string | null;
+    },
+  ) {
+    this.server.to(toUserId).emit('memeGenerated', payload);
+  }
+
+  /** Meme generation: failed */
+  async sendMemeGenerationFailed(
+    toUserId: string,
+    payload: { jobId: string; error: string },
+  ) {
+    this.server.to(toUserId).emit('memeGenerationFailed', payload);
+  }
+
   @SubscribeMessage('joinRoom')
   async handleJoinRoom(@ConnectedSocket() client: Socket) {
     const userId = client.data.userId;
