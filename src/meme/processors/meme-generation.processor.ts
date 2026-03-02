@@ -36,11 +36,17 @@ export class MemeGenerationProcessor extends WorkerHost {
     super();
   }
 
-  async process(job: Job<{ memeId: number; imageUrl: string; userId: number }, any, string>): Promise<{
+  async process(job: Job<{
+    memeId: number;
+    imageUrl: string;
+    userId: number;
+    prompt?: string;
+    characterOrientation?: 'image' | 'video';
+  }, any, string>): Promise<{
     videoUrl: string;
     post: PostEntity;
   }> {
-    const { memeId, imageUrl, userId } = job.data;
+    const { memeId, imageUrl, userId, prompt, characterOrientation } = job.data;
     const jobId = job.id ?? String(job.id);
     this.logger.log(`[${jobId}] Starting memeId=${memeId} userId=${userId}`);
 
@@ -77,10 +83,12 @@ export class MemeGenerationProcessor extends WorkerHost {
       const replicate = new Replicate({ auth: token });
       const output = await replicate.run(REPLICATE_MODEL, {
         input: {
-          mode: 'pro',
+          mode: 'std',
           image: imageUrl,
           video: meme.referenceVideoUrl,
-          character_orientation: 'video',
+          prompt: prompt?.trim() ?? '',
+          keep_original_sound: true,
+          character_orientation: characterOrientation ?? 'video',
         },
       }) as { url?: () => string } | string;
 

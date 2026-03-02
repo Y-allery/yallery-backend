@@ -70,7 +70,13 @@ export class MemeService {
     await this.memeRepository.remove(meme);
   }
 
-  async addGenerationToQueue(memeId: number, imageUrl: string, userId: number) {
+  async addGenerationToQueue(
+    memeId: number,
+    imageUrl: string,
+    userId: number,
+    prompt?: string,
+    characterOrientation?: 'image' | 'video',
+  ) {
     const meme = await this.findOne(memeId);
     if (!meme.isActive) {
       throw new BadRequestException('This meme template is not active');
@@ -82,7 +88,7 @@ export class MemeService {
     }
     const job = await this.memeGenerationQueue.add(
       'generate',
-      { memeId, imageUrl, userId },
+      { memeId, imageUrl, userId, prompt, characterOrientation },
       {
         attempts: 3,
         backoff: 15000,

@@ -32,6 +32,8 @@ export class MemeController {
       dto.memeId,
       dto.imageUrl,
       req.user.id,
+      dto.prompt,
+      dto.characterOrientation,
     );
   }
 }
