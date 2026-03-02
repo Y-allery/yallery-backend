@@ -3,7 +3,8 @@ import { Job } from 'bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import Replicate from 'replicate';
+// replicate package exports the constructor as module.exports, not default
+const Replicate = require('replicate');
 import { ConfigService } from '@nestjs/config';
 import { MemeEntity } from '../entities/meme.entity';
 import { NotificationGateway } from 'src/notification/notification.gateway';
