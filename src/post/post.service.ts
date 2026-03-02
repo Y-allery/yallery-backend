@@ -116,7 +116,8 @@ export class PostService {
           ELSE FALSE 
         END AS isViewed,
         p.generationParams AS generationParams,
-        p.isPublished AS isPublished
+        p.isPublished AS isPublished,
+        p.hasAudio AS hasAudio
       FROM 
         posts p
         JOIN users u ON p.userId = u.id
@@ -399,7 +400,8 @@ export class PostService {
         FALSE AS isLiked,
         FALSE AS isViewed,
         p.generationParams AS generationParams,
-        p.isPublished AS isPublished
+        p.isPublished AS isPublished,
+        p.hasAudio AS hasAudio
       FROM posts p
       LEFT JOIN users u ON p.userId = u.id
       LEFT JOIN tags t ON p.tagId = t.id
@@ -456,7 +458,8 @@ export class PostService {
           ELSE FALSE 
         END AS isViewed,
         p.generationParams AS generationParams,
-        p.isPublished AS isPublished
+        p.isPublished AS isPublished,
+        p.hasAudio AS hasAudio
       FROM posts p
       LEFT JOIN users u ON p.userId = u.id
       LEFT JOIN tags t ON p.tagId = t.id
