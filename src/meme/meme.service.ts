@@ -24,6 +24,7 @@ export class MemeService {
   async create(dto: CreateMemeDto): Promise<MemeEntity> {
     const meme = this.memeRepository.create({
       name: dto.name,
+      tag: { id: dto.tagId },
       referenceVideoUrl: dto.referenceVideoUrl ?? null,
       referenceImageUrl: dto.referenceImageUrl ?? null,
       isActive: dto.isActive ?? true,
@@ -35,12 +36,16 @@ export class MemeService {
     const where = activeOnly ? { isActive: true } : {};
     return this.memeRepository.find({
       where,
+      relations: ['tag'],
       order: { id: 'ASC' },
     });
   }
 
   async findOne(id: number): Promise<MemeEntity> {
-    const meme = await this.memeRepository.findOne({ where: { id } });
+    const meme = await this.memeRepository.findOne({
+      where: { id },
+      relations: ['tag'],
+    });
     if (!meme) {
       throw new NotFoundException(`Meme with id ${id} not found`);
     }
@@ -49,7 +54,11 @@ export class MemeService {
 
   async update(id: number, dto: UpdateMemeDto): Promise<MemeEntity> {
     const meme = await this.findOne(id);
-    Object.assign(meme, dto);
+    if (dto.name !== undefined) meme.name = dto.name;
+    if (dto.referenceVideoUrl !== undefined) meme.referenceVideoUrl = dto.referenceVideoUrl;
+    if (dto.referenceImageUrl !== undefined) meme.referenceImageUrl = dto.referenceImageUrl;
+    if (dto.isActive !== undefined) meme.isActive = dto.isActive;
+    if (dto.tagId != null) meme.tag = { id: dto.tagId } as any;
     return this.memeRepository.save(meme);
   }
 

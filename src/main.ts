@@ -83,8 +83,10 @@ async function bootstrap() {
     next();
   });
 
-  app.use('/payment/webhook', bodyParser.raw({ type: 'application/json' }));
-  app.use(bodyParser.json());
+  // Increase limits for video/GIF uploads (413). If behind nginx, set client_max_body_size 100m;
+  app.use('/payment/webhook', bodyParser.raw({ type: 'application/json', limit: '50mb' }));
+  app.use(bodyParser.json({ limit: '50mb' }));
+  app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 
   const allowedOrigins = true;
 

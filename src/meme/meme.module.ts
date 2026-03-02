@@ -13,12 +13,11 @@ import { NotificationModule } from 'src/notification/notification.module';
 import { UploadModule } from 'src/upload/upload.module';
 import { UserModule } from 'src/user/user.module';
 import { PostEntity } from 'src/post/entities/post.entity';
-import { TagEntity } from 'src/tag/entities/tag.entity';
 
 @Module({
   imports: [
     ConfigModule,
-    TypeOrmModule.forFeature([MemeEntity, PostEntity, TagEntity]),
+    TypeOrmModule.forFeature([MemeEntity, PostEntity]),
     NotificationModule,
     UploadModule,
     UserModule,

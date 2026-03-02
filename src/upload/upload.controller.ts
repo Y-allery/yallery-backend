@@ -12,8 +12,6 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 
-const VIDEO_UPLOAD_LIMIT_MB = 100;
-const VIDEO_UPLOAD_LIMIT_BYTES = VIDEO_UPLOAD_LIMIT_MB * 1024 * 1024;
 const IMAGE_UPLOAD_LIMIT_MB = 25;
 const IMAGE_UPLOAD_LIMIT_BYTES = IMAGE_UPLOAD_LIMIT_MB * 1024 * 1024;
 import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody } from '@nestjs/swagger';
@@ -82,38 +80,4 @@ export class UploadController {
     }
   }
 
-  @Post('video')
-  @UseInterceptors(
-    FileInterceptor('file', {
-      limits: { fileSize: VIDEO_UPLOAD_LIMIT_BYTES },
-    }),
-  )
-  @ApiOperation({ summary: 'Upload video file' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        file: { type: 'string', format: 'binary' },
-      },
-    },
-  })
-  @ApiResponse({ status: 201, description: 'Video URL' })
-  @ApiResponse({ status: 400, description: 'No file provided' })
-  async uploadVideo(
-    @UploadedFile() file: Express.Multer.File,
-  ): Promise<{ videoUrl: string }> {
-    if (!file) {
-      throw new HttpException('No file provided', HttpStatus.BAD_REQUEST);
-    }
-    try {
-      const videoUrl = await this.uploadService.uploadVideoByBuffer(file.buffer);
-      return { videoUrl };
-    } catch (error) {
-      throw new HttpException(
-        `Failed to upload video: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-  }
 }

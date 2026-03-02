@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsNumber, MaxLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateMemeDto {
@@ -6,6 +6,10 @@ export class CreateMemeDto {
   @MaxLength(255)
   @ApiProperty({ description: 'Meme template name', example: 'Dance Challenge' })
   name: string;
+
+  @IsNumber()
+  @ApiProperty({ description: 'Tag ID to attach generated posts to', example: 1 })
+  tagId: number;
 
   @IsOptional()
   @IsString()
@@ -20,8 +24,8 @@ export class CreateMemeDto {
   @IsString()
   @MaxLength(1024)
   @ApiPropertyOptional({
-    description: 'Reference image URL (thumbnail/preview)',
-    example: 'https://res.cloudinary.com/xxx/image/upload/v1/ref.jpg',
+    description: 'Reference GIF/image URL (preview for meme)',
+    example: 'https://res.cloudinary.com/xxx/image/upload/v1/ref.gif',
   })
   referenceImageUrl?: string;
 

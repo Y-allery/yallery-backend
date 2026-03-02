@@ -11,7 +11,6 @@ import { UploadService } from 'src/upload/upload.service';
 import { UserService } from 'src/user/user.service';
 import { MEME_GENERATION_QUEUE } from '../meme.constants';
 import { PostEntity } from 'src/post/entities/post.entity';
-import { TagEntity } from 'src/tag/entities/tag.entity';
 
 const REPLICATE_MODEL = 'kwaivgi/kling-v2.6-motion-control';
 
@@ -26,8 +25,6 @@ export class MemeGenerationProcessor extends WorkerHost {
     private readonly memeRepository: Repository<MemeEntity>,
     @InjectRepository(PostEntity)
     private readonly postRepository: Repository<PostEntity>,
-    @InjectRepository(TagEntity)
-    private readonly tagRepository: Repository<TagEntity>,
     private readonly notificationGateway: NotificationGateway,
     private readonly uploadService: UploadService,
     private readonly userService: UserService,
@@ -49,9 +46,15 @@ export class MemeGenerationProcessor extends WorkerHost {
         { jobId, status: 'started', message: 'Meme generation started' },
       );
 
-      const meme = await this.memeRepository.findOne({ where: { id: memeId } });
+      const meme = await this.memeRepository.findOne({
+        where: { id: memeId },
+        relations: ['tag'],
+      });
       if (!meme || !meme.referenceVideoUrl) {
         throw new Error('Meme not found or missing reference video');
+      }
+      if (!meme.tag) {
+        throw new Error('Meme has no tag assigned');
       }
 
       const token = this.configService.get<string>('REPLICATE_API_TOKEN');
@@ -94,17 +97,12 @@ export class MemeGenerationProcessor extends WorkerHost {
         throw new Error(`User ${userId} not found`);
       }
 
-      const defaultTag = await this.tagRepository.findOne({
-        where: { name: 'other' },
-      }).then((t) => t ?? this.tagRepository.find().then((tags) => tags[0]));
-      if (!defaultTag) {
-        throw new Error('No tag found for meme post');
-      }
+      const tag = meme.tag;
 
       const previewImageUrl = meme.referenceImageUrl ?? imageUrl;
       const post = this.postRepository.create({
         user: { id: user.id },
-        tag: defaultTag,
+        tag,
         videoUrl,
         imageUrl: null,
         previewImageUrl,

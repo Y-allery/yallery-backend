@@ -1,10 +1,6 @@
-# Fix 413 Request Entity Too Large for video upload
+# Video upload: direct to Cloudinary from frontend
 
-If the API is behind nginx and you get **413 Request Entity Too Large** on `POST /upload/video`:
-
-## Option A: Direct upload to Cloudinary (recommended)
-
-The admin panel can upload videos **directly to Cloudinary** from the browser, so the file never goes through your API or nginx.
+Video upload is **only** done from the browser directly to Cloudinary. There is no `POST /upload/video` on the API.
 
 1. In [Cloudinary Dashboard](https://console.cloudinary.com/) → Settings → Upload → Add upload preset.
 2. Create an **unsigned** preset, set **Resource type** to **Video**, optionally set **Folder** to `meme_reference_videos`. Save.
@@ -12,16 +8,6 @@ The admin panel can upload videos **directly to Cloudinary** from the browser, s
    ```
    CLOUDINARY_VIDEO_UPLOAD_PRESET=your_preset_name
    ```
-4. Restart the backend. The admin Meme Generator will then use direct Cloudinary upload for reference videos (no 413).
+4. Restart the backend. The admin Meme Generator gets `GET /upload/cloudinary-params` (cloudName + uploadPreset) and uploads the file to `https://api.cloudinary.com/.../video/upload`.
 
-## Option B: Increase nginx limit
-
-In your nginx server block (or `http` block), add:
-
-```nginx
-client_max_body_size 100M;
-```
-
-Then reload nginx: `nginx -s reload` or `systemctl reload nginx`.
-
-The Nest app allows up to 100MB for video and 25MB for image (GIF) when using `POST /upload/video` or `/upload/image`.
+Image (GIF) upload still goes through the API: `POST /upload/image` (limit 25MB). If you need a higher limit behind nginx, set `client_max_body_size` in your nginx config.
