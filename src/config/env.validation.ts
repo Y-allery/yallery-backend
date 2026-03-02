@@ -78,6 +78,11 @@ export class EnvironmentVariables {
   @IsString()
   CLOUDINARY_VIDEO_UPLOAD_PRESET?: string;
 
+  /** Optional: Cloudinary folder for direct video uploads (e.g. meme_reference_videos) */
+  @IsOptional()
+  @IsString()
+  CLOUDINARY_VIDEO_FOLDER?: string;
+
   // OpenAI
   @IsString()
   OPENAI_API_KEY: string;

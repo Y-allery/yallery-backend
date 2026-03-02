@@ -30,14 +30,19 @@ export class UploadController {
   @Get('cloudinary-params')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get Cloudinary params for direct video upload' })
-  @ApiResponse({ status: 200, description: 'cloudName and optional uploadPreset' })
-  getCloudinaryParams(): { cloudName: string; uploadPreset?: string } {
+  @ApiResponse({ status: 200, description: 'cloudName, optional uploadPreset, optional folder' })
+  getCloudinaryParams(): { cloudName: string; uploadPreset?: string; folder?: string } {
     const cloudName = this.configService.get<string>('CLOUDINARY_CLOUD_NAME');
     const uploadPreset = this.configService.get<string>('CLOUDINARY_VIDEO_UPLOAD_PRESET');
+    const folder = this.configService.get<string>('CLOUDINARY_VIDEO_FOLDER');
     if (!cloudName) {
       throw new HttpException('Cloudinary not configured', HttpStatus.SERVICE_UNAVAILABLE);
     }
-    return { cloudName, uploadPreset: uploadPreset || undefined };
+    return {
+      cloudName,
+      uploadPreset: uploadPreset || undefined,
+      folder: folder || undefined,
+    };
   }
 
   @Post('image')

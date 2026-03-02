@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -14,6 +15,8 @@ import { Queue } from 'bullmq';
 
 @Injectable()
 export class MemeService {
+  private readonly logger = new Logger(MemeService.name);
+
   constructor(
     @InjectRepository(MemeEntity)
     private readonly memeRepository: Repository<MemeEntity>,
@@ -87,6 +90,7 @@ export class MemeService {
         removeOnFail: false,
       },
     );
+    this.logger.log(`Job ${job.id} added to queue: memeId=${memeId} userId=${userId}`);
     return { jobId: job.id, message: 'Meme generation task added to queue' };
   }
 }

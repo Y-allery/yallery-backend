@@ -1,6 +1,6 @@
 import { Processor, OnWorkerEvent, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import Replicate from 'replicate';
@@ -20,6 +20,8 @@ const REPLICATE_MODEL = 'kwaivgi/kling-v2.6-motion-control';
   lockDuration: 300000,
 })
 export class MemeGenerationProcessor extends WorkerHost {
+  private readonly logger = new Logger(MemeGenerationProcessor.name);
+
   constructor(
     @InjectRepository(MemeEntity)
     private readonly memeRepository: Repository<MemeEntity>,
@@ -39,12 +41,14 @@ export class MemeGenerationProcessor extends WorkerHost {
   }> {
     const { memeId, imageUrl, userId } = job.data;
     const jobId = job.id ?? String(job.id);
+    this.logger.log(`[${jobId}] Starting memeId=${memeId} userId=${userId}`);
 
     try {
       await this.notificationGateway.sendMemeGenerationProgress(
         String(userId),
         { jobId, status: 'started', message: 'Meme generation started' },
       );
+      this.logger.log(`[${jobId}] Progress sent (started)`);
 
       const meme = await this.memeRepository.findOne({
         where: { id: memeId },
@@ -56,6 +60,7 @@ export class MemeGenerationProcessor extends WorkerHost {
       if (!meme.tag) {
         throw new Error('Meme has no tag assigned');
       }
+      this.logger.log(`[${jobId}] Meme found: ${meme.name}, tagId=${meme.tag?.id}`);
 
       const token = this.configService.get<string>('REPLICATE_API_TOKEN');
       if (!token) {
@@ -66,6 +71,7 @@ export class MemeGenerationProcessor extends WorkerHost {
         String(userId),
         { jobId, status: 'processing', message: 'Running Kling motion control...' },
       );
+      this.logger.log(`[${jobId}] Calling Replicate ${REPLICATE_MODEL}...`);
 
       const replicate = new Replicate({ auth: token });
       const output = await replicate.run(REPLICATE_MODEL, {
@@ -86,11 +92,13 @@ export class MemeGenerationProcessor extends WorkerHost {
       } else {
         throw new Error(`Replicate returned unexpected output: ${JSON.stringify(output)}`);
       }
+      this.logger.log(`[${jobId}] Replicate done, rawVideoUrl length=${rawVideoUrl?.length ?? 0}`);
 
       const videoUrl = await this.uploadService.uploadVideoByUrl(rawVideoUrl);
       if (!videoUrl) {
         throw new Error('Failed to upload generated video to storage');
       }
+      this.logger.log(`[${jobId}] Video uploaded to Cloudinary`);
 
       const user = await this.userService.findById(userId);
       if (!user) {
@@ -123,10 +131,12 @@ export class MemeGenerationProcessor extends WorkerHost {
         videoUrl: savedPost.videoUrl,
         previewImageUrl: savedPost.previewImageUrl,
       });
+      this.logger.log(`[${jobId}] Done: postId=${savedPost.id}`);
 
       return { videoUrl, post: savedPost };
     } catch (err: any) {
       const message = err?.message ?? String(err);
+      this.logger.error(`[${jobId}] Failed: ${message}`, err?.stack);
       await this.notificationGateway.sendMemeGenerationFailed(String(userId), {
         jobId,
         error: message,
@@ -135,10 +145,16 @@ export class MemeGenerationProcessor extends WorkerHost {
     }
   }
 
+  @OnWorkerEvent('active')
+  onActive(job: Job) {
+    this.logger.log(`[${job.id}] Job active (worker picked up)`);
+  }
+
   @OnWorkerEvent('failed')
   async onFailed(job: Job, err: Error) {
     const { userId } = job.data ?? {};
     const jobId = job.id ?? String(job.id);
+    this.logger.error(`[${jobId}] Job failed: ${err.message}`, err.stack);
     if (userId) {
       try {
         await this.notificationGateway.sendMemeGenerationFailed(String(userId), {
@@ -146,7 +162,7 @@ export class MemeGenerationProcessor extends WorkerHost {
           error: err.message,
         });
       } catch (e) {
-        console.error('[MemeGenerationProcessor] onFailed notify error:', e);
+        this.logger.error(`[${jobId}] onFailed notify error`, e);
       }
     }
   }
