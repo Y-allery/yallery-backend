@@ -61,7 +61,7 @@ import { MemeModule } from './meme/meme.module';
     }),
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', '..', 'public'),
-      exclude: ['/api*'],
+      exclude: ['/api*', '/upload*'],
       serveRoot: '/',
     }),
     DatabaseModule,
