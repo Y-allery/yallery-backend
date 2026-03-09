@@ -25,6 +25,10 @@ export interface MemesListResponse {
   regular: MemeWithGenerationsCount[];
 }
 
+export interface MemeSettingsResponse {
+  defaultSettings: { cost: number };
+}
+
 @Injectable()
 export class MemeService {
   private readonly logger = new Logger(MemeService.name);
@@ -37,6 +41,12 @@ export class MemeService {
     @InjectQueue(MEME_GENERATION_QUEUE)
     private readonly memeGenerationQueue: Queue,
   ) {}
+
+  getSettings(): MemeSettingsResponse {
+    return {
+      defaultSettings: { cost: 100 },
+    };
+  }
 
   async create(dto: CreateMemeDto): Promise<MemeEntity> {
     const meme = this.memeRepository.create({

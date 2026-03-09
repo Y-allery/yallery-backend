@@ -11,6 +11,13 @@ import { GenerateMemeDto } from './dto/generate-meme.dto';
 export class MemeController {
   constructor(private readonly memeService: MemeService) {}
 
+  @Get('settings')
+  @ApiOperation({ summary: 'Meme default settings (e.g. cost)' })
+  @ApiResponse({ status: 200, description: '{ defaultSettings: { cost: number } }' })
+  getSettings() {
+    return this.memeService.getSettings();
+  }
+
   @Get()
   @ApiOperation({
     summary: 'List memes: popular (top 6 by generations this month) + regular, with generationsCount',
