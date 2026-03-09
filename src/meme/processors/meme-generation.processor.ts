@@ -145,6 +145,7 @@ export class MemeGenerationProcessor extends WorkerHost {
         videoUrl,
         imageUrl: null,
         previewImageUrl,
+        hasAudio: true,
         isPublished: false,
         isSaved: true,
         isDelivered: false,
