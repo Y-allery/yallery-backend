@@ -16,8 +16,15 @@ import { PostEntity } from 'src/post/entities/post.entity';
 
 const POPULAR_MEMES_LIMIT = 6;
 
+export interface MemeSuggestedTag {
+  id: number;
+  name: string;
+  imageUrl: string;
+}
+
 export interface MemeWithGenerationsCount extends MemeEntity {
   generationsCount: number;
+  suggestedTags: MemeSuggestedTag[];
 }
 
 export interface MemesListResponse {
@@ -116,6 +123,9 @@ export class MemeService {
     const withCount: MemeWithGenerationsCount[] = memes.map((m) => ({
       ...m,
       generationsCount: totalByMemeId[m.id] ?? 0,
+      suggestedTags: m.tag
+        ? [{ id: m.tag.id, name: '#' + m.tag.name, imageUrl: m.tag.imageUrl }]
+        : [],
     }));
 
     const sortedByMonth = [...withCount].sort(

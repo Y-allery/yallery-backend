@@ -15,6 +15,24 @@ import { PostEntity } from 'src/post/entities/post.entity';
 
 const REPLICATE_MODEL = 'kwaivgi/kling-v2.6-motion-control';
 
+/** Cloudinary: first frame of video as preview image URL */
+function getPreviewUrlFromVideoUrl(videoUrl: string): string | null {
+  if (!videoUrl || typeof videoUrl !== 'string') return null;
+  if (!videoUrl.includes('cloudinary.com')) return null;
+  const base = videoUrl.split('?')[0];
+  if (base.includes('/video/upload/')) {
+    const withFrame = base.replace('/video/upload/', '/video/upload/so_0/');
+    if (/\.(mp4|webm|mov|avi)$/i.test(withFrame)) {
+      return withFrame.replace(/\.(mp4|webm|mov|avi)$/i, '.jpg');
+    }
+    return `${withFrame}.jpg`;
+  }
+  if (/\.(mp4|webm|mov|avi)$/i.test(base)) {
+    return base.replace(/\.(mp4|webm|mov|avi)$/i, '.jpg');
+  }
+  return `${base}.jpg`;
+}
+
 @Injectable()
 @Processor(MEME_GENERATION_QUEUE, {
   concurrency: 5,
@@ -117,7 +135,7 @@ export class MemeGenerationProcessor extends WorkerHost {
 
       const tag = meme.tag;
 
-      const previewImageUrl = meme.referenceImageUrl ?? imageUrl;
+      const previewImageUrl = getPreviewUrlFromVideoUrl(videoUrl) ?? meme.referenceImageUrl ?? imageUrl;
       const post = this.postRepository.create({
         user: { id: user.id },
         tag,
