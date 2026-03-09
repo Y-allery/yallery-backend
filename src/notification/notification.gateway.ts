@@ -276,8 +276,19 @@ export class NotificationGateway {
         }));
 
       
+      const memes = undeliveredPosts
+        .filter((post) => post.videoUrl && !post.hasAudio && post.generationParams?.memeId != null)
+        .map((post) => ({
+          id: post.id,
+          videoUrl: post.videoUrl,
+          previewImageUrl: post.previewImageUrl,
+          generationParams: post.generationParams,
+          tagId: post.tag?.id,
+          publishTo: getPublishTo(post.contest ?? null),
+        }));
+
       const videos = undeliveredPosts
-        .filter((post) => post.videoUrl && !post.hasAudio)
+        .filter((post) => post.videoUrl && !post.hasAudio && post.generationParams?.memeId == null)
         .map((post) => ({
           id: post.id,
           videoUrl: post.videoUrl,
@@ -301,6 +312,7 @@ export class NotificationGateway {
       
       const allTagIds = [
         ...images.map((img) => img.tagId),
+        ...memes.map((m) => m.tagId),
         ...videos.map((vid) => vid.tagId),
         ...audioVideos.map((aud) => aud.tagId),
       ]
@@ -377,6 +389,22 @@ export class NotificationGateway {
         client.emit('undeliveredAudio', {
           audio: {
             data: audioVideos.map(
+              ({ id, videoUrl, previewImageUrl, generationParams, publishTo }) => ({
+                id,
+                videoUrl,
+                previewImageUrl: previewImageUrl || null,
+                generation_params: generationParams || null,
+                publishTo,
+              }),
+            ),
+          },
+        });
+      }
+
+      if (memes.length > 0 && client.connected) {
+        client.emit('undeliveredMemes', {
+          memes: {
+            data: memes.map(
               ({ id, videoUrl, previewImageUrl, generationParams, publishTo }) => ({
                 id,
                 videoUrl,
