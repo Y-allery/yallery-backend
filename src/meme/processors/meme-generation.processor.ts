@@ -158,11 +158,16 @@ export class MemeGenerationProcessor extends WorkerHost {
       const savedPost = await this.postRepository.save(post);
 
       await this.notificationGateway.sendMemeGenerated(String(userId), {
-        jobId,
-        postId: savedPost.id,
+        id: savedPost.id,
         videoUrl: savedPost.videoUrl,
-        previewImageUrl: savedPost.previewImageUrl,
-        suggestedTags: suggestedTagsForParams,
+        previewImageUrl: savedPost.previewImageUrl ?? null,
+        generationParams: {
+          memeId,
+          sourceImageUrl: imageUrl,
+          memeName: meme.name,
+          suggestedTags: suggestedTagsForParams,
+        },
+        publishTo: { postToTwitter: false, postToInstagram: false },
       });
       this.logger.log(`[${jobId}] Done: postId=${savedPost.id}`);
 

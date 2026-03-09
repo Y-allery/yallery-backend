@@ -207,18 +207,20 @@ export class NotificationGateway {
     this.server.to(toUserId).emit('memeGenerationProgress', payload);
   }
 
-  /** Meme generation: completed with video result (includes suggestedTags like videoGenerated/imageGenerated) */
+  /** Meme generation: completed with video result. Same shape as imageGenerated but with memes instead of images; no activity_type, isEdit. */
   async sendMemeGenerated(
     toUserId: string,
     payload: {
-      jobId: string;
-      postId: number;
+      id: number;
       videoUrl: string;
       previewImageUrl?: string | null;
-      suggestedTags: { id: number; name: string; imageUrl: string }[];
+      generationParams: Record<string, unknown>;
+      publishTo?: { postToTwitter: boolean; postToInstagram: boolean };
     },
   ) {
-    this.server.to(toUserId).emit('memeGenerated', payload);
+    this.server.to(toUserId).emit('memeGenerated', {
+      memes: { data: [payload] },
+    });
   }
 
   /** Meme generation: failed */
