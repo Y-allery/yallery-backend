@@ -195,25 +195,18 @@ export class MemeGenerationProcessor extends WorkerHost {
     const maxAttempts = job.opts?.attempts ?? 3;
 
     try {
-      await this.notificationGateway.sendMemeGenerationFailed(String(userId), {
-        jobId,
-        error: err.message,
-      });
-
-      // Send the standard generic error notification only if we're out of retries
       if (attemptsMade >= maxAttempts) {
-        await this.notificationGateway.sendErrorNotification(
-          String(userId),
-          `Meme generation failed: ${err.message}`,
-        );
+        await this.notificationGateway.sendMemeGenerationFailed(String(userId), {
+          jobId,
+          error: err.message,
+        });
       } else if (job.finishedOn && job.processedOn) {
-        // Fallback check if state indicates final failure
         const jobState = await job.getState().catch(() => null);
         if (jobState === 'failed') {
-          await this.notificationGateway.sendErrorNotification(
-            String(userId),
-            `Meme generation failed: ${err.message}`,
-          );
+          await this.notificationGateway.sendMemeGenerationFailed(String(userId), {
+            jobId,
+            error: err.message,
+          });
         }
       }
     } catch (e) {
