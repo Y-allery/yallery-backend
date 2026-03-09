@@ -11,8 +11,8 @@ import { GenerateMemeDto } from './dto/generate-meme.dto';
 export class MemeController {
   constructor(private readonly memeService: MemeService) {}
 
-  @Get('settings')
-  @ApiOperation({ summary: 'Meme default settings (e.g. cost)' })
+  @Get('ai-settings')
+  @ApiOperation({ summary: 'Meme AI default settings (e.g. cost)' })
   @ApiResponse({ status: 200, description: '{ defaultSettings: { cost: number } }' })
   getSettings() {
     return this.memeService.getSettings();
