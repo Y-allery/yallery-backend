@@ -207,7 +207,7 @@ export class NotificationGateway {
     this.server.to(toUserId).emit('memeGenerationProgress', payload);
   }
 
-  /** Meme generation: completed with video result */
+  /** Meme generation: completed with video result (includes suggestedTags like videoGenerated/imageGenerated) */
   async sendMemeGenerated(
     toUserId: string,
     payload: {
@@ -215,6 +215,7 @@ export class NotificationGateway {
       postId: number;
       videoUrl: string;
       previewImageUrl?: string | null;
+      suggestedTags: { id: number; name: string; imageUrl: string }[];
     },
   ) {
     this.server.to(toUserId).emit('memeGenerated', payload);

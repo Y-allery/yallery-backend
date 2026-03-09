@@ -468,10 +468,28 @@ export class PostService {
     `;
 
     const posts = await this.postEntity.query(query, [userId, userId, userId]);
-    return posts.map((post) => ({
-      ...post,
-      generationParams: this.normalizeGenerationParams(post.generationParams),
-    }));
+    return posts.map((post) => {
+      const rawParams =
+        typeof post.generationParams === 'string'
+          ? (() => {
+              try {
+                return JSON.parse(post.generationParams);
+              } catch {
+                return null;
+              }
+            })()
+          : post.generationParams;
+      const generationParams = this.normalizeGenerationParams(rawParams);
+      const suggestedTags =
+        rawParams && Array.isArray(rawParams.suggestedTags)
+          ? rawParams.suggestedTags
+          : [];
+      return {
+        ...post,
+        generationParams,
+        suggestedTags,
+      };
+    });
   }
   async markAllAsUnviewed(userId: number) {
     const result = await this.viewedPostRepository.delete({

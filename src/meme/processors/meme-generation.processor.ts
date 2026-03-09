@@ -136,6 +136,9 @@ export class MemeGenerationProcessor extends WorkerHost {
       const tag = meme.tag;
 
       const previewImageUrl = getPreviewUrlFromVideoUrl(videoUrl) ?? meme.referenceImageUrl ?? imageUrl;
+      const suggestedTagsForParams = tag
+        ? [{ id: tag.id, name: '#' + tag.name, imageUrl: tag.imageUrl }]
+        : [];
       const post = this.postRepository.create({
         user: { id: user.id },
         tag,
@@ -149,6 +152,7 @@ export class MemeGenerationProcessor extends WorkerHost {
           memeId,
           sourceImageUrl: imageUrl,
           memeName: meme.name,
+          suggestedTags: suggestedTagsForParams,
         },
       });
       const savedPost = await this.postRepository.save(post);
@@ -158,6 +162,7 @@ export class MemeGenerationProcessor extends WorkerHost {
         postId: savedPost.id,
         videoUrl: savedPost.videoUrl,
         previewImageUrl: savedPost.previewImageUrl,
+        suggestedTags: suggestedTagsForParams,
       });
       this.logger.log(`[${jobId}] Done: postId=${savedPost.id}`);
 
