@@ -117,17 +117,37 @@ export class PostController {
   @Get('published')
   @UseGuards(JwtAuthGuard)
   @ApiOperation(POST_SWAGGER.getPublishedPosts)
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1, description: 'Page number' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 10, description: 'Items per page' })
   @ApiResponse(POST_SWAGGER.getPublishedPosts.responses.success)
-  getUnpublishedPosts(@Req() req: AuthenticatedRequest) {
-    return this.postService.getPublishedPosts(req.user.id);
+  getPublishedPosts(
+    @Req() req: AuthenticatedRequest,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.postService.getPublishedPosts(
+      req.user.id,
+      page ? Number(page) : 1,
+      limit ? Number(limit) : 10,
+    );
   }
 
   @Get('unpublished')
   @UseGuards(JwtAuthGuard)
   @ApiOperation(POST_SWAGGER.getUnpublishedPosts)
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1, description: 'Page number' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 10, description: 'Items per page' })
   @ApiResponse(POST_SWAGGER.getUnpublishedPosts.responses.success)
-  getPublishedPosts(@Req() req: AuthenticatedRequest) {
-    return this.postService.getUnpublishedPosts(req.user.id);
+  getUnpublishedPosts(
+    @Req() req: AuthenticatedRequest,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.postService.getUnpublishedPosts(
+      req.user.id,
+      page ? Number(page) : 1,
+      limit ? Number(limit) : 10,
+    );
   }
 
   @Patch('mark-viewed')

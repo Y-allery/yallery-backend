@@ -36,17 +36,43 @@ export const POST_SWAGGER = {
   },
   getPublishedPosts: {
     summary: 'Get published posts',
-    description: `Retrieve all published posts for the authenticated user.`,
+    description: `Retrieve paginated published posts for the authenticated user. Use page and limit query params for pagination.`,
     responses: {
-      success: { status: 200, description: 'Published posts retrieved successfully' }
-    }
+      success: {
+        status: 200,
+        description: 'Published posts retrieved successfully',
+        schema: {
+          type: 'object',
+          properties: {
+            data: { type: 'array', items: { type: 'object' } },
+            total: { type: 'number', description: 'Total count of posts' },
+            page: { type: 'number', description: 'Current page number' },
+            limit: { type: 'number', description: 'Items per page' },
+            totalPages: { type: 'number', description: 'Total number of pages' },
+          },
+        },
+      },
+    },
   },
   getUnpublishedPosts: {
     summary: 'Get unpublished posts',
-    description: `Retrieve all unpublished (draft) posts for the authenticated user.`,
+    description: `Retrieve paginated unpublished (draft) posts for the authenticated user. Use page and limit query params for pagination.`,
     responses: {
-      success: { status: 200, description: 'Unpublished posts retrieved successfully' }
-    }
+      success: {
+        status: 200,
+        description: 'Unpublished posts retrieved successfully',
+        schema: {
+          type: 'object',
+          properties: {
+            data: { type: 'array', items: { type: 'object' } },
+            total: { type: 'number', description: 'Total count of posts' },
+            page: { type: 'number', description: 'Current page number' },
+            limit: { type: 'number', description: 'Items per page' },
+            totalPages: { type: 'number', description: 'Total number of pages' },
+          },
+        },
+      },
+    },
   },
   markPostsAsViewed: {
     summary: 'Mark posts as viewed',
