@@ -12,10 +12,12 @@ export class MemeController {
   constructor(private readonly memeService: MemeService) {}
 
   @Get()
-  @ApiOperation({ summary: 'List available meme templates (active only)' })
-  @ApiResponse({ status: 200, description: 'List of active memes' })
+  @ApiOperation({
+    summary: 'List memes: popular (top 6 by generations this month) + regular, with generationsCount',
+  })
+  @ApiResponse({ status: 200, description: '{ popular: Meme[], regular: Meme[] }; each meme has generationsCount' })
   listAvailable() {
-    return this.memeService.findAll(true);
+    return this.memeService.listForApp();
   }
 
   @Post('generate')

@@ -12,6 +12,18 @@ import { UpdateMemeDto } from './dto/update-meme.dto';
 import { MEME_GENERATION_QUEUE } from './meme.constants';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { PostEntity } from 'src/post/entities/post.entity';
+
+const POPULAR_MEMES_LIMIT = 6;
+
+export interface MemeWithGenerationsCount extends MemeEntity {
+  generationsCount: number;
+}
+
+export interface MemesListResponse {
+  popular: MemeWithGenerationsCount[];
+  regular: MemeWithGenerationsCount[];
+}
 
 @Injectable()
 export class MemeService {
@@ -20,6 +32,8 @@ export class MemeService {
   constructor(
     @InjectRepository(MemeEntity)
     private readonly memeRepository: Repository<MemeEntity>,
+    @InjectRepository(PostEntity)
+    private readonly postRepository: Repository<PostEntity>,
     @InjectQueue(MEME_GENERATION_QUEUE)
     private readonly memeGenerationQueue: Queue,
   ) {}
@@ -42,6 +56,66 @@ export class MemeService {
       relations: ['tag'],
       order: { id: 'ASC' },
     });
+  }
+
+  /** List active memes as popular (top 6 by generations this month) + regular, with generationsCount per meme */
+  async listForApp(): Promise<MemesListResponse> {
+    const memes = await this.memeRepository.find({
+      where: { isActive: true },
+      relations: ['tag'],
+      order: { id: 'ASC' },
+    });
+    if (memes.length === 0) {
+      return { popular: [], regular: [] };
+    }
+
+    const memeIds = memes.map((m) => m.id);
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const qb = this.postRepository
+      .createQueryBuilder('p')
+      .select('p.generationParams', 'params')
+      .addSelect('p.createdAt', 'createdAt')
+      .where('p.generationParams IS NOT NULL');
+    const posts = await qb.getRawMany();
+    const totalByMemeId: Record<number, number> = {};
+    const thisMonthByMemeId: Record<number, number> = {};
+    memeIds.forEach((id) => {
+      totalByMemeId[id] = 0;
+      thisMonthByMemeId[id] = 0;
+    });
+    for (const row of posts) {
+      let params = row.params;
+      if (typeof params === 'string') {
+        try {
+          params = JSON.parse(params);
+        } catch {
+          continue;
+        }
+      }
+      const memeId = params?.memeId;
+      if (memeId == null || !memeIds.includes(memeId)) continue;
+      totalByMemeId[memeId] = (totalByMemeId[memeId] ?? 0) + 1;
+      const createdAt = row.createdAt ? new Date(row.createdAt) : null;
+      if (createdAt && createdAt >= monthStart) {
+        thisMonthByMemeId[memeId] = (thisMonthByMemeId[memeId] ?? 0) + 1;
+      }
+    }
+
+    const withCount: MemeWithGenerationsCount[] = memes.map((m) => ({
+      ...m,
+      generationsCount: totalByMemeId[m.id] ?? 0,
+    }));
+
+    const sortedByMonth = [...withCount].sort(
+      (a, b) => (thisMonthByMemeId[b.id] ?? 0) - (thisMonthByMemeId[a.id] ?? 0),
+    );
+    const popular = sortedByMonth.slice(0, POPULAR_MEMES_LIMIT);
+    const regularIds = new Set(popular.map((m) => m.id));
+    const regular = withCount.filter((m) => !regularIds.has(m.id));
+
+    return { popular, regular };
   }
 
   async findOne(id: number): Promise<MemeEntity> {
