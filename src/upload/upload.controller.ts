@@ -45,6 +45,30 @@ export class UploadController {
     };
   }
 
+  @Get('cloudinary-image-signature')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Get signed Cloudinary params for direct image/GIF upload' })
+  @ApiResponse({
+    status: 200,
+    description: 'cloudName, apiKey, folder, timestamp, signature',
+  })
+  getCloudinaryImageSignature(): {
+    cloudName: string;
+    apiKey: string;
+    folder: string;
+    timestamp: number;
+    signature: string;
+  } {
+    try {
+      return this.uploadService.createSignedImageUploadParams();
+    } catch (error) {
+      throw new HttpException(
+        (error as Error).message || 'Cloudinary not configured',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+  }
+
   @Post('image')
   @UseInterceptors(
     FileInterceptor('file', {

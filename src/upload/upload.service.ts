@@ -62,6 +62,39 @@ export class UploadService {
     });
   }
 
+  createSignedImageUploadParams(
+    folder = 'octoai_images',
+  ): {
+    cloudName: string;
+    apiKey: string;
+    folder: string;
+    timestamp: number;
+    signature: string;
+  } {
+    const cloudName = this.configService.get<string>('CLOUDINARY_CLOUD_NAME');
+    const apiKey = this.configService.get<string>('CLOUDINARY_API_KEY');
+    const apiSecret = this.configService.get<string>('CLOUDINARY_API_SECRET');
+
+    if (!cloudName || !apiKey || !apiSecret) {
+      throw new Error('Cloudinary configuration is missing');
+    }
+
+    const timestamp = Math.floor(Date.now() / 1000);
+    const paramsToSign = { folder, timestamp };
+    const signature = cloudinary.utils.api_sign_request(
+      paramsToSign,
+      apiSecret,
+    );
+
+    return {
+      cloudName,
+      apiKey,
+      folder,
+      timestamp,
+      signature,
+    };
+  }
+
   async uploadVideoByUrl(videoUrl: string): Promise<string> {
     return new Promise((resolve, reject) => {
       cloudinary.uploader.upload(
