@@ -10,4 +10,4 @@ Video upload is **only** done from the browser directly to Cloudinary. There is 
    ```
 4. Restart the backend. The admin Meme Generator gets `GET /upload/cloudinary-params` (cloudName + uploadPreset) and uploads the file to `https://api.cloudinary.com/.../video/upload`.
 
-Image (GIF) upload still goes through the API: `POST /upload/image` (limit 25MB). If you need a higher limit behind nginx, set `client_max_body_size` in your nginx config.
+Image (GIF) upload still goes through the API: `POST /upload/image` (limit 100MB). If you need a higher limit behind nginx, set `client_max_body_size` in your nginx config.

@@ -12,7 +12,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 
-const IMAGE_UPLOAD_LIMIT_MB = 50;
+const IMAGE_UPLOAD_LIMIT_MB = 100;
 const IMAGE_UPLOAD_LIMIT_BYTES = IMAGE_UPLOAD_LIMIT_MB * 1024 * 1024;
 import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { UploadService } from './upload.service';
