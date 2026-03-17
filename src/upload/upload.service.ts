@@ -21,6 +21,16 @@ export class UploadService {
     return new Promise((resolve, reject) => {
       const workerPath = path.resolve(__dirname, 'image-worker.js');
       const worker = new Worker(workerPath);
+      let settled = false;
+
+      const finish = (cb: (value: any) => void, value: any) => {
+        if (settled) return;
+        settled = true;
+        worker.removeAllListeners('message');
+        worker.removeAllListeners('error');
+        worker.removeAllListeners('exit');
+        cb(value);
+      };
 
       // Передаємо конфігурацію Cloudinary з основного процесу
       const cloudinaryConfig = {
@@ -33,19 +43,20 @@ export class UploadService {
 
       worker.on('message', (message) => {
         if (message.success) {
-          resolve(message.imageUrl);
+          finish(resolve, message.imageUrl);
         } else {
-          reject(new Error(message.error));
+          finish(reject, new Error(message.error));
         }
+        worker.terminate().catch(() => undefined);
       });
 
       worker.on('error', (error) => {
-        reject(error);
+        finish(reject, error);
       });
 
       worker.on('exit', (code) => {
-        if (code !== 0) {
-          reject(new Error(`Worker stopped with exit code ${code}`));
+        if (!settled && code !== 0) {
+          finish(reject, new Error(`Worker stopped with exit code ${code}`));
         }
       });
     });

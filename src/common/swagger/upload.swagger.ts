@@ -1,7 +1,7 @@
 export const UPLOAD_SWAGGER = {
   uploadImage: {
     summary: 'Upload image',
-    description: `Upload an image file to the cloud storage. Returns a public URL for the uploaded image. Supports common image formats (JPG, PNG, WebP).`,
+    description: `Upload an image file to the cloud storage. Returns a public URL for the uploaded image. Supports common image formats (JPG, PNG, WebP, GIF).`,
     responses: {
       success: { 
         status: 200, 

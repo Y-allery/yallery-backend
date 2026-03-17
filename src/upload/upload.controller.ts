@@ -12,7 +12,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 
-const IMAGE_UPLOAD_LIMIT_MB = 25;
+const IMAGE_UPLOAD_LIMIT_MB = 50;
 const IMAGE_UPLOAD_LIMIT_BYTES = IMAGE_UPLOAD_LIMIT_MB * 1024 * 1024;
 import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { UploadService } from './upload.service';
@@ -75,7 +75,10 @@ export class UploadController {
     }
 
     try {
-      const imageUrl = await this.uploadService.uploadByBuffer(file.buffer);
+      const imageUrl = await this.uploadService.uploadByBuffer(
+        file.buffer,
+        file.mimetype,
+      );
       return { imageUrl };
     } catch (error) {
       throw new HttpException(

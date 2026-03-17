@@ -13,7 +13,7 @@ parentPort?.on(
       api_secret: string;
     };
   }) => {
-    const { buffer, cloudinaryConfig } = data;
+    const { buffer, mimetype, cloudinaryConfig } = data;
     
     // Перевіряємо конфігурацію
     if (!cloudinaryConfig || !cloudinaryConfig.cloud_name) {
@@ -33,7 +33,10 @@ parentPort?.on(
       });
 
       const uploadStream = cloudinary.uploader.upload_stream(
-        { folder: 'octoai_images' },
+        {
+          folder: 'octoai_images',
+          resource_type: mimetype?.startsWith('video/') ? 'video' : 'auto',
+        },
         (error, result) => {
           if (error) {
             parentPort?.postMessage({ success: false, error: error.message });
