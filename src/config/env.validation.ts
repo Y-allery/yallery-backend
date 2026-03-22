@@ -153,6 +153,59 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   REPLICATE_API_TOKEN?: string;
+
+  // RunPod Serverless
+  @IsOptional()
+  @IsString()
+  RUNPOD_API_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  RUNPOD_API_URL?: string;
+
+  @IsOptional()
+  @IsString()
+  RUNPOD_IMAGE_ENDPOINT_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  RUNPOD_IMAGE_MODEL?: string;
+
+  @IsOptional()
+  @IsString()
+  RUNPOD_IMAGE_EDIT_ENDPOINT_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  RUNPOD_VIDEO_ENDPOINT_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  RUNPOD_AUDIO_ENDPOINT_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  RUNPOD_WEBHOOK_SECRET?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10))
+  RUNPOD_REQUEST_TIMEOUT_MS?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10))
+  RUNPOD_POLL_INTERVAL_MS?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10))
+  RUNPOD_DEFAULT_TTL_MS?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10))
+  RUNPOD_DEFAULT_EXECUTION_TIMEOUT_MS?: number;
 }
 
 export function validate(config: Record<string, unknown>) {

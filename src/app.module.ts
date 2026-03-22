@@ -32,6 +32,7 @@ import { RewardModule } from './reward/reward.module';
 import { AudioGenerationModule } from './audio-generation/audio-generation.module';
 import { AudioGenerationController } from './audio-generation/audio-generation.controller';
 import { MemeModule } from './meme/meme.module';
+import { MediaGenerationModule } from './media-generation/media-generation.module';
 
 @Module({
   imports: [
@@ -86,6 +87,7 @@ import { MemeModule } from './meme/meme.module';
     AudioGenerationModule,
     RewardModule,
     MemeModule,
+    MediaGenerationModule,
   ],
   controllers: [VideoGenerationController, AudioGenerationController],
   providers: [
