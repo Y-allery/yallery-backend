@@ -1,9 +1,11 @@
 export enum MediaGenerationModality {
   IMAGE = 'image',
+  AUDIO = 'audio',
 }
 
 export enum MediaGenerationProvider {
   RUNPOD = 'runpod',
+  FAL = 'fal',
 }
 
 export enum MediaGenerationRequestStatus {
@@ -15,6 +17,7 @@ export enum MediaGenerationRequestStatus {
 
 export enum MediaGenerationDeliveryEventType {
   IMAGE_GENERATION_FAILED = 'imageGenerationFailed',
+  AUDIO_GENERATION_FAILED = 'audioGenerationFailed',
 }
 
 export interface MediaGenerationErrorDeliveryPayload {

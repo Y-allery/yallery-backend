@@ -58,4 +58,45 @@ export class MediaGenerationDeliveryService {
       },
     );
   }
+
+  async deliverAudioFailure(params: {
+    requestId: string;
+    userId: number;
+    error: string;
+  }): Promise<void> {
+    const payload: MediaGenerationErrorDeliveryPayload = {
+      requestId: params.requestId,
+      error: params.error,
+      modality: MediaGenerationModality.AUDIO,
+    };
+
+    const delivery = this.deliveryRepository.create({
+      id: randomUUID(),
+      requestId: params.requestId,
+      userId: params.userId,
+      eventType: MediaGenerationDeliveryEventType.AUDIO_GENERATION_FAILED,
+      payload: payload as unknown as Record<string, unknown>,
+      isDelivered: false,
+      deliveredAt: null,
+    });
+
+    await this.deliveryRepository.save(delivery);
+
+    if (!this.notificationGateway.isUserConnected(params.userId.toString())) {
+      return;
+    }
+
+    await this.notificationGateway.sendAudioGenerationFailed(
+      params.userId.toString(),
+      payload,
+    );
+
+    await this.deliveryRepository.update(
+      { id: delivery.id },
+      {
+        isDelivered: true,
+        deliveredAt: new Date(),
+      },
+    );
+  }
 }
