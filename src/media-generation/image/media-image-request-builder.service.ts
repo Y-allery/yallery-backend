@@ -20,6 +20,8 @@ export class MediaImageRequestBuilderService {
   async build(dto: GenerateMediaImageDto): Promise<MediaImageGenerationRequest> {
     const context = await this.mediaGenerationContextService.resolve({
       context: dto.context,
+      prompt: [dto.prompt, dto.context].filter(Boolean).join('\n\n'),
+      autoSelectTag: dto.autoSelectTag,
       tagId: dto.tagId,
       styleId: dto.styleId,
       colorId: dto.colorId,

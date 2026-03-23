@@ -5,6 +5,7 @@ import { ContestEntity } from 'src/contest/entity/contest.entity';
 import { ColorEntity } from 'src/image-generation/entities/color.entity';
 import { StyleEntity } from 'src/post/entities/style.entity';
 import { TagEntity } from 'src/tag/entities/tag.entity';
+import { MediaGenerationTagSelectionService } from './media-generation-tag-selection.service';
 import {
   MediaGenerationContext,
   ResolveMediaGenerationContextParams,
@@ -21,17 +22,24 @@ export class MediaGenerationContextService {
     private readonly colorRepository: Repository<ColorEntity>,
     @InjectRepository(ContestEntity)
     private readonly contestRepository: Repository<ContestEntity>,
+    private readonly mediaGenerationTagSelectionService: MediaGenerationTagSelectionService,
   ) {}
 
   async resolve(
     params: ResolveMediaGenerationContextParams,
   ): Promise<MediaGenerationContext> {
+    const autoSelectedTag = !params.tagId && params.autoSelectTag
+      ? await this.mediaGenerationTagSelectionService.selectBestTag(
+          params.prompt?.trim() || params.context?.trim() || '',
+        )
+      : null;
+
     const [tag, style, color, contest] = await Promise.all([
       params.tagId
         ? this.tagRepository.findOne({
             where: { id: params.tagId },
           })
-        : null,
+        : autoSelectedTag,
       params.styleId
         ? this.styleRepository.findOne({
             where: { id: params.styleId },
@@ -66,13 +74,19 @@ export class MediaGenerationContextService {
       throw new BadRequestException('Contest not found');
     }
 
+    const primaryTag = tag ?? contest?.tag ?? null;
+
+    if (!primaryTag && !params.autoSelectTag) {
+      throw new BadRequestException('Tag not found');
+    }
+
     return {
       context: params.context?.trim() || undefined,
       tag,
       style,
       color,
       contest,
-      primaryTag: tag ?? contest?.tag ?? null,
+      primaryTag,
     };
   }
 }

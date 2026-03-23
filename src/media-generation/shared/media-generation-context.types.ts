@@ -5,6 +5,8 @@ import { TagEntity } from 'src/tag/entities/tag.entity';
 
 export interface ResolveMediaGenerationContextParams {
   context?: string;
+  prompt?: string;
+  autoSelectTag?: boolean;
   tagId?: number;
   styleId?: number;
   colorId?: number;

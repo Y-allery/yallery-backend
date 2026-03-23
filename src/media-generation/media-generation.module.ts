@@ -25,11 +25,13 @@ import { MediaImagePromptComposerService } from './image/media-image-prompt-comp
 import { MediaImagePostService } from './image/media-image-post.service';
 import { MediaImageRequestBuilderService } from './image/media-image-request-builder.service';
 import { MediaImageGenerationService } from './image/media-image-generation.service';
+import { MediaImageSettingsService } from './image/media-image-settings.service';
 import { PublicMediaImageGenerationController } from './image/public-media-image-generation.controller';
 import { RunpodProviderModule } from './providers/runpod/runpod-provider.module';
 import { MediaGenerationCreditsService } from './shared/media-generation-credits.service';
 import { MediaGenerationDeliveryService } from './shared/media-generation-delivery.service';
 import { MediaGenerationContextService } from './shared/media-generation-context.service';
+import { MediaGenerationTagSelectionService } from './shared/media-generation-tag-selection.service';
 
 @Module({
   imports: [
@@ -61,11 +63,13 @@ import { MediaGenerationContextService } from './shared/media-generation-context
   ],
   providers: [
     MediaGenerationContextService,
+    MediaGenerationTagSelectionService,
     MediaGenerationCreditsService,
     MediaGenerationDeliveryService,
     MediaImagePolicyService,
     MediaImagePromptComposerService,
     MediaImageProfileResolverService,
+    MediaImageSettingsService,
     MediaImageRequestBuilderService,
     MediaImagePostService,
     MediaImageGenerationService,

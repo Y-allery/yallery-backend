@@ -1,5 +1,6 @@
 import { Transform, Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsEnum,
   IsInt,
   IsNotEmpty,
@@ -61,6 +62,16 @@ export class GenerateMediaImageDto {
   @IsOptional()
   @IsEnum(MediaImageOrientation)
   orientation?: MediaImageOrientation;
+
+  @ApiPropertyOptional({
+    description:
+      'When true, the backend chooses the best matching tag automatically for standard image generation.',
+    default: false,
+  })
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  autoSelectTag?: boolean;
 
   @ApiPropertyOptional({
     description: 'Optional tag reference used to enrich the prompt.',

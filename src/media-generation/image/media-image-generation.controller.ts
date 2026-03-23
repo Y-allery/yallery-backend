@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
@@ -14,6 +15,7 @@ import { GenerateMediaImageDto } from './dto/generate-media-image.dto';
 import { EnqueueMediaImageResponseDto } from './dto/enqueue-media-image-response.dto';
 import { GenerateMediaImageResponseDto } from './dto/generate-media-image-response.dto';
 import { MediaImageGenerationService } from './media-image-generation.service';
+import { MediaImageSettingsService } from './media-image-settings.service';
 
 @ApiTags('Media Generation')
 @Controller('media-generation/images')
@@ -21,7 +23,22 @@ import { MediaImageGenerationService } from './media-image-generation.service';
 export class MediaImageGenerationController {
   constructor(
     private readonly mediaImageGenerationService: MediaImageGenerationService,
+    private readonly mediaImageSettingsService: MediaImageSettingsService,
   ) {}
+
+  @Get('ai-settings')
+  @ApiOperation({
+    summary: 'Get standardized AI settings for the new image generation flow',
+    description:
+      'Returns the settings payload used by the standard RunPod-backed image generation flow.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Standard image generation settings.',
+  })
+  async getAiSettings(): Promise<Record<string, unknown>> {
+    return this.mediaImageSettingsService.getStandardImageSettings();
+  }
 
   @Post('generate')
   @ApiOperation({
