@@ -1,9 +1,16 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  HttpException,
+  Injectable,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { RunpodEndpointType } from './runpod.constants';
 import { RunpodClient } from './runpod.client';
 import {
   RunpodGeneratedImageAsset,
+  RunpodHealthResponse,
   RunpodImageGenerationResult,
+  RunpodImageGenerationStatus,
   RunpodStatusResponse,
   RunpodTextToImageInput,
 } from './runpod.types';
@@ -17,6 +24,11 @@ interface GenerateRunpodImageParams {
   imageQuantity: number;
 }
 
+interface QueuedRunpodImageGeneration {
+  jobId: string;
+  providerModel: string;
+}
+
 @Injectable()
 export class RunpodImageProvider {
   constructor(
@@ -24,7 +36,9 @@ export class RunpodImageProvider {
     private readonly runpodConfigService: RunpodConfigService,
   ) {}
 
-  async generate(params: GenerateRunpodImageParams): Promise<RunpodImageGenerationResult> {
+  async generate(
+    params: GenerateRunpodImageParams,
+  ): Promise<RunpodImageGenerationResult> {
     if (!this.runpodClient.isEnabled(RunpodEndpointType.IMAGE)) {
       throw new ServiceUnavailableException(
         'RunPod image endpoint is not configured',
@@ -32,16 +46,70 @@ export class RunpodImageProvider {
     }
 
     const providerModel = this.runpodConfigService.getImageModel() || 'default';
+    const input = this.buildInput(params, providerModel);
+    const timeoutMs =
+      (this.runpodClient.getDefaultPolicy().executionTimeout ?? 600000) + 120000;
+    const runSyncWaitMs = Math.min(timeoutMs, 300000);
 
-    const input: RunpodTextToImageInput = {
-      prompt: params.prompt,
-      negative_prompt: params.negativePrompt,
-      model: providerModel === 'default' ? undefined : providerModel,
-      width: params.width,
-      height: params.height,
-      num_images: params.imageQuantity,
-      output_format: 'png',
+    const syncResult = await this.runpodClient.runSync<
+      RunpodTextToImageInput,
+      unknown
+    >(
+      RunpodEndpointType.IMAGE,
+      {
+        input,
+        policy: this.runpodClient.getDefaultPolicy(),
+      },
+      {
+        waitMs: runSyncWaitMs,
+      },
+    );
+
+    const currentStatus = (syncResult.status || '').toUpperCase();
+
+    if (['FAILED', 'CANCELLED', 'TIMED_OUT'].includes(currentStatus)) {
+      const detail =
+        typeof syncResult.error === 'string'
+          ? syncResult.error
+          : JSON.stringify(syncResult.error ?? syncResult);
+
+      throw new BadGatewayException(
+        `RunPod job ${syncResult.id} failed with status ${currentStatus}: ${detail}`,
+      );
+    }
+
+    const result =
+      currentStatus === 'COMPLETED'
+        ? syncResult
+        : await this.runpodClient.waitForCompletion(RunpodEndpointType.IMAGE, syncResult.id, {
+            timeoutMs,
+          });
+
+    const assets = this.extractAssets(result);
+    if (assets.length === 0) {
+      throw new Error(
+        `RunPod returned no image assets. Job: ${result.id}. Output: ${JSON.stringify(result.output)}`,
+      );
+    }
+
+    return {
+      jobId: result.id,
+      providerModel,
+      assets,
     };
+  }
+
+  async submitGeneration(
+    params: GenerateRunpodImageParams,
+  ): Promise<QueuedRunpodImageGeneration> {
+    if (!this.runpodClient.isEnabled(RunpodEndpointType.IMAGE)) {
+      throw new ServiceUnavailableException(
+        'RunPod image endpoint is not configured',
+      );
+    }
+
+    const providerModel = this.runpodConfigService.getImageModel() || 'default';
+    const input = this.buildInput(params, providerModel);
 
     const queuedJob = await this.runpodClient.run(RunpodEndpointType.IMAGE, {
       input,
@@ -55,6 +123,13 @@ export class RunpodImageProvider {
       );
     }
 
+    return {
+      jobId,
+      providerModel,
+    };
+  }
+
+  async waitForGeneration(jobId: string): Promise<RunpodGeneratedImageAsset[]> {
     const result = await this.runpodClient.waitForCompletion(
       RunpodEndpointType.IMAGE,
       jobId,
@@ -72,10 +147,98 @@ export class RunpodImageProvider {
       );
     }
 
+    return assets;
+  }
+
+  async getEndpointHealth(): Promise<RunpodHealthResponse> {
+    if (!this.runpodClient.isEnabled(RunpodEndpointType.IMAGE)) {
+      throw new ServiceUnavailableException(
+        'RunPod image endpoint is not configured',
+      );
+    }
+
+    return this.runpodClient.getHealth(RunpodEndpointType.IMAGE);
+  }
+
+  async getGenerationStatus(jobId: string): Promise<RunpodImageGenerationStatus> {
+    const providerModel = this.runpodConfigService.getImageModel() || 'default';
+
+    try {
+      const result = await this.runpodClient.getStatus<unknown>(
+        RunpodEndpointType.IMAGE,
+        jobId,
+      );
+
+      const currentStatus = (result.status || '').toUpperCase();
+
+      if (currentStatus === 'COMPLETED') {
+        const assets = this.extractAssets(result);
+        if (assets.length === 0) {
+          return {
+            state: 'failed',
+            jobId,
+            providerModel,
+            rawStatus: currentStatus,
+            error: `RunPod returned no image assets. Job: ${jobId}. Output: ${JSON.stringify(result.output)}`,
+          };
+        }
+
+        return {
+          state: 'completed',
+          jobId,
+          providerModel,
+          rawStatus: currentStatus,
+          assets,
+        };
+      }
+
+      if (['FAILED', 'CANCELLED', 'TIMED_OUT'].includes(currentStatus)) {
+        const detail =
+          typeof result.error === 'string'
+            ? result.error
+            : JSON.stringify(result.error ?? result);
+
+        return {
+          state: 'failed',
+          jobId,
+          providerModel,
+          rawStatus: currentStatus,
+          error: `RunPod job ${jobId} failed with status ${currentStatus}: ${detail}`,
+        };
+      }
+
+      return {
+        state: 'pending',
+        jobId,
+        providerModel,
+        rawStatus: currentStatus || 'UNKNOWN',
+      };
+    } catch (error) {
+      if (this.isTransientStatusNotFound(error)) {
+        return {
+          state: 'pending',
+          jobId,
+          providerModel,
+          rawStatus: 'REQUEST_NOT_VISIBLE',
+        };
+      }
+
+      throw error;
+    }
+  }
+
+  private buildInput(
+    params: GenerateRunpodImageParams,
+    providerModel: string,
+  ): RunpodTextToImageInput {
     return {
-      jobId,
-      providerModel,
-      assets,
+      prompt: params.prompt,
+      negative_prompt: params.negativePrompt,
+      model: providerModel === 'default' ? undefined : providerModel,
+      width: params.width,
+      height: params.height,
+      num_images: params.imageQuantity,
+      output_format: 'png',
     };
   }
 
@@ -217,5 +380,17 @@ export class RunpodImageProvider {
     }
 
     return undefined;
+  }
+
+  private isTransientStatusNotFound(error: unknown): error is HttpException {
+    if (!(error instanceof HttpException) || error.getStatus() !== 404) {
+      return false;
+    }
+
+    const response = error.getResponse();
+    const detail =
+      typeof response === 'string' ? response : JSON.stringify(response);
+
+    return detail.toLowerCase().includes('request does not exist');
   }
 }

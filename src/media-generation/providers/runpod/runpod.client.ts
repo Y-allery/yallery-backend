@@ -43,13 +43,20 @@ export class RunpodClient {
     payload: RunpodJobRequest<TInput>,
     options?: RunpodRunSyncOptions,
   ): Promise<RunpodStatusResponse<TOutput>> {
+    const waitMs = options?.waitMs;
+    const requestTimeoutMs = Math.max(
+      this.runpodConfigService.getRequestTimeoutMs(),
+      waitMs ? waitMs + 15000 : 0,
+    );
+
     return this.request<RunpodStatusResponse<TOutput>>(
       endpointType,
       'POST',
       '/runsync',
       {
         data: payload,
-        params: options?.waitMs ? { wait: options.waitMs } : undefined,
+        params: waitMs ? { wait: waitMs } : undefined,
+        timeout: requestTimeoutMs,
       },
     );
   }
@@ -98,9 +105,31 @@ export class RunpodClient {
       this.runpodConfigService.getDefaultPolicy().executionTimeout ??
       600000;
     const startedAt = Date.now();
+    let didSeeTransientNotFound = false;
 
     while (true) {
-      const status = await this.getStatus<TOutput>(endpointType, jobId, options);
+      let status: RunpodStatusResponse<TOutput>;
+      try {
+        status = await this.getStatus<TOutput>(endpointType, jobId, options);
+      } catch (error) {
+        if (
+          this.isTransientStatusNotFound(error) &&
+          Date.now() - startedAt < timeoutMs
+        ) {
+          if (!didSeeTransientNotFound) {
+            this.logger.warn(
+              `RunPod job ${jobId} is not visible on status endpoint yet. Retrying...`,
+            );
+            didSeeTransientNotFound = true;
+          }
+
+          await this.sleep(Math.min(pollIntervalMs, 1000));
+          continue;
+        }
+
+        throw error;
+      }
+
       const currentStatus = (status.status || '').toUpperCase();
 
       if (currentStatus === 'COMPLETED') {
@@ -133,6 +162,18 @@ export class RunpodClient {
 
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private isTransientStatusNotFound(error: unknown): error is HttpException {
+    if (!(error instanceof HttpException) || error.getStatus() !== 404) {
+      return false;
+    }
+
+    const response = error.getResponse();
+    const detail =
+      typeof response === 'string' ? response : JSON.stringify(response);
+
+    return detail.toLowerCase().includes('request does not exist');
   }
 
   private async request<T>(
@@ -181,10 +222,19 @@ export class RunpodClient {
         ? responseData
         : JSON.stringify(responseData ?? error.message);
 
-    this.logger.error(
-      `RunPod ${method} ${endpointType}${path} failed (${status ?? 'network'})`,
-      detail,
-    );
+    if (
+      !(
+        method === 'GET' &&
+        path.startsWith('/status/') &&
+        status === 404 &&
+        detail.toLowerCase().includes('request does not exist')
+      )
+    ) {
+      this.logger.error(
+        `RunPod ${method} ${endpointType}${path} failed (${status ?? 'network'})`,
+        detail,
+      );
+    }
 
     if (status) {
       return new HttpException(

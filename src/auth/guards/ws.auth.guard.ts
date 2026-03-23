@@ -16,7 +16,12 @@ export class WsAuthGuard implements CanActivate {
         secret: process.env.JWT_SECRET,
       });
 
-      client.data.userId = decoded.sub.toString();
+      const userId = decoded?.sub ?? decoded?.id;
+      if (userId == null) {
+        throw new Error('Token payload does not contain a user id');
+      }
+
+      client.data.userId = userId.toString();
       return true;
     } catch (e) {
       client.emit('error', {

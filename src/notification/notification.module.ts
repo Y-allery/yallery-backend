@@ -9,11 +9,17 @@ import { NotificationPreferenceEntity } from './entity/notification.preferences.
 import { UserModule } from 'src/user/user.module';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { TagEntity } from 'src/tag/entities/tag.entity';
+import { MediaGenerationDeliveryEntity } from 'src/media-generation/entities/media-generation-delivery.entity';
 
 @Module({
   imports: [
     DatabaseModule,
-    TypeOrmModule.forFeature([NotificationPreferenceEntity, PostEntity,TagEntity]),
+    TypeOrmModule.forFeature([
+      NotificationPreferenceEntity,
+      PostEntity,
+      TagEntity,
+      MediaGenerationDeliveryEntity,
+    ]),
     forwardRef(() => UserModule),
   ],
   controllers: [NotificationController],

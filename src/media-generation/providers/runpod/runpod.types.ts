@@ -42,11 +42,28 @@ export interface RunpodCancelResponse {
   [key: string]: unknown;
 }
 
+export interface RunpodHealthJobCounts {
+  completed?: number;
+  failed?: number;
+  inProgress?: number;
+  inQueue?: number;
+  retried?: number;
+  [key: string]: unknown;
+}
+
+export interface RunpodHealthWorkerCounts {
+  idle?: number;
+  initializing?: number;
+  ready?: number;
+  running?: number;
+  throttled?: number;
+  unhealthy?: number;
+  [key: string]: unknown;
+}
+
 export interface RunpodHealthResponse {
-  jobsInQueue?: number;
-  jobsInProgress?: number;
-  workersRunning?: number;
-  workersIdle?: number;
+  jobs?: RunpodHealthJobCounts;
+  workers?: RunpodHealthWorkerCounts;
   [key: string]: unknown;
 }
 
@@ -84,4 +101,13 @@ export interface RunpodImageGenerationResult {
   jobId: string;
   providerModel: string;
   assets: RunpodGeneratedImageAsset[];
+}
+
+export interface RunpodImageGenerationStatus {
+  state: 'pending' | 'completed' | 'failed';
+  jobId: string;
+  providerModel: string;
+  rawStatus: string;
+  assets?: RunpodGeneratedImageAsset[];
+  error?: string;
 }

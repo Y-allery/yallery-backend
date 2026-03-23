@@ -73,6 +73,11 @@ export class EnvironmentVariables {
   @IsString()
   CLOUDINARY_API_SECRET: string;
 
+  /** Optional: default folder for generated image uploads */
+  @IsOptional()
+  @IsString()
+  CLOUDINARY_IMAGE_FOLDER?: string;
+
   /** Optional: unsigned upload preset for direct video upload from client (avoids 413 via nginx) */
   @IsOptional()
   @IsString()

@@ -13,6 +13,11 @@ import { In, Repository } from 'typeorm';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TagEntity } from 'src/tag/entities/tag.entity';
+import { MediaGenerationDeliveryEntity } from 'src/media-generation/entities/media-generation-delivery.entity';
+import {
+  MediaGenerationDeliveryEventType,
+  MediaGenerationErrorDeliveryPayload,
+} from 'src/media-generation/shared/media-generation.types';
 
 @WebSocketGateway({
   cors: {
@@ -31,12 +36,22 @@ export class NotificationGateway {
     private readonly postRepository: Repository<PostEntity>,
     @InjectRepository(TagEntity)
     private readonly tagRepository: Repository<TagEntity>,
+    @InjectRepository(MediaGenerationDeliveryEntity)
+    private readonly mediaGenerationDeliveryRepository: Repository<MediaGenerationDeliveryEntity>,
   ) {}
 
   @WebSocketServer()
   server: Server;
 
   private connectedUsers = new Map<string, Socket>();
+
+  emitSocketEvent(
+    to_user_id: string,
+    eventType: string,
+    payload: Record<string, unknown>,
+  ) {
+    this.server.to(to_user_id).emit(eventType, payload);
+  }
 
   async sendNotification(
     to_user_id: string,
@@ -54,6 +69,7 @@ export class NotificationGateway {
     images: any,
     activity_type: ActivityEnum,
     isEdit: boolean = false,
+    metadata?: { requestId?: string },
   ) {
     if (this.isUserConnected(to_user_id)) {
       if (Array.isArray(images)) {
@@ -62,6 +78,7 @@ export class NotificationGateway {
           images: { data: images },
           activity_type,
           isEdit,
+          requestId: metadata?.requestId,
         });
       } else if (images?.data && Array.isArray(images.data)) {
         if (images.data.length === 0) {
@@ -75,6 +92,7 @@ export class NotificationGateway {
           },
           activity_type,
           isEdit,
+          requestId: metadata?.requestId,
         });
       } else {
         console.error(`[NotificationGateway] Invalid images structure for user ${to_user_id}:`, images);
@@ -196,6 +214,18 @@ export class NotificationGateway {
   async sendErrorNotification(to_user_id: string, errorMessage: string) {
     this.server.to(to_user_id).emit('error', {
       error: errorMessage,
+    });
+  }
+
+  async sendImageGenerationFailed(
+    to_user_id: string,
+    payload: MediaGenerationErrorDeliveryPayload,
+  ) {
+    this.server.to(to_user_id).emit('imageGenerationFailed', payload);
+    this.server.to(to_user_id).emit('error', {
+      error: payload.error,
+      requestId: payload.requestId,
+      modality: payload.modality,
     });
   }
 
@@ -425,6 +455,35 @@ export class NotificationGateway {
       await this.postRepository.update(
         { id: In(allUndeliveredIds) },
         { isDelivered: true },
+      );
+    }
+
+    const pendingDeliveries = await this.mediaGenerationDeliveryRepository.find({
+      where: { userId: Number(userId), isDelivered: false },
+      order: { createdAt: 'ASC' },
+    });
+
+    if (pendingDeliveries.length > 0) {
+      for (const delivery of pendingDeliveries) {
+        const payload = delivery.payload as unknown as MediaGenerationErrorDeliveryPayload;
+
+        if (
+          delivery.eventType ===
+          MediaGenerationDeliveryEventType.IMAGE_GENERATION_FAILED
+        ) {
+          await this.sendImageGenerationFailed(userId, payload);
+          continue;
+        }
+
+        client.emit(delivery.eventType, delivery.payload);
+      }
+
+      await this.mediaGenerationDeliveryRepository.update(
+        { id: In(pendingDeliveries.map((delivery) => delivery.id)) },
+        {
+          isDelivered: true,
+          deliveredAt: new Date(),
+        },
       );
     }
 

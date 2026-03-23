@@ -1,7 +1,17 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
+import { AuthenticatedRequest } from 'src/auth/types/auth.user.interface';
 import { GenerateMediaImageDto } from './dto/generate-media-image.dto';
+import { EnqueueMediaImageResponseDto } from './dto/enqueue-media-image-response.dto';
 import { GenerateMediaImageResponseDto } from './dto/generate-media-image-response.dto';
 import { MediaImageGenerationService } from './media-image-generation.service';
 
@@ -15,32 +25,35 @@ export class MediaImageGenerationController {
 
   @Post('generate')
   @ApiOperation({
-    summary: 'Generate images through the new isolated RunPod media layer',
+    summary: 'Queue image generation through the new isolated RunPod media layer',
     description: [
       'This route belongs to the new `media-generation` module.',
       '',
-      'It does not use legacy image-generation queues, processors, or AI settings.',
-      'The request is sent to the RunPod Serverless image endpoint, waits for completion, then uploads the resulting images to Cloudinary and returns them directly.',
+      'It accepts an authenticated user request, stores a media-generation request row, then schedules backend orchestration for RunPod + Cloudinary + websocket delivery.',
+      'Final images are delivered over sockets with legacy-compatible `imageGenerated` / `undeliveredImages` payloads.',
     ].join('\n'),
   })
   @ApiBody({ type: GenerateMediaImageDto })
   @ApiResponse({
-    status: 201,
-    description: 'Images generated successfully.',
-    type: GenerateMediaImageResponseDto,
+    status: 202,
+    description: 'Image generation task added to backend queue.',
+    type: EnqueueMediaImageResponseDto,
   })
+  @HttpCode(HttpStatus.ACCEPTED)
   async generate(
     @Body() dto: GenerateMediaImageDto,
-  ): Promise<GenerateMediaImageResponseDto> {
-    const startedAt = Date.now();
-    const result = await this.mediaImageGenerationService.generate(dto);
+    @Req() req: AuthenticatedRequest,
+  ): Promise<EnqueueMediaImageResponseDto> {
+    const result = await this.mediaImageGenerationService.enqueue(
+      dto,
+      req.user.id,
+    );
 
     return {
       success: true,
-      images: result.images,
-      jobId: result.jobId,
-      providerModel: result.providerModel,
-      elapsedMs: Date.now() - startedAt,
+      message: 'Image generation task has been added to the queue.',
+      requestId: result.requestId,
+      status: result.status,
     };
   }
 }
