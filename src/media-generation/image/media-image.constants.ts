@@ -39,8 +39,9 @@ export const MEDIA_IMAGE_DEFAULT_NEGATIVE_PROMPT =
   'Blurry photo, distortion, low-res, poor quality';
 export const MEDIA_IMAGE_DEFAULT_ORIENTATION = MediaImageOrientation.VERTICAL;
 export const MEDIA_IMAGE_MIN_QUANTITY = 1;
-export const MEDIA_IMAGE_MAX_QUANTITY = 4;
+export const MEDIA_IMAGE_MAX_QUANTITY = 10;
 export const MEDIA_IMAGE_MAX_PROMPT_LENGTH = 4000;
+export const MEDIA_IMAGE_POLICY_AI_SERVICE = 'runpod_image';
 export const MEDIA_IMAGE_GENERATION_QUEUE = 'media_image_generation';
 export const MEDIA_IMAGE_SUBMIT_JOB = 'media_image_submit';
 export const MEDIA_IMAGE_POLL_JOB = 'media_image_poll';

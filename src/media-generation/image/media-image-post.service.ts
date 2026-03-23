@@ -5,6 +5,7 @@ import { ContestEntity } from 'src/contest/entity/contest.entity';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { TagEntity } from 'src/tag/entities/tag.entity';
 import { GenerateMediaImageDto } from './dto/generate-media-image.dto';
+import { MEDIA_IMAGE_POLICY_AI_SERVICE } from './media-image.constants';
 import { MediaImageGenerationRequest } from './types/media-image-request.types';
 
 interface CreateMediaImagePostsParams {
@@ -108,7 +109,8 @@ export class MediaImagePostService {
     return {
       prompt: params.dto.prompt,
       context: params.dto.context ?? null,
-      ai_service: 'runpod',
+      ai_service: MEDIA_IMAGE_POLICY_AI_SERVICE,
+      provider: 'runpod',
       provider_model: params.providerModel,
       orientation: params.dto.orientation ?? 'vertical',
       style_id: params.dto.styleId ?? null,

@@ -13,6 +13,7 @@ import { NotificationGateway } from 'src/notification/notification.gateway';
 import { Repository } from 'typeorm';
 import { UploadV2Service } from 'src/upload-v2/upload-v2.service';
 import { MediaGenerationRequestEntity } from '../entities/media-generation-request.entity';
+import { MediaGenerationCreditsService } from '../shared/media-generation-credits.service';
 import { MediaGenerationDeliveryService } from '../shared/media-generation-delivery.service';
 import {
   MediaGenerationModality,
@@ -26,6 +27,7 @@ import {
 import { RunpodImageProvider } from '../providers/runpod/runpod-image.provider';
 import { GenerateMediaImageDto } from './dto/generate-media-image.dto';
 import { MediaImagePostService } from './media-image-post.service';
+import { MediaImagePolicyService } from './media-image-policy.service';
 import { MediaImageRequestBuilderService } from './media-image-request-builder.service';
 import {
   MEDIA_IMAGE_GENERATION_QUEUE,
@@ -34,6 +36,7 @@ import {
   MEDIA_IMAGE_MAX_STUCK_QUEUE_ATTEMPTS,
   MEDIA_IMAGE_POLL_DELAY_MS,
   MEDIA_IMAGE_POLL_JOB,
+  MEDIA_IMAGE_POLICY_AI_SERVICE,
   MEDIA_IMAGE_SUBMIT_JOB,
 } from './media-image.constants';
 
@@ -46,6 +49,8 @@ export class MediaImageGenerationService {
     private readonly uploadV2Service: UploadV2Service,
     private readonly mediaImageRequestBuilderService: MediaImageRequestBuilderService,
     private readonly mediaImagePostService: MediaImagePostService,
+    private readonly mediaImagePolicyService: MediaImagePolicyService,
+    private readonly mediaGenerationCreditsService: MediaGenerationCreditsService,
     private readonly mediaGenerationDeliveryService: MediaGenerationDeliveryService,
     private readonly notificationGateway: NotificationGateway,
     @InjectRepository(MediaGenerationRequestEntity)
@@ -59,7 +64,8 @@ export class MediaImageGenerationService {
     jobId: string;
     providerModel: string;
   }> {
-    const request = await this.mediaImageRequestBuilderService.build(dto);
+    const preparedDto = await this.mediaImagePolicyService.prepareDto(dto);
+    const request = await this.mediaImageRequestBuilderService.build(preparedDto);
     const result = await this.generateUploadedImages(request);
 
     return {
@@ -74,6 +80,15 @@ export class MediaImageGenerationService {
     status: MediaGenerationRequestStatus;
   }> {
     const requestId = randomUUID();
+    const preparedDto = await this.mediaImagePolicyService.prepareDto(dto);
+    const generationCost = await this.mediaImagePolicyService.getGenerationCost(
+      preparedDto.imageQuantity ?? 1,
+    );
+
+    await this.mediaGenerationCreditsService.verifyUserHasEnoughCredits(
+      userId,
+      generationCost,
+    );
 
     await this.mediaGenerationRequestRepository.save(
       this.mediaGenerationRequestRepository.create({
@@ -83,8 +98,11 @@ export class MediaImageGenerationService {
         provider: MediaGenerationProvider.RUNPOD,
         providerJobId: null,
         status: MediaGenerationRequestStatus.QUEUED,
-        requestPayload: dto as unknown as Record<string, unknown>,
-        responsePayload: null,
+        requestPayload: preparedDto as unknown as Record<string, unknown>,
+        responsePayload: {
+          policyAiService: MEDIA_IMAGE_POLICY_AI_SERVICE,
+          generationCost,
+        },
         errorCode: null,
         errorMessage: null,
         startedAt: null,
@@ -324,7 +342,28 @@ export class MediaImageGenerationService {
         };
       }
 
-      const imageCount = await this.completeRequest(requestEntity, status);
+      let imageCount: number;
+      try {
+        imageCount = await this.completeRequest(requestEntity, status);
+      } catch (error) {
+        const message = this.readErrorMessage(error);
+        this.logger.error(
+          `Failed to finalize media image request ${requestId}: ${message}`,
+        );
+
+        await this.failRequest({
+          requestId,
+          userId: requestEntity.userId,
+          error: message,
+        });
+
+        return {
+          requestId,
+          status: MediaGenerationRequestStatus.FAILED,
+          jobId: requestEntity.providerJobId,
+          imageCount: 0,
+        };
+      }
 
       return {
         requestId,
@@ -585,6 +624,8 @@ export class MediaImageGenerationService {
         providerJobId: requestEntity.providerJobId,
         responsePayload: {
           ...(requestEntity.responsePayload || {}),
+          generationCost:
+            requestEntity.responsePayload?.generationCost ?? undefined,
           providerModel: status.providerModel,
           rawStatus: status.rawStatus,
         },
@@ -605,6 +646,16 @@ export class MediaImageGenerationService {
     const dto = this.readDto(requestEntity);
     const request = await this.mediaImageRequestBuilderService.build(dto);
     const images = await this.uploadGeneratedAssets(status.assets);
+    const generationCost = await this.readGenerationCost(
+      requestEntity,
+      dto.imageQuantity ?? request.imageQuantity,
+    );
+
+    await this.mediaGenerationCreditsService.consumeGenerationCredits({
+      userId: requestEntity.userId,
+      amount: generationCost,
+      activityType: ActivityEnum.IMAGE_GENERATE_SPEND,
+    });
 
     const created = await this.mediaImagePostService.createGeneratedPosts({
       requestId: requestEntity.id,
@@ -623,6 +674,7 @@ export class MediaImageGenerationService {
         providerJobId: requestEntity.providerJobId,
         responsePayload: {
           ...(requestEntity.responsePayload || {}),
+          generationCost,
           providerModel: status.providerModel,
           rawStatus: status.rawStatus,
           imageUrls: images,
@@ -666,5 +718,17 @@ export class MediaImageGenerationService {
       userId: params.userId,
       error: params.error,
     });
+  }
+
+  private async readGenerationCost(
+    requestEntity: MediaGenerationRequestEntity,
+    quantity: number,
+  ): Promise<number> {
+    const storedCost = Number(requestEntity.responsePayload?.generationCost);
+    if (Number.isFinite(storedCost) && storedCost >= 0) {
+      return storedCost;
+    }
+
+    return this.mediaImagePolicyService.getGenerationCost(quantity);
   }
 }
