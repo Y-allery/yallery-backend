@@ -1,6 +1,7 @@
 export enum MediaGenerationModality {
   IMAGE = 'image',
   AUDIO = 'audio',
+  VIDEO = 'video',
 }
 
 export enum MediaGenerationProvider {
@@ -18,6 +19,7 @@ export enum MediaGenerationRequestStatus {
 export enum MediaGenerationDeliveryEventType {
   IMAGE_GENERATION_FAILED = 'imageGenerationFailed',
   AUDIO_GENERATION_FAILED = 'audioGenerationFailed',
+  VIDEO_GENERATION_FAILED = 'videoGenerationFailed',
 }
 
 export interface MediaGenerationErrorDeliveryPayload {

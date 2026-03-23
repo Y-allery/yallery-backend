@@ -99,4 +99,45 @@ export class MediaGenerationDeliveryService {
       },
     );
   }
+
+  async deliverVideoFailure(params: {
+    requestId: string;
+    userId: number;
+    error: string;
+  }): Promise<void> {
+    const payload: MediaGenerationErrorDeliveryPayload = {
+      requestId: params.requestId,
+      error: params.error,
+      modality: MediaGenerationModality.VIDEO,
+    };
+
+    const delivery = this.deliveryRepository.create({
+      id: randomUUID(),
+      requestId: params.requestId,
+      userId: params.userId,
+      eventType: MediaGenerationDeliveryEventType.VIDEO_GENERATION_FAILED,
+      payload: payload as unknown as Record<string, unknown>,
+      isDelivered: false,
+      deliveredAt: null,
+    });
+
+    await this.deliveryRepository.save(delivery);
+
+    if (!this.notificationGateway.isUserConnected(params.userId.toString())) {
+      return;
+    }
+
+    await this.notificationGateway.sendVideoGenerationFailed(
+      params.userId.toString(),
+      payload,
+    );
+
+    await this.deliveryRepository.update(
+      { id: delivery.id },
+      {
+        isDelivered: true,
+        deliveredAt: new Date(),
+      },
+    );
+  }
 }

@@ -241,6 +241,18 @@ export class NotificationGateway {
     });
   }
 
+  async sendVideoGenerationFailed(
+    to_user_id: string,
+    payload: MediaGenerationErrorDeliveryPayload,
+  ) {
+    this.server.to(to_user_id).emit('videoGenerationFailed', payload);
+    this.server.to(to_user_id).emit('error', {
+      error: payload.error,
+      requestId: payload.requestId,
+      modality: payload.modality,
+    });
+  }
+
   /** Meme generation: progress (e.g. "started", "processing") */
   async sendMemeGenerationProgress(
     toUserId: string,
@@ -492,6 +504,14 @@ export class NotificationGateway {
           MediaGenerationDeliveryEventType.AUDIO_GENERATION_FAILED
         ) {
           await this.sendAudioGenerationFailed(userId, payload);
+          continue;
+        }
+
+        if (
+          delivery.eventType ===
+          MediaGenerationDeliveryEventType.VIDEO_GENERATION_FAILED
+        ) {
+          await this.sendVideoGenerationFailed(userId, payload);
           continue;
         }
 

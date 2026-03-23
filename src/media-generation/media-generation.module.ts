@@ -44,6 +44,17 @@ import { MediaGenerationCreditsService } from './shared/media-generation-credits
 import { MediaGenerationDeliveryService } from './shared/media-generation-delivery.service';
 import { MediaGenerationContextService } from './shared/media-generation-context.service';
 import { MediaGenerationTagSelectionService } from './shared/media-generation-tag-selection.service';
+import { FalVideoProvider } from './providers/fal/fal-video.provider';
+import { MediaVideoGenerationController } from './video/media-video-generation.controller';
+import {
+  MEDIA_VIDEO_GENERATION_QUEUE,
+} from './video/media-video.constants';
+import { MediaVideoGenerationProcessor } from './video/media-video-generation.processor';
+import { MediaVideoGenerationService } from './video/media-video-generation.service';
+import { MediaVideoPolicyService } from './video/media-video-policy.service';
+import { MediaVideoPostService } from './video/media-video-post.service';
+import { MediaVideoRequestBuilderService } from './video/media-video-request-builder.service';
+import { MediaVideoSettingsService } from './video/media-video-settings.service';
 
 @Module({
   imports: [
@@ -60,12 +71,17 @@ import { MediaGenerationTagSelectionService } from './shared/media-generation-ta
     ]),
     BullModule.registerQueue({ name: MEDIA_IMAGE_GENERATION_QUEUE }),
     BullModule.registerQueue({ name: MEDIA_AUDIO_GENERATION_QUEUE }),
+    BullModule.registerQueue({ name: MEDIA_VIDEO_GENERATION_QUEUE }),
     BullBoardModule.forFeature({
       name: MEDIA_IMAGE_GENERATION_QUEUE,
       adapter: BullMQAdapter,
     }),
     BullBoardModule.forFeature({
       name: MEDIA_AUDIO_GENERATION_QUEUE,
+      adapter: BullMQAdapter,
+    }),
+    BullBoardModule.forFeature({
+      name: MEDIA_VIDEO_GENERATION_QUEUE,
       adapter: BullMQAdapter,
     }),
     UploadV2Module,
@@ -79,6 +95,7 @@ import { MediaGenerationTagSelectionService } from './shared/media-generation-ta
     MediaImageGenerationController,
     PublicMediaImageGenerationController,
     MediaAudioGenerationController,
+    MediaVideoGenerationController,
   ],
   providers: [
     MediaGenerationContextService,
@@ -86,12 +103,19 @@ import { MediaGenerationTagSelectionService } from './shared/media-generation-ta
     MediaGenerationCreditsService,
     MediaGenerationDeliveryService,
     FalAudioProvider,
+    FalVideoProvider,
     MediaAudioPolicyService,
     MediaAudioSettingsService,
     MediaAudioRequestBuilderService,
     MediaAudioPostService,
     MediaAudioGenerationService,
     MediaAudioGenerationProcessor,
+    MediaVideoPolicyService,
+    MediaVideoSettingsService,
+    MediaVideoRequestBuilderService,
+    MediaVideoPostService,
+    MediaVideoGenerationService,
+    MediaVideoGenerationProcessor,
     MediaImagePolicyService,
     MediaImagePromptComposerService,
     MediaImageProfileResolverService,
@@ -101,6 +125,10 @@ import { MediaGenerationTagSelectionService } from './shared/media-generation-ta
     MediaImageGenerationService,
     MediaImageGenerationProcessor,
   ],
-  exports: [MediaImageGenerationService, MediaAudioGenerationService],
+  exports: [
+    MediaImageGenerationService,
+    MediaAudioGenerationService,
+    MediaVideoGenerationService,
+  ],
 })
 export class MediaGenerationModule {}
