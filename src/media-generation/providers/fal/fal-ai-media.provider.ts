@@ -7,7 +7,6 @@ import * as fal from '@fal-ai/serverless-client';
 import axios from 'axios';
 import { InjectRepository } from '@nestjs/typeorm';
 import { AIEnum } from 'src/common/enums/ai.enum';
-import { AISettingsEntity } from 'src/image-generation/entities/ai-settings.entity';
 import { ServiceTokenService } from 'src/service-token/service-token.service';
 import { UploadService } from 'src/upload/upload.service';
 import { Repository } from 'typeorm';
@@ -20,6 +19,7 @@ import {
 import { PromptImageGenerationResult } from '../../contracts/prompt-image-generation-result.contract';
 import { MediaCapability } from '../../enums/media-capability.enum';
 import { MediaProvider } from '../../enums/media-provider.enum';
+import { AISettingsEntity } from '../../entities/legacy-ai-settings.entity';
 
 @Injectable()
 export class FalAiMediaProvider implements MediaGenerationProvider {

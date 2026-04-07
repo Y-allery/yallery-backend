@@ -1,7 +1,6 @@
 import { WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { NotificationGateway } from 'src/notification/notification.gateway';
-import { ActivityEnum } from 'src/activity/types/activity.enum';
 
 export abstract class BaseImageProcessor extends WorkerHost {
   constructor(protected readonly notificationGateway: NotificationGateway) {
@@ -12,7 +11,7 @@ export abstract class BaseImageProcessor extends WorkerHost {
   async onFailed(job: Job, err: Error) {
     const { aiService, userId } = job.data;
     const processorName = this.constructor.name;
-    
+
     const attemptsMade = job.attemptsMade || 0;
     const maxAttempts = job.opts?.attempts ?? 3;
 
@@ -46,46 +45,4 @@ export abstract class BaseImageProcessor extends WorkerHost {
       console.error(`[${processorName}] Failed to send error notification for job ${job.id}:`, error);
     }
   }
-
-  protected async handleCompletedNotification(
-    job: Job,
-    isEdit: boolean = false,
-  ): Promise<void> {
-    const processorName = this.constructor.name;
-    
-    try {
-      const { userId } = job.data;
-      if (!userId) {
-        console.error(`[${processorName}] onCompleted: userId is missing for job ${job.id}`);
-        return;
-      }
-
-      const result = job.returnvalue;
-      if (!result) {
-        console.error(`[${processorName}] onCompleted: return value is missing for job ${job.id}`);
-        return;
-      }
-
-      const generatedImages = result?.data || result;
-      if (!generatedImages || !Array.isArray(generatedImages) || generatedImages.length === 0) {
-        console.error(
-          `[${processorName}] onCompleted: generatedImages is missing or empty for job ${job.id}. Return value: ${JSON.stringify(result)}`,
-        );
-        return;
-      }
-
-      const suggestedTags = result?.suggestedTags || [];
-
-      console.log(`[${processorName}] Sending success notification for job ${job.id} with ${generatedImages.length} images`);
-      await this.notificationGateway.sendImageArrayNotification(
-        userId.toString(),
-        { data: generatedImages, suggestedTags },
-        ActivityEnum.IMAGE_GENERATE_SPEND,
-        isEdit,
-      );
-    } catch (error) {
-      console.error(`[${processorName}] onCompleted error for job ${job.id}:`, error);
-    }
-  }
 }
-

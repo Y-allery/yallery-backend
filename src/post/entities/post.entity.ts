@@ -12,7 +12,6 @@ import { LikeEntity } from '../../like/entities/like.entity';
 import { TimeStampEntity } from '../../database/entities/time-stamp.entity';
 import { ViewedPostEntity } from './viwed.entity';
 import { ContestEntity } from '../../contest/entity/contest.entity';
-import { ActivityEntity } from '../../activity/entities/activity.entity';
 import { UserActivityEntity } from '../../user-activity/entities/user-activity.entity';
 
 @Entity('posts')
@@ -72,9 +71,6 @@ export class PostEntity extends TimeStampEntity {
   @Column({ type: 'boolean', default: false, name: 'isRejected' })
   @Index()
   isRejected: boolean;
-
-  @OneToMany(() => ActivityEntity, (activity) => activity.post)
-  activities: ActivityEntity[];
 
   @OneToMany(() => UserActivityEntity, (activity) => activity.post)
   userActivities: UserActivityEntity[];

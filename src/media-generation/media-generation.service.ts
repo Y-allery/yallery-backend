@@ -7,8 +7,6 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Queue } from 'bullmq';
-import { AISettingsEntity } from 'src/image-generation/entities/ai-settings.entity';
-import { ColorEntity } from 'src/image-generation/entities/color.entity';
 import { ContestEntity } from 'src/contest/entity/contest.entity';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { StyleEntity } from 'src/post/entities/style.entity';
@@ -58,6 +56,7 @@ import {
 } from './contracts/prompt-image-generation-request.contract';
 import { UserActivityService } from 'src/user-activity/services/user-activity.service';
 import { TagEntity } from 'src/tag/entities/tag.entity';
+import { ColorEntity } from './entities/color.entity';
 
 @Injectable()
 export class MediaGenerationService {
@@ -77,8 +76,6 @@ export class MediaGenerationService {
     private readonly mediaTextVideoQueue: Queue,
     @InjectQueue(MEDIA_IMAGE_VIDEO_GENERATION_QUEUE)
     private readonly mediaImageVideoQueue: Queue,
-    @InjectRepository(AISettingsEntity)
-    private readonly aiSettingsRepository: Repository<AISettingsEntity>,
     @InjectRepository(MediaAISettingsEntity)
     private readonly mediaAISettingsRepository: Repository<MediaAISettingsEntity>,
     @InjectRepository(ColorEntity)

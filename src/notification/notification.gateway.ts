@@ -7,7 +7,6 @@ import {
 import { Server, Socket } from 'socket.io';
 import { Inject, UseGuards, forwardRef } from '@nestjs/common';
 import { WsAuthGuard } from '../auth/guards/ws.auth.guard';
-import { ActivityEnum } from 'src/activity/types/activity.enum';
 import { UserService } from 'src/user/user.service';
 import { In, Repository } from 'typeorm';
 import { PostEntity } from 'src/post/entities/post.entity';
@@ -38,21 +37,10 @@ export class NotificationGateway {
 
   private connectedUsers = new Map<string, Socket>();
 
-  async sendNotification(
-    to_user_id: string,
-    message: string,
-    activity_type: ActivityEnum,
-  ) {
-    this.server.to(to_user_id).emit('activity', {
-      message,
-      activity_type,
-    });
-  }
-
   async sendImageArrayNotification(
     to_user_id: string,
     images: any,
-    activity_type?: ActivityEnum,
+    activity_type?: string,
     isEdit?: boolean,
   ) {
     if (this.isUserConnected(to_user_id)) {
@@ -152,7 +140,7 @@ export class NotificationGateway {
       suggestedTags: { id: number; name: string; imageUrl: string }[];
       publishTo?: { postToTwitter: boolean; postToInstagram: boolean };
     },
-    activity_type?: ActivityEnum,
+    activity_type?: string,
   ) {
     const generationParams =
       video.generationParams ?? video.generation_params ?? null;
@@ -203,7 +191,7 @@ export class NotificationGateway {
       suggestedTags: { id: number; name: string; imageUrl: string }[];
       publishTo?: { postToTwitter: boolean; postToInstagram: boolean };
     },
-    activity_type?: ActivityEnum,
+    activity_type?: string,
   ) {
     const generationParams =
       video.generationParams ?? video.generation_params ?? null;

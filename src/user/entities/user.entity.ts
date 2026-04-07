@@ -11,7 +11,6 @@ import {
 import { LikeEntity } from '../../like/entities/like.entity';
 import { TimeStampEntity } from '../../database/entities/time-stamp.entity';
 import { ViewedPostEntity } from '../../post/entities/viwed.entity';
-import { ActivityEntity } from '../../activity/entities/activity.entity';
 import { DeviceTokenEntity } from './device-token.entity';
 import { NotificationPreferenceEntity } from '../../notification/entity/notification.preferences.entity';
 import { RoleEnum } from '../types/role.enum';
@@ -96,16 +95,6 @@ export class UserEntity extends TimeStampEntity {
     onDelete: 'CASCADE',
   })
   viewedPosts: ViewedPostEntity[];
-
-  @OneToMany(() => ActivityEntity, (activity) => activity.fromUser, {
-    onDelete: 'CASCADE',
-  })
-  activitiesInitiated: ActivityEntity[];
-
-  @OneToMany(() => ActivityEntity, (activity) => activity.toUser, {
-    onDelete: 'CASCADE',
-  })
-  activitiesReceived: ActivityEntity[];
 
   @OneToMany(() => UserActivityEntity, (activity) => activity.user, {
     onDelete: 'CASCADE',

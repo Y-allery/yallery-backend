@@ -4,7 +4,10 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { ApiBody, ApiOperation, ApiTags, ApiResponse } from '@nestjs/swagger';
 import { NOTIFICATION_SWAGGER } from 'src/common/swagger';
 import { SetNotificationPreferenceDto } from './dto/change.notification.settings.dto';
-import { ActivityEnum } from 'src/activity/types/activity.enum';
+import {
+  UserNotificationTypeEnum,
+  USER_NOTIFICATION_PREFERENCE_TYPES,
+} from './types/user-notification-type.enum';
 
 @Controller('notification')
 @UseGuards(JwtAuthGuard)
@@ -17,10 +20,10 @@ export class NotificationController {
   @ApiResponse(NOTIFICATION_SWAGGER.getNotificationTypes.responses.success)
   async getNotificationTypes(@Req() req: any) {
     const userId = req.user.id;
-    return await this.notificationService.getNotificationPreferences(userId, [
-      ActivityEnum.LIKE_EARN,
-      ActivityEnum.LIKE_SPEND,
-    ]);
+    return await this.notificationService.getNotificationPreferences(
+      userId,
+      [...USER_NOTIFICATION_PREFERENCE_TYPES],
+    );
   }
 
   @Post('set')

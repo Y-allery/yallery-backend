@@ -21,15 +21,13 @@ import {
 import { GetTopPostDto } from 'src/admin/dto/get-top-post.dto';
 import { SetContestWinnerDto } from 'src/admin/dto/set.contest.winner.dto';
 import { NotificationGateway } from 'src/notification/notification.gateway';
-import { ActivityService } from 'src/activity/activity.service';
-import { ActivityEnum } from 'src/activity/types/activity.enum';
 import { UpdateContestDto } from './dto/update.contest.dto';
-import { RoleEnum } from 'src/user/types/role.enum';
 import { FirebaseService } from 'src/firebase/firebase.service';
 import { RewardService } from 'src/reward/reward.service';
 import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
 import { MediaAISettingsEntity } from 'src/media-generation/entities/media-ai-settings.entity';
 import { UserActivityService } from 'src/user-activity/services/user-activity.service';
+import { UserNotificationTypeEnum } from 'src/notification/types/user-notification-type.enum';
 const axios = require('axios');
 import * as https from 'https';
 
@@ -52,7 +50,6 @@ export class ContestService {
     @InjectRepository(DeviceTokenEntity)
     private readonly deviceTokenModel: Repository<DeviceTokenEntity>,
     private readonly userService: UserService,
-    private readonly activityService: ActivityService,
     private readonly userActivityService: UserActivityService,
     private readonly firebaseService: FirebaseService,
     private readonly notificationGateway: NotificationGateway,
@@ -425,11 +422,6 @@ export class ContestService {
       return;
     }
 
-    const admins = await this.userRepository.find({
-      where: { role: RoleEnum.ADMIN },
-      select: { id: true },
-    });
-
     const updatedContests = [];
 
     for (let contest of contests) {
@@ -471,13 +463,6 @@ export class ContestService {
         postsCount > 0 &&
         contest.status !== ContestStatusEnum.PENDING_REVIEW
       ) {
-        await this.activityService.createActivitiesV2({
-          fromUserId: null,
-          toUserIds: admins.map((e) => e.id),
-          type: ActivityEnum.ADMIN_CONTEST_REVIEW,
-          isAdmin: true,
-          contest,
-        });
         contest = await this.setAutomaticContestWinner(contest);
         updatedContests.push(contest);
       } else if (
@@ -486,13 +471,6 @@ export class ContestService {
         !contest.isApproved &&
         contest.status !== ContestStatusEnum.PENDING_REVIEW
       ) {
-        await this.activityService.createActivitiesV2({
-          fromUserId: null,
-          toUserIds: admins.map((e) => e.id),
-          type: ActivityEnum.ADMIN_CONTEST_REVIEW,
-          isAdmin: true,
-          contest,
-        });
         contest.status = ContestStatusEnum.PENDING_REVIEW;
         updatedContests.push(contest);
       } else if (
@@ -554,14 +532,6 @@ export class ContestService {
       const batchUserIds = users.map(user => user.id);
 
       try {
-          await this.activityService.createActivitiesV2({
-            fromUserId: null,
-            toUserIds: batchUserIds,
-            type: ActivityEnum.CONTEST_OPEN,
-            isAdmin: false,
-            contest,
-          });
-
           await this.userActivityService.logContestOpened({
             userIds: batchUserIds,
             contestId: contest.id,
@@ -1097,26 +1067,6 @@ export class ContestService {
     post.user.points += contest.reward;
     await this.userRepository.save(post.user);
 
-    const description = await this.activityService.createActivitiesV2({
-      fromUserId: null,
-      toUserIds: [post.user.id],
-      type: ActivityEnum.CONTEST_WIN,
-      contestReward: contest.reward,
-      isAdmin: false,
-      contest,
-      post,
-    });
-
-    await this.activityService.createActivitiesV2({
-      fromUserId: null,
-      toUserIds: [post.user.id],
-      type: ActivityEnum.ADMIN_CONTEST_WON,
-      contestReward: contest.reward,
-      isAdmin: true,
-      contest,
-      post,
-    });
-
     await this.userActivityService.logContestWon({
       userId: post.user.id,
       contestId: contest.id,
@@ -1127,18 +1077,11 @@ export class ContestService {
         post.imageUrl ?? post.previewImageUrl ?? contest.imageUrl ?? null,
     });
 
-    await this.activityService.deleteAdminContestActivity(contest.id);
-
-    await this.notificationGateway.sendNotification(
-      post.user.id.toString(),
-      description,
-      ActivityEnum.CONTEST_WIN,
-    );
-
     await this.userService.sendPushNotificationIfEnabled(
       post.user.id,
-      ActivityEnum.CONTEST_WIN,
+      UserNotificationTypeEnum.CONTEST_WIN,
     );
+    await this.notificationGateway.emitProfileUpdate(post.user.id.toString());
 
     return {
       success: true,

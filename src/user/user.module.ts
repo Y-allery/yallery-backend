@@ -4,7 +4,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserEntity } from './entities/user.entity';
 import { UserController } from './user.controller';
 import { TagEntity } from 'src/tag/entities/tag.entity';
-import { ActivityModule } from 'src/activity/activity.module';
 import { NotificationModule } from 'src/notification/notification.module';
 import { DeviceTokenEntity } from './entities/device-token.entity';
 import { FirebaseModule } from 'src/firebase/firebase.module';
@@ -18,6 +17,7 @@ import { PartnerUserLinkEntity } from 'src/admin/entities/partner-user-link.enti
 import { ReportPostEntity } from 'src/post/entities/report.post.entity';
 import { PaymentEntity } from 'src/payment/entities/payment.entity';
 import { RewardModule } from 'src/reward/reward.module';
+import { UserActivityModule } from 'src/user-activity/user-activity.module';
 
 @Module({
   imports: [
@@ -34,11 +34,11 @@ import { RewardModule } from 'src/reward/reward.module';
       ReportPostEntity,
       PaymentEntity,
     ]),
-    ActivityModule,
     forwardRef(() => NotificationModule),
     UploadModule,
     FirebaseModule,
     RewardModule,
+    UserActivityModule,
   ],
   providers: [UserService],
   exports: [UserService],

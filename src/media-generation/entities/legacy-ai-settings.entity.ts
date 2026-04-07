@@ -13,13 +13,13 @@ export class AISettingsEntity extends TimeStampEntity {
 
   @Column({ type: 'varchar', unique: true, name: 'aiService' })
   @Index()
-  aiService: string; // 'aura_flow', 'flux', 'realistic_vision', etc.
+  aiService: string;
 
   @Column({ type: 'varchar' })
-  name: string; // 'Ideogram', 'FLUX AI', etc.
+  name: string;
 
   @Column({ type: 'json' })
-  allowedOrientations: string[]; // ['horizontal', 'vertical']
+  allowedOrientations: string[];
 
   @Column({ type: 'int' })
   minImages: number;
@@ -31,7 +31,7 @@ export class AISettingsEntity extends TimeStampEntity {
   maxPromptLength: number;
 
   @Column({ type: 'json', nullable: true })
-  sizes: string[] | null; // ['1024x1024', '1536x640', ...]
+  sizes: string[] | null;
 
   @Column({ type: 'json', nullable: true })
   qualityOptions: string[] | null;
@@ -43,7 +43,7 @@ export class AISettingsEntity extends TimeStampEntity {
   cost: number;
 
   @Column({ type: 'varchar', nullable: true, name: 'apiModel' })
-  apiModel: string | null; // 'fal-ai/ideogram/v2', etc.
+  apiModel: string | null;
 
   @Column({ type: 'text', nullable: true })
   description: string | null;
@@ -57,4 +57,3 @@ export class AISettingsEntity extends TimeStampEntity {
   @Column({ type: 'boolean', default: true, name: 'isActive' })
   isActive: boolean;
 }
-

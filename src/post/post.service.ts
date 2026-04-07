@@ -14,15 +14,11 @@ import { PostEntity } from './entities/post.entity';
 import { TagEntity } from 'src/tag/entities/tag.entity';
 import { ViewedPostEntity } from './entities/viwed.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
-import { GenerateImageDto } from 'src/image-generation/dto/generate.image.dto';
 import { ContestService } from 'src/contest/contest.service';
 import { ReportPostDto } from './dto/report.post.dto';
 import { ReportPostEntity } from './entities/report.post.entity';
 import { StyleEntity } from './entities/style.entity';
 import { CreateStyleDto } from './dto/create.style.dto';
-import { ActivityService } from 'src/activity/activity.service';
-import { ActivityEnum } from 'src/activity/types/activity.enum';
-import { RoleEnum } from 'src/user/types/role.enum';
 import * as sharp from 'sharp';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -36,6 +32,7 @@ import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
 import { v2 as cloudinary } from 'cloudinary';
 import { StandardPost } from 'src/common/types/standard-post.type';
 import { PopularPostsResponse } from './types/popular-post.interface';
+import { GeneratedImagePostInput } from './contracts/generated-image-post-input.contract';
 
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 const randomSleep = async () =>
@@ -63,7 +60,6 @@ export class PostService {
     @InjectRepository(UserEntity)
     private userRepository: Repository<UserEntity>,
     private contestService: ContestService,
-    private activityService: ActivityService,
     private tagService: TagService,
     private readonly configService: ConfigService,
     @Inject(forwardRef(() => NotificationGateway))
@@ -892,7 +888,7 @@ export class PostService {
   }
 
   async savePost(
-    dto: GenerateImageDto,
+    dto: GeneratedImagePostInput,
     imageUrl: string,
     user_id: number,
     contest_id: number | null,
@@ -972,13 +968,6 @@ export class PostService {
       return { message: 'You have already reported this post' };
     }
 
-    await this.activityService.createActivitiesV2({
-      fromUserId: userId,
-      toUserIds: [post.user.id],
-      type: ActivityEnum.ADMIN_REPORT,
-      isAdmin: true,
-      post,
-    });
     const newReport = this.reportPostEntity.create({
       reportingUser: { id: userId },
       reportedUser: { id: post.user.id },
@@ -1146,24 +1135,9 @@ export class PostService {
       where: { id: reportId },
       relations: { reportedUser: true, reportingUser: true, post: true },
     });
-    const admins = await this.userEntity.find({
-      where: { role: RoleEnum.ADMIN },
-    });
     if (!report) {
       throw new NotFoundException('Report not found');
     }
-
-    await this.activityService.deleteAdminPostActivity(
-      report.post.id,
-      report.reportingUser.id,
-    );
-    await this.activityService.createActivitiesV2({
-      fromUserId: null,
-      toUserIds: admins.map((e) => e.id),
-      type: ActivityEnum.ADMIN_REPORT_REVIEW,
-      isAdmin: true,
-      post: report.post,
-    });
 
     await this.reportPostEntity.delete(reportId);
     return {

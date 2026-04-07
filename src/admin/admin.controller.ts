@@ -32,7 +32,6 @@ import { UpdateTagDto } from 'src/tag/dto/update.tag.dto';
 import { UpdateContestDto } from 'src/contest/dto/update.contest.dto';
 import { CreateStyleDto } from 'src/post/dto/create.style.dto';
 import { ContestStatusEnum } from 'src/contest/types/contest.status.enum';
-import { PaginatioDto } from 'src/common/dto/pagination.dto';
 import { CreatePartnershipDto } from './dto/create.refferal.dto';
 import { ForceStartContestDto } from './dto/force-start-contest.dto';
 import { UpdateAISettingsDto } from './dto/update-ai-settings.dto';
@@ -112,11 +111,6 @@ export class AdminController {
     return this.adminService.unblockPost(dto);
   }
 
-  @Get('pending-review-contests')
-  async getPendingReviewContests() {
-    return this.adminService.getPendingReviewContests();
-  }
-
   @Get('contests/posts-sorted-by-likes')
   @ApiOperation({ summary: 'Get all posts for a contest sorted by likes' })
   @ApiResponse({
@@ -144,16 +138,6 @@ export class AdminController {
     return this.adminService.rejectContestWinner(dto);
   }
 
-  @Get('get-admin-active-notifications')
-  async getAdminActiveNotifications(@Query() dto: PaginatioDto) {
-    return this.adminService.getAdminActiveNottifications(dto);
-  }
-
-  @Get('get-admin-archive-notifications')
-  async getAdminArchiveNotifications(@Query() dto: PaginatioDto) {
-    return this.adminService.getAdminArchiveNottifications(dto);
-  }
-
   @Delete('reports/:reportId')
   @ApiOperation({ summary: 'Delete a reported post report' })
   @ApiParam({
@@ -175,14 +159,6 @@ export class AdminController {
   ) {
     const pagination = { page, limit };
     return this.adminService.getReportPosts(pagination);
-  }
-
-  @Get('users')
-  async getUsers(
-    @Query('page', ParseIntPipe) page: number,
-    @Query('limit', ParseIntPipe) limit: number,
-  ) {
-    return this.adminService.getUsers({ page, limit });
   }
 
   @Get()
@@ -298,61 +274,6 @@ export class AdminController {
   @ApiResponse({ status: 200, description: 'List of partnerships returned' })
   async getAllPartnerships() {
     return this.adminService.getAllPartnershipsWithStats();
-  }
-
-  @Get('partnerships/with-links')
-  @ApiOperation({ summary: 'Get all partnerships with user links (for testing)' })
-  @ApiResponse({ status: 200, description: 'List of partnerships with user links returned' })
-  async getPartnershipsWithUserLinks() {
-    return this.adminService.getPartnershipsWithUserLinks();
-  }
-
-  @Get('referral-status')
-  @ApiOperation({
-    summary: 'Check referral user flag status',
-    description:
-      'Checks whether a user (by partnerUserId) linked via referralToken has a specific activity flag.\n\n' +
-      '**Available flags:**\n' +
-      '- `retweet` - User retweeted the latest post (real-time check via TweetScout API)\n' +
-      '- `registered` - User registered via referral link\n' +
-      '- `image_generated` - User generated an image\n' +
-      '- `posted_to_twitter` - User successfully published a tweet\n\n' +
-      '**Note:** `retweet` flag performs real-time verification, while other flags check database records.'
-  })
-  @ApiQuery({ name: 'ref', required: true, description: 'Referral token from partnership' })
-  @ApiQuery({ name: 'puid', required: true, description: 'Partner user id provided by external partner' })
-  @ApiQuery({ name: 'flag', required: true, description: 'Activity flag to check. Available: retweet, registered, image_generated, posted_to_twitter' })
-  @ApiResponse({ status: 200, description: 'Flag status returned' })
-  async checkReferralStatus(
-    @Query('ref') ref: string,
-    @Query('puid') puid: string,
-    @Query('flag') flag: string,
-  ) {
-    return this.adminService.checkReferralFlag({
-      referralToken: ref,
-      partnerUserId: puid,
-      flag,
-    });
-  }
-
-  @Post('referral-flag')
-  @ApiOperation({
-    summary: 'Set referral user flag (idempotent)',
-    description:
-      'Marks a referral activity flag for a linked user.\n' +
-      'Flags: posted_to_twitter, first_purchase, completed_profile.'
-  })
-  @ApiResponse({ status: 200, description: 'Flag set or already set' })
-  async setReferralFlag(
-    @Body('ref') ref: string,
-    @Body('puid') puid: string,
-    @Body('flag') flag: string,
-  ) {
-    return this.adminService.setReferralFlag({
-      referralToken: ref,
-      partnerUserId: puid,
-      flag,
-    });
   }
 
   @Post('force-start-contest')

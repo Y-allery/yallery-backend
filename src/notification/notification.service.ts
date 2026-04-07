@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ActivityEnum } from 'src/activity/types/activity.enum';
 import { NotificationPreferenceEntity } from './entity/notification.preferences.entity';
 import { In, Repository } from 'typeorm';
+import { UserNotificationTypeEnum } from './types/user-notification-type.enum';
 
 @Injectable()
 export class NotificationService {
@@ -13,7 +13,7 @@ export class NotificationService {
 
   async setPreference(
     userId: number,
-    activityType: ActivityEnum,
+    activityType: UserNotificationTypeEnum,
     enabled: boolean,
   ) {
     let preference = await this.notificationPrefMode.findOne({
@@ -33,7 +33,10 @@ export class NotificationService {
     await this.notificationPrefMode.save(preference);
   }
 
-  async getNotificationPreferences(userId: number, types: ActivityEnum[]) {
+  async getNotificationPreferences(
+    userId: number,
+    types: UserNotificationTypeEnum[],
+  ) {
     const preferences = await this.notificationPrefMode.find({
       where: {
         user: { id: userId },

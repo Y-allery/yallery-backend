@@ -1,11 +1,11 @@
 import { OnWorkerEvent, Processor } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
 import { Job } from 'bullmq';
-import { BaseImageProcessor } from 'src/image-generation/processors/base-image-processor';
 import { NotificationGateway } from 'src/notification/notification.gateway';
 import { ResolvedPromptImageGenerationRequest } from '../contracts/prompt-image-generation-request.contract';
 import { MEDIA_PROMPT_IMAGE_GENERATION_QUEUE } from '../constants/media-generation.queue';
 import { MediaGenerationService } from '../media-generation.service';
+import { BaseImageProcessor } from './base-image-processor';
 
 type MediaPromptImageJobData = {
   request: ResolvedPromptImageGenerationRequest;

@@ -10,13 +10,11 @@ import { PostEntity } from 'src/post/entities/post.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
 import { Repository, DataSource } from 'typeorm';
 import { NotificationGateway } from 'src/notification/notification.gateway';
-import { ActivityService } from 'src/activity/activity.service';
-import { ActivityEnum } from 'src/activity/types/activity.enum';
-import { ConfigService } from '@nestjs/config';
 import { UserService } from 'src/user/user.service';
 import { RewardService } from 'src/reward/reward.service';
 import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
 import { UserActivityService } from 'src/user-activity/services/user-activity.service';
+import { UserNotificationTypeEnum } from 'src/notification/types/user-notification-type.enum';
 
 @Injectable()
 export class LikeService {
@@ -30,8 +28,6 @@ export class LikeService {
     private readonly notificationGateway: NotificationGateway,
     private readonly userService: UserService,
     private readonly userActivityService: UserActivityService,
-    private readonly activityService: ActivityService,
-    private readonly configService: ConfigService,
     private readonly rewardService: RewardService,
     @InjectDataSource()
     private readonly dataSource: DataSource,
@@ -98,22 +94,6 @@ export class LikeService {
           );
       });
 
-      const descriptionEarn = await this.activityService.createActivitiesV2({
-        fromUserId: user.id,
-        toUserIds: [post.user.id],
-        type: ActivityEnum.LIKE_EARN,
-        isAdmin: false,
-        post,
-      });
-
-      const descriptionSpend = await this.activityService.createActivitiesV2({
-        fromUserId: post.user.id,
-        toUserIds: [user.id],
-        type: ActivityEnum.LIKE_SPEND,
-        isAdmin: false,
-        post,
-      });
-
       await this.userActivityService.logLikeReceived({
         userId: post.user.id,
         actorUserId: user.id,
@@ -129,28 +109,17 @@ export class LikeService {
         previewUrl: post.imageUrl ?? post.previewImageUrl ?? null,
       });
 
-      await this.notificationGateway.sendNotification(
-        user.id.toString(),
-        descriptionSpend,
-        ActivityEnum.LIKE_SPEND,
-      );
-
-      await this.notificationGateway.sendNotification(
-        post.user.id.toString(),
-        descriptionEarn,
-        ActivityEnum.LIKE_EARN,
-      );
-
       await this.userService.sendPushNotificationIfEnabled(
         post.user.id,
-        ActivityEnum.LIKE_EARN,
+        UserNotificationTypeEnum.LIKE_EARN,
       );
       await this.userService.sendPushNotificationIfEnabled(
         user.id,
-        ActivityEnum.LIKE_SPEND,
+        UserNotificationTypeEnum.LIKE_SPEND,
       );
 
       await this.notificationGateway.emitProfileUpdate(user.id.toString());
+      await this.notificationGateway.emitProfileUpdate(post.user.id.toString());
       return 'success';
     } catch (error) {
       throw new BadRequestException(error.message);

@@ -9,7 +9,6 @@ import {
   Param,
   Post,
   Put,
-  Query,
   Req,
   UploadedFile,
   UseGuards,
@@ -26,7 +25,6 @@ import { RemoveTagDto } from './dto/remove.tag.dto';
 import { Cron } from '@nestjs/schedule';
 import { RegisterDeviceTokenDto } from './dto/add.device-token.dto';
 import { UnregisterDeviceTokenDto } from './dto/remove.device-token.dto';
-import { UpdateNotificationPreferenceDto } from './dto/change.notification.settings.dto';
 import {
   ChangePasswordDto,
   UpdateNameDto,
@@ -36,7 +34,6 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { UseReferralCodeDto } from './dto/use-refferal-code.dto';
 import { UpdateTwitterUsernameDto } from './dto/update.twitter.user.name.dto';
 import { LogReferralActivityDto } from './dto/log-referral-activity.dto';
-import { PaginatioDto } from 'src/common/dto/pagination.dto';
 
 @Controller('user')
 @ApiTags('User')
@@ -66,13 +63,6 @@ export class UserController {
       useReferralCodeDto.code,
     );
     return { message: 'Successfuly received' };
-  }
-
-  @Get()
-  @ApiOperation({ summary: 'Get users (test endpoint)' })
-  @ApiResponse({ status: 200, description: 'List of users with pagination' })
-  async getUsers(@Query() pagination: PaginatioDto) {
-    return this.userService.getAllUsers(pagination);
   }
 
   @Get('profile')
@@ -188,23 +178,6 @@ export class UserController {
     const result = await this.userService.removeDeviceTokensByType(
       userId,
       deviceType,
-    );
-    return result;
-  }
-
-  @Post('change-notification-setting')
-  @ApiOperation(USER_SWAGGER.setNotificationPreference)
-  @ApiBody({ type: UpdateNotificationPreferenceDto })
-  @ApiResponse(USER_SWAGGER.setNotificationPreference.responses.success)
-  async setNotificationPreference(
-    @Req() req: AuthenticatedRequest,
-    @Body() updateNotificationPreferenceDto: UpdateNotificationPreferenceDto,
-  ) {
-    const userId = req.user.id;
-    const { notificationsEnabled } = updateNotificationPreferenceDto;
-    const result = await this.userService.updateNotificationPreference(
-      userId,
-      notificationsEnabled,
     );
     return result;
   }

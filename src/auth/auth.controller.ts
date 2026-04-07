@@ -251,16 +251,6 @@ export class AuthController {
     return this.authService.signUpWithOAuth(payload, { ref: body.ref, puid: body.puid });
   }
 
-  @Post('tegegram-login')
-  @ApiOperation({ summary: 'Login with Telegram (legacy)', description: 'Legacy Telegram login endpoint' })
-  @ApiBody({
-    schema: { type: 'object', properties: { token: { type: 'string' } } },
-  })
-  async telegramLogin(@Body('token') token: string) {
-    const payload = await this.authService.verifyGoogleAccessToken(token);
-    return this.authService.signUpWithOAuth(payload);
-  }
-
   @Post('apple-login')
   @ApiOperation(AUTH_SWAGGER.appleLogin)
   @ApiResponse(AUTH_SWAGGER.appleLogin.responses.success)

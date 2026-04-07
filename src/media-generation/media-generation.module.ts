@@ -2,8 +2,6 @@ import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ContestEntity } from 'src/contest/entity/contest.entity';
-import { AISettingsEntity } from 'src/image-generation/entities/ai-settings.entity';
-import { ColorEntity } from 'src/image-generation/entities/color.entity';
 import { NotificationModule } from 'src/notification/notification.module';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { ServiceTokenModule } from 'src/service-token/service-token.module';
@@ -36,6 +34,8 @@ import { MediaAISettingsEntity } from './entities/media-ai-settings.entity';
 import { UserActivityModule } from 'src/user-activity/user-activity.module';
 import { MediaTagResolverService } from './services/media-tag-resolver.service';
 import { MediaPromptEnhancerService } from './services/media-prompt-enhancer.service';
+import { AISettingsEntity } from './entities/legacy-ai-settings.entity';
+import { ColorEntity } from './entities/color.entity';
 
 @Module({
   imports: [

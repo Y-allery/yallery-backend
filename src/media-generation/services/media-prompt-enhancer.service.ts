@@ -3,9 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import axios from 'axios';
 import * as leoProfanity from 'leo-profanity';
 import OpenAI from 'openai';
-import { ColorEntity } from 'src/image-generation/entities/color.entity';
 import { StyleEntity } from 'src/post/entities/style.entity';
 import { Repository } from 'typeorm';
+import { ColorEntity } from '../entities/color.entity';
 
 type MediaPromptEnhancementMode = 'image_generate' | 'image_edit';
 

@@ -8,7 +8,6 @@ import { PostEntity } from 'src/post/entities/post.entity';
 import { UserModule } from 'src/user/user.module';
 import { TagEntity } from 'src/tag/entities/tag.entity';
 import { NotificationModule } from 'src/notification/notification.module';
-import { ActivityModule } from 'src/activity/activity.module';
 import { UserActivityModule } from 'src/user-activity/user-activity.module';
 import { FirebaseModule } from 'src/firebase/firebase.module';
 import { RedisService } from 'src/database/redis.service.connect';
@@ -28,7 +27,6 @@ import { MediaAISettingsEntity } from 'src/media-generation/entities/media-ai-se
     ]),
     UserModule,
     NotificationModule,
-    ActivityModule,
     UserActivityModule,
     FirebaseModule,
     forwardRef(() => RewardModule),

@@ -9,13 +9,11 @@ import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { TagModule } from './tag/tag.module';
 import { UploadModule } from './upload/upload.module';
-import { ImageGenerationModule } from './image-generation/image-generation.module';
 import { PostModule } from './post/post.module';
 import { LikeModule } from './like/like.module';
 import { ContestModule } from './contest/contest.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { NotificationModule } from './notification/notification.module';
-import { ActivityModule } from './activity/activity.module';
 import { FirebaseModule } from './firebase/firebase.module';
 import { TransactionModule } from './transaction/transaction.module';
 import { AdminModule } from './admin/admin.module';
@@ -29,6 +27,7 @@ import { APP_FILTER } from '@nestjs/core';
 import { RewardModule } from './reward/reward.module';
 import { MemeModule } from './meme/meme.module';
 import { UserActivityModule } from './user-activity/user-activity.module';
+import { MediaGenerationModule } from './media-generation/media-generation.module';
 
 @Module({
   imports: [
@@ -67,13 +66,11 @@ import { UserActivityModule } from './user-activity/user-activity.module';
     MailModule,
     TagModule,
     UploadModule,
-    ImageGenerationModule,
     PostModule,
     LikeModule,
     ContestModule,
     ScheduleModule.forRoot(),
     NotificationModule,
-    ActivityModule,
     FirebaseModule,
     TransactionModule,
     AdminModule,
@@ -82,6 +79,7 @@ import { UserActivityModule } from './user-activity/user-activity.module';
     RewardModule,
     MemeModule,
     UserActivityModule,
+    MediaGenerationModule,
   ],
   providers: [
     {

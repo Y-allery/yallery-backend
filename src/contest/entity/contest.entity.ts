@@ -15,7 +15,6 @@ import {
   ContestStatusEnum,
   ContestTypeEnum,
 } from '../types/contest.status.enum';
-import { ActivityEntity } from '../../activity/entities/activity.entity';
 import { MediaAISettingsEntity } from '../../media-generation/entities/media-ai-settings.entity';
 import { UserActivityEntity } from '../../user-activity/entities/user-activity.entity';
 
@@ -83,11 +82,6 @@ export class ContestEntity {
     onDelete: 'NO ACTION',
   })
   tag: TagEntity;
-
-  @OneToMany(() => ActivityEntity, (activity) => activity.contest, {
-    onDelete: 'CASCADE',
-  })
-  activities: ActivityEntity[];
 
   @OneToMany(() => UserActivityEntity, (activity) => activity.contest)
   userActivities: UserActivityEntity[];

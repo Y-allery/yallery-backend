@@ -6,7 +6,7 @@ import {
   Unique,
 } from 'typeorm';
 import { UserEntity } from '../../user/entities/user.entity';
-import { ActivityEnum } from '../../activity/types/activity.enum';
+import { UserNotificationTypeEnum } from '../types/user-notification-type.enum';
 
 @Entity('notification_preferences')
 @Unique(['user', 'activityType'])
@@ -21,9 +21,9 @@ export class NotificationPreferenceEntity {
 
   @Column({
     type: 'enum',
-    enum: ActivityEnum,
+    enum: UserNotificationTypeEnum,
   })
-  activityType: ActivityEnum;
+  activityType: UserNotificationTypeEnum;
 
   @Column({ default: true })
   enabled: boolean;

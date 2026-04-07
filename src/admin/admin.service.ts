@@ -9,13 +9,11 @@ import { PostService } from 'src/post/post.service';
 import { GetTopPostDto } from './dto/get-top-post.dto';
 import { SetContestWinnerDto } from './dto/set.contest.winner.dto';
 import { GetAllReportsDto } from './dto/get.report.post.dto';
-import { PaginatioDto } from 'src/common/dto/pagination.dto';
 import { TagService } from 'src/tag/tag.service';
 import { CreateTagDto } from 'src/tag/dto/create.tag.dto';
 import { UpdateTagDto } from 'src/tag/dto/update.tag.dto';
 import { UpdateContestDto } from 'src/contest/dto/update.contest.dto';
 import { CreateStyleDto } from 'src/post/dto/create.style.dto';
-import { ActivityService } from 'src/activity/activity.service';
 import { ContestStatusEnum } from 'src/contest/types/contest.status.enum';
 import { createObjectCsvStringifier } from 'csv-writer';
 import axios from 'axios';
@@ -32,7 +30,7 @@ import { PartnershipActivityEntity } from './entities/partnership-activity.entit
 import { PartnerUserLinkEntity } from './entities/partner-user-link.entity';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
-import { AISettingsEntity } from 'src/image-generation/entities/ai-settings.entity';
+import { AISettingsEntity } from 'src/media-generation/entities/legacy-ai-settings.entity';
 import { UpdateAISettingsDto } from './dto/update-ai-settings.dto';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import * as https from 'https';
@@ -64,7 +62,6 @@ export class AdminService {
     private readonly userService: UserService,
     private readonly postService: PostService,
     private readonly tagService: TagService,
-    private readonly activityService: ActivityService,
     private readonly rewardService: RewardService,
     @InjectRepository(PartnershipEntity)
     private readonly partnerShipRepo: Repository<PartnershipEntity>,
@@ -497,10 +494,6 @@ export class AdminService {
     return response;
   }
 
-  async getPendingReviewContests() {
-    return this.contestService.getPendingReviewPosts();
-  }
-
   async getTopContestPost(data: GetTopPostDto) {
     return this.contestService.getTopContestPost(data);
   }
@@ -515,10 +508,6 @@ export class AdminService {
 
   async getReportPosts(data: GetAllReportsDto) {
     return this.postService.getReportPosts(data);
-  }
-
-  async getUsers(getUsersDto: PaginatioDto) {
-    return this.userService.getAllUsers(getUsersDto);
   }
 
   async getAllTags() {
@@ -571,14 +560,6 @@ export class AdminService {
 
   async getPostsByContestSortedByLikes() {
     return this.contestService.getTopPostForEachContest();
-  }
-
-  async getAdminActiveNottifications(dto: PaginatioDto) {
-    return this.activityService.getAdminActiveNotifications(dto);
-  }
-
-  async getAdminArchiveNottifications(dto: PaginatioDto) {
-    return this.activityService.getAdminArchiveNotifications(dto);
   }
 
   async getPostById(postId: number): Promise<any> {
@@ -787,45 +768,6 @@ export class AdminService {
     return this.partnerShipRepo.find({
       order: { createdAt: 'DESC' },
     });
-  }
-
-  async getPartnershipsWithUserLinks() {
-    const partnerships = await this.partnerShipRepo.find({
-      order: { createdAt: 'DESC' },
-    });
-
-    const results = [];
-    for (const partnership of partnerships) {
-      const links = await this.partnerUserLinkRepository.find({
-        where: { partnershipId: partnership.id },
-        relations: ['user'],
-      });
-
-      results.push({
-        partnership: {
-          id: partnership.id,
-          partnerName: partnership.partnerName,
-          companyName: partnership.companyName,
-          source: partnership.source,
-          referralToken: partnership.referralToken,
-          referralLink: partnership.referralLink,
-          createdAt: partnership.createdAt,
-        },
-        userLinks: links.map(link => ({
-          id: link.id,
-          partnerUserId: link.partnerUserId,
-          userId: link.userId,
-          user: link.user ? {
-            id: link.user.id,
-            email: link.user.email,
-            twitterUsername: link.user.twitterUsername,
-          } : null,
-          createdAt: link.createdAt,
-        })),
-      });
-    }
-
-    return results;
   }
 
   async checkReferralFlag(params: {

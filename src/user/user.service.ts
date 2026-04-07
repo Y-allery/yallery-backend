@@ -10,16 +10,12 @@ import { UserEntity } from './entities/user.entity';
 import { DataSource, In, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { TagEntity } from 'src/tag/entities/tag.entity';
-import { ConfigService } from '@nestjs/config';
-import { ActivityService } from 'src/activity/activity.service';
 import { NotificationGateway } from 'src/notification/notification.gateway';
-import { ActivityEnum } from 'src/activity/types/activity.enum';
 import { DeviceTokenEntity } from './entities/device-token.entity';
 import { DeviceType } from './types/device.interface';
 import { FirebaseService } from 'src/firebase/firebase.service';
 import { getNotificationMessage } from 'src/common/helpers/notification.helper';
 import { UploadService } from 'src/upload/upload.service';
-import { PaginatioDto } from 'src/common/dto/pagination.dto';
 import { ReferralEntity } from './entities/user-refferals.entity';
 import { v4 as uuidv4 } from 'uuid';
 import { UpdateUserDto } from './dto/update.user.details.dto';
@@ -33,6 +29,8 @@ import { ReportPostEntity } from 'src/post/entities/report.post.entity';
 import { PaymentEntity } from 'src/payment/entities/payment.entity';
 import { RewardService } from 'src/reward/reward.service';
 import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
+import { UserActivityQueryService } from 'src/user-activity/services/user-activity-query.service';
+import { UserNotificationTypeEnum } from 'src/notification/types/user-notification-type.enum';
 
 @Injectable()
 export class UserService {
@@ -47,8 +45,7 @@ export class UserService {
     private readonly postModel: Repository<PostEntity>,
     @InjectRepository(DeviceTokenEntity)
     private readonly deviceTokenModel: Repository<DeviceTokenEntity>,
-    private readonly configService: ConfigService,
-    private readonly activityService: ActivityService,
+    private readonly userActivityQueryService: UserActivityQueryService,
     private readonly rewardService: RewardService,
     @Inject(forwardRef(() => NotificationGateway))
     private readonly notificationGateway: NotificationGateway,
@@ -342,21 +339,9 @@ export class UserService {
           .where('id = :id', { id: user.id })
           .execute();
 
-        const description = await this.activityService.createActivitiesV2({
-          fromUserId: null,
-          toUserIds: [user.id],
-          type: ActivityEnum.DAILY_REWARD,
-        });
-
-        await this.notificationGateway.sendNotification(
-          user.id.toString(),
-          description,
-          ActivityEnum.DAILY_REWARD,
-        );
-
         await this.sendPushNotificationIfEnabled(
           user.id,
-          ActivityEnum.DAILY_REWARD,
+          UserNotificationTypeEnum.DAILY_REWARD,
         );
       }),
     );
@@ -431,24 +416,9 @@ export class UserService {
     };
   }
 
-  async updateNotificationPreference(
-    userId: number,
-    notificationsEnabled: boolean,
-  ): Promise<{ message: string }> {
-    const user = await this.userModel.findOne({ where: { id: userId } });
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    user.notificationsEnabled = notificationsEnabled;
-    await this.userModel.save(user);
-
-    return { message: 'Notification preference updated successfully' };
-  }
-
   async sendPushNotificationIfEnabled(
     userId: number,
-    activityType: ActivityEnum,
+    activityType: UserNotificationTypeEnum,
   ) {
     const user = await this.userModel.findOne({
       where: { id: userId },
@@ -463,8 +433,8 @@ export class UserService {
     );
 
     const isLikeNotification =
-      activityType === ActivityEnum.LIKE_EARN ||
-      activityType === ActivityEnum.LIKE_SPEND;
+      activityType === UserNotificationTypeEnum.LIKE_EARN ||
+      activityType === UserNotificationTypeEnum.LIKE_SPEND;
 
     const { title, body } = getNotificationMessage(activityType);
 
@@ -573,31 +543,6 @@ export class UserService {
     };
   }
 
-  async getAllUsers({
-    page,
-    limit,
-  }: PaginatioDto): Promise<{ data: UserEntity[]; total: number }> {
-    const [users, total] = await this.userModel.findAndCount({
-      skip: (page - 1) * limit,
-      take: limit,
-      order: { createdAt: 'DESC' },
-      select: [
-        'id',
-        'createdAt',
-        'updatedAt',
-        'name',
-        'nickname',
-        'email',
-        'avatar',
-        'notificationsEnabled',
-        'points',
-        'role',
-      ],
-    });
-
-    return { data: users, total };
-  }
-
   async getUserProfile(userId: number) {
     const user = await this.findById(userId);
     if (!user) {
@@ -605,15 +550,14 @@ export class UserService {
     }
 
     const unreadCount =
-      await this.activityService.countUnreadActivities(userId);
+      await this.userActivityQueryService.countUnread(userId);
 
     const unreadContestActivity =
-      await this.activityService.countUnreadContestActivities(userId);
-    const unreadCollabsActivity =
-      await this.activityService.countUnreadCollabsActivities(userId);
-    
-    const hasReceivedDailyRewardToday = 
-      await this.activityService.hasReceivedDailyRewardToday(userId);
+      await this.userActivityQueryService.countUnreadByCategory(
+        userId,
+        'contest',
+      );
+    const unreadCollabsActivity = 0;
     
     // Get puid (partnerUserId) from partner_user_links
     const partnerUserLink = await this.partnerUserLinkRepository.findOne({
@@ -697,33 +641,8 @@ export class UserService {
 
     await this.updateUser(user);
     await this.updateUser(referral.user);
-    const userReward = await this.activityService.createActivitiesV2({
-      fromUserId: user.id,
-      toUserIds: [user.id],
-      type: ActivityEnum.SHARE_REWARD,
-      isAdmin: false,
-    });
-
-    await this.notificationGateway.sendNotification(
-      user.id.toString(),
-      userReward,
-      ActivityEnum.SHARE_REWARD,
-    );
-
-    const refferalUserReward = await this.activityService.createActivitiesV2({
-      fromUserId: user.id,
-      toUserIds: [user.id],
-      type: ActivityEnum.SHARE_REWARD,
-      isAdmin: false,
-    });
-
-    await this.notificationGateway.sendNotification(
-      user.id.toString(),
-      refferalUserReward,
-      ActivityEnum.SHARE_REWARD,
-    );
-
     await this.notificationGateway.emitProfileUpdate(user.id.toString());
+    await this.notificationGateway.emitProfileUpdate(referral.user.id.toString());
   }
   async logReferralActivity(dto: LogReferralActivityDto, userId: number) {
     const partnership = await this.partnerShipRepository.findOne({
