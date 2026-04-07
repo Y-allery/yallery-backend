@@ -7,7 +7,9 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Max,
   MaxLength,
+  Min,
   MinLength,
   ValidateNested,
 } from 'class-validator';
@@ -82,6 +84,39 @@ export class UpdateContestDto {
   status?: ContestStatusEnum;
 
   @IsOptional()
+  @IsString()
+  @MinLength(5)
+  @MaxLength(100)
+  @ApiPropertyOptional({
+    default: `Token for fal ai fine tune`,
+    type: String,
+    nullable: true,
+  })
+  fineTuneToken?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(5)
+  @MaxLength(100)
+  @ApiPropertyOptional({
+    default: `Token for fal ai fine tune`,
+    type: String,
+    nullable: true,
+  })
+  fineTuneTriggerWord?: string | null;
+
+  @IsNumber()
+  @Max(2)
+  @Min(0)
+  @IsOptional()
+  @ApiPropertyOptional({
+    default: 1,
+    type: Number,
+    nullable: true,
+  })
+  fineTuneStrength?: number | null;
+
+  @IsOptional()
   @ValidateNested()
   @Type(() => SocialPostSettingsDto)
   @ApiPropertyOptional({
@@ -89,4 +124,14 @@ export class UpdateContestDto {
     description: 'Post winner to Twitter / Instagram',
   })
   socialPostSettings?: SocialPostSettingsDto;
+
+  @IsOptional()
+  @IsNumber()
+  @ApiPropertyOptional({
+    default: 1,
+    type: Number,
+    description:
+      'Optional media_ai_settings row used by this contest. Fine-tune contests automatically use flux_fine_tune.',
+  })
+  media_ai_setting_id?: number;
 }

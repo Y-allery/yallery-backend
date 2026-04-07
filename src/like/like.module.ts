@@ -9,6 +9,7 @@ import { NotificationModule } from 'src/notification/notification.module';
 import { ActivityModule } from 'src/activity/activity.module';
 import { UserModule } from 'src/user/user.module';
 import { RewardModule } from 'src/reward/reward.module';
+import { UserActivityModule } from 'src/user-activity/user-activity.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { RewardModule } from 'src/reward/reward.module';
     UserModule,
     ActivityModule,
     RewardModule,
+    UserActivityModule,
   ],
   providers: [LikeService],
   controllers: [LikeController],

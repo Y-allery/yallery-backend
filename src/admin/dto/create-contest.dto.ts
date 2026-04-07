@@ -140,4 +140,15 @@ export class CreateContestDto {
     default: { postToTwitter: false, postToInstagram: false },
   })
   socialPostSettings?: SocialPostSettingsDto;
+
+  @IsOptional()
+  @IsNumber()
+  @ApiProperty({
+    default: 1,
+    type: Number,
+    required: false,
+    description:
+      'Optional media_ai_settings row used by this contest. Fine-tune contests automatically use flux_fine_tune.',
+  })
+  media_ai_setting_id?: number;
 }

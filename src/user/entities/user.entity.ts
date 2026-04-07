@@ -16,6 +16,7 @@ import { DeviceTokenEntity } from './device-token.entity';
 import { NotificationPreferenceEntity } from '../../notification/entity/notification.preferences.entity';
 import { RoleEnum } from '../types/role.enum';
 import { ReferralEntity } from './user-refferals.entity';
+import { UserActivityEntity } from '../../user-activity/entities/user-activity.entity';
 
 @Entity('users')
 export class UserEntity extends TimeStampEntity {
@@ -105,6 +106,16 @@ export class UserEntity extends TimeStampEntity {
     onDelete: 'CASCADE',
   })
   activitiesReceived: ActivityEntity[];
+
+  @OneToMany(() => UserActivityEntity, (activity) => activity.user, {
+    onDelete: 'CASCADE',
+  })
+  userActivities: UserActivityEntity[];
+
+  @OneToMany(() => UserActivityEntity, (activity) => activity.actorUser, {
+    onDelete: 'SET NULL',
+  })
+  userActivitiesAuthored: UserActivityEntity[];
 
   @OneToMany(() => DeviceTokenEntity, (deviceToken) => deviceToken.user, {
     onDelete: 'CASCADE',

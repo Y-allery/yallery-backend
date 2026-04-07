@@ -40,19 +40,5 @@ export const ACTIVITY_SWAGGER = {
     responses: {
       success: { status: 200, description: 'Activity types retrieved successfully' }
     }
-  },
-  getPopularPosts: {
-    summary: 'Get popular posts',
-    description: `Retrieve the 6 most popular posts based on likes and views. Used for showcasing trending content.`,
-    responses: {
-      success: { status: 200, description: 'Popular posts retrieved successfully' }
-    }
-  },
-  markPostsAsViewed: {
-    summary: 'Mark posts as viewed in activity',
-    description: `Mark multiple posts as viewed for activity tracking purposes.`,
-    responses: {
-      success: { status: 200, description: 'Posts marked as viewed successfully' }
-    }
   }
 };

@@ -19,14 +19,19 @@ export interface StandardPost {
   isViewed: boolean | null;
   generationParams: {
     prompt?: string | null;
+    translatedPrompt?: string | null;
+    resolvedPrompt?: string | null;
     aiService?: string | null;
     orientation?: 'horizontal' | 'vertical' | null;
+    styleId?: number | null;
+    styleName?: string | null;
+    colorId?: number | null;
+    colorName?: string | null;
     width?: number | null;
     height?: number | null;
     suggestedTags?: { id: number | null; name: string | null }[] | null;
   } | null;
 }
-
 
 
 

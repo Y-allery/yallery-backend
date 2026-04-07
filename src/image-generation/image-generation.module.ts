@@ -23,13 +23,17 @@ import { BullBoardModule } from '@bull-board/nestjs';
 import { FalAiProcessor } from './processors/fal-ai.processor';
 import { XRouterProcessor } from './processors/x-router.queue.processor';
 import { AIProcessorMappingEntity } from './entities/ai-processor-mapping.entity';
-import { PublicImageGenerationController } from './public-image-generation.controller';
+import { MediaGenerationModule } from 'src/media-generation/media-generation.module';
+import { RUNPOD_IMAGE_GENERATION_QUEUE } from 'src/media-generation/constants/media-generation.queue';
+import { RunpodImageProcessor } from './processors/runpod-image.processor';
+import { UserActivityModule } from 'src/user-activity/user-activity.module';
 
 @Module({
   imports: [
     BullModule.registerQueue(
       { name: 'fal_ai' },
       { name: 'x_router' },
+      { name: RUNPOD_IMAGE_GENERATION_QUEUE },
     ),
     BullBoardModule.forFeature(
       {
@@ -40,8 +44,13 @@ import { PublicImageGenerationController } from './public-image-generation.contr
         name: 'x_router',
         adapter: BullMQAdapter,
       },
+      {
+        name: RUNPOD_IMAGE_GENERATION_QUEUE,
+        adapter: BullMQAdapter,
+      },
     ),
     UploadModule,
+    MediaGenerationModule,
     forwardRef(() => PostModule),
     TypeOrmModule.forFeature([
       PostEntity,
@@ -59,13 +68,15 @@ import { PublicImageGenerationController } from './public-image-generation.contr
     NotificationModule,
     UserModule,
     ServiceTokenModule,
+    UserActivityModule,
   ],
   providers: [
     ImageGenerationService,
     FalAiProcessor,
     XRouterProcessor,
+    RunpodImageProcessor,
   ],
-  controllers: [ImageGenerationController, PublicImageGenerationController],
+  controllers: [ImageGenerationController],
   exports: [ImageGenerationService],
 })
 export class ImageGenerationModule {}

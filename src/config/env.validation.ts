@@ -153,6 +153,77 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   REPLICATE_API_TOKEN?: string;
+
+  // RunPod
+  @IsOptional()
+  @IsString()
+  RUNPOD_API_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  RUNPOD_NANO_BANANA_ENDPOINT_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  RUNPOD_FLUX_SCHNELL_ENDPOINT_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  RUNPOD_QWEN_IMAGE_EDIT_ENDPOINT_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  RUNPOD_P_VIDEO_ENDPOINT_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  RUNPOD_API_BASE_URL?: string;
+
+  @IsOptional()
+  @IsString()
+  RUNPOD_NANO_BANANA_ENABLED?: string;
+
+  @IsOptional()
+  @IsString()
+  RUNPOD_FLUX_SCHNELL_ENABLED?: string;
+
+  @IsOptional()
+  @IsString()
+  RUNPOD_QWEN_IMAGE_EDIT_ENABLED?: string;
+
+  @IsOptional()
+  @IsString()
+  RUNPOD_P_VIDEO_ENABLED?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10))
+  RUNPOD_POLL_INTERVAL_MS?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10))
+  RUNPOD_STATUS_TIMEOUT_MS?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10))
+  RUNPOD_REQUEST_TIMEOUT_MS?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10))
+  RUNPOD_SYNC_REQUEST_TIMEOUT_MS?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10))
+  RUNPOD_COMPLETED_OUTPUT_RETRY_COUNT?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10))
+  RUNPOD_COMPLETED_OUTPUT_RETRY_DELAY_MS?: number;
 }
 
 export function validate(config: Record<string, unknown>) {

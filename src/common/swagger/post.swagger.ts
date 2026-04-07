@@ -74,6 +74,13 @@ export const POST_SWAGGER = {
       },
     },
   },
+  getPopularPosts: {
+    summary: 'Get popular posts',
+    description: `Retrieve up to 6 popular posts ranked by likes and views, preferring today, then yesterday, then all-time results.`,
+    responses: {
+      success: { status: 200, description: 'Popular posts retrieved successfully' },
+    },
+  },
   markPostsAsViewed: {
     summary: 'Mark posts as viewed',
     description: `Mark multiple posts as viewed by the user. Used for tracking user engagement and read status.`,

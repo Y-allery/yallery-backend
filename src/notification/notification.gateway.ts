@@ -52,30 +52,38 @@ export class NotificationGateway {
   async sendImageArrayNotification(
     to_user_id: string,
     images: any,
-    activity_type: ActivityEnum,
-    isEdit: boolean = false,
+    activity_type?: ActivityEnum,
+    isEdit?: boolean,
   ) {
     if (this.isUserConnected(to_user_id)) {
       if (Array.isArray(images)) {
-        // If images is already an array, use it directly
-        this.server.to(to_user_id).emit('imageGenerated', {
+        const payload: Record<string, unknown> = {
           images: { data: images },
-          activity_type,
-          isEdit,
-        });
+        };
+        if (activity_type) {
+          payload.activity_type = activity_type;
+        }
+        if (typeof isEdit === 'boolean') {
+          payload.isEdit = isEdit;
+        }
+        this.server.to(to_user_id).emit('imageGenerated', payload);
       } else if (images?.data && Array.isArray(images.data)) {
         if (images.data.length === 0) {
           console.error(`[NotificationGateway] Empty images.data for user ${to_user_id}`);
           return;
         }
-        // Send full post data with generation_params (suggestedTags are inside generation_params)
-        this.server.to(to_user_id).emit('imageGenerated', {
+        const payload: Record<string, unknown> = {
           images: {
             data: images.data,
           },
-          activity_type,
-          isEdit,
-        });
+        };
+        if (activity_type) {
+          payload.activity_type = activity_type;
+        }
+        if (typeof isEdit === 'boolean') {
+          payload.isEdit = isEdit;
+        }
+        this.server.to(to_user_id).emit('imageGenerated', payload);
       } else {
         console.error(`[NotificationGateway] Invalid images structure for user ${to_user_id}:`, images);
         return;
@@ -97,6 +105,41 @@ export class NotificationGateway {
       // User ${to_user_id} is not connected. Handling offline logic.
     }
   }
+
+  async sendImageEditNotification(
+    to_user_id: string,
+    images: any,
+  ) {
+    if (this.isUserConnected(to_user_id)) {
+      if (!images?.data || !Array.isArray(images.data) || images.data.length === 0) {
+        console.error(`[NotificationGateway] Invalid image edit payload for user ${to_user_id}:`, images);
+        return;
+      }
+
+      this.server.to(to_user_id).emit('imageEdited', {
+        images: {
+          data: images.data,
+        },
+      });
+      return;
+    }
+
+    if (!images?.data || !Array.isArray(images.data) || images.data.length === 0) {
+      console.error(`[NotificationGateway] Invalid image edit payload for offline user ${to_user_id}:`, images);
+      return;
+    }
+
+    const postIds = images.data.map((img) => img.id).filter((id) => id != null);
+    if (postIds.length === 0) {
+      console.error(`[NotificationGateway] No valid image edit post IDs found for offline user ${to_user_id}`);
+      return;
+    }
+
+    await this.postRepository.update(
+      { id: In(postIds) },
+      { isDelivered: false },
+    );
+  }
   async sendVideoNotification(
     to_user_id: string,
     video: {
@@ -109,7 +152,7 @@ export class NotificationGateway {
       suggestedTags: { id: number; name: string; imageUrl: string }[];
       publishTo?: { postToTwitter: boolean; postToInstagram: boolean };
     },
-    activity_type: ActivityEnum,
+    activity_type?: ActivityEnum,
   ) {
     const generationParams =
       video.generationParams ?? video.generation_params ?? null;
@@ -119,7 +162,7 @@ export class NotificationGateway {
     };
 
     if (this.isUserConnected(to_user_id)) {
-      this.server.to(to_user_id).emit('videoGenerated', {
+      const payload: Record<string, unknown> = {
         video: {
           data: [
             {
@@ -131,8 +174,11 @@ export class NotificationGateway {
             },
           ],
         },
-        activity_type,
-      });
+      };
+      if (activity_type) {
+        payload.activity_type = activity_type;
+      }
+      this.server.to(to_user_id).emit('videoGenerated', payload);
     } else {
       const suggestedTagId = video.suggestedTags?.[0]?.id ?? null;
       await this.postRepository.update(
@@ -157,7 +203,7 @@ export class NotificationGateway {
       suggestedTags: { id: number; name: string; imageUrl: string }[];
       publishTo?: { postToTwitter: boolean; postToInstagram: boolean };
     },
-    activity_type: ActivityEnum,
+    activity_type?: ActivityEnum,
   ) {
     const generationParams =
       video.generationParams ?? video.generation_params ?? null;
@@ -167,7 +213,7 @@ export class NotificationGateway {
     };
 
     if (this.isUserConnected(to_user_id)) {
-      this.server.to(to_user_id).emit('audioGenerated', {
+      const payload: Record<string, unknown> = {
         audio: {
           data: [
             {
@@ -179,8 +225,11 @@ export class NotificationGateway {
             },
           ],
         },
-        activity_type,
-      });
+      };
+      if (activity_type) {
+        payload.activity_type = activity_type;
+      }
+      this.server.to(to_user_id).emit('audioGenerated', payload);
     } else {
       const suggestedTagId = video.suggestedTags?.[0]?.id ?? null;
       await this.postRepository.update(
@@ -266,8 +315,30 @@ export class NotificationGateway {
       };
 
       
+      const imageEdits = undeliveredPosts
+        .filter(
+          (post) =>
+            post.imageUrl &&
+            !post.videoUrl &&
+            Boolean(post.generationParams?.sourceImageUrl),
+        )
+        .map((post) => ({
+          id: post.id,
+          imageUrl: post.imageUrl,
+          videoUrl: post.videoUrl,
+          previewImageUrl: post.previewImageUrl,
+          generationParams: post.generationParams,
+          tagId: post.tag?.id,
+          publishTo: getPublishTo(post.contest ?? null),
+        }));
+
       const images = undeliveredPosts
-        .filter((post) => post.imageUrl && !post.videoUrl)
+        .filter(
+          (post) =>
+            post.imageUrl &&
+            !post.videoUrl &&
+            !Boolean(post.generationParams?.sourceImageUrl),
+        )
         .map((post) => ({
           id: post.id,
           imageUrl: post.imageUrl,
@@ -315,6 +386,7 @@ export class NotificationGateway {
       
       const allTagIds = [
         ...images.map((img) => img.tagId),
+        ...imageEdits.map((img) => img.tagId),
         ...memes.map((m) => m.tagId),
         ...videos.map((vid) => vid.tagId),
         ...audioVideos.map((aud) => aud.tagId),
@@ -352,6 +424,21 @@ export class NotificationGateway {
               videoUrl: videoUrl || null,
               previewImageUrl: previewImageUrl || null,
               // Keep payload key as snake_case for client compatibility.
+              generation_params: generationParams || null,
+              publishTo,
+            })),
+          },
+        });
+      }
+
+      if (imageEdits.length > 0 && client.connected) {
+        client.emit('undeliveredImageEdits', {
+          images: {
+            data: imageEdits.map(({ id, imageUrl, videoUrl, previewImageUrl, generationParams, publishTo }) => ({
+              id,
+              imageUrl,
+              videoUrl: videoUrl || null,
+              previewImageUrl: previewImageUrl || null,
               generation_params: generationParams || null,
               publishTo,
             })),

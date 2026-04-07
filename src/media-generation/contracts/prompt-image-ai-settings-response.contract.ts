@@ -1,0 +1,28 @@
+import { MediaOrientation } from '../presets';
+
+export interface PromptImageDefaultSettings {
+  defaultAI: string | null;
+  defaultOrientations: MediaOrientation;
+}
+
+export interface PromptImageAISettingItem {
+  aiService: string;
+  name: string;
+  allowedOrientations: MediaOrientation[];
+  cost: number;
+  description: string | null;
+}
+
+export interface PromptImageAISettingsResponse {
+  defaultSettings: PromptImageDefaultSettings;
+  aiSettings: PromptImageAISettingItem[];
+  colors: Array<{
+    id: number;
+    name: string;
+  }>;
+  styles: Array<{
+    id: number;
+    name: string;
+    imageUrl: string | null;
+  }>;
+}

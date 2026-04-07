@@ -16,6 +16,7 @@ import { ConfigService } from '@nestjs/config';
 import { UserService } from 'src/user/user.service';
 import { RewardService } from 'src/reward/reward.service';
 import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
+import { UserActivityService } from 'src/user-activity/services/user-activity.service';
 
 @Injectable()
 export class LikeService {
@@ -28,6 +29,7 @@ export class LikeService {
     private readonly userRepository: Repository<UserEntity>,
     private readonly notificationGateway: NotificationGateway,
     private readonly userService: UserService,
+    private readonly userActivityService: UserActivityService,
     private readonly activityService: ActivityService,
     private readonly configService: ConfigService,
     private readonly rewardService: RewardService,
@@ -111,6 +113,22 @@ export class LikeService {
         isAdmin: false,
         post,
       });
+
+      await this.userActivityService.logLikeReceived({
+        userId: post.user.id,
+        actorUserId: user.id,
+        pointsDelta: likeEarnPoints,
+        postId: post.id,
+        previewUrl: post.imageUrl ?? post.previewImageUrl ?? null,
+      });
+
+      await this.userActivityService.logLikeSpent({
+        userId: user.id,
+        pointsDelta: -likeSpendPoints,
+        postId: post.id,
+        previewUrl: post.imageUrl ?? post.previewImageUrl ?? null,
+      });
+
       await this.notificationGateway.sendNotification(
         user.id.toString(),
         descriptionSpend,

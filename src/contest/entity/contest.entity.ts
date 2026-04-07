@@ -6,6 +6,7 @@ import {
   OneToMany,
   ManyToMany,
   JoinTable,
+  JoinColumn,
 } from 'typeorm';
 import { UserEntity } from './../../user/entities/user.entity';
 import { PostEntity } from '../../post/entities/post.entity';
@@ -15,6 +16,8 @@ import {
   ContestTypeEnum,
 } from '../types/contest.status.enum';
 import { ActivityEntity } from '../../activity/entities/activity.entity';
+import { MediaAISettingsEntity } from '../../media-generation/entities/media-ai-settings.entity';
+import { UserActivityEntity } from '../../user-activity/entities/user-activity.entity';
 
 @Entity('contests')
 export class ContestEntity {
@@ -86,8 +89,15 @@ export class ContestEntity {
   })
   activities: ActivityEntity[];
 
+  @OneToMany(() => UserActivityEntity, (activity) => activity.contest)
+  userActivities: UserActivityEntity[];
+
   @Column({ type: 'text', nullable: true, name: 'promptExample' })
   promptExample: string;
+
+  @ManyToOne(() => MediaAISettingsEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'mediaAiSettingId' })
+  mediaAiSetting: MediaAISettingsEntity | null;
 
   @Column({
     type: 'json',

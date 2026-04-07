@@ -1,12 +1,9 @@
-import { Controller, Get, Put, Query, Req, UseGuards, Patch, Body } from '@nestjs/common';
+import { Controller, Get, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { ActivityService } from './activity.service';
 import { AuthenticatedRequest } from 'src/auth/types/auth.user.interface';
-import { ApiOperation, ApiQuery, ApiResponse, ApiTags, ApiBody } from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ACTIVITY_SWAGGER } from 'src/common/swagger';
-import { ActivityEntity } from './entities/activity.entity';
-import { PopularPostsResponseDto } from './dto/popular-posts.dto';
-import { MarkViewedDto } from '../post/dto/mark.viewed.dto';
 
 @Controller('activity')
 @ApiTags('Activity')
@@ -60,27 +57,5 @@ export class ActivityController {
     const userId = req.user.id;
     await this.activityService.markContestCollabsAsRead(userId);
     return { status: 'success', message: 'All activities marked as read' };
-  }
-
-  @Get('popular-posts')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation(ACTIVITY_SWAGGER.getPopularPosts)
-  @ApiResponse(ACTIVITY_SWAGGER.getPopularPosts.responses.success)
-  async getPopularPosts(@Req() req: AuthenticatedRequest): Promise<PopularPostsResponseDto> {
-    const userId = req.user.id;
-    return await this.activityService.getPopularPosts(userId);
-  }
-
-  @Patch('mark-posts-viewed')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation(ACTIVITY_SWAGGER.markPostsAsViewed)
-  @ApiBody({ type: MarkViewedDto })
-  @ApiResponse(ACTIVITY_SWAGGER.markPostsAsViewed.responses.success)
-  async markPostsAsViewed(
-    @Req() req: AuthenticatedRequest,
-    @Body() markViewedDto: MarkViewedDto,
-  ) {
-    const userId = req.user.id;
-    return await this.activityService.markPostsAsViewed(markViewedDto.ids, userId);
   }
 }

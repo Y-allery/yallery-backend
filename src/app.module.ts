@@ -26,12 +26,9 @@ import { ExpressAdapter } from '@bull-board/express';
 import { PaymentModule } from './payment/payment.module';
 import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import { APP_FILTER } from '@nestjs/core';
-import { VideoGenerationController } from './video-generation/video-generation.controller';
-import { VideoGenerationModule } from './video-generation/video-generation.module';
 import { RewardModule } from './reward/reward.module';
-import { AudioGenerationModule } from './audio-generation/audio-generation.module';
-import { AudioGenerationController } from './audio-generation/audio-generation.controller';
 import { MemeModule } from './meme/meme.module';
+import { UserActivityModule } from './user-activity/user-activity.module';
 
 @Module({
   imports: [
@@ -82,12 +79,10 @@ import { MemeModule } from './meme/meme.module';
     AdminModule,
     ServiceTokenModule,
     PaymentModule,
-    VideoGenerationModule,
-    AudioGenerationModule,
     RewardModule,
     MemeModule,
+    UserActivityModule,
   ],
-  controllers: [VideoGenerationController, AudioGenerationController],
   providers: [
     {
       provide: APP_FILTER,

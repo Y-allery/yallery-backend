@@ -12,7 +12,6 @@ import { UploadService } from 'src/upload/upload.service';
 import { GenerateImageDto } from './dto/generate.image.dto';
 import { EditImageDto } from './dto/edit-image.dto';
 import { AIEnum } from 'src/common/enums/ai.enum';
-import { PublicFineTunePresetEnum } from './dto/public-finetune-generate.dto';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TagEntity } from 'src/tag/entities/tag.entity';
@@ -42,6 +41,10 @@ import * as leoProfanity from 'leo-profanity';
 import axios from 'axios';
 import { wrapFetchWithPayment } from 'x402-fetch';
 import { privateKeyToAccount } from 'viem/accounts';
+import { MediaGenerationService } from 'src/media-generation/media-generation.service';
+import { MediaRouteResolverService } from 'src/media-generation/routing/media-route-resolver.service';
+import { RUNPOD_IMAGE_GENERATION_QUEUE } from 'src/media-generation/constants/media-generation.queue';
+import { UserActivityService } from 'src/user-activity/services/user-activity.service';
 
 @Injectable()
 export class ImageGenerationService {
@@ -63,6 +66,7 @@ export class ImageGenerationService {
   constructor(
     private readonly uploadService: UploadService,
     private readonly userService: UserService,
+    private readonly userActivityService: UserActivityService,
     private readonly activityService: ActivityService,
     private readonly serviceTokenService: ServiceTokenService,
     private readonly notificationGateway: NotificationGateway,
@@ -89,6 +93,10 @@ export class ImageGenerationService {
     private aiProcessorMappingRepository: Repository<AIProcessorMappingEntity>,
     @InjectQueue('fal_ai') private readonly falAiQueue: Queue,
     @InjectQueue('x_router') private readonly xRouterQueue: Queue,
+    @InjectQueue(RUNPOD_IMAGE_GENERATION_QUEUE)
+    private readonly runpodImageQueue: Queue,
+    private readonly mediaGenerationService: MediaGenerationService,
+    private readonly mediaRouteResolverService: MediaRouteResolverService,
   ) {
     this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   }
@@ -428,112 +436,6 @@ export class ImageGenerationService {
     }
   }
 
-  /**
-   * Public fine-tune generation:
-   * - no auth (controller-level)
-   * - no user / no credits charging
-   * - no DB writes
-   * - always uses fixed fine-tune token
-   */
-  async generateFineTuneImagesPublic(
-    prompt: string,
-    imageQuantity: number,
-    preset: PublicFineTunePresetEnum = PublicFineTunePresetEnum.XOOB,
-  ): Promise<{ images: string[]; fineTuneToken: string; providerModel: string }> {
-    const fineTuneTokenByPreset: Record<PublicFineTunePresetEnum, string> = {
-      [PublicFineTunePresetEnum.XOOB]:
-        'fca9b669-380a-4d5e-873b-ac0b116c82a0',
-      [PublicFineTunePresetEnum.NOMISMA]:
-        '62a50ee2-5e66-4fe2-ad6b-64cead6834e8',
-    };
-    const fineTuneToken = fineTuneTokenByPreset[preset] ?? fineTuneTokenByPreset[PublicFineTunePresetEnum.XOOB];
-    let token: AiServiceToken;
-
-    try {
-      const trimmedPrompt = (prompt || '').trim();
-      if (!trimmedPrompt) {
-        throw new BadRequestException('prompt is required');
-      }
-
-      const aiSetting = await this.getAISetting(AIEnum.FLUX_PRO_FINE_TUNE);
-      if (!aiSetting || !aiSetting.apiModel) {
-        throw new BadRequestException(
-          `AI service ${AIEnum.FLUX_PRO_FINE_TUNE} not found or apiModel not configured`,
-        );
-      }
-
-      if (trimmedPrompt.length > aiSetting.maxPromptLength) {
-        throw new BadRequestException(
-          `Prompt length must not exceed ${aiSetting.maxPromptLength} characters for ${aiSetting.name}`,
-        );
-      }
-
-      if (imageQuantity < aiSetting.minImages || imageQuantity > aiSetting.maxImages) {
-        throw new BadRequestException(
-          `imageQuantity must be between ${aiSetting.minImages} and ${aiSetting.maxImages} for ${aiSetting.name}`,
-        );
-      }
-
-      token = await this.serviceTokenService.getNextAvailableToken(
-        AIEnum.FLUX_PRO_FINE_TUNE,
-      );
-      if (!token) {
-        throw new BadRequestException(
-          'No tokens available for the selected AI service',
-        );
-      }
-
-      fal.config({ credentials: token.token });
-
-      const generateMethod = fal.run.bind(fal, aiSetting.apiModel);
-      const inputParams: any = {
-        prompt: trimmedPrompt,
-        finetune_id: fineTuneToken,
-        output_format: 'jpeg',
-        safety_tolerance: 2,
-        num_images: imageQuantity,
-        guidance_scale: 15,
-        num_inference_steps: 28,
-        finetune_strength: 1,
-      };
-
-      const result = await generateMethod({ input: inputParams });
-
-      if (!result?.images || !Array.isArray(result.images) || result.images.length === 0) {
-        throw new Error(
-          `FalAI service returned no images. Result: ${JSON.stringify(result)}`,
-        );
-      }
-
-      const uploadResponses = await Promise.all(
-        result.images.map(async (image) => {
-          if (!image?.url) {
-            throw new Error('FalAI returned an image without url');
-          }
-          return await this.uploadService.uploadByUrl(image.url);
-        }),
-      );
-
-      return {
-        images: uploadResponses,
-        fineTuneToken,
-        providerModel: aiSetting.apiModel,
-      };
-    } catch (error) {
-      if (token?.token) {
-        try {
-          await this.serviceTokenService.markTokenAsRateLimited(
-            token,
-            AIEnum.FLUX_PRO_FINE_TUNE,
-          );
-        } catch {
-          // ignore secondary failures
-        }
-      }
-      throw error;
-    }
-  }
-
   async generateXRouter(createPostDto: GenerateImageDto): Promise<{
     generatedImages: string[];
     suggestedTags: { id: number; name: string }[];
@@ -666,6 +568,47 @@ export class ImageGenerationService {
     } catch (error) {
       console.error(`[generateXRouter] Failed | Error: ${error.message}`);
       throw new Error(`Failed to generate images via x-router: ${error.message}`);
+    }
+  }
+
+  async generateRunpodPromptImage(createPostDto: GenerateImageDto): Promise<{
+    generatedImages: string[];
+    suggestedTags: { id: number; name: string }[];
+  }> {
+    try {
+      console.log(
+        `[generateRunpodPromptImage] Starting | Quantity: ${createPostDto.image_quantity} | Prompt: ${createPostDto.prompt.substring(0, 50)}...`,
+      );
+
+      const suggestedTags = await this.buildSuggestedTags(createPostDto);
+      const { width, height } = getDimensionsForOrientation(
+        createPostDto.orientation,
+        createPostDto.ai_service,
+      );
+
+      const result = await this.mediaGenerationService.generatePromptImages({
+        aiService: createPostDto.ai_service,
+        prompt: createPostDto.prompt,
+        width,
+        height,
+        imageQuantity: createPostDto.image_quantity,
+        orientation: createPostDto.orientation,
+        contestId: createPostDto.contest_id ?? null,
+      });
+
+      console.log(
+        `[generateRunpodPromptImage] Success | Generated: ${result.imageUrls.length} images`,
+      );
+
+      return {
+        generatedImages: result.imageUrls,
+        suggestedTags,
+      };
+    } catch (error) {
+      console.error(`[generateRunpodPromptImage] Failed | Error: ${error.message}`);
+      throw new Error(
+        `Failed to generate images via RunPod: ${error.message}`,
+      );
     }
   }
 
@@ -844,6 +787,27 @@ export class ImageGenerationService {
     userId: number,
   ): Promise<any> {
     try {
+      const mediaRoute = this.mediaRouteResolverService.resolvePromptImageRoute(
+        createPostDto.ai_service,
+      );
+
+      if (mediaRoute?.queueName === RUNPOD_IMAGE_GENERATION_QUEUE) {
+        return await this.runpodImageQueue.add(
+          createPostDto.ai_service,
+          {
+            createPostDto,
+            userId,
+            aiService: createPostDto.ai_service,
+          },
+          {
+            attempts: 2,
+            backoff: 30000,
+            removeOnComplete: true,
+            removeOnFail: false,
+          },
+        );
+      }
+
       const mapping = await this.getProcessorMapping(createPostDto.ai_service);
       const queue = this.getQueueByProcessorType(mapping.processorType);
       
@@ -1019,6 +983,27 @@ export class ImageGenerationService {
       generationCost,
     );
 
+    const primaryPost = posts[0] ?? null;
+    await this.userActivityService.logMediaGenerationSpent({
+      userId: user.id,
+      pointsDelta: -generationCost,
+      mediaType: 'image',
+      mode:
+        service === AIEnum.BYTEDANCE_EDIT ? 'image_edit' : 'prompt_generation',
+      aiService: service,
+      quantity:
+        service === AIEnum.BYTEDANCE_EDIT
+          ? generatedImages.length
+          : (dto as GenerateImageDto).image_quantity,
+      orientation:
+        'orientation' in dto && dto.orientation ? dto.orientation : null,
+      contestId:
+        'contest_id' in dto && dto.contest_id ? dto.contest_id : null,
+      postId: primaryPost?.id ?? null,
+      previewUrl:
+        primaryPost?.imageUrl ?? primaryPost?.previewImageUrl ?? null,
+    });
+
     // Log partnership activity 'image_generated'
     try {
       if (user.id) {
@@ -1144,6 +1129,52 @@ export class ImageGenerationService {
     });
     if (!user) throw new BadRequestException('User not found');
     return user;
+  }
+
+  private async buildSuggestedTags(
+    createPostDto: GenerateImageDto,
+  ): Promise<{ id: number; name: string; imageUrl?: string }[]> {
+    const suggestedTags = [];
+
+    if (createPostDto.auto_tag_select) {
+      const tag = await this.findBestTag(createPostDto.prompt);
+      if (tag) {
+        suggestedTags.push({
+          id: tag.id,
+          name: '#' + tag.name,
+          imageUrl: tag.imageUrl,
+        });
+      }
+    } else {
+      const tag = await this.tagEntity.findOne({
+        where: { id: createPostDto.tag_id },
+      });
+      if (!tag) {
+        throw new BadRequestException(
+          `Tag with id ${createPostDto.tag_id} not found`,
+        );
+      }
+      suggestedTags.push({
+        id: tag.id,
+        name: '#' + tag.name,
+        imageUrl: tag.imageUrl,
+      });
+    }
+
+    const otherTag = await this.tagEntity.findOne({
+      where: { name: 'other' },
+    });
+    if (!otherTag) {
+      throw new Error('Tag "other" not found in database');
+    }
+
+    suggestedTags.push({
+      id: otherTag.id,
+      name: '#' + otherTag.name,
+      imageUrl: otherTag.imageUrl,
+    });
+
+    return suggestedTags;
   }
 
   private async getEntities(createPostDto: GenerateImageDto) {

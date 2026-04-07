@@ -26,9 +26,6 @@ import {
 import { POST_SWAGGER } from 'src/common/swagger';
 import { AuthenticatedRequest } from 'src/auth/types/auth.user.interface';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
-import { RoleGuard } from 'src/auth/guards/role.guard';
-import { Roles } from 'src/auth/decorators/role.decorator';
-import { RoleEnum } from 'src/user/types/role.enum';
 import { ReportPostDto } from './dto/report.post.dto';
 import { Response } from 'express';
 import { MarkViewedDto } from './dto/mark.viewed.dto';
@@ -36,6 +33,7 @@ import { TweetDto } from './dto/tweet.dto';
 import { UpdatePostMediaDto } from './dto/update-post-media.dto';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { PopularPostsResponseDto } from './dto/popular-posts.dto';
 
 @Controller('post')
 @ApiTags('Post')
@@ -150,6 +148,20 @@ export class PostController {
     );
   }
 
+  @Get('popular-posts')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation(POST_SWAGGER.getPopularPosts)
+  @ApiResponse({
+    status: 200,
+    description: 'Popular posts retrieved successfully',
+    type: PopularPostsResponseDto,
+  })
+  async getPopularPosts(
+    @Req() req: AuthenticatedRequest,
+  ): Promise<PopularPostsResponseDto> {
+    return await this.postService.getPopularPosts(req.user.id);
+  }
+
   @Patch('mark-viewed')
   @UseGuards(JwtAuthGuard)
   @ApiOperation(POST_SWAGGER.markPostsAsViewed)
@@ -242,123 +254,5 @@ export class PostController {
       },
     );
     return { message: 'Tweet request queued successfully' };
-  }
-
-  @Post('admin/update-dimensions')
-  @UseGuards(JwtAuthGuard, RoleGuard)
-  @Roles(RoleEnum.ADMIN)
-  @ApiOperation({
-    summary: 'Update image dimensions in generation_params for all posts',
-    description: 'Batch process all posts to get actual image dimensions and update generation_params. Processes posts in batches to avoid blocking event loop.',
-  })
-  @ApiQuery({ name: 'batchSize', required: false, type: Number, description: 'Number of posts to process in each batch (default: 10)' })
-  @ApiQuery({ name: 'delay', required: false, type: Number, description: 'Delay in milliseconds between batches (default: 100)' })
-  @ApiResponse({
-    status: 200,
-    description: 'Batch processing started in background',
-    schema: {
-      type: 'object',
-      properties: {
-        message: { type: 'string', description: 'Status message' },
-        total: { type: 'number', description: 'Total posts to process' },
-      },
-    },
-  })
-  async updatePostsDimensions(
-    @Query('batchSize') batchSize?: number,
-    @Query('delay') delay?: number,
-  ) {
-    const result = await this.postService.updatePostsDimensionsBatch(
-      batchSize ? Number(batchSize) : 10,
-      delay ? Number(delay) : 100,
-    );
-    return result;
-  }
-
-  @Post('admin/update-suggested-tags')
-  @UseGuards(JwtAuthGuard, RoleGuard)
-  @Roles(RoleEnum.ADMIN)
-  @ApiOperation({
-    summary: 'Update suggestedTags in generation_params for all posts',
-    description: 'Batch process all posts to add default suggestedTags (id: 48, name: "other") if missing. Processes posts in batches in background.',
-  })
-  @ApiQuery({ name: 'batchSize', required: false, type: Number, description: 'Number of posts to process in each batch (default: 10)' })
-  @ApiResponse({
-    status: 200,
-    description: 'Batch processing started in background',
-    schema: {
-      type: 'object',
-      properties: {
-        message: { type: 'string', description: 'Status message' },
-        total: { type: 'number', description: 'Total posts to process' },
-      },
-    },
-  })
-  async updatePostsSuggestedTags(
-    @Query('batchSize') batchSize?: number,
-  ) {
-    const result = await this.postService.updatePostsSuggestedTagsBatch(
-      batchSize ? Number(batchSize) : 10,
-    );
-    return result;
-  }
-
-  @Post('admin/update-video-previews')
-  @UseGuards(JwtAuthGuard, RoleGuard)
-  @Roles(RoleEnum.ADMIN)
-  @ApiOperation({
-    summary: 'Update previewImageUrl and suggestedTags for all video posts',
-    description: 'Batch process all video posts to add previewImageUrl (from Cloudinary) and default suggestedTags if missing. Processes posts in batches in background.',
-  })
-  @ApiQuery({ name: 'batchSize', required: false, type: Number, description: 'Number of posts to process in each batch (default: 10)' })
-  @ApiResponse({
-    status: 200,
-    description: 'Batch processing started in background',
-    schema: {
-      type: 'object',
-      properties: {
-        message: { type: 'string', description: 'Status message' },
-        total: { type: 'number', description: 'Total video posts to process' },
-      },
-    },
-  })
-  async updateVideoPreviewsAndTags(
-    @Query('batchSize') batchSize?: number,
-  ) {
-    const result = await this.postService.updateVideoPreviewsAndTagsBatch(
-      batchSize ? Number(batchSize) : 10,
-    );
-    return result;
-  }
-
-  @Post('admin/update-video-dimensions')
-  @UseGuards(JwtAuthGuard, RoleGuard)
-  @Roles(RoleEnum.ADMIN)
-  @ApiOperation({
-    summary: 'Update video dimensions in generation_params for all video posts',
-    description: 'Batch process all video posts to get actual video dimensions (width and height) from Cloudinary and update generation_params. Processes posts in batches to avoid blocking event loop.',
-  })
-  @ApiQuery({ name: 'batchSize', required: false, type: Number, description: 'Number of posts to process in each batch (default: 10)' })
-  @ApiQuery({ name: 'delay', required: false, type: Number, description: 'Delay in milliseconds between batches (default: 100)' })
-  @ApiResponse({
-    status: 200,
-    description: 'Batch processing started in background',
-    schema: {
-      type: 'object',
-      properties: {
-        message: { type: 'string', description: 'Status message' },
-        total: { type: 'number', description: 'Total video posts to process' },
-      },
-    },
-  })
-  async updateVideoDimensions(
-    @Query('batchSize') batchSize?: number,
-    @Query('delay') delay?: number,
-  ) {
-    const result = await this.postService.updateVideoDimensionsBatch(
-      batchSize ? Number(batchSize) : 10,
-      delay ? Number(delay) : 100,
-    );
-    return result;
   }
 }

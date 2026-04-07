@@ -9,10 +9,12 @@ import { UserModule } from 'src/user/user.module';
 import { TagEntity } from 'src/tag/entities/tag.entity';
 import { NotificationModule } from 'src/notification/notification.module';
 import { ActivityModule } from 'src/activity/activity.module';
+import { UserActivityModule } from 'src/user-activity/user-activity.module';
 import { FirebaseModule } from 'src/firebase/firebase.module';
 import { RedisService } from 'src/database/redis.service.connect';
 import { RewardModule } from 'src/reward/reward.module';
 import { DeviceTokenEntity } from 'src/user/entities/device-token.entity';
+import { MediaAISettingsEntity } from 'src/media-generation/entities/media-ai-settings.entity';
 
 @Module({
   imports: [
@@ -22,10 +24,12 @@ import { DeviceTokenEntity } from 'src/user/entities/device-token.entity';
       PostEntity,
       TagEntity,
       DeviceTokenEntity,
+      MediaAISettingsEntity,
     ]),
     UserModule,
     NotificationModule,
     ActivityModule,
+    UserActivityModule,
     FirebaseModule,
     forwardRef(() => RewardModule),
   ],

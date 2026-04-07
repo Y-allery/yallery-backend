@@ -35,6 +35,7 @@ import { RewardService } from 'src/reward/reward.service';
 import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
 import { v2 as cloudinary } from 'cloudinary';
 import { StandardPost } from 'src/common/types/standard-post.type';
+import { PopularPostsResponse } from './types/popular-post.interface';
 
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 const randomSleep = async () =>
@@ -576,6 +577,236 @@ export class PostService {
     };
   }
 
+  async getPopularPosts(userId: number): Promise<PopularPostsResponse> {
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      let allFoundPosts = [];
+      let period: 'today' | 'yesterday' | 'all_time' | 'mixed' = 'today';
+
+      const todayQuery = `
+        SELECT DISTINCT
+          p.id AS id,
+          p.imageUrl AS imageUrl,
+          p.videoUrl AS videoUrl,
+          p.previewImageUrl AS previewImageUrl,
+          p.createdAt AS createdAt,
+          u.id AS userId,
+          u.nickname AS username,
+          t.id AS tagId,
+          CONCAT('#', t.name) AS tagName,
+          p.\`isPublished\` AS isPublished,
+          p.\`isBlocked\` AS isBlocked,
+          p.\`isRejected\` AS isRejected,
+          (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS likeCount,
+          (SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id) AS viewCount,
+          CASE
+            WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ${userId})
+            THEN TRUE
+            ELSE FALSE
+          END AS isLiked,
+          CASE
+            WHEN EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ${userId})
+            THEN TRUE
+            ELSE FALSE
+          END AS isViewed,
+          p.generationParams AS generationParams
+        FROM
+          posts p
+          JOIN users u ON p.userId = u.id
+          LEFT JOIN tags t ON p.tagId = t.id
+        WHERE
+          p.createdAt >= '${today.toISOString()}'
+          AND p.createdAt < '${tomorrow.toISOString()}'
+          AND p.\`isPublished\` = true
+          AND p.\`isBlocked\` = false
+          AND p.\`isRejected\` = false
+          AND (p.imageUrl IS NOT NULL OR p.videoUrl IS NOT NULL)
+        ORDER BY
+          likeCount DESC, viewCount DESC
+        LIMIT 6;
+      `;
+
+      const todayPosts = await this.postRepository.query(todayQuery);
+
+      if (todayPosts.length > 0) {
+        allFoundPosts.push(
+          ...todayPosts.map((post) => ({
+            post,
+            period: 'today',
+          })),
+        );
+        period = 'today';
+      }
+
+      if (allFoundPosts.length < 6) {
+        const yesterdayQuery = `
+          SELECT DISTINCT
+            p.id AS id,
+            p.imageUrl AS imageUrl,
+            p.videoUrl AS videoUrl,
+            p.previewImageUrl AS previewImageUrl,
+            p.createdAt AS createdAt,
+            u.id AS userId,
+            u.nickname AS username,
+            t.id AS tagId,
+            CONCAT('#', t.name) AS tagName,
+            p.isPublished AS isPublished,
+            p.isBlocked AS isBlocked,
+            p.isRejected AS isRejected,
+            (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS likeCount,
+            (SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id) AS viewCount,
+            CASE
+              WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ${userId})
+              THEN TRUE
+              ELSE FALSE
+            END AS isLiked,
+            CASE
+              WHEN EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ${userId})
+              THEN TRUE
+              ELSE FALSE
+            END AS isViewed,
+            p.generationParams AS generationParams
+          FROM
+            posts p
+            JOIN users u ON p.userId = u.id
+            LEFT JOIN tags t ON p.tagId = t.id
+          WHERE
+            p.createdAt >= '${yesterday.toISOString()}'
+            AND p.createdAt < '${today.toISOString()}'
+            AND p.isPublished = true
+            AND p.isBlocked = false
+            AND p.isRejected = false
+            AND (p.imageUrl IS NOT NULL OR p.videoUrl IS NOT NULL)
+          ORDER BY
+            likeCount DESC, viewCount DESC
+          LIMIT ${6 - allFoundPosts.length};
+        `;
+
+        const yesterdayPosts = await this.postRepository.query(yesterdayQuery);
+
+        if (yesterdayPosts.length > 0) {
+          allFoundPosts.push(
+            ...yesterdayPosts.map((post) => ({
+              post,
+              period: 'yesterday',
+            })),
+          );
+          if (period === 'today') period = 'mixed';
+          else period = 'yesterday';
+        }
+      }
+
+      if (allFoundPosts.length < 6) {
+        const allTimeQuery = `
+          SELECT DISTINCT
+            p.id AS id,
+            p.imageUrl AS imageUrl,
+            p.videoUrl AS videoUrl,
+            p.previewImageUrl AS previewImageUrl,
+            p.createdAt AS createdAt,
+            u.id AS userId,
+            u.nickname AS username,
+            t.id AS tagId,
+            CONCAT('#', t.name) AS tagName,
+            p.isPublished AS isPublished,
+            p.isBlocked AS isBlocked,
+            p.isRejected AS isRejected,
+            (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS likeCount,
+            (SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id) AS viewCount,
+            CASE
+              WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ${userId})
+              THEN TRUE
+              ELSE FALSE
+            END AS isLiked,
+            CASE
+              WHEN EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ${userId})
+              THEN TRUE
+              ELSE FALSE
+            END AS isViewed,
+            p.generationParams AS generationParams
+          FROM
+            posts p
+            JOIN users u ON p.userId = u.id
+            LEFT JOIN tags t ON p.tagId = t.id
+          WHERE
+            p.isPublished = true
+            AND p.isBlocked = false
+            AND p.isRejected = false
+            AND (p.imageUrl IS NOT NULL OR p.videoUrl IS NOT NULL)
+          ORDER BY
+            likeCount DESC, viewCount DESC
+          LIMIT ${6 - allFoundPosts.length};
+        `;
+
+        const allTimePosts = await this.postRepository.query(allTimeQuery);
+
+        allFoundPosts.push(
+          ...allTimePosts.map((post) => ({
+            post,
+            period: 'all_time',
+          })),
+        );
+
+        if (period !== 'mixed') period = 'all_time';
+      }
+
+      allFoundPosts.sort((a, b) => {
+        const aLikes = a.post.likeCount || 0;
+        const bLikes = b.post.likeCount || 0;
+        const aViews = a.post.viewCount || 0;
+        const bViews = b.post.viewCount || 0;
+
+        if (bLikes !== aLikes) {
+          return bLikes - aLikes;
+        }
+
+        return bViews - aViews;
+      });
+
+      const topPosts = allFoundPosts.slice(0, 6);
+      const formattedPosts = topPosts.map((item) => ({
+        id: item.post.id,
+        imageUrl: item.post.imageUrl,
+        videoUrl: item.post.videoUrl,
+        previewImageUrl: item.post.previewImageUrl,
+        likeCount: item.post.likeCount || 0,
+        viewCount: item.post.viewCount || 0,
+        createdAt: item.post.createdAt,
+        userId: item.post.userId,
+        username: item.post.username || 'Unknown User',
+        tagName: item.post.tagName,
+        tagId: item.post.tagId,
+        isPublished: item.post.isPublished,
+        isBlocked: item.post.isBlocked || false,
+        isRejected: item.post.isRejected || false,
+        isLiked: item.post.isLiked,
+        isViewed: item.post.isViewed,
+        generationParams:
+          this.normalizeGenerationParams(item.post.generationParams) || null,
+      }));
+
+      return {
+        posts: formattedPosts,
+        period,
+        totalCount: formattedPosts.length,
+      };
+    } catch (error) {
+      console.error('Error getting popular posts:', error);
+      return {
+        posts: [],
+        period: 'all_time',
+        totalCount: 0,
+      };
+    }
+  }
+
   async markPostsAsViewed(postIds: number[], userId: number) {
     const posts = await this.postRepository.find({
       where: { id: In(postIds) },
@@ -660,66 +891,6 @@ export class PostService {
     }
   }
 
-  private async getVideoDimensions(videoUrl: string): Promise<{ width: number; height: number } | null> {
-    try {
-      // Check if URL is from Cloudinary
-      if (!videoUrl.includes('cloudinary.com')) {
-        console.warn(`[getVideoDimensions] Video URL is not from Cloudinary: ${videoUrl}`);
-        return null;
-      }
-
-      // Extract public_id from Cloudinary URL
-      // Examples:
-      // https://res.cloudinary.com/account/video/upload/v123/folder/video.mp4 -> public_id: folder/video
-      // https://res.cloudinary.com/account/video/upload/folder/video.mp4 -> public_id: folder/video
-      // Pattern: /upload/[version]/[folder/]filename or /upload/[folder/]filename
-      // Note: version (v123) should NOT be included in public_id for API calls
-      const urlParts = videoUrl.split('/');
-      const uploadIndex = urlParts.indexOf('upload');
-      
-      if (uploadIndex === -1 || uploadIndex + 1 >= urlParts.length) {
-        console.warn(`[getVideoDimensions] Could not find 'upload' segment in URL: ${videoUrl}`);
-        return null;
-      }
-
-      // Get all segments after 'upload'
-      const segmentsAfterUpload = urlParts.slice(uploadIndex + 1);
-      
-      // Remove version if present (starts with 'v' followed by digits)
-      // Example: ['v123', 'folder', 'video.mp4'] -> ['folder', 'video.mp4']
-      const segmentsWithoutVersion = segmentsAfterUpload.filter(
-        (segment, index) => !(index === 0 && /^v\d+$/.test(segment))
-      );
-      
-      // Join segments and remove file extension
-      const publicIdWithExtension = segmentsWithoutVersion.join('/');
-      // Remove extension (mp4, webm, mov, avi, etc.)
-      const publicId = publicIdWithExtension.replace(/\.[^/.]+$/, '');
-
-      if (!publicId) {
-        console.warn(`[getVideoDimensions] Could not extract public_id from URL: ${videoUrl}`);
-        return null;
-      }
-
-      // Get video metadata from Cloudinary API
-      const result = await cloudinary.api.resource(publicId, {
-        resource_type: 'video',
-      });
-
-      if (result && result.width && result.height) {
-        return {
-          width: Number(result.width),
-          height: Number(result.height),
-        };
-      }
-
-      return null;
-    } catch (error) {
-      console.warn(`[getVideoDimensions] Failed to get video dimensions from ${videoUrl}:`, error?.message || error);
-      return null;
-    }
-  }
-
   async savePost(
     dto: GenerateImageDto,
     imageUrl: string,
@@ -765,687 +936,6 @@ export class PostService {
     return savedPost;
   }
 
-  async updatePostsDimensionsBatch(
-    batchSize: number = 10,
-    delayBetweenBatches: number = 100,
-  ): Promise<{ message: string; total: number }> {
-    // No delays - process as fast as possible
-    const delayBetweenBatchesMs = 0;
-    // No delay between individual posts
-    const delayBetweenPostsMs = 0;
-    
-    // Get total count first to return immediately
-    const countResult = await this.postEntity.query(
-      'SELECT COUNT(*) as count FROM posts WHERE imageUrl IS NOT NULL',
-    );
-    const totalCount = parseInt(countResult[0]?.count || '0', 10);
-    
-    console.log(`[updatePostsDimensionsBatch] Starting background batch processing...`);
-    console.log(`[updatePostsDimensionsBatch] Total posts to process: ${totalCount}`);
-    console.log(`[updatePostsDimensionsBatch] Batch size: ${batchSize}`);
-    console.log(`[updatePostsDimensionsBatch] Delay between batches: ${delayBetweenBatchesMs}ms (fixed)`);
-    console.log(`[updatePostsDimensionsBatch] Delay between posts: ${delayBetweenPostsMs}ms (fixed)`);
-
-    // Start processing in background (don't await)
-    this.processPostsDimensionsInBackground(batchSize, delayBetweenBatchesMs, delayBetweenPostsMs).catch((error) => {
-      console.error(`[updatePostsDimensionsBatch] Background processing error:`, error);
-    });
-
-    // Return immediately
-    return {
-      message: 'Batch processing started in background. Check logs for progress.',
-      total: totalCount,
-    };
-  }
-
-  private async processPostsDimensionsInBackground(
-    batchSize: number,
-    delayBetweenBatchesMs: number,
-    delayBetweenPostsMs: number,
-  ): Promise<void> {
-    const startTime = Date.now();
-
-    // Get all posts with imageUrl (always process all posts)
-    // First, let's check total posts count for debugging
-    const totalPostsResult = await this.postEntity.query(
-      'SELECT COUNT(*) as count FROM posts',
-    );
-    const totalPosts = parseInt(totalPostsResult[0]?.count || '0', 10);
-    console.log(`[updatePostsDimensionsBatch] Total posts in database: ${totalPosts}`);
-
-    // Check posts with NULL imageUrl
-    const nullImageUrlResult = await this.postEntity.query(
-      'SELECT COUNT(*) as count FROM posts WHERE imageUrl IS NULL',
-    );
-    const nullImageUrlCount = parseInt(nullImageUrlResult[0]?.count || '0', 10);
-    console.log(`[updatePostsDimensionsBatch] Posts with NULL imageUrl: ${nullImageUrlCount}`);
-
-    // Check posts with empty string imageUrl (use LENGTH for MySQL compatibility)
-    const emptyImageUrlResult = await this.postEntity.query(
-      'SELECT COUNT(*) as count FROM posts WHERE imageUrl IS NOT NULL AND LENGTH(imageUrl) = 0',
-    );
-    const emptyImageUrlCount = parseInt(emptyImageUrlResult[0]?.count || '0', 10);
-    console.log(`[updatePostsDimensionsBatch] Posts with empty string imageUrl: ${emptyImageUrlCount}`);
-
-    // Use raw SQL query to ensure we get ALL posts without any TypeORM limitations
-    // Check for both NULL and empty string (as some posts might have empty strings)
-    // Use LENGTH > 0 to check for non-empty strings
-    const countResult = await this.postEntity.query(
-      'SELECT COUNT(*) as count FROM posts WHERE imageUrl IS NOT NULL AND LENGTH(imageUrl) > 0',
-    );
-    const totalCount = parseInt(countResult[0]?.count || '0', 10);
-    
-    console.log(`[updatePostsDimensionsBatch] Total posts with valid imageUrl in database: ${totalCount}`);
-
-    // Get all posts using raw SQL to avoid any limitations
-    // Also exclude empty strings using LENGTH
-    const allPostsRaw = await this.postEntity.query(`
-      SELECT id, imageUrl, generationParams 
-      FROM posts 
-      WHERE imageUrl IS NOT NULL AND LENGTH(imageUrl) > 0
-    `);
-
-    // Transform raw results to match expected format
-    const allPosts = allPostsRaw.map((post: any) => ({
-      id: post.id,
-      imageUrl: post.imageUrl,
-      generationParams: post.generationParams,
-    }));
-
-    let processed = 0;
-    let updated = 0;
-    let failed = 0;
-    const total = allPosts.length;
-
-    console.log(`[updatePostsDimensionsBatch] Retrieved ${total} posts from database`);
-    
-    if (total !== totalCount) {
-      console.warn(`[updatePostsDimensionsBatch] ⚠️ WARNING: Retrieved ${total} posts but database has ${totalCount} posts!`);
-    } else {
-      console.log(`[updatePostsDimensionsBatch] ✅ Successfully retrieved all ${total} posts`);
-    }
-
-    // Process posts in batches with delay to not block event loop
-    const totalBatches = Math.ceil(total / batchSize);
-    for (let i = 0; i < allPosts.length; i += batchSize) {
-      const batchNumber = Math.floor(i / batchSize) + 1;
-      const batch = allPosts.slice(i, i + batchSize);
-      
-      console.log(`[updatePostsDimensionsBatch] Processing batch ${batchNumber}/${totalBatches} (${batch.length} posts)...`);
-      
-      // Process batch - only update posts missing width and height
-      // Process posts sequentially with delay to not block event loop
-      for (const post of batch) {
-        try {
-          // Skip if no imageUrl
-          if (!post.imageUrl) {
-            processed++;
-            continue;
-          }
-
-          // Check if width and height already exist in generationParams
-          let existingParams = post.generationParams;
-          if (!existingParams || typeof existingParams !== 'object') {
-            existingParams = {};
-          }
-
-          // Skip if already has width and height
-          if (
-            existingParams.width &&
-            existingParams.height &&
-            typeof existingParams.width === 'number' &&
-            typeof existingParams.height === 'number'
-          ) {
-            processed++;
-            continue;
-          }
-
-          // Get image dimensions only if missing
-          const dimensions = await this.getImageDimensions(post.imageUrl);
-          
-          if (dimensions) {
-            // Update generation_params with real dimensions
-            const updatedParams = {
-              ...existingParams,
-              width: dimensions.width,
-              height: dimensions.height,
-            };
-
-            await this.postEntity.update(
-              { id: post.id },
-              { generationParams: updatedParams },
-            );
-            updated++;
-            processed++;
-          } else {
-            failed++;
-            processed++;
-          }
-        } catch (error) {
-          console.error(`[updatePostsDimensionsBatch] Failed to process post ${post.id}:`, error?.message || error);
-          failed++;
-          processed++;
-        }
-
-        // No delay between posts
-      }
-
-      // Log progress after each batch
-      const progress = ((processed / total) * 100).toFixed(2);
-      console.log(`[updatePostsDimensionsBatch] Batch ${batchNumber}/${totalBatches} completed. Progress: ${progress}% (${processed}/${total}) | Updated: ${updated} | Failed: ${failed}`);
-
-      // No delay between batches - process as fast as possible
-    }
-
-    const endTime = Date.now();
-    const duration = ((endTime - startTime) / 1000).toFixed(2);
-    
-    console.log(`[updatePostsDimensionsBatch] ✅ All batches completed! Processing finished.`);
-    console.log(`[updatePostsDimensionsBatch] ==========================================`);
-    console.log(`[updatePostsDimensionsBatch] Final Statistics:`);
-    console.log(`[updatePostsDimensionsBatch] Total posts: ${total}`);
-    console.log(`[updatePostsDimensionsBatch] Processed: ${processed}`);
-    console.log(`[updatePostsDimensionsBatch] Updated: ${updated}`);
-    console.log(`[updatePostsDimensionsBatch] Failed: ${failed}`);
-    console.log(`[updatePostsDimensionsBatch] Duration: ${duration}s`);
-    console.log(`[updatePostsDimensionsBatch] ==========================================`);
-  }
-
-  async updatePostsSuggestedTagsBatch(
-    batchSize: number = 10,
-    delayBetweenBatches: number = 100,
-  ): Promise<{ message: string; total: number }> {
-    // No delays - process as fast as possible
-    const delayBetweenBatchesMs = 0;
-    const delayBetweenPostsMs = 0;
-    
-    // Get total count first to return immediately
-    const countResult = await this.postEntity.query(
-      'SELECT COUNT(*) as count FROM posts',
-    );
-    const totalCount = parseInt(countResult[0]?.count || '0', 10);
-    
-    console.log(`[updatePostsSuggestedTagsBatch] Starting background batch processing...`);
-    console.log(`[updatePostsSuggestedTagsBatch] Total posts to process: ${totalCount}`);
-    console.log(`[updatePostsSuggestedTagsBatch] Batch size: ${batchSize}`);
-    console.log(`[updatePostsSuggestedTagsBatch] Delay between batches: ${delayBetweenBatchesMs}ms (fixed)`);
-    console.log(`[updatePostsSuggestedTagsBatch] Delay between posts: ${delayBetweenPostsMs}ms (fixed)`);
-
-    // Start processing in background (don't await)
-    this.processPostsSuggestedTagsInBackground(batchSize, delayBetweenBatchesMs, delayBetweenPostsMs).catch((error) => {
-      console.error(`[updatePostsSuggestedTagsBatch] Background processing error:`, error);
-    });
-
-    // Return immediately
-    return {
-      message: 'Batch processing started in background. Check logs for progress.',
-      total: totalCount,
-    };
-  }
-
-  private async processPostsSuggestedTagsInBackground(
-    batchSize: number,
-    delayBetweenBatchesMs: number,
-    delayBetweenPostsMs: number,
-  ): Promise<void> {
-    const startTime = Date.now();
-    const defaultTag = { id: 48, name: 'other' };
-
-    // Get total count for logging
-    const totalPostsResult = await this.postEntity.query(
-      'SELECT COUNT(*) as count FROM posts',
-    );
-    const totalPosts = parseInt(totalPostsResult[0]?.count || '0', 10);
-    console.log(`[updatePostsSuggestedTagsBatch] Total posts in database: ${totalPosts}`);
-
-    // Get all posts
-    const allPostsRaw = await this.postEntity.query(`
-      SELECT id, generationParams 
-      FROM posts
-    `);
-
-    // Transform raw results
-    const allPosts = allPostsRaw.map((post: any) => ({
-      id: post.id,
-      generationParams: post.generationParams,
-    }));
-
-    let processed = 0;
-    let updated = 0;
-    let skipped = 0;
-    const total = allPosts.length;
-
-    console.log(`[updatePostsSuggestedTagsBatch] Retrieved ${total} posts from database`);
-    
-    if (total !== totalPosts) {
-      console.warn(`[updatePostsSuggestedTagsBatch] ⚠️ WARNING: Retrieved ${total} posts but database has ${totalPosts} posts!`);
-    } else {
-      console.log(`[updatePostsSuggestedTagsBatch] ✅ Successfully retrieved all ${total} posts`);
-    }
-
-    // Process posts in batches
-    const totalBatches = Math.ceil(total / batchSize);
-    for (let i = 0; i < allPosts.length; i += batchSize) {
-      const batchNumber = Math.floor(i / batchSize) + 1;
-      const batch = allPosts.slice(i, i + batchSize);
-      
-      console.log(`[updatePostsSuggestedTagsBatch] Processing batch ${batchNumber}/${totalBatches} (${batch.length} posts)...`);
-      
-      // Process batch - only update posts missing suggestedTags
-      for (const post of batch) {
-        try {
-          // Check if suggestedTags already exists
-          let existingParams = post.generationParams;
-          if (!existingParams || typeof existingParams !== 'object') {
-            existingParams = {};
-          }
-
-          // Skip if suggestedTags already exists and is not empty
-          if (
-            existingParams.suggestedTags &&
-            Array.isArray(existingParams.suggestedTags) &&
-            existingParams.suggestedTags.length > 0
-          ) {
-            skipped++;
-            processed++;
-            continue;
-          }
-
-          // Add default suggestedTags only if missing
-          const updatedParams = {
-            ...existingParams,
-            suggestedTags: [defaultTag],
-          };
-
-          await this.postEntity.update(
-            { id: post.id },
-            { generationParams: updatedParams },
-          );
-          updated++;
-          processed++;
-        } catch (error) {
-          console.error(`[updatePostsSuggestedTagsBatch] Failed to process post ${post.id}:`, error?.message || error);
-          processed++;
-        }
-      }
-
-      // Log progress after each batch
-      const progress = ((processed / total) * 100).toFixed(2);
-      console.log(`[updatePostsSuggestedTagsBatch] Batch ${batchNumber}/${totalBatches} completed. Progress: ${progress}% (${processed}/${total}) | Updated: ${updated} | Skipped: ${skipped}`);
-
-      // No delay between batches - process as fast as possible
-    }
-
-    const endTime = Date.now();
-    const duration = ((endTime - startTime) / 1000).toFixed(2);
-    
-    console.log(`[updatePostsSuggestedTagsBatch] ✅ All batches completed! Processing finished.`);
-    console.log(`[updatePostsSuggestedTagsBatch] ==========================================`);
-    console.log(`[updatePostsSuggestedTagsBatch] Final Statistics:`);
-    console.log(`[updatePostsSuggestedTagsBatch] Total posts: ${total}`);
-    console.log(`[updatePostsSuggestedTagsBatch] Processed: ${processed}`);
-    console.log(`[updatePostsSuggestedTagsBatch] Updated: ${updated}`);
-    console.log(`[updatePostsSuggestedTagsBatch] Skipped: ${skipped}`);
-    console.log(`[updatePostsSuggestedTagsBatch] Duration: ${duration}s`);
-    console.log(`[updatePostsSuggestedTagsBatch] ==========================================`);
-  }
-
-  private generateCloudinaryPreviewUrl(videoUrl: string): string | null {
-    try {
-      // Check if URL is from Cloudinary
-      if (!videoUrl.includes('cloudinary.com')) {
-        return null;
-      }
-
-      // Replace video extension with jpg for preview
-      // Example: https://res.cloudinary.com/account/video/upload/v123/video.mp4
-      // Becomes: https://res.cloudinary.com/account/video/upload/v123/video.jpg
-      const previewUrl = videoUrl.replace(/\.(mp4|webm|mov|avi)$/i, '.jpg');
-      
-      return previewUrl;
-    } catch (error) {
-      console.warn(`[generateCloudinaryPreviewUrl] Failed to generate preview URL from ${videoUrl}:`, error?.message || error);
-      return null;
-    }
-  }
-
-  async updateVideoPreviewsAndTagsBatch(
-    batchSize: number = 10,
-    delayBetweenBatches: number = 100,
-  ): Promise<{ message: string; total: number }> {
-    // No delays - process as fast as possible
-    const delayBetweenBatchesMs = 0;
-    const delayBetweenPostsMs = 0;
-    
-    // Get total count first to return immediately
-    const countResult = await this.postEntity.query(
-      'SELECT COUNT(*) as count FROM posts WHERE videoUrl IS NOT NULL AND LENGTH(videoUrl) > 0',
-    );
-    const totalCount = parseInt(countResult[0]?.count || '0', 10);
-    
-    console.log(`[updateVideoPreviewsAndTagsBatch] Starting background batch processing...`);
-    console.log(`[updateVideoPreviewsAndTagsBatch] Total video posts to process: ${totalCount}`);
-    console.log(`[updateVideoPreviewsAndTagsBatch] Batch size: ${batchSize}`);
-    console.log(`[updateVideoPreviewsAndTagsBatch] Delay between batches: ${delayBetweenBatchesMs}ms (fixed)`);
-    console.log(`[updateVideoPreviewsAndTagsBatch] Delay between posts: ${delayBetweenPostsMs}ms (fixed)`);
-
-    // Start processing in background (don't await)
-    this.processVideoPreviewsAndTagsInBackground(batchSize, delayBetweenBatchesMs, delayBetweenPostsMs).catch((error) => {
-      console.error(`[updateVideoPreviewsAndTagsBatch] Background processing error:`, error);
-    });
-
-    // Return immediately
-    return {
-      message: 'Batch processing started in background. Check logs for progress.',
-      total: totalCount,
-    };
-  }
-
-  private async processVideoPreviewsAndTagsInBackground(
-    batchSize: number,
-    delayBetweenBatchesMs: number,
-    delayBetweenPostsMs: number,
-  ): Promise<void> {
-    const startTime = Date.now();
-    const defaultTag = { id: 48, name: 'other' };
-
-    // Get total count for logging
-    const totalPostsResult = await this.postEntity.query(
-      'SELECT COUNT(*) as count FROM posts WHERE videoUrl IS NOT NULL AND LENGTH(videoUrl) > 0',
-    );
-    const totalPosts = parseInt(totalPostsResult[0]?.count || '0', 10);
-    console.log(`[updateVideoPreviewsAndTagsBatch] Total video posts in database: ${totalPosts}`);
-
-    // Get all video posts
-    const allPostsRaw = await this.postEntity.query(`
-      SELECT id, videoUrl, previewImageUrl, generationParams 
-      FROM posts 
-      WHERE videoUrl IS NOT NULL AND LENGTH(videoUrl) > 0
-    `);
-
-    // Transform raw results
-    const allPosts = allPostsRaw.map((post: any) => ({
-      id: post.id,
-      videoUrl: post.videoUrl,
-      previewImageUrl: post.previewImageUrl,
-      generationParams: post.generationParams,
-    }));
-
-    let processed = 0;
-    let previewUpdated = 0;
-    let tagsUpdated = 0;
-    let skipped = 0;
-    let failed = 0;
-    const total = allPosts.length;
-
-    console.log(`[updateVideoPreviewsAndTagsBatch] Retrieved ${total} video posts from database`);
-    
-    if (total !== totalPosts) {
-      console.warn(`[updateVideoPreviewsAndTagsBatch] ⚠️ WARNING: Retrieved ${total} posts but database has ${totalPosts} posts!`);
-    } else {
-      console.log(`[updateVideoPreviewsAndTagsBatch] ✅ Successfully retrieved all ${total} video posts`);
-    }
-
-    // Process posts in batches
-    const totalBatches = Math.ceil(total / batchSize);
-    for (let i = 0; i < allPosts.length; i += batchSize) {
-      const batchNumber = Math.floor(i / batchSize) + 1;
-      const batch = allPosts.slice(i, i + batchSize);
-      
-      console.log(`[updateVideoPreviewsAndTagsBatch] Processing batch ${batchNumber}/${totalBatches} (${batch.length} posts)...`);
-      
-      // Process batch - update previewImageUrl and suggestedTags
-      for (const post of batch) {
-        try {
-          let needsUpdate = false;
-          let updatedPreviewImageUrl = post.previewImageUrl;
-          let updatedGenerationParams = post.generationParams;
-
-          // Handle generationParams
-          if (!updatedGenerationParams || typeof updatedGenerationParams !== 'object') {
-            updatedGenerationParams = {};
-          }
-
-          // Check and update previewImageUrl if missing
-          if (!post.previewImageUrl || post.previewImageUrl.trim() === '') {
-            const previewUrl = this.generateCloudinaryPreviewUrl(post.videoUrl);
-            if (previewUrl) {
-              updatedPreviewImageUrl = previewUrl;
-              needsUpdate = true;
-              previewUpdated++;
-            } else {
-              console.warn(`[updateVideoPreviewsAndTagsBatch] Could not generate preview URL for post ${post.id} with videoUrl: ${post.videoUrl}`);
-            }
-          }
-
-          // Check and update suggestedTags if missing
-          if (
-            !updatedGenerationParams.suggestedTags ||
-            !Array.isArray(updatedGenerationParams.suggestedTags) ||
-            updatedGenerationParams.suggestedTags.length === 0
-          ) {
-            updatedGenerationParams = {
-              ...updatedGenerationParams,
-              suggestedTags: [defaultTag],
-            };
-            needsUpdate = true;
-            tagsUpdated++;
-          }
-
-          // Update post if needed
-          if (needsUpdate) {
-            const updateData: any = {};
-            
-            if (updatedPreviewImageUrl !== post.previewImageUrl) {
-              updateData.previewImageUrl = updatedPreviewImageUrl;
-            }
-            
-            if (JSON.stringify(updatedGenerationParams) !== JSON.stringify(post.generationParams)) {
-              updateData.generationParams = updatedGenerationParams;
-            }
-
-            if (Object.keys(updateData).length > 0) {
-              await this.postEntity.update(
-                { id: post.id },
-                updateData,
-              );
-            }
-          } else {
-            skipped++;
-          }
-
-          processed++;
-        } catch (error) {
-          console.error(`[updateVideoPreviewsAndTagsBatch] Failed to process post ${post.id}:`, error?.message || error);
-          failed++;
-          processed++;
-        }
-      }
-
-      // Log progress after each batch
-      const progress = ((processed / total) * 100).toFixed(2);
-      console.log(`[updateVideoPreviewsAndTagsBatch] Batch ${batchNumber}/${totalBatches} completed. Progress: ${progress}% (${processed}/${total}) | Preview Updated: ${previewUpdated} | Tags Updated: ${tagsUpdated} | Skipped: ${skipped} | Failed: ${failed}`);
-
-      // No delay between batches - process as fast as possible
-    }
-
-    const endTime = Date.now();
-    const duration = ((endTime - startTime) / 1000).toFixed(2);
-    
-    console.log(`[updateVideoPreviewsAndTagsBatch] ✅ All batches completed! Processing finished.`);
-    console.log(`[updateVideoPreviewsAndTagsBatch] ==========================================`);
-    console.log(`[updateVideoPreviewsAndTagsBatch] Final Statistics:`);
-    console.log(`[updateVideoPreviewsAndTagsBatch] Total video posts: ${total}`);
-    console.log(`[updateVideoPreviewsAndTagsBatch] Processed: ${processed}`);
-    console.log(`[updateVideoPreviewsAndTagsBatch] Preview ImageUrl Updated: ${previewUpdated}`);
-    console.log(`[updateVideoPreviewsAndTagsBatch] SuggestedTags Updated: ${tagsUpdated}`);
-    console.log(`[updateVideoPreviewsAndTagsBatch] Skipped: ${skipped}`);
-    console.log(`[updateVideoPreviewsAndTagsBatch] Failed: ${failed}`);
-    console.log(`[updateVideoPreviewsAndTagsBatch] Duration: ${duration}s`);
-    console.log(`[updateVideoPreviewsAndTagsBatch] ==========================================`);
-  }
-
-  async updateVideoDimensionsBatch(
-    batchSize: number = 10,
-    delayBetweenBatches: number = 100,
-  ): Promise<{ message: string; total: number }> {
-    // No delays - process as fast as possible
-    const delayBetweenBatchesMs = 0;
-    const delayBetweenPostsMs = 0;
-    
-    // Get total count first to return immediately
-    const countResult = await this.postEntity.query(
-      'SELECT COUNT(*) as count FROM posts WHERE videoUrl IS NOT NULL AND LENGTH(videoUrl) > 0',
-    );
-    const totalCount = parseInt(countResult[0]?.count || '0', 10);
-    
-    console.log(`[updateVideoDimensionsBatch] Starting background batch processing...`);
-    console.log(`[updateVideoDimensionsBatch] Total video posts to process: ${totalCount}`);
-    console.log(`[updateVideoDimensionsBatch] Batch size: ${batchSize}`);
-    console.log(`[updateVideoDimensionsBatch] Delay between batches: ${delayBetweenBatchesMs}ms (fixed)`);
-    console.log(`[updateVideoDimensionsBatch] Delay between posts: ${delayBetweenPostsMs}ms (fixed)`);
-
-    // Start processing in background (don't await)
-    this.processVideoDimensionsInBackground(batchSize, delayBetweenBatchesMs, delayBetweenPostsMs).catch((error) => {
-      console.error(`[updateVideoDimensionsBatch] Background processing error:`, error);
-    });
-
-    // Return immediately
-    return {
-      message: 'Batch processing started in background. Check logs for progress.',
-      total: totalCount,
-    };
-  }
-
-  private async processVideoDimensionsInBackground(
-    batchSize: number,
-    delayBetweenBatchesMs: number,
-    delayBetweenPostsMs: number,
-  ): Promise<void> {
-    const startTime = Date.now();
-
-    // Get total count for logging
-    const totalPostsResult = await this.postEntity.query(
-      'SELECT COUNT(*) as count FROM posts WHERE videoUrl IS NOT NULL AND LENGTH(videoUrl) > 0',
-    );
-    const totalPosts = parseInt(totalPostsResult[0]?.count || '0', 10);
-    console.log(`[updateVideoDimensionsBatch] Total video posts in database: ${totalPosts}`);
-
-    // Get all video posts
-    const allPostsRaw = await this.postEntity.query(`
-      SELECT id, videoUrl, generation_params 
-      FROM posts 
-      WHERE videoUrl IS NOT NULL AND LENGTH(videoUrl) > 0
-    `);
-
-    // Transform raw results
-    const allPosts = allPostsRaw.map((post: any) => ({
-      id: post.id,
-      videoUrl: post.videoUrl,
-      generationParams: post.generationParams,
-    }));
-
-    let processed = 0;
-    let updated = 0;
-    let failed = 0;
-    let skipped = 0;
-    const total = allPosts.length;
-
-    console.log(`[updateVideoDimensionsBatch] Retrieved ${total} video posts from database`);
-    
-    if (total !== totalPosts) {
-      console.warn(`[updateVideoDimensionsBatch] ⚠️ WARNING: Retrieved ${total} posts but database has ${totalPosts} posts!`);
-    } else {
-      console.log(`[updateVideoDimensionsBatch] ✅ Successfully retrieved all ${total} video posts`);
-    }
-
-    // Process posts in batches
-    const totalBatches = Math.ceil(total / batchSize);
-    for (let i = 0; i < allPosts.length; i += batchSize) {
-      const batchNumber = Math.floor(i / batchSize) + 1;
-      const batch = allPosts.slice(i, i + batchSize);
-      
-      console.log(`[updateVideoDimensionsBatch] Processing batch ${batchNumber}/${totalBatches} (${batch.length} posts)...`);
-      
-      // Process batch - only update posts missing width and height
-      for (const post of batch) {
-        try {
-          // Skip if no videoUrl
-          if (!post.videoUrl) {
-            processed++;
-            skipped++;
-            continue;
-          }
-
-          // Check if width and height already exist in generationParams
-          let existingParams = post.generationParams;
-          if (!existingParams || typeof existingParams !== 'object') {
-            existingParams = {};
-          }
-
-          // Skip if already has width and height
-          if (
-            existingParams.width &&
-            existingParams.height &&
-            typeof existingParams.width === 'number' &&
-            typeof existingParams.height === 'number'
-          ) {
-            processed++;
-            skipped++;
-            continue;
-          }
-
-          // Get video dimensions only if missing
-          const dimensions = await this.getVideoDimensions(post.videoUrl);
-          
-          if (dimensions) {
-            // Update generation_params with real dimensions
-            const updatedParams = {
-              ...existingParams,
-              width: dimensions.width,
-              height: dimensions.height,
-            };
-
-            await this.postEntity.update(
-              { id: post.id },
-              { generationParams: updatedParams },
-            );
-
-            updated++;
-            processed++;
-          } else {
-            console.warn(`[updateVideoDimensionsBatch] Could not get dimensions for post ${post.id} with videoUrl: ${post.videoUrl}`);
-            processed++;
-            skipped++;
-          }
-        } catch (error) {
-          console.error(`[updateVideoDimensionsBatch] Failed to process post ${post.id}:`, error?.message || error);
-          failed++;
-          processed++;
-        }
-      }
-
-      // Log progress after each batch
-      const progress = ((processed / total) * 100).toFixed(2);
-      console.log(`[updateVideoDimensionsBatch] Batch ${batchNumber}/${totalBatches} completed. Progress: ${progress}% (${processed}/${total}) | Updated: ${updated} | Skipped: ${skipped} | Failed: ${failed}`);
-
-      // No delay between batches - process as fast as possible
-    }
-
-    const endTime = Date.now();
-    const duration = ((endTime - startTime) / 1000).toFixed(2);
-    
-    console.log(`[updateVideoDimensionsBatch] ✅ All batches completed! Processing finished.`);
-    console.log(`[updateVideoDimensionsBatch] ==========================================`);
-    console.log(`[updateVideoDimensionsBatch] Final Statistics:`);
-    console.log(`[updateVideoDimensionsBatch] Total video posts: ${total}`);
-    console.log(`[updateVideoDimensionsBatch] Processed: ${processed}`);
-    console.log(`[updateVideoDimensionsBatch] Updated: ${updated}`);
-    console.log(`[updateVideoDimensionsBatch] Skipped: ${skipped}`);
-    console.log(`[updateVideoDimensionsBatch] Failed: ${failed}`);
-    console.log(`[updateVideoDimensionsBatch] Duration: ${duration}s`);
-    console.log(`[updateVideoDimensionsBatch] ==========================================`);
-  }
 
   async blockPost(post_id: number) {
     const post = await this.postEntity.findOne({ where: { id: post_id } });

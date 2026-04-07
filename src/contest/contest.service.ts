@@ -28,6 +28,8 @@ import { RoleEnum } from 'src/user/types/role.enum';
 import { FirebaseService } from 'src/firebase/firebase.service';
 import { RewardService } from 'src/reward/reward.service';
 import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
+import { MediaAISettingsEntity } from 'src/media-generation/entities/media-ai-settings.entity';
+import { UserActivityService } from 'src/user-activity/services/user-activity.service';
 const axios = require('axios');
 import * as https from 'https';
 
@@ -45,10 +47,13 @@ export class ContestService {
     private readonly postRepository: Repository<PostEntity>,
     @InjectRepository(TagEntity)
     private readonly tagRepository: Repository<TagEntity>,
+    @InjectRepository(MediaAISettingsEntity)
+    private readonly mediaAISettingsRepository: Repository<MediaAISettingsEntity>,
     @InjectRepository(DeviceTokenEntity)
     private readonly deviceTokenModel: Repository<DeviceTokenEntity>,
     private readonly userService: UserService,
     private readonly activityService: ActivityService,
+    private readonly userActivityService: UserActivityService,
     private readonly firebaseService: FirebaseService,
     private readonly notificationGateway: NotificationGateway,
     private readonly rewardService: RewardService,
@@ -69,7 +74,7 @@ export class ContestService {
 
     const contests = await this.contestRepository.find({
       where: whereCondition,
-      relations: ['winner', 'tag'],
+      relations: ['winner', 'tag', 'mediaAiSetting'],
       order: { status: 'DESC' },
     });
 
@@ -101,6 +106,8 @@ export class ContestService {
       is_won: contest.winner?.id === userId,
       is_approved: contest.isApproved,
       contestType: contest.contestType,
+      mediaAiService: contest.mediaAiSetting?.aiService ?? null,
+      mediaCapability: contest.mediaAiSetting?.capability ?? null,
       examplePrompt: contest.promptExample,
       endTime: contest.endTime,
       tag: {
@@ -116,6 +123,7 @@ export class ContestService {
       .leftJoinAndSelect('contest.participants', 'user')
       .leftJoinAndSelect('contest.tag', 'tag')
       .leftJoinAndSelect('contest.winner', 'winner')
+      .leftJoinAndSelect('contest.mediaAiSetting', 'mediaAiSetting')
       .select([
         'contest.id',
         'contest.name',
@@ -126,6 +134,9 @@ export class ContestService {
         'tag.name',
         'tag.id',
         'winner.id',
+        'mediaAiSetting.id',
+        'mediaAiSetting.aiService',
+        'mediaAiSetting.capability',
       ])
       .where('user.id = :userId', { userId })
       .getMany();
@@ -137,6 +148,8 @@ export class ContestService {
       reward: contest.reward,
       description: contest.description,
       is_won: contest.winner?.id === userId,
+      mediaAiService: contest.mediaAiSetting?.aiService ?? null,
+      mediaCapability: contest.mediaAiSetting?.capability ?? null,
       tag: {
         id: contest?.tag?.id,
         name: contest?.tag?.name,
@@ -148,7 +161,7 @@ export class ContestService {
   async getWonContests(userId: number) {
     const contests = await this.contestRepository.find({
       where: { winner: { id: userId } },
-      relations: { tag: true, participants: true },
+      relations: { tag: true, participants: true, mediaAiSetting: true },
     });
 
     return contests.map((contest) => ({
@@ -159,6 +172,8 @@ export class ContestService {
       reward: contest.reward,
       description: contest.description,
       is_won: true,
+      mediaAiService: contest.mediaAiSetting?.aiService ?? null,
+      mediaCapability: contest.mediaAiSetting?.capability ?? null,
       tag: {
         id: contest?.tag?.id,
         name: contest?.tag?.name,
@@ -538,13 +553,21 @@ export class ContestService {
 
       const batchUserIds = users.map(user => user.id);
 
-        try {
+      try {
           await this.activityService.createActivitiesV2({
             fromUserId: null,
             toUserIds: batchUserIds,
             type: ActivityEnum.CONTEST_OPEN,
             isAdmin: false,
             contest,
+          });
+
+          await this.userActivityService.logContestOpened({
+            userIds: batchUserIds,
+            contestId: contest.id,
+            contestName: contest.name,
+            contestType: contest.contestType,
+            previewUrl: contest.imageUrl ?? null,
           });
       } catch (activityError) {
         console.error(`❌ Failed to create activities for batch (offset ${offset}):`, activityError.message);
@@ -804,6 +827,10 @@ export class ContestService {
       where: { id: data.tag_id },
     });
     if (!tag) throw new BadRequestException('Tag not found');
+    const mediaAiSetting = await this.resolveContestMediaAiSettingForAdmin({
+      mediaAiSettingId: data.media_ai_setting_id ?? null,
+      fineTuneToken: data.fineTuneToken ?? null,
+    });
 
     const socialPostSettings = {
       postToTwitter: data.socialPostSettings?.postToTwitter ?? false,
@@ -813,10 +840,12 @@ export class ContestService {
     const contest = this.contestRepository.create({
       ...data,
       tag,
+      mediaAiSetting,
       promptExample: data.examplePrompt,
-      contestType: data.fineTuneToken
-        ? ContestTypeEnum.FINE_TUNE
-        : ContestTypeEnum.DEFAULT,
+      contestType: this.resolveContestType(
+        data.fineTuneToken ?? null,
+        mediaAiSetting.aiService,
+      ),
       startTime: new Date(data.start_time),
       endTime: new Date(data.end_time),
       isApproved: false,
@@ -848,6 +877,123 @@ export class ContestService {
     if (end <= start) {
       throw new BadRequestException('End time must be later than start time');
     }
+  }
+
+  private async resolveContestMediaAiSettingForAdmin(params: {
+    mediaAiSettingId?: number | null;
+    fineTuneToken?: string | null;
+  }): Promise<MediaAISettingsEntity> {
+    const fineTuneToken = params.fineTuneToken?.trim();
+
+    if (fineTuneToken) {
+      if (params.mediaAiSettingId != null) {
+        const explicitSetting = await this.getActiveMediaAiSettingById(
+          params.mediaAiSettingId,
+        );
+        if (explicitSetting.aiService !== 'flux_fine_tune') {
+          throw new BadRequestException(
+            'Fine-tune contests must use the flux_fine_tune media model.',
+          );
+        }
+        return explicitSetting;
+      }
+
+      return this.getActiveMediaAiSettingByAiService('flux_fine_tune');
+    }
+
+    if (params.mediaAiSettingId != null) {
+      const explicitSetting = await this.getActiveMediaAiSettingById(
+        params.mediaAiSettingId,
+      );
+      if (explicitSetting.capability !== 'image_generate') {
+        throw new BadRequestException(
+          'Contests currently support only image_generate media models.',
+        );
+      }
+      if (explicitSetting.aiService === 'flux_fine_tune') {
+        throw new BadRequestException(
+          'flux_fine_tune requires fineTuneToken to be configured.',
+        );
+      }
+      return explicitSetting;
+    }
+
+    const defaultSetting = await this.mediaAISettingsRepository.findOne({
+      where: {
+        aiService: 'nano_banana',
+        capability: 'image_generate',
+        isActive: true,
+      },
+    });
+
+    if (defaultSetting) {
+      return defaultSetting;
+    }
+
+    const fallbackSetting = await this.mediaAISettingsRepository.findOne({
+      where: {
+        capability: 'image_generate',
+        isActive: true,
+      },
+      order: {
+        id: 'ASC',
+      },
+    });
+
+    if (!fallbackSetting) {
+      throw new BadRequestException(
+        'No active image_generate media model configured for contests.',
+      );
+    }
+
+    return fallbackSetting;
+  }
+
+  private async getActiveMediaAiSettingById(
+    mediaAiSettingId: number,
+  ): Promise<MediaAISettingsEntity> {
+    const mediaAiSetting = await this.mediaAISettingsRepository.findOne({
+      where: {
+        id: mediaAiSettingId,
+        isActive: true,
+      },
+    });
+
+    if (!mediaAiSetting) {
+      throw new BadRequestException(
+        `Media AI setting with ID ${mediaAiSettingId} not found.`,
+      );
+    }
+
+    return mediaAiSetting;
+  }
+
+  private async getActiveMediaAiSettingByAiService(
+    aiService: string,
+  ): Promise<MediaAISettingsEntity> {
+    const mediaAiSetting = await this.mediaAISettingsRepository.findOne({
+      where: {
+        aiService,
+        isActive: true,
+      },
+    });
+
+    if (!mediaAiSetting) {
+      throw new BadRequestException(
+        `Media AI setting ${aiService} is not configured.`,
+      );
+    }
+
+    return mediaAiSetting;
+  }
+
+  private resolveContestType(
+    fineTuneToken: string | null,
+    mediaAiService: string,
+  ): ContestTypeEnum {
+    return fineTuneToken || mediaAiService === 'flux_fine_tune'
+        ? ContestTypeEnum.FINE_TUNE
+        : ContestTypeEnum.DEFAULT;
   }
 
 
@@ -971,6 +1117,16 @@ export class ContestService {
       post,
     });
 
+    await this.userActivityService.logContestWon({
+      userId: post.user.id,
+      contestId: contest.id,
+      contestName: contest.name,
+      reward: contest.reward,
+      postId: post.id,
+      previewUrl:
+        post.imageUrl ?? post.previewImageUrl ?? contest.imageUrl ?? null,
+    });
+
     await this.activityService.deleteAdminContestActivity(contest.id);
 
     await this.notificationGateway.sendNotification(
@@ -1061,7 +1217,7 @@ export class ContestService {
   async findContestById(id: number): Promise<ContestEntity> {
     const contest = await this.contestRepository.findOne({
       where: { id },
-      relations: ['tag', 'winner', 'participants'],
+      relations: ['tag', 'winner', 'participants', 'mediaAiSetting'],
     });
     if (!contest)
       throw new NotFoundException(`Contest with ID ${id} not found`);
@@ -1123,15 +1279,47 @@ export class ContestService {
     id: number,
     updateContestDto: UpdateContestDto,
   ): Promise<ContestEntity> {
-    const contest = await this.contestRepository.preload({
-      id: id,
-      ...updateContestDto,
-      startTime: updateContestDto.start_time,
-      endTime: updateContestDto.end_time,
+    const contest = await this.contestRepository.findOne({
+      where: { id },
+      relations: {
+        mediaAiSetting: true,
+        tag: true,
+      },
     });
 
     if (!contest) {
       throw new NotFoundException(`Contest with ID ${id} not found`);
+    }
+
+    if (updateContestDto.name !== undefined) {
+      contest.name = updateContestDto.name;
+    }
+    if (updateContestDto.imageUrl !== undefined) {
+      contest.imageUrl = updateContestDto.imageUrl;
+    }
+    if (updateContestDto.description !== undefined) {
+      contest.description = updateContestDto.description;
+    }
+    if (updateContestDto.reward !== undefined) {
+      contest.reward = updateContestDto.reward;
+    }
+    if (updateContestDto.status !== undefined) {
+      contest.status = updateContestDto.status;
+    }
+    if (updateContestDto.start_time !== undefined) {
+      contest.startTime = new Date(updateContestDto.start_time);
+    }
+    if (updateContestDto.end_time !== undefined) {
+      contest.endTime = new Date(updateContestDto.end_time);
+    }
+    if (updateContestDto.fineTuneToken !== undefined) {
+      contest.fineTuneToken = updateContestDto.fineTuneToken;
+    }
+    if (updateContestDto.fineTuneTriggerWord !== undefined) {
+      contest.fineTuneTriggerWord = updateContestDto.fineTuneTriggerWord;
+    }
+    if (updateContestDto.fineTuneStrength !== undefined) {
+      contest.fineTuneStrength = updateContestDto.fineTuneStrength;
     }
 
     if (updateContestDto.tag_id) {
@@ -1153,6 +1341,23 @@ export class ContestService {
         postToInstagram:
           updateContestDto.socialPostSettings.postToInstagram ?? false,
       };
+    }
+
+    if (
+      updateContestDto.media_ai_setting_id !== undefined ||
+      updateContestDto.fineTuneToken !== undefined
+    ) {
+      const mediaAiSetting = await this.resolveContestMediaAiSettingForAdmin({
+        mediaAiSettingId:
+          updateContestDto.media_ai_setting_id ?? contest.mediaAiSetting?.id ?? null,
+        fineTuneToken: contest.fineTuneToken ?? null,
+      });
+
+      contest.mediaAiSetting = mediaAiSetting;
+      contest.contestType = this.resolveContestType(
+        contest.fineTuneToken ?? null,
+        mediaAiSetting.aiService,
+      );
     }
 
     return this.contestRepository.save(contest);

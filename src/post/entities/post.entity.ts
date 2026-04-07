@@ -13,6 +13,7 @@ import { TimeStampEntity } from '../../database/entities/time-stamp.entity';
 import { ViewedPostEntity } from './viwed.entity';
 import { ContestEntity } from '../../contest/entity/contest.entity';
 import { ActivityEntity } from '../../activity/entities/activity.entity';
+import { UserActivityEntity } from '../../user-activity/entities/user-activity.entity';
 
 @Entity('posts')
 export class PostEntity extends TimeStampEntity {
@@ -75,6 +76,9 @@ export class PostEntity extends TimeStampEntity {
   @OneToMany(() => ActivityEntity, (activity) => activity.post)
   activities: ActivityEntity[];
 
+  @OneToMany(() => UserActivityEntity, (activity) => activity.post)
+  userActivities: UserActivityEntity[];
+
   @Column({ type: 'boolean', default: true, name: 'isDelivered' })
   isDelivered: boolean;
 
@@ -88,10 +92,14 @@ export class PostEntity extends TimeStampEntity {
   @Column({ type: 'json', nullable: true, name: 'generationParams' })
   generationParams: {
     prompt?: string;
+    translatedPrompt?: string;
+    resolvedPrompt?: string;
     aiService?: string;
     orientation?: 'horizontal' | 'vertical';
     styleId?: number;
+    styleName?: string;
     colorId?: number;
+    colorName?: string;
     width?: number;
     height?: number;
     duration?: number;
@@ -100,6 +108,7 @@ export class PostEntity extends TimeStampEntity {
     /** Meme generation (Kling motion control) */
     memeId?: number;
     sourceImageUrl?: string;
+    sourceVideoUrl?: string;
     memeName?: string;
   } | null;
 }
