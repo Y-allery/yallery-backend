@@ -7,6 +7,7 @@ import { PostEntity } from 'src/post/entities/post.entity';
 import { ServiceTokenModule } from 'src/service-token/service-token.module';
 import { StyleEntity } from 'src/post/entities/style.entity';
 import { TagEntity } from 'src/tag/entities/tag.entity';
+import { MemeEntity } from 'src/meme/entities/meme.entity';
 import { FalAiMediaProvider } from './providers/fal/fal-ai-media.provider';
 import { InternalMediaProvider } from './providers/internal/internal-media.provider';
 import { RunpodOpenEndpointMediaProvider } from './providers/runpod/runpod-open-endpoint-media.provider';
@@ -16,12 +17,14 @@ import {
   MEDIA_AUDIO_GENERATION_QUEUE,
   MEDIA_IMAGE_EDIT_GENERATION_QUEUE,
   MEDIA_IMAGE_VIDEO_GENERATION_QUEUE,
+  MEDIA_MEME_GENERATION_QUEUE,
   MEDIA_PROMPT_IMAGE_GENERATION_QUEUE,
   MEDIA_TEXT_VIDEO_GENERATION_QUEUE,
 } from './constants/media-generation.queue';
 import { MediaAudioProcessor } from './processors/media-audio.processor';
 import { MediaEditImageProcessor } from './processors/media-edit-image.processor';
 import { MediaImageVideoProcessor } from './processors/media-image-video.processor';
+import { MediaMemeProcessor } from './processors/media-meme.processor';
 import { MediaPromptImageProcessor } from './processors/media-prompt-image.processor';
 import { MediaTextVideoProcessor } from './processors/media-text-video.processor';
 import { MediaGenerationService } from './media-generation.service';
@@ -42,6 +45,7 @@ import { ColorEntity } from './entities/color.entity';
     BullModule.registerQueue({ name: MEDIA_AUDIO_GENERATION_QUEUE }),
     BullModule.registerQueue({ name: MEDIA_IMAGE_EDIT_GENERATION_QUEUE }),
     BullModule.registerQueue({ name: MEDIA_IMAGE_VIDEO_GENERATION_QUEUE }),
+    BullModule.registerQueue({ name: MEDIA_MEME_GENERATION_QUEUE }),
     BullModule.registerQueue({ name: MEDIA_PROMPT_IMAGE_GENERATION_QUEUE }),
     BullModule.registerQueue({ name: MEDIA_TEXT_VIDEO_GENERATION_QUEUE }),
     TypeOrmModule.forFeature([
@@ -53,6 +57,7 @@ import { ColorEntity } from './entities/color.entity';
       UserEntity,
       ContestEntity,
       PostEntity,
+      MemeEntity,
     ]),
     UploadModule,
     NotificationModule,
@@ -70,6 +75,7 @@ import { ColorEntity } from './entities/color.entity';
     MediaAudioProcessor,
     MediaEditImageProcessor,
     MediaImageVideoProcessor,
+    MediaMemeProcessor,
     MediaPromptImageProcessor,
     MediaTextVideoProcessor,
     FalAiMediaProvider,

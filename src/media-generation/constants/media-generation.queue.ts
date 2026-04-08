@@ -6,3 +6,4 @@ export const MEDIA_TEXT_VIDEO_GENERATION_QUEUE = 'media_text_video_generation';
 export const MEDIA_IMAGE_VIDEO_GENERATION_QUEUE =
   'media_image_video_generation';
 export const MEDIA_AUDIO_GENERATION_QUEUE = 'media_audio_generation';
+export const MEDIA_MEME_GENERATION_QUEUE = 'media_meme_generation';

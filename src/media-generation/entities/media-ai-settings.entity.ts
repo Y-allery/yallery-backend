@@ -4,6 +4,9 @@ import { TimeStampEntity } from '../../database/entities/time-stamp.entity';
 export interface MediaAISettingsJson {
   durations?: number[];
   contestOnly?: boolean;
+  characterOrientations?: Array<'image' | 'video'>;
+  defaultCharacterOrientation?: 'image' | 'video';
+  keepOriginalSound?: boolean;
 }
 
 @Entity('media_ai_settings')

@@ -7,6 +7,9 @@ It is meant to sit above the remaining domain modules and replace legacy generat
 - `image-generation`
 - `meme`
 
+The `meme` domain module still owns meme templates and admin CRUD. Only the
+generation workflow lives here.
+
 The goal is to centralize three decisions in one place:
 
 1. Which capability is being requested.

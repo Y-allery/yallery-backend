@@ -9,6 +9,8 @@ import { UploadService } from 'src/upload/upload.service';
 import { MediaGenerationProvider } from '../../contracts/media-generation-provider.contract';
 import { EditImageGenerationRequest } from '../../contracts/edit-image-generation-request.contract';
 import { ImageVideoGenerationRequest } from '../../contracts/image-video-generation-request.contract';
+import { MemeGenerationRequest } from '../../contracts/meme-generation-request.contract';
+import { MemeGenerationResult } from '../../contracts/meme-generation-result.contract';
 import { PromptImageGenerationResult } from '../../contracts/prompt-image-generation-result.contract';
 import { ResolvedPromptImageGenerationRequest } from '../../contracts/prompt-image-generation-request.contract';
 import { TextVideoGenerationRequest } from '../../contracts/text-video-generation-request.contract';
@@ -124,6 +126,28 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
     const endpointId = this.getEndpointIdForImageVideoRequest(request);
     const initialJob = await this.submitJob(endpointId, {
       input: this.buildImageVideoInput(request),
+    });
+    const completedJob = await this.waitForCompletion(
+      endpointId,
+      initialJob,
+      'video',
+    );
+    const providerVideoSource = this.extractVideoSource(completedJob.output);
+    const uploadedVideoUrl =
+      await this.uploadService.uploadVideoByUrl(providerVideoSource);
+
+    return {
+      videoUrl: uploadedVideoUrl,
+      rawOutput: completedJob.output,
+    };
+  }
+
+  async generateMemes(
+    request: MemeGenerationRequest,
+  ): Promise<MemeGenerationResult> {
+    const endpointId = this.getEndpointIdForMemeRequest(request);
+    const initialJob = await this.submitJob(endpointId, {
+      input: this.buildMemeInput(request),
     });
     const completedJob = await this.waitForCompletion(
       endpointId,
@@ -429,6 +453,19 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
     };
   }
 
+  private buildMemeInput(request: MemeGenerationRequest) {
+    return {
+      prompt:
+        request.prompt?.trim() ||
+        'Make the character in the image follow the movements of the character in the video.',
+      character_orientation: request.characterOrientation ?? 'video',
+      image: request.imageUrl,
+      keep_original_sound: true,
+      negative_prompt: request.negativePrompt?.trim() ?? '',
+      video: request.videoUrl,
+    };
+  }
+
   private getEndpointIdForPromptImageRequest(
     request: ResolvedPromptImageGenerationRequest,
   ): string {
@@ -468,6 +505,16 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
       case 'p_video_image':
       default:
         return this.getRequiredConfig('RUNPOD_P_VIDEO_ENDPOINT_ID');
+    }
+  }
+
+  private getEndpointIdForMemeRequest(request: MemeGenerationRequest): string {
+    switch (request.aiService) {
+      case 'kling_v26_std_motion_control':
+      default:
+        return this.getRequiredConfig(
+          'RUNPOD_KLING_V26_STD_MOTION_CONTROL_ENDPOINT_ID',
+        );
     }
   }
 

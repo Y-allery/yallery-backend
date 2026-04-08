@@ -310,6 +310,72 @@ This endpoint is separate from the legacy video flow and reads from the new \`me
       },
     },
   },
+  getMemeAISettings: {
+    summary: 'Get meme AI settings',
+    description: `Return the meme-generation models served by the new \`media-generation\` module.
+
+This endpoint is separate from the meme template catalog. It reads from the new \`media_ai_settings\` table filtered by \`meme_generate\` capability, while template selection still comes from \`GET /memes\`.`,
+    responses: {
+      success: {
+        status: 200,
+        description: 'Meme AI settings retrieved successfully.',
+        schema: {
+          type: 'object',
+          properties: {
+            defaultSettings: {
+              type: 'object',
+              properties: {
+                defaultAI: {
+                  type: 'string',
+                  example: 'kling_v26_std_motion_control',
+                  nullable: true,
+                },
+              },
+            },
+            aiSettings: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  aiService: {
+                    type: 'string',
+                    example: 'kling_v26_std_motion_control',
+                  },
+                  name: { type: 'string', example: 'Kling v2.6 Standard Motion Control' },
+                  cost: { type: 'number', example: 100 },
+                  description: { type: 'string', nullable: true },
+                  settings: {
+                    type: 'object',
+                    nullable: true,
+                    properties: {
+                      characterOrientations: {
+                        type: 'array',
+                        items: { type: 'string', enum: ['image', 'video'] },
+                        example: ['image', 'video'],
+                      },
+                      defaultCharacterOrientation: {
+                        type: 'string',
+                        enum: ['image', 'video'],
+                        example: 'video',
+                      },
+                      keepOriginalSound: {
+                        type: 'boolean',
+                        example: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      unauthorized: {
+        status: 401,
+        description: 'Unauthorized - invalid or missing JWT token.',
+      },
+    },
+  },
   generatePromptImage: {
     summary: 'Generate prompt-based images through media orchestration',
     description: `Generate images through the new \`media-generation\` orchestration layer.
@@ -552,6 +618,54 @@ This endpoint is the new provider-facing abstraction for media generation. It re
       notImplemented: {
         status: 501,
         description: 'No media-generation route/provider is configured for the requested image-to-video model yet.',
+      },
+    },
+  },
+  generateMeme: {
+    summary: 'Generate meme video through media orchestration',
+    description: `Generate meme motion-transfer videos through the new \`media-generation\` orchestration layer.
+
+**Current routing behavior:**
+- **Kling v2.6 Standard Motion Control**: routed through the public RunPod \`kling-v2-6-std-motion-control\` endpoint when configured
+
+**What this endpoint does:**
+- Accepts a meme template ID plus a user source image
+- Resolves the reference video from the selected meme template on the backend
+- Pushes the request into a dedicated queue
+- Deducts credits after the meme video is successfully generated
+- Saves the generated meme as a post
+- Delivers the final result through the \`memeGenerated\` websocket event
+- Emits \`profileUpdate\` after points are deducted
+
+**Delivery contract:**
+- HTTP returns only queue acknowledgement
+- Final meme videos are delivered over websocket
+- Offline users receive the same data later through \`undeliveredMemes\``,
+    responses: {
+      success: {
+        status: 201,
+        description: 'Meme generation task has been queued successfully.',
+        schema: {
+          type: 'object',
+          properties: {
+            message: {
+              type: 'string',
+              example: 'Meme generation task has been added to the queue.',
+            },
+          },
+        },
+      },
+      badRequest: {
+        status: 400,
+        description: 'Invalid request payload, inactive meme template, or not enough credits.',
+      },
+      unauthorized: {
+        status: 401,
+        description: 'Unauthorized - invalid or missing JWT token.',
+      },
+      notImplemented: {
+        status: 501,
+        description: 'No media-generation route/provider is configured for the requested meme model yet.',
       },
     },
   },

@@ -149,11 +149,6 @@ export class EnvironmentVariables {
   @IsString()
   X_ROUTER_MODEL?: string; // Model name, default: flux-schnell
 
-  // Replicate (Meme / Kling motion control)
-  @IsOptional()
-  @IsString()
-  REPLICATE_API_TOKEN?: string;
-
   // RunPod
   @IsOptional()
   @IsString()
@@ -177,6 +172,10 @@ export class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
+  RUNPOD_KLING_V26_STD_MOTION_CONTROL_ENDPOINT_ID?: string;
+
+  @IsOptional()
+  @IsString()
   RUNPOD_API_BASE_URL?: string;
 
   @IsOptional()
@@ -194,6 +193,10 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   RUNPOD_P_VIDEO_ENABLED?: string;
+
+  @IsOptional()
+  @IsString()
+  RUNPOD_KLING_V26_STD_MOTION_CONTROL_ENABLED?: string;
 
   @IsOptional()
   @IsNumber()

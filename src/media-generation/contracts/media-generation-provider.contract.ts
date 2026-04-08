@@ -4,6 +4,8 @@ import { AudioGenerationRequest } from './audio-generation-request.contract';
 import { AudioGenerationResult } from './audio-generation-result.contract';
 import { EditImageGenerationRequest } from './edit-image-generation-request.contract';
 import { ImageVideoGenerationRequest } from './image-video-generation-request.contract';
+import { MemeGenerationRequest } from './meme-generation-request.contract';
+import { MemeGenerationResult } from './meme-generation-result.contract';
 import { ResolvedPromptImageGenerationRequest } from './prompt-image-generation-request.contract';
 import { PromptImageGenerationResult } from './prompt-image-generation-result.contract';
 import { TextVideoGenerationRequest } from './text-video-generation-request.contract';
@@ -27,4 +29,7 @@ export interface MediaGenerationProvider {
   generateImageVideos?(
     request: ImageVideoGenerationRequest,
   ): Promise<VideoGenerationResult>;
+  generateMemes?(
+    request: MemeGenerationRequest,
+  ): Promise<MemeGenerationResult>;
 }

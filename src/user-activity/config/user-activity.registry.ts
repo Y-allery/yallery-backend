@@ -45,6 +45,9 @@ export const USER_ACTIVITY_REGISTRY: Record<
     description: 'User spent credits on image, video, or audio generation.',
     buildDescription: (payload, pointsDelta) => {
       const mediaType = String(payload?.mediaType ?? 'media');
+      if (mediaType === 'meme') {
+        return `You spent ${formatPoints(pointsDelta)} YEPs on meme generation`;
+      }
       const mode = String(payload?.mode ?? 'generation').replace(/_/g, ' ');
       return `You spent ${formatPoints(pointsDelta)} YEPs on ${mediaType} ${mode}`;
     },

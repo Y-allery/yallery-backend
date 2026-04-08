@@ -4,6 +4,7 @@ import {
   MEDIA_AUDIO_GENERATION_QUEUE,
   MEDIA_IMAGE_EDIT_GENERATION_QUEUE,
   MEDIA_IMAGE_VIDEO_GENERATION_QUEUE,
+  MEDIA_MEME_GENERATION_QUEUE,
   MEDIA_PROMPT_IMAGE_GENERATION_QUEUE,
   MEDIA_TEXT_VIDEO_GENERATION_QUEUE,
   RUNPOD_IMAGE_GENERATION_QUEUE,
@@ -121,6 +122,26 @@ export class MediaRouteResolverService {
     return null;
   }
 
+  resolveMemeRoute(aiService: string): MediaGenerationRoute | null {
+    if (
+      aiService === 'kling_v26_std_motion_control' &&
+      this.isRunpodKlingMotionControlEnabled()
+    ) {
+      return {
+        capability: MediaCapability.MEME_GENERATE,
+        provider: MediaProvider.RUNPOD,
+        dispatch: MediaDispatch.BULLMQ_QUEUE,
+        aiService,
+        endpointId: this.configService.get<string>(
+          'RUNPOD_KLING_V26_STD_MOTION_CONTROL_ENDPOINT_ID',
+        ),
+        queueName: MEDIA_MEME_GENERATION_QUEUE,
+      };
+    }
+
+    return null;
+  }
+
   describeRoutes() {
     const routes = [
       this.resolvePromptImageRoute('nano_banana'),
@@ -129,6 +150,7 @@ export class MediaRouteResolverService {
       this.resolveAudioRoute('mmaudio_v2'),
       this.resolveTextVideoRoute('p_video_text'),
       this.resolveImageVideoRoute('p_video_image'),
+      this.resolveMemeRoute('kling_v26_std_motion_control'),
     ].filter(Boolean);
     return routes;
   }
@@ -188,6 +210,23 @@ export class MediaRouteResolverService {
     return Boolean(
       this.configService.get<string>('RUNPOD_API_KEY') &&
         this.configService.get<string>('RUNPOD_P_VIDEO_ENDPOINT_ID'),
+    );
+  }
+
+  private isRunpodKlingMotionControlEnabled(): boolean {
+    const isEnabled = this.configService.get<string>(
+      'RUNPOD_KLING_V26_STD_MOTION_CONTROL_ENABLED',
+    );
+
+    if (isEnabled && ['0', 'false', 'no'].includes(isEnabled.toLowerCase())) {
+      return false;
+    }
+
+    return Boolean(
+      this.configService.get<string>('RUNPOD_API_KEY') &&
+        this.configService.get<string>(
+          'RUNPOD_KLING_V26_STD_MOTION_CONTROL_ENDPOINT_ID',
+        ),
     );
   }
 }

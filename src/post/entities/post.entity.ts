@@ -100,11 +100,12 @@ export class PostEntity extends TimeStampEntity {
     height?: number;
     duration?: number;
     negativePrompt?: string;
-    suggestedTags?: { id: number; name: string }[];
+    suggestedTags?: { id: number; name: string; imageUrl?: string | null }[];
     /** Meme generation (Kling motion control) */
     memeId?: number;
     sourceImageUrl?: string;
     sourceVideoUrl?: string;
     memeName?: string;
+    characterOrientation?: 'image' | 'video';
   } | null;
 }

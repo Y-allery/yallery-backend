@@ -14,6 +14,7 @@ import { MEDIA_GENERATION_SWAGGER } from 'src/common/swagger';
 import { GenerateAudioDto } from './dto/generate-audio.dto';
 import { GenerateEditImageDto } from './dto/generate-edit-image.dto';
 import { GenerateImageVideoDto } from './dto/generate-image-video.dto';
+import { GenerateMemeDto } from './dto/generate-meme.dto';
 import { GeneratePromptImageDto } from './dto/generate-prompt-image.dto';
 import { GenerateTextVideoDto } from './dto/generate-text-video.dto';
 import { MediaGenerationService } from './media-generation.service';
@@ -66,6 +67,14 @@ export class MediaGenerationController {
   @ApiResponse(MEDIA_GENERATION_SWAGGER.getImageVideoAISettings.responses.unauthorized)
   getImageVideoAISettings() {
     return this.mediaGenerationService.getImageVideoAISettings();
+  }
+
+  @Get('meme/ai-settings')
+  @ApiOperation(MEDIA_GENERATION_SWAGGER.getMemeAISettings)
+  @ApiResponse(MEDIA_GENERATION_SWAGGER.getMemeAISettings.responses.success)
+  @ApiResponse(MEDIA_GENERATION_SWAGGER.getMemeAISettings.responses.unauthorized)
+  getMemeAISettings() {
+    return this.mediaGenerationService.getMemeAISettings();
   }
 
   @Post('image/prompt')
@@ -244,6 +253,37 @@ export class MediaGenerationController {
 
     return {
       message: 'Video generation task has been added to the queue.',
+    };
+  }
+
+  @Post('meme/generate')
+  @ApiOperation(MEDIA_GENERATION_SWAGGER.generateMeme)
+  @ApiBody({
+    type: GenerateMemeDto,
+    description: 'Meme generation request routed through media-generation.',
+  })
+  @ApiResponse(MEDIA_GENERATION_SWAGGER.generateMeme.responses.success)
+  @ApiResponse(MEDIA_GENERATION_SWAGGER.generateMeme.responses.badRequest)
+  @ApiResponse(MEDIA_GENERATION_SWAGGER.generateMeme.responses.unauthorized)
+  @ApiResponse(MEDIA_GENERATION_SWAGGER.generateMeme.responses.notImplemented)
+  async generateMeme(
+    @Body() dto: GenerateMemeDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    await this.mediaGenerationService.enqueueMemeGeneration(
+      {
+        aiService: dto.ai_service,
+        memeId: dto.meme_id,
+        imageUrl: dto.image_url,
+        prompt: dto.prompt ?? null,
+        negativePrompt: dto.negative_prompt ?? null,
+        characterOrientation: dto.character_orientation,
+      },
+      req.user.id,
+    );
+
+    return {
+      message: 'Meme generation task has been added to the queue.',
     };
   }
 

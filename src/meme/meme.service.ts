@@ -1,7 +1,5 @@
 import {
-  BadRequestException,
   Injectable,
-  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -9,9 +7,6 @@ import { Repository } from 'typeorm';
 import { MemeEntity } from './entities/meme.entity';
 import { CreateMemeDto } from './dto/create-meme.dto';
 import { UpdateMemeDto } from './dto/update-meme.dto';
-import { MEME_GENERATION_QUEUE } from './meme.constants';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
 import { PostEntity } from 'src/post/entities/post.entity';
 
 const POPULAR_MEMES_LIMIT = 6;
@@ -32,28 +27,14 @@ export interface MemesListResponse {
   regular: MemeWithGenerationsCount[];
 }
 
-export interface MemeSettingsResponse {
-  defaultSettings: { cost: number };
-}
-
 @Injectable()
 export class MemeService {
-  private readonly logger = new Logger(MemeService.name);
-
   constructor(
     @InjectRepository(MemeEntity)
     private readonly memeRepository: Repository<MemeEntity>,
     @InjectRepository(PostEntity)
     private readonly postRepository: Repository<PostEntity>,
-    @InjectQueue(MEME_GENERATION_QUEUE)
-    private readonly memeGenerationQueue: Queue,
   ) {}
-
-  getSettings(): MemeSettingsResponse {
-    return {
-      defaultSettings: { cost: 100 },
-    };
-  }
 
   async create(dto: CreateMemeDto): Promise<MemeEntity> {
     const meme = this.memeRepository.create({
@@ -162,35 +143,5 @@ export class MemeService {
   async remove(id: number): Promise<void> {
     const meme = await this.findOne(id);
     await this.memeRepository.remove(meme);
-  }
-
-  async addGenerationToQueue(
-    memeId: number,
-    imageUrl: string,
-    userId: number,
-    prompt?: string,
-    characterOrientation?: 'image' | 'video',
-  ) {
-    const meme = await this.findOne(memeId);
-    if (!meme.isActive) {
-      throw new BadRequestException('This meme template is not active');
-    }
-    if (!meme.referenceVideoUrl) {
-      throw new BadRequestException(
-        'Meme template has no reference video; cannot generate',
-      );
-    }
-    const job = await this.memeGenerationQueue.add(
-      'generate',
-      { memeId, imageUrl, userId, prompt, characterOrientation },
-      {
-        attempts: 3,
-        backoff: 15000,
-        removeOnComplete: true,
-        removeOnFail: false,
-      },
-    );
-    this.logger.log(`Job ${job.id} added to queue: memeId=${memeId} userId=${userId}`);
-    return { jobId: job.id, message: 'Meme generation task added to queue' };
   }
 }

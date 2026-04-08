@@ -8,6 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Queue } from 'bullmq';
 import { ContestEntity } from 'src/contest/entity/contest.entity';
+import { MemeEntity } from 'src/meme/entities/meme.entity';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { StyleEntity } from 'src/post/entities/style.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
@@ -19,6 +20,9 @@ import { AudioGenerationResult } from './contracts/audio-generation-result.contr
 import { EditImageGenerationRequest } from './contracts/edit-image-generation-request.contract';
 import { EditImageAISettingsResponse } from './contracts/edit-image-ai-settings-response.contract';
 import { ImageVideoGenerationRequest } from './contracts/image-video-generation-request.contract';
+import { MemeAISettingsResponse } from './contracts/meme-ai-settings-response.contract';
+import { MemeGenerationRequest } from './contracts/meme-generation-request.contract';
+import { MemeGenerationResult } from './contracts/meme-generation-result.contract';
 import { PromptImageGenerationRequest } from './contracts/prompt-image-generation-request.contract';
 import { PromptImageAISettingsResponse } from './contracts/prompt-image-ai-settings-response.contract';
 import { PromptImageGenerationResult } from './contracts/prompt-image-generation-result.contract';
@@ -28,6 +32,7 @@ import { VideoGenerationResult } from './contracts/video-generation-result.contr
 import {
   MEDIA_AUDIO_GENERATION_QUEUE,
   MEDIA_IMAGE_EDIT_GENERATION_QUEUE,
+  MEDIA_MEME_GENERATION_QUEUE,
   MEDIA_PROMPT_IMAGE_GENERATION_QUEUE,
 } from './constants/media-generation.queue';
 import {
@@ -72,6 +77,8 @@ export class MediaGenerationService {
     private readonly mediaImageEditQueue: Queue,
     @InjectQueue(MEDIA_AUDIO_GENERATION_QUEUE)
     private readonly mediaAudioQueue: Queue,
+    @InjectQueue(MEDIA_MEME_GENERATION_QUEUE)
+    private readonly mediaMemeQueue: Queue,
     @InjectQueue(MEDIA_TEXT_VIDEO_GENERATION_QUEUE)
     private readonly mediaTextVideoQueue: Queue,
     @InjectQueue(MEDIA_IMAGE_VIDEO_GENERATION_QUEUE)
@@ -88,6 +95,8 @@ export class MediaGenerationService {
     private readonly contestRepository: Repository<ContestEntity>,
     @InjectRepository(PostEntity)
     private readonly postRepository: Repository<PostEntity>,
+    @InjectRepository(MemeEntity)
+    private readonly memeRepository: Repository<MemeEntity>,
     private readonly notificationGateway: NotificationGateway,
     private readonly userActivityService: UserActivityService,
   ) {}
@@ -300,6 +309,43 @@ export class MediaGenerationService {
     };
   }
 
+  async getMemeAISettings(): Promise<MemeAISettingsResponse> {
+    const settings = await this.mediaAISettingsRepository.find({
+      where: {
+        capability: 'meme_generate',
+        isActive: true,
+      },
+      order: {
+        id: 'ASC',
+      },
+    });
+
+    const defaultSetting =
+      settings.find(
+        (setting) => setting.aiService === 'kling_v26_std_motion_control',
+      ) ?? settings[0];
+
+    return {
+      defaultSettings: {
+        defaultAI: defaultSetting?.aiService ?? null,
+      },
+      aiSettings: settings.map((setting) => ({
+        aiService: setting.aiService,
+        name: setting.name,
+        cost: setting.cost,
+        description: setting.description,
+        settings: setting.settings
+          ? {
+              characterOrientations: setting.settings.characterOrientations,
+              defaultCharacterOrientation:
+                setting.settings.defaultCharacterOrientation,
+              keepOriginalSound: setting.settings.keepOriginalSound,
+            }
+          : null,
+      })),
+    };
+  }
+
   async resolveVideoDuration(
     aiService: string,
     requestedDuration?: number,
@@ -457,6 +503,30 @@ export class MediaGenerationService {
     return await provider.generateImageVideos(request);
   }
 
+  async generateMemes(
+    request: MemeGenerationRequest,
+  ): Promise<MemeGenerationResult> {
+    const route = this.mediaRouteResolverService.resolveMemeRoute(
+      request.aiService,
+    );
+
+    if (!route) {
+      throw new NotImplementedException(
+        `No media-generation route configured for meme service ${request.aiService}`,
+      );
+    }
+
+    const provider = this.mediaProviderRegistryService.getProvider(route.provider);
+
+    if (!provider.generateMemes) {
+      throw new NotImplementedException(
+        `Provider ${route.provider} does not support meme generation`,
+      );
+    }
+
+    return await provider.generateMemes(request);
+  }
+
   async enqueuePromptImageGeneration(
     request: PromptImageGenerationRequest,
     userId: number,
@@ -592,6 +662,34 @@ export class MediaGenerationService {
         request,
         userId,
         aiService: request.aiService,
+      },
+      {
+        attempts: 2,
+        backoff: 30000,
+        removeOnComplete: true,
+        removeOnFail: false,
+      },
+    );
+  }
+
+  async enqueueMemeGeneration(
+    request: Omit<MemeGenerationRequest, 'videoUrl'>,
+    userId: number,
+  ) {
+    const meme = await this.getRequiredMeme(request.memeId);
+    const enrichedRequest: MemeGenerationRequest = {
+      ...request,
+      videoUrl: meme.referenceVideoUrl,
+    };
+
+    await this.assertUserCanGenerateMemes(enrichedRequest, userId);
+
+    return await this.mediaMemeQueue.add(
+      enrichedRequest.aiService,
+      {
+        request: enrichedRequest,
+        userId,
+        aiService: enrichedRequest.aiService,
       },
       {
         attempts: 2,
@@ -889,6 +987,57 @@ export class MediaGenerationService {
     };
   }
 
+  async finalizeMemeGeneration(
+    request: MemeGenerationRequest,
+    userId: number,
+  ) {
+    const meme = await this.getRequiredMeme(request.memeId);
+    const [result, user] = await Promise.all([
+      this.generateMemes(request),
+      this.getRequiredUser(userId),
+    ]);
+    const totalCost = await this.getMemeCost(request.aiService);
+
+    user.points -= totalCost;
+    await this.userRepository.save(user);
+    await this.notificationGateway.emitProfileUpdate(user.id.toString());
+
+    const publishTo = await this.getContestPublishTo(null);
+    const post = await this.createGeneratedMemePost(
+      request,
+      meme,
+      user.id,
+      result.videoUrl,
+      this.generateCloudinaryVideoPreviewUrl(result.videoUrl) ??
+        meme.referenceImageUrl ??
+        request.imageUrl,
+    );
+
+    await this.userActivityService.logMediaGenerationSpent({
+      userId: user.id,
+      pointsDelta: -totalCost,
+      mediaType: 'meme',
+      mode: 'meme_generation',
+      aiService: request.aiService,
+      postId: post.id,
+      previewUrl: post.previewImageUrl ?? post.videoUrl ?? null,
+    });
+
+    return {
+      data: [
+        {
+          id: post.id,
+          imageUrl: post.imageUrl,
+          videoUrl: post.videoUrl,
+          previewImageUrl: post.previewImageUrl,
+          generationParams: post.generationParams,
+          publishTo,
+        },
+      ],
+      rawOutput: result.rawOutput,
+    };
+  }
+
   private async assertUserCanGeneratePromptImages(
     request: ResolvedPromptImageGenerationRequest,
     userId: number,
@@ -971,6 +1120,20 @@ export class MediaGenerationService {
     }
   }
 
+  private async assertUserCanGenerateMemes(
+    request: MemeGenerationRequest,
+    userId: number,
+  ) {
+    await this.getRequiredMeme(request.memeId);
+
+    const user = await this.getRequiredUser(userId);
+    const totalCost = await this.getMemeCost(request.aiService);
+
+    if (user.points < totalCost) {
+      throw new BadRequestException('Not enough credits to generate memes');
+    }
+  }
+
   private async getRequiredUser(userId: number): Promise<UserEntity> {
     const user = await this.userRepository.findOne({
       where: { id: userId },
@@ -982,6 +1145,33 @@ export class MediaGenerationService {
     }
 
     return user;
+  }
+
+  private async getRequiredMeme(memeId: number): Promise<MemeEntity> {
+    const meme = await this.memeRepository.findOne({
+      where: { id: memeId },
+      relations: ['tag'],
+    });
+
+    if (!meme) {
+      throw new NotFoundException(`Meme with id ${memeId} not found`);
+    }
+
+    if (!meme.isActive) {
+      throw new BadRequestException('This meme template is not active');
+    }
+
+    if (!meme.referenceVideoUrl) {
+      throw new BadRequestException(
+        'Meme template has no reference video configured',
+      );
+    }
+
+    if (!meme.tag) {
+      throw new BadRequestException('Meme template has no tag assigned');
+    }
+
+    return meme;
   }
 
   private async getPromptImageCost(
@@ -1053,6 +1243,24 @@ export class MediaGenerationService {
     if (!aiSetting) {
       throw new BadRequestException(
         `Media AI settings not found for video service ${aiService}`,
+      );
+    }
+
+    return aiSetting.cost;
+  }
+
+  private async getMemeCost(aiService: string): Promise<number> {
+    const aiSetting = await this.mediaAISettingsRepository.findOne({
+      where: {
+        aiService,
+        capability: 'meme_generate',
+        isActive: true,
+      },
+    });
+
+    if (!aiSetting) {
+      throw new BadRequestException(
+        `Media AI settings not found for meme service ${aiService}`,
       );
     }
 
@@ -1182,6 +1390,50 @@ export class MediaGenerationService {
         orientation: generationParams.orientation,
         duration: generationParams.duration,
         sourceImageUrl: generationParams.sourceImageUrl,
+      },
+    });
+
+    return await this.postRepository.save(post);
+  }
+
+  private async createGeneratedMemePost(
+    request: MemeGenerationRequest,
+    meme: MemeEntity,
+    userId: number,
+    videoUrl: string,
+    previewImageUrl: string | null,
+  ): Promise<PostEntity> {
+    const suggestedTags = meme.tag
+      ? [
+          {
+            id: meme.tag.id,
+            name: `#${meme.tag.name}`,
+            imageUrl: meme.tag.imageUrl,
+          },
+        ]
+      : [];
+
+    const post = this.postRepository.create({
+      user: { id: userId },
+      imageUrl: null,
+      videoUrl,
+      hasAudio: true,
+      previewImageUrl,
+      tag: meme.tag,
+      isPublished: false,
+      isSaved: true,
+      generationParams: {
+        prompt:
+          request.prompt?.trim() ||
+          'Make the character in the image follow the movements of the character in the video.',
+        aiService: request.aiService,
+        negativePrompt: request.negativePrompt ?? '',
+        memeId: meme.id,
+        sourceImageUrl: request.imageUrl,
+        sourceVideoUrl: meme.referenceVideoUrl,
+        memeName: meme.name,
+        characterOrientation: request.characterOrientation ?? null,
+        suggestedTags,
       },
     });
 

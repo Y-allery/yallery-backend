@@ -125,7 +125,7 @@ export class UserActivityService {
   async logMediaGenerationSpent(params: {
     userId: number;
     pointsDelta: number;
-    mediaType: 'image' | 'video' | 'audio';
+    mediaType: 'image' | 'video' | 'audio' | 'meme';
     mode: string;
     aiService: string;
     quantity?: number;

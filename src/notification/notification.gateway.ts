@@ -35,8 +35,6 @@ export class NotificationGateway {
   @WebSocketServer()
   server: Server;
 
-  private connectedUsers = new Map<string, Socket>();
-
   async sendImageArrayNotification(
     to_user_id: string,
     images: any,
@@ -255,9 +253,17 @@ export class NotificationGateway {
       publishTo?: { postToTwitter: boolean; postToInstagram: boolean };
     },
   ) {
-    this.server.to(toUserId).emit('memeGenerated', {
-      memes: { data: [payload] },
-    });
+    if (this.isUserConnected(toUserId)) {
+      this.server.to(toUserId).emit('memeGenerated', {
+        memes: { data: [payload] },
+      });
+      return;
+    }
+
+    await this.postRepository.update(
+      { id: payload.id },
+      { isDelivered: false },
+    );
   }
 
   /** Meme generation: failed */
@@ -271,6 +277,7 @@ export class NotificationGateway {
   @SubscribeMessage('joinRoom')
   async handleJoinRoom(@ConnectedSocket() client: Socket) {
     const userId = client.data.userId;
+    const roomId = this.getUserRoomId(userId);
     const user = await this.userService.findById(userId);
 
     if (!user) {
@@ -278,8 +285,7 @@ export class NotificationGateway {
       return;
     }
 
-    this.connectedUsers.set(userId, client);
-    client.join(userId);
+    client.join(roomId);
 
     const undeliveredPosts = await this.postRepository.find({
       where: { user: { id: userId }, isDelivered: false },
@@ -339,7 +345,7 @@ export class NotificationGateway {
 
       
       const memes = undeliveredPosts
-        .filter((post) => post.videoUrl && !post.hasAudio && post.generationParams?.memeId != null)
+        .filter((post) => post.videoUrl && post.generationParams?.memeId != null)
         .map((post) => ({
           id: post.id,
           videoUrl: post.videoUrl,
@@ -361,7 +367,7 @@ export class NotificationGateway {
         }));
 
       const audioVideos = undeliveredPosts
-        .filter((post) => post.videoUrl && post.hasAudio)
+        .filter((post) => post.videoUrl && post.hasAudio && post.generationParams?.memeId == null)
         .map((post) => ({
           id: post.id,
           videoUrl: post.videoUrl,
@@ -480,7 +486,7 @@ export class NotificationGateway {
       }
 
       if (memes.length > 0 && client.connected) {
-        client.emit('undeliveredMemes', {
+        client.emit('undeliveredMeme', {
           memes: {
             data: memes.map(
               ({ id, videoUrl, previewImageUrl, generationParams, publishTo }) => ({
@@ -504,24 +510,19 @@ export class NotificationGateway {
     }
 
     const isVerified = Boolean(user.emailVerified);
-    await this.emitEmailVerifiedStatus(userId, isVerified);
+    await this.emitEmailVerifiedStatus(roomId, isVerified);
   }
   handleConnection(@ConnectedSocket() client: Socket) {
     const userId = client.data.userId;
     if (userId) {
-      this.connectedUsers.set(userId, client);
+      client.join(this.getUserRoomId(userId));
     }
   }
 
-  handleDisconnect(@ConnectedSocket() client: Socket) {
-    const userId = client.data.userId;
-    if (userId) {
-      this.connectedUsers.delete(userId);
-    }
-  }
+  handleDisconnect(@ConnectedSocket() _client: Socket) {}
 
   isUserConnected(userId: string): boolean {
-    return this.connectedUsers.has(userId);
+    return this.getUserRoomSize(userId) > 0;
   }
 
   async emitProfileUpdate(userId: string) {
@@ -534,5 +535,21 @@ export class NotificationGateway {
 
   async emitEmailVerifiedStatus(userId: string, success: boolean) {
     this.server.to(userId).emit('emailVerified', { success });
+  }
+
+  private getUserRoomId(userId: string | number): string {
+    return String(userId);
+  }
+
+  private getUserRoomSize(userId: string | number): number {
+    const roomId = this.getUserRoomId(userId);
+    const server = this.server as any;
+    const adapter = server?.sockets?.adapter ?? server?.adapter ?? null;
+    const room =
+      adapter?.rooms instanceof Map
+        ? adapter.rooms.get(roomId)
+        : adapter?.rooms?.get?.(roomId);
+
+    return room?.size ?? 0;
   }
 }
