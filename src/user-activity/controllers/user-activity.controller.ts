@@ -7,7 +7,13 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBody,
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { AuthenticatedRequest } from 'src/auth/types/auth.user.interface';
 import { GetUserActivitiesDto } from '../dto/get-user-activities.dto';
@@ -49,7 +55,39 @@ export class UserActivityController {
   @ApiOperation({
     summary: 'Update read state',
     description:
-      'Marks activity feed items, regular contests, fine-tune contests, or stories as read/viewed using a single user-facing endpoint.',
+      'Marks read/viewed state using one endpoint. Supported kind values: `feed` (mark activity feed as read), `regular_contests` (mark regular contest notifications as read), `fine_tune_contests` (mark fine-tune contest notifications as read), `stories` (mark provided `post_ids` as viewed).',
+  })
+  @ApiBody({
+    description:
+      'Use `kind` to choose what should be marked as read. Pass `post_ids` only for `stories`.',
+    type: MarkUserReadStateDto,
+    examples: {
+      feed: {
+        summary: 'Mark activity feed as read',
+        value: {
+          kind: 'feed',
+        },
+      },
+      regularContests: {
+        summary: 'Mark regular contests as read',
+        value: {
+          kind: 'regular_contests',
+        },
+      },
+      fineTuneContests: {
+        summary: 'Mark fine-tune contests as read',
+        value: {
+          kind: 'fine_tune_contests',
+        },
+      },
+      stories: {
+        summary: 'Mark stories as viewed',
+        value: {
+          kind: 'stories',
+          post_ids: [123, 456],
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 200,
