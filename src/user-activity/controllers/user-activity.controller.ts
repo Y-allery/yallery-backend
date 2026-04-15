@@ -1,16 +1,19 @@
 import {
+  Body,
   Controller,
   Get,
-  Put,
+  Patch,
   Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { AuthenticatedRequest } from 'src/auth/types/auth.user.interface';
 import { GetUserActivitiesDto } from '../dto/get-user-activities.dto';
+import { MarkUserReadStateDto } from '../dto/mark-user-read-state.dto';
 import { UserActivityQueryService } from '../services/user-activity-query.service';
+import { UserReadStateService } from '../services/user-read-state.service';
 
 @Controller('user-activity')
 @UseGuards(JwtAuthGuard)
@@ -18,6 +21,7 @@ import { UserActivityQueryService } from '../services/user-activity-query.servic
 export class UserActivityController {
   constructor(
     private readonly userActivityQueryService: UserActivityQueryService,
+    private readonly userReadStateService: UserReadStateService,
   ) {}
 
   @Get('types')
@@ -41,20 +45,20 @@ export class UserActivityController {
     });
   }
 
-  @Put('mark-all-as-read')
-  async markAllAsRead(@Req() req: AuthenticatedRequest) {
-    await this.userActivityQueryService.markAllAsRead(req.user.id);
-    return { status: 'success', message: 'All user activities marked as read' };
-  }
-
-  @Put('mark-contests-as-read')
-  async markContestsAsRead(@Req() req: AuthenticatedRequest) {
-    await this.userActivityQueryService.markContestActivitiesAsRead(
-      req.user.id,
-    );
-    return {
-      status: 'success',
-      message: 'Contest user activities marked as read',
-    };
+  @Patch('read-state')
+  @ApiOperation({
+    summary: 'Update read state',
+    description:
+      'Marks activity feed items, regular contests, fine-tune contests, or stories as read/viewed using a single user-facing endpoint.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Read state updated successfully',
+  })
+  async markReadState(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: MarkUserReadStateDto,
+  ) {
+    return await this.userReadStateService.markReadState(req.user.id, body);
   }
 }

@@ -1,6 +1,7 @@
 import { Controller, Get, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
+import { ContestTypeEnum } from 'src/contest/types/contest.status.enum';
 import { AuthenticatedRequest } from 'src/auth/types/auth.user.interface';
 import { GetUserActivitiesDto } from '../dto/get-user-activities.dto';
 import { UserActivityQueryService } from '../services/user-activity-query.service';
@@ -27,20 +28,25 @@ export class LegacyActivityCompatController {
 
   @Put('user/activities/mark-all-as-read')
   async markAllActivitiesAsRead(@Req() req: AuthenticatedRequest) {
-    await this.userActivityQueryService.markAllAsRead(req.user.id);
+    await this.userActivityQueryService.markFeedAsRead(req.user.id);
     return { status: 'success', message: 'All activities marked as read' };
   }
 
   @Put('user/activities/mark-contest-as-read')
   async markContestActivitiesAsRead(@Req() req: AuthenticatedRequest) {
-    await this.userActivityQueryService.markContestActivitiesAsRead(
+    await this.userActivityQueryService.markContestActivitiesAsReadByType(
       req.user.id,
+      ContestTypeEnum.DEFAULT,
     );
     return { status: 'success', message: 'All activities marked as read' };
   }
 
   @Put('user/activities/mark-collabs-as-read')
-  async markCollabsActivitiesAsRead() {
+  async markCollabsActivitiesAsRead(@Req() req: AuthenticatedRequest) {
+    await this.userActivityQueryService.markContestActivitiesAsReadByType(
+      req.user.id,
+      ContestTypeEnum.FINE_TUNE,
+    );
     return { status: 'success', message: 'All activities marked as read' };
   }
 }

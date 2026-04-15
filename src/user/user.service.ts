@@ -29,6 +29,7 @@ import { ReportPostEntity } from 'src/post/entities/report.post.entity';
 import { PaymentEntity } from 'src/payment/entities/payment.entity';
 import { RewardService } from 'src/reward/reward.service';
 import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
+import { ContestTypeEnum } from 'src/contest/types/contest.status.enum';
 import { UserActivityQueryService } from 'src/user-activity/services/user-activity-query.service';
 import { UserNotificationTypeEnum } from 'src/notification/types/user-notification-type.enum';
 
@@ -550,14 +551,18 @@ export class UserService {
     }
 
     const unreadCount =
-      await this.userActivityQueryService.countUnread(userId);
+      await this.userActivityQueryService.countUnreadFeed(userId);
 
     const unreadContestActivity =
-      await this.userActivityQueryService.countUnreadByCategory(
+      await this.userActivityQueryService.countUnreadContestActivitiesByType(
         userId,
-        'contest',
+        ContestTypeEnum.DEFAULT,
       );
-    const unreadCollabsActivity = 0;
+    const unreadCollabsActivity =
+      await this.userActivityQueryService.countUnreadContestActivitiesByType(
+        userId,
+        ContestTypeEnum.FINE_TUNE,
+      );
     
     // Get puid (partnerUserId) from partner_user_links
     const partnerUserLink = await this.partnerUserLinkRepository.findOne({

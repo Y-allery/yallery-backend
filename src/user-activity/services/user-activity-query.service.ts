@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Repository } from 'typeorm';
 import { startOfDay, subDays, subMonths, subWeeks, subYears } from 'date-fns';
+import { ContestTypeEnum } from 'src/contest/types/contest.status.enum';
 import { UserActivityEntity } from '../entities/user-activity.entity';
 import {
   UserActivityCategory,
@@ -10,6 +11,7 @@ import {
   USER_ACTIVITY_CATEGORIES,
   USER_ACTIVITY_FILTERS,
   USER_ACTIVITY_PERIODS,
+  USER_ACTIVITY_TYPES,
 } from '../types/user-activity.constants';
 import { listUserActivityDescriptors } from '../config/user-activity.registry';
 
@@ -128,31 +130,87 @@ export class UserActivityQueryService {
     }));
   }
 
-  async markAllAsRead(userId: number) {
-    await this.userActivityRepository.update(
-      {
-        user: { id: userId },
-        isRead: false,
-      },
-      {
+  async markFeedAsRead(userId: number) {
+    const result = await this.userActivityRepository
+      .createQueryBuilder()
+      .update(UserActivityEntity)
+      .set({
         isRead: true,
         readAt: new Date(),
-      },
-    );
+      })
+      .where('userId = :userId', { userId })
+      .andWhere('isRead = false')
+      .andWhere('type != :contestOpenedType', {
+        contestOpenedType: USER_ACTIVITY_TYPES.CONTEST_OPENED,
+      })
+      .execute();
+
+    return Number(result.affected ?? 0);
+  }
+
+  async markAllAsRead(userId: number) {
+    return await this.markFeedAsRead(userId);
   }
 
   async markContestActivitiesAsRead(userId: number) {
-    await this.userActivityRepository.update(
-      {
-        user: { id: userId },
-        isRead: false,
-        category: USER_ACTIVITY_CATEGORIES.CONTEST,
-      },
-      {
+    return await this.markContestActivitiesAsReadByType(
+      userId,
+      ContestTypeEnum.DEFAULT,
+    );
+  }
+
+  async markContestActivitiesAsReadByType(
+    userId: number,
+    contestType: ContestTypeEnum,
+  ) {
+    const result = await this.userActivityRepository
+      .createQueryBuilder()
+      .update(UserActivityEntity)
+      .set({
         isRead: true,
         readAt: new Date(),
-      },
-    );
+      })
+      .where('userId = :userId', { userId })
+      .andWhere('isRead = false')
+      .andWhere('type = :contestOpenedType', {
+        contestOpenedType: USER_ACTIVITY_TYPES.CONTEST_OPENED,
+      })
+      .andWhere(
+        "JSON_UNQUOTE(JSON_EXTRACT(payload, '$.contestType')) = :contestType",
+        { contestType },
+      )
+      .execute();
+
+    return Number(result.affected ?? 0);
+  }
+
+  async countUnreadFeed(userId: number) {
+    return await this.userActivityRepository
+      .createQueryBuilder('activity')
+      .where('activity.userId = :userId', { userId })
+      .andWhere('activity.isRead = false')
+      .andWhere('activity.type != :contestOpenedType', {
+        contestOpenedType: USER_ACTIVITY_TYPES.CONTEST_OPENED,
+      })
+      .getCount();
+  }
+
+  async countUnreadContestActivitiesByType(
+    userId: number,
+    contestType: ContestTypeEnum,
+  ) {
+    return await this.userActivityRepository
+      .createQueryBuilder('activity')
+      .where('activity.userId = :userId', { userId })
+      .andWhere('activity.isRead = false')
+      .andWhere('activity.type = :contestOpenedType', {
+        contestOpenedType: USER_ACTIVITY_TYPES.CONTEST_OPENED,
+      })
+      .andWhere(
+        "JSON_UNQUOTE(JSON_EXTRACT(activity.payload, '$.contestType')) = :contestType",
+        { contestType },
+      )
+      .getCount();
   }
 
   async countUnread(userId: number) {
