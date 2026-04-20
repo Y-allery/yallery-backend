@@ -834,12 +834,18 @@ export class AdminService {
     flag: string; // e.g. 'posted_to_twitter'
   }): Promise<{ status: string }> {
     const { referralToken, partnerUserId, flag } = params;
+    this.logger.log(
+      `[retweet-check] referral-flag-start | referralToken=${referralToken} | partnerUserId=${partnerUserId} | flag=${flag}`,
+    );
     
     const partnership = await this.partnerShipRepo.findOne({
       where: { referralToken },
     });
     
     if (!partnership) {
+      this.logger.warn(
+        `[retweet-check] referral-flag-partnership-not-found | referralToken=${referralToken} | partnerUserId=${partnerUserId} | flag=${flag}`,
+      );
       return { status: "false" };
     }
     
@@ -851,11 +857,17 @@ export class AdminService {
     });
     
     if (!link || !link.userId) {
+      this.logger.warn(
+        `[retweet-check] referral-flag-link-not-found | partnershipId=${partnership.id} | partnerUserId=${partnerUserId} | flag=${flag}`,
+      );
       return { status: "false" };
     }
     
     const normalizedFlag = (flag || '').trim();
     const userIdNum = Number(link.userId);
+    this.logger.log(
+      `[retweet-check] referral-flag-link-found | partnershipId=${partnership.id} | partnerUserId=${partnerUserId} | userId=${userIdNum} | normalizedFlag=${normalizedFlag}`,
+    );
     
     // Special handling for retweet flag - check retweet
     if (normalizedFlag === 'retweet') {
@@ -871,8 +883,15 @@ export class AdminService {
         
         // If we have a cached result, return it
         if (existingActivity) {
+          this.logger.log(
+            `[retweet-check] referral-flag-cache-hit | partnershipId=${partnership.id} | userId=${userIdNum} | activityId=${existingActivity.id}`,
+          );
           return { status: "true" };
         }
+        
+        this.logger.log(
+          `[retweet-check] referral-flag-cache-miss | partnershipId=${partnership.id} | userId=${userIdNum}`,
+        );
         
         // If no cached result, check with Twitter API
         const user = await this.userRepository.findOne({
@@ -880,14 +899,23 @@ export class AdminService {
         });
         
         if (!user || !user.twitterUsername) {
+          this.logger.warn(
+            `[retweet-check] referral-flag-user-missing-twitter | partnershipId=${partnership.id} | userId=${userIdNum}`,
+          );
           return { status: "false" };
         }
         
         const twitterUsername = user.twitterUsername.replace(/^@/, '');
+        this.logger.log(
+          `[retweet-check] referral-flag-call-tweetscout | partnershipId=${partnership.id} | userId=${userIdNum} | twitterUsername=${twitterUsername}`,
+        );
         const retweetCheck = await this.checkRetweet(
           twitterUsername,
           partnership.id,
           userIdNum
+        );
+        this.logger.log(
+          `[retweet-check] referral-flag-result | partnershipId=${partnership.id} | userId=${userIdNum} | twitterUsername=${twitterUsername} | retweet=${retweetCheck.retweet}`,
         );
         
         return { status: retweetCheck.retweet ? "true" : "false" };
@@ -906,6 +934,10 @@ export class AdminService {
       .andWhere('pa.activity = :flag', { flag: normalizedFlag })
       .limit(1)
       .getOne();
+    
+    this.logger.log(
+      `[retweet-check] referral-flag-db-result | partnershipId=${partnership.id} | userId=${userIdNum} | flag=${normalizedFlag} | exists=${Boolean(exists)}`,
+    );
     
     return { status: !!exists ? "true" : "false" };
   }
@@ -1061,6 +1093,9 @@ export class AdminService {
     partnershipId: number,
     userId: number,
   ): Promise<{ retweet: boolean }> {
+    this.logger.log(
+      `[retweet-check] start | source=referral-flag | partnershipId=${partnershipId} | userId=${userId} | userHandle=${userHandle}`,
+    );
     const userLink = `https://twitter.com/${userHandle}`;
     const searchText = '@y_allery';
     const maxTweetsToCheck = 15;
@@ -1093,11 +1128,17 @@ export class AdminService {
         const response = await new Promise<any>((resolve, reject) => {
           const req = https.request(options, (res) => {
             const chunks: Uint8Array[] = [];
+            this.logger.log(
+              `[retweet-check] tweetscout-response-start | source=referral-flag | partnershipId=${partnershipId} | userId=${userId} | userHandle=${userHandle} | statusCode=${res.statusCode ?? 'n/a'} | cursor=${cursor ?? 'none'}`,
+            );
             res.on('data', (chunk) => chunks.push(chunk));
             res.on('end', () => {
               const responseBody = Buffer.concat(chunks).toString();
               try {
                 const parsed = JSON.parse(responseBody);
+                this.logger.log(
+                  `[retweet-check] tweetscout-response-body | source=referral-flag | partnershipId=${partnershipId} | userId=${userId} | userHandle=${userHandle} | statusCode=${res.statusCode ?? 'n/a'} | body=${responseBody}`,
+                );
                 resolve(parsed);
               } catch (error) {
                 this.logger.error(`[checkRetweet] JSON parse error: ${error.message}`, error.stack);
@@ -1111,11 +1152,17 @@ export class AdminService {
             reject(e);
           });
 
+          this.logger.log(
+            `[retweet-check] tweetscout-request | source=referral-flag | partnershipId=${partnershipId} | userId=${userId} | userHandle=${userHandle} | body=${JSON.stringify(requestBody)}`,
+          );
           req.write(JSON.stringify(requestBody));
           req.end();
         });
 
         const tweets = response?.tweets || [];
+        this.logger.log(
+          `[retweet-check] tweetscout-page-loaded | source=referral-flag | partnershipId=${partnershipId} | userId=${userId} | userHandle=${userHandle} | tweets=${tweets.length} | nextCursor=${response?.next_cursor || 'none'} | checkedSoFar=${totalTweetsChecked}`,
+        );
 
         // Check each tweet for @yallery mention
         for (const tweet of tweets) {
@@ -1134,6 +1181,9 @@ export class AdminService {
             this.logger.log(`[checkRetweet] Tweet ID: ${tweetId}`);
             this.logger.log(`[checkRetweet] Full Text: "${tweetText}"`);
             this.logger.log(`[checkRetweet] Tweet URL: https://twitter.com/${userHandle}/status/${tweetId}`);
+            this.logger.log(
+              `[retweet-check] match-found | source=referral-flag | partnershipId=${partnershipId} | userId=${userId} | userHandle=${userHandle} | tweetId=${tweetId}`,
+            );
             found = true;
             break;
           }
@@ -1147,6 +1197,9 @@ export class AdminService {
         // Check if there are more tweets to fetch
         cursor = response?.next_cursor || null;
         if (!cursor || tweets.length === 0) {
+          this.logger.log(
+            `[retweet-check] pagination-stop | source=referral-flag | partnershipId=${partnershipId} | userId=${userId} | userHandle=${userHandle} | cursor=${cursor || 'none'} | tweets=${tweets.length}`,
+          );
           break;
         }
       }
@@ -1169,15 +1222,25 @@ export class AdminService {
               activity: 'retweet',
             });
             await this.partnerShipActivityRepository.save(activity);
+            this.logger.log(
+              `[retweet-check] cache-saved | source=referral-flag | partnershipId=${partnershipId} | userId=${userId} | activity=retweet`,
+            );
           }
         } catch (error) {
           this.logger.error(`[checkRetweet] Error saving to database: ${error.message}`, error.stack);
         }
       }
 
+      this.logger.log(
+        `[retweet-check] result | source=referral-flag | partnershipId=${partnershipId} | userId=${userId} | userHandle=${userHandle} | retweet=${found} | totalTweetsChecked=${totalTweetsChecked}`,
+      );
       return { retweet: found };
     } catch (error) {
       this.logger.error(`[checkRetweet] Error checking retweet for ${userHandle}: ${error.message}`, error.stack);
+      this.logger.error(
+        `[retweet-check] failed | source=referral-flag | partnershipId=${partnershipId} | userId=${userId} | userHandle=${userHandle} | error=${error.message}`,
+        error.stack,
+      );
       return { retweet: false };
     }
   }

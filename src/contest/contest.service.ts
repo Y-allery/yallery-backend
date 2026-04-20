@@ -2,6 +2,7 @@ import { Length } from 'class-validator';
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -34,6 +35,7 @@ import * as https from 'https';
 @Injectable()
 export class ContestService {
   private readonly tweetscoutApiKey: string;
+  private readonly logger = new Logger(ContestService.name);
 
   constructor(
     private readonly configService: ConfigService,
@@ -994,6 +996,10 @@ export class ContestService {
     tweetLink: string,
     userHandle: string,
   ): Promise<{ retweet: boolean }> {
+    this.logger.log(
+      `[retweet-check] start | source=contest-winner | userHandle=${userHandle} | tweetLink=${tweetLink}`,
+    );
+
     const options = {
       method: 'POST',
       hostname: 'api.tweetscout.io',
@@ -1013,26 +1019,48 @@ export class ContestService {
     return new Promise((resolve, reject) => {
       const req = https.request(options, (res) => {
         const chunks: Uint8Array[] = [];
+        this.logger.log(
+          `[retweet-check] tweetscout-response-start | source=contest-winner | userHandle=${userHandle} | statusCode=${res.statusCode ?? 'n/a'}`,
+        );
         res.on('data', (chunk) => chunks.push(chunk));
         res.on('end', () => {
           const responseBody = Buffer.concat(chunks).toString();
           try {
             const parsed = JSON.parse(responseBody);
+            this.logger.log(
+              `[retweet-check] tweetscout-response-body | source=contest-winner | userHandle=${userHandle} | statusCode=${res.statusCode ?? 'n/a'} | body=${JSON.stringify(parsed)}`,
+            );
             if (typeof parsed.retweet === 'boolean') {
+              this.logger.log(
+                `[retweet-check] result | source=contest-winner | userHandle=${userHandle} | retweet=${parsed.retweet}`,
+              );
               resolve({ retweet: parsed.retweet });
             } else {
+              this.logger.warn(
+                `[retweet-check] invalid-response-shape | source=contest-winner | userHandle=${userHandle} | body=${responseBody}`,
+              );
               resolve({ retweet: false });
             }
           } catch (error) {
+            this.logger.error(
+              `[retweet-check] parse-failed | source=contest-winner | userHandle=${userHandle} | body=${responseBody} | error=${error?.message || error}`,
+            );
             resolve({ retweet: false });
           }
         });
       });
 
       req.on('error', (e) => {
+        this.logger.error(
+          `[retweet-check] request-failed | source=contest-winner | userHandle=${userHandle} | error=${e.message}`,
+          e.stack,
+        );
         resolve({ retweet: false });
       });
 
+      this.logger.log(
+        `[retweet-check] tweetscout-request | source=contest-winner | userHandle=${userHandle} | body=${body}`,
+      );
       req.write(body);
       req.end();
     });

@@ -18,6 +18,7 @@ import {
 import { PostService } from './post.service';
 import {
   ApiBody,
+  ApiExcludeEndpoint,
   ApiOperation,
   ApiParam,
   ApiQuery,
@@ -229,6 +230,7 @@ export class PostController {
   @Post('tweet')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
+  @ApiExcludeEndpoint()
   @ApiOperation(POST_SWAGGER.tweet)
   @ApiBody({ type: TweetDto })
   @ApiResponse(POST_SWAGGER.tweet.responses.success)
