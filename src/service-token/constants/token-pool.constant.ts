@@ -6,7 +6,7 @@ export const TOKEN_POOL_KEYS = {
 } as const;
 
 export const FAL_SHARED_TOKEN_SERVICES = new Set<string>([
-  AIEnum.AURA_FLOW,
+  AIEnum.IDEOGRAM_V2,
   AIEnum.FLUX,
   AIEnum.REALISTIC_VISION,
   AIEnum.FLUX_PRO_FINE_TUNE,

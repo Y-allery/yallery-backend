@@ -31,7 +31,7 @@ export class CreateAiSettingsTable1764698637531 implements MigrationInterface {
     const aiSettings = [
       {
         ai_service: 'aura_flow',
-        name: 'Ideogram',
+        name: 'Ideogram V2',
         allowedOrientations: JSON.stringify(['horizontal', 'vertical']),
         minImages: 1,
         maxImages: 5,
@@ -41,7 +41,7 @@ export class CreateAiSettingsTable1764698637531 implements MigrationInterface {
         styles: null,
         cost: 20,
         api_model: 'fal-ai/ideogram/v2',
-        description: 'Specializes in soft, atmospheric, dream-like imagery, perfect for ethereal landscapes and mood-based scenes.',
+        description: 'High-quality image generation with strong typography and layout handling, well-suited for posters, branding, and design-heavy visuals.',
         is_artem: 0,
         is_active: 1,
       },
@@ -172,4 +172,3 @@ export class CreateAiSettingsTable1764698637531 implements MigrationInterface {
     await queryRunner.query(`DROP TABLE IF EXISTS \`ai_settings\``);
   }
 }
-

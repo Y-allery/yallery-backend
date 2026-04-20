@@ -1518,7 +1518,7 @@ export class ImageGenerationService {
     let stylePrompt = '';
     const colorPrompt = color ? ` rendered in ${color.name} colors` : '';
 
-    if (createPostDto.ai_service !== AIEnum.AURA_FLOW) {
+    if (createPostDto.ai_service !== AIEnum.IDEOGRAM_V2) {
       stylePrompt = style ? ` in ${style.name} style` : '';
     } else if (createPostDto.style_id) {
       const styleEntity = await this.styleEntity.findOne({

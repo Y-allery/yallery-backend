@@ -10,7 +10,7 @@ const SUPPORTED_RESOLUTIONS: Record<AIEnum, Record<string, Dimension>> = {
     vertical: { width: 768, height: 1344 },
     horizontal: { width: 1344, height: 768 },
   },
-  [AIEnum.AURA_FLOW]: {
+  [AIEnum.IDEOGRAM_V2]: {
     vertical: { width: 768, height: 1344 },
     horizontal: { width: 1344, height: 768 },
   },

@@ -3,7 +3,7 @@ import { IsString, IsNumber, IsBoolean, IsArray, IsEnum, IsOptional, ValidateNes
 import { Type } from 'class-transformer';
 
 export class UpdateAISettingsDto {
-  @ApiPropertyOptional({ description: 'AI service identifier (e.g., flux, aura_flow, byty_dance)' })
+  @ApiPropertyOptional({ description: 'AI service identifier (e.g., flux, aura_flow [Ideogram V2 legacy id], byty_dance)' })
   @IsOptional()
   @IsString()
   ai_service?: string;
@@ -99,4 +99,3 @@ export class UpdateAISettingsDto {
   @IsBoolean()
   is_active?: boolean;
 }
-

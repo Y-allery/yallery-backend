@@ -13,10 +13,10 @@ export class AISettingsEntity extends TimeStampEntity {
 
   @Column({ type: 'varchar', unique: true, name: 'aiService' })
   @Index()
-  aiService: string; // 'aura_flow', 'flux', 'realistic_vision', etc.
+  aiService: string; // legacy ids like 'aura_flow', 'flux', 'realistic_vision', etc.
 
   @Column({ type: 'varchar' })
-  name: string; // 'Ideogram', 'FLUX AI', etc.
+  name: string; // 'Ideogram V2', 'FLUX AI', etc.
 
   @Column({ type: 'json' })
   allowedOrientations: string[]; // ['horizontal', 'vertical']
@@ -57,4 +57,3 @@ export class AISettingsEntity extends TimeStampEntity {
   @Column({ type: 'boolean', default: true, name: 'isActive' })
   isActive: boolean;
 }
-
