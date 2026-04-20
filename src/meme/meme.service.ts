@@ -13,16 +13,19 @@ import { MEME_GENERATION_QUEUE } from './meme.constants';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PostEntity } from 'src/post/entities/post.entity';
+import { UploadService } from 'src/upload/upload.service';
 import axios from 'axios';
 import * as sharp from 'sharp';
 
 const POPULAR_MEMES_LIMIT = 6;
 const KLING_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const MEME_SOURCE_FETCH_LIMIT_BYTES = 50 * 1024 * 1024;
 const KLING_MIN_DIMENSION = 340;
-const KLING_MAX_DIMENSION = 3850;
+const KLING_NORMALIZED_MAX_DIMENSION = 3850;
 const KLING_MIN_ASPECT_RATIO = 1 / 2.5;
 const KLING_MAX_ASPECT_RATIO = 2.5;
 const KLING_ALLOWED_IMAGE_FORMATS = new Set(['jpeg', 'jpg', 'png']);
+const KLING_COMPRESSION_QUALITIES = [90, 85, 80, 75, 70, 65, 60, 55, 50];
 
 export interface MemeSuggestedTag {
   id: number;
@@ -48,9 +51,9 @@ export interface MemeSettingsResponse {
 export class MemeService {
   private readonly logger = new Logger(MemeService.name);
 
-  private async validateSourceImageForMemeGeneration(
+  private async normalizeSourceImageForMemeGeneration(
     imageUrl: string,
-  ): Promise<void> {
+  ): Promise<string> {
     try {
       const headResponse = await axios.head(imageUrl, {
         timeout: 10000,
@@ -71,34 +74,16 @@ export class MemeService {
         );
       }
 
-      if (
-        Number.isFinite(headContentLength) &&
-        headContentLength > KLING_MAX_IMAGE_BYTES
-      ) {
-        throw new BadRequestException(
-          `Image file is too large. Maximum supported size is ${Math.floor(
-            KLING_MAX_IMAGE_BYTES / (1024 * 1024),
-          )}MB`,
-        );
-      }
-
       const imageResponse = await axios.get<ArrayBuffer>(imageUrl, {
         responseType: 'arraybuffer',
         timeout: 20000,
         maxRedirects: 5,
-        maxContentLength: KLING_MAX_IMAGE_BYTES + 1024,
-        maxBodyLength: KLING_MAX_IMAGE_BYTES + 1024,
+        maxContentLength: MEME_SOURCE_FETCH_LIMIT_BYTES,
+        maxBodyLength: MEME_SOURCE_FETCH_LIMIT_BYTES,
         validateStatus: (status) => status >= 200 && status < 400,
       });
 
       const buffer = Buffer.from(imageResponse.data);
-      if (buffer.length > KLING_MAX_IMAGE_BYTES) {
-        throw new BadRequestException(
-          `Image file is too large. Maximum supported size is ${Math.floor(
-            KLING_MAX_IMAGE_BYTES / (1024 * 1024),
-          )}MB`,
-        );
-      }
 
       const metadata = await sharp(buffer, {
         limitInputPixels: false,
@@ -126,12 +111,6 @@ export class MemeService {
         );
       }
 
-      if (width > KLING_MAX_DIMENSION || height > KLING_MAX_DIMENSION) {
-        throw new BadRequestException(
-          `Image is too large. Maximum supported size is ${KLING_MAX_DIMENSION}px on each side`,
-        );
-      }
-
       const aspectRatio = width / height;
       if (
         aspectRatio < KLING_MIN_ASPECT_RATIO ||
@@ -142,9 +121,74 @@ export class MemeService {
         );
       }
 
-      this.logger.log(
-        `Meme source image validated: ${width}x${height}, format=${format}, bytes=${buffer.length}`,
+      const requiresNormalization =
+        buffer.length > KLING_MAX_IMAGE_BYTES ||
+        width > KLING_NORMALIZED_MAX_DIMENSION ||
+        height > KLING_NORMALIZED_MAX_DIMENSION;
+
+      if (!requiresNormalization) {
+        this.logger.log(
+          `Meme source image validated without compression: ${width}x${height}, format=${format}, bytes=${buffer.length}`,
+        );
+        return imageUrl;
+      }
+
+      let normalizedBuffer: Buffer | null = null;
+      let normalizedWidth = width;
+      let normalizedHeight = height;
+
+      for (const quality of KLING_COMPRESSION_QUALITIES) {
+        const candidate = await sharp(buffer, {
+          limitInputPixels: false,
+        })
+          .rotate()
+          .resize({
+            width: KLING_NORMALIZED_MAX_DIMENSION,
+            height: KLING_NORMALIZED_MAX_DIMENSION,
+            fit: 'inside',
+            withoutEnlargement: true,
+          })
+          .jpeg({
+            quality,
+            mozjpeg: true,
+            chromaSubsampling: '4:2:0',
+          })
+          .toBuffer();
+
+        const candidateMetadata = await sharp(candidate, {
+          limitInputPixels: false,
+        }).metadata();
+
+        normalizedWidth = Number(candidateMetadata.width);
+        normalizedHeight = Number(candidateMetadata.height);
+
+        if (candidate.length <= KLING_MAX_IMAGE_BYTES) {
+          normalizedBuffer = candidate;
+          this.logger.log(
+            `Meme source image compressed: ${width}x${height}, ${buffer.length} bytes -> ${normalizedWidth}x${normalizedHeight}, ${candidate.length} bytes, quality=${quality}`,
+          );
+          break;
+        }
+      }
+
+      if (!normalizedBuffer) {
+        throw new BadRequestException(
+          `Image is too large to normalize for meme generation. Maximum supported size is ${Math.floor(
+            KLING_MAX_IMAGE_BYTES / (1024 * 1024),
+          )}MB`,
+        );
+      }
+
+      const normalizedUrl = await this.uploadService.uploadByBuffer(
+        normalizedBuffer,
+        'image/jpeg',
       );
+
+      this.logger.log(
+        `Meme source image uploaded after compression: ${normalizedWidth}x${normalizedHeight} -> ${normalizedUrl}`,
+      );
+
+      return normalizedUrl;
     } catch (error) {
       if (error instanceof BadRequestException) {
         throw error;
@@ -172,6 +216,7 @@ export class MemeService {
     private readonly postRepository: Repository<PostEntity>,
     @InjectQueue(MEME_GENERATION_QUEUE)
     private readonly memeGenerationQueue: Queue,
+    private readonly uploadService: UploadService,
   ) {}
 
   getSettings(): MemeSettingsResponse {
@@ -306,11 +351,18 @@ export class MemeService {
       );
     }
 
-    await this.validateSourceImageForMemeGeneration(imageUrl);
+    const preparedImageUrl =
+      await this.normalizeSourceImageForMemeGeneration(imageUrl);
 
     const job = await this.memeGenerationQueue.add(
       'generate',
-      { memeId, imageUrl, userId, prompt, characterOrientation },
+      {
+        memeId,
+        imageUrl: preparedImageUrl,
+        userId,
+        prompt,
+        characterOrientation,
+      },
       {
         attempts: 3,
         backoff: 15000,
