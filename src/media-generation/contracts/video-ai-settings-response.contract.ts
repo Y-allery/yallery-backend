@@ -9,6 +9,14 @@ export interface VideoAISettingsResponse {
     description: string | null;
     settings: {
       durations?: number[];
+      pricing?: {
+        strategy: 'fixed' | 'per_second';
+        creditsPerSecond?: number;
+        durationCosts?: Array<{
+          duration: number;
+          cost: number;
+        }>;
+      };
     } | null;
   }>;
 }

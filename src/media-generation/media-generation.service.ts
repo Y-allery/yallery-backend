@@ -274,9 +274,9 @@ export class MediaGenerationService {
       aiSettings: settings.map((setting) => ({
         aiService: setting.aiService,
         name: setting.name,
-        cost: setting.cost,
+        cost: this.resolveVideoGenerationCost(setting),
         description: setting.description,
-        settings: setting.settings,
+        settings: this.buildVideoAISettingsPayload(setting),
       })),
     };
   }
@@ -302,9 +302,9 @@ export class MediaGenerationService {
       aiSettings: settings.map((setting) => ({
         aiService: setting.aiService,
         name: setting.name,
-        cost: setting.cost,
+        cost: this.resolveVideoGenerationCost(setting),
         description: setting.description,
-        settings: setting.settings,
+        settings: this.buildVideoAISettingsPayload(setting),
       })),
     };
   }
@@ -874,7 +874,10 @@ export class MediaGenerationService {
   ) {
     const result = await this.generateTextVideos(request);
     const user = await this.getRequiredUser(userId);
-    const totalCost = await this.getVideoCost(request.aiService);
+    const totalCost = await this.getVideoCost(
+      request.aiService,
+      request.duration,
+    );
 
     user.points -= totalCost;
     await this.userRepository.save(user);
@@ -933,7 +936,10 @@ export class MediaGenerationService {
   ) {
     const result = await this.generateImageVideos(request);
     const user = await this.getRequiredUser(userId);
-    const totalCost = await this.getVideoCost(request.aiService);
+    const totalCost = await this.getVideoCost(
+      request.aiService,
+      request.duration,
+    );
 
     user.points -= totalCost;
     await this.userRepository.save(user);
@@ -1113,7 +1119,10 @@ export class MediaGenerationService {
     }
 
     const user = await this.getRequiredUser(userId);
-    const totalCost = await this.getVideoCost(request.aiService);
+    const totalCost = await this.getVideoCost(
+      request.aiService,
+      request.duration,
+    );
 
     if (user.points < totalCost) {
       throw new BadRequestException('Not enough credits to generate videos');
@@ -1231,7 +1240,10 @@ export class MediaGenerationService {
     return aiSetting.cost;
   }
 
-  private async getVideoCost(aiService: string): Promise<number> {
+  private async getVideoCost(
+    aiService: string,
+    duration?: number,
+  ): Promise<number> {
     const aiSetting = await this.mediaAISettingsRepository.findOne({
       where: {
         aiService,
@@ -1244,6 +1256,61 @@ export class MediaGenerationService {
       throw new BadRequestException(
         `Media AI settings not found for video service ${aiService}`,
       );
+    }
+
+    return this.resolveVideoGenerationCost(aiSetting, duration);
+  }
+
+  private buildVideoAISettingsPayload(
+    aiSetting: MediaAISettingsEntity,
+  ): VideoAISettingsResponse['aiSettings'][number]['settings'] {
+    if (!aiSetting.settings) {
+      return null;
+    }
+
+    const durations = aiSetting.settings.durations?.filter((value) =>
+      Number.isFinite(value),
+    );
+    const pricing = aiSetting.settings.pricing;
+
+    return {
+      durations,
+      pricing: pricing
+        ? {
+            strategy: pricing.strategy === 'per_second' ? 'per_second' : 'fixed',
+            creditsPerSecond: pricing.creditsPerSecond,
+            durationCosts:
+              durations?.map((duration) => ({
+                duration,
+                cost: this.resolveVideoGenerationCost(aiSetting, duration),
+              })) ?? [],
+          }
+        : undefined,
+    };
+  }
+
+  private resolveVideoGenerationCost(
+    aiSetting: MediaAISettingsEntity,
+    duration?: number,
+  ): number {
+    const supportedDurations = aiSetting.settings?.durations?.filter((value) =>
+      Number.isFinite(value),
+    );
+    const effectiveDuration =
+      duration ??
+      (supportedDurations?.[0] && Number.isFinite(supportedDurations[0])
+        ? supportedDurations[0]
+        : undefined);
+    const pricing = aiSetting.settings?.pricing;
+
+    if (
+      pricing?.strategy === 'per_second' &&
+      typeof pricing.creditsPerSecond === 'number' &&
+      pricing.creditsPerSecond > 0 &&
+      typeof effectiveDuration === 'number' &&
+      Number.isFinite(effectiveDuration)
+    ) {
+      return Math.ceil(pricing.creditsPerSecond * effectiveDuration);
     }
 
     return aiSetting.cost;

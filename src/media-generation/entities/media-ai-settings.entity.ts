@@ -3,6 +3,10 @@ import { TimeStampEntity } from '../../database/entities/time-stamp.entity';
 
 export interface MediaAISettingsJson {
   durations?: number[];
+  pricing?: {
+    strategy?: 'fixed' | 'per_second';
+    creditsPerSecond?: number;
+  };
   contestOnly?: boolean;
   characterOrientations?: Array<'image' | 'video'>;
   defaultCharacterOrientation?: 'image' | 'video';

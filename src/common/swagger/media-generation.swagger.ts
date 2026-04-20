@@ -246,6 +246,35 @@ This endpoint is separate from the legacy video flow and reads from the new \`me
                         items: { type: 'number', example: 5 },
                         example: [5, 10],
                       },
+                      pricing: {
+                        type: 'object',
+                        nullable: true,
+                        properties: {
+                          strategy: {
+                            type: 'string',
+                            enum: ['fixed', 'per_second'],
+                            example: 'per_second',
+                          },
+                          creditsPerSecond: {
+                            type: 'number',
+                            example: 10,
+                          },
+                          durationCosts: {
+                            type: 'array',
+                            items: {
+                              type: 'object',
+                              properties: {
+                                duration: { type: 'number', example: 5 },
+                                cost: { type: 'number', example: 50 },
+                              },
+                            },
+                            example: [
+                              { duration: 5, cost: 50 },
+                              { duration: 10, cost: 100 },
+                            ],
+                          },
+                        },
+                      },
                     },
                   },
                 },
@@ -295,6 +324,35 @@ This endpoint is separate from the legacy video flow and reads from the new \`me
                         type: 'array',
                         items: { type: 'number', example: 5 },
                         example: [5, 10],
+                      },
+                      pricing: {
+                        type: 'object',
+                        nullable: true,
+                        properties: {
+                          strategy: {
+                            type: 'string',
+                            enum: ['fixed', 'per_second'],
+                            example: 'per_second',
+                          },
+                          creditsPerSecond: {
+                            type: 'number',
+                            example: 10,
+                          },
+                          durationCosts: {
+                            type: 'array',
+                            items: {
+                              type: 'object',
+                              properties: {
+                                duration: { type: 'number', example: 5 },
+                                cost: { type: 'number', example: 50 },
+                              },
+                            },
+                            example: [
+                              { duration: 5, cost: 50 },
+                              { duration: 10, cost: 100 },
+                            ],
+                          },
+                        },
                       },
                     },
                   },
