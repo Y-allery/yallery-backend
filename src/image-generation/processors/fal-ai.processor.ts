@@ -26,7 +26,9 @@ export class FalAiProcessor extends BaseImageProcessor {
   async process(job: Job<any, any, string>) {
     const { createPostDto, editImageDto, userId, aiService } = job.data;
 
-    const serviceName = editImageDto ? AIEnum.BYTEDANCE_EDIT : (createPostDto?.ai_service || aiService);
+    const serviceName = editImageDto
+      ? (editImageDto?.ai_service || aiService || AIEnum.BYTEDANCE_EDIT)
+      : (createPostDto?.ai_service || aiService);
     const prompt = editImageDto?.prompt || createPostDto?.prompt || 'N/A';
     
     console.log(`[FalAiProcessor] Starting generation | Job: ${job.id} | User: ${userId} | Service: ${serviceName} | Prompt: ${prompt.substring(0, 50)}...`);
@@ -45,17 +47,18 @@ export class FalAiProcessor extends BaseImageProcessor {
     let generatedImages: string[];
     let suggestedTags: { id: number; name: string }[];
     let dto: GenerateImageDto | EditImageDto;
-    let service: AIEnum;
+    let service: string;
 
     try {
       if (editImageDto) {
-        const result = await this.imageGenerationService.generateBytedanceEdit(
+        const result = await this.imageGenerationService.generateFalEdit(
           editImageDto,
+          serviceName,
         );
         generatedImages = result.generatedImages;
         suggestedTags = result.suggestedTags;
         dto = editImageDto;
-        service = AIEnum.BYTEDANCE_EDIT;
+        service = serviceName;
       } else {
         if (!createPostDto) {
           throw new Error('createPostDto is required when editImageDto is not provided');

@@ -11,6 +11,7 @@ export const FAL_SHARED_TOKEN_SERVICES = new Set<string>([
   AIEnum.REALISTIC_VISION,
   AIEnum.FLUX_PRO_FINE_TUNE,
   AIEnum.BYTEDANCE_EDIT,
+  'grok_image_edit',
   VideoAIEnum.BYTY_DANCE,
   VideoAIEnum.KLING_TEXT_TO_VIDEO,
   'mmaudio_v2',

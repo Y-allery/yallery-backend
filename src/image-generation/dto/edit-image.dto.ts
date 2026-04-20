@@ -3,6 +3,15 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class EditImageDto {
   @IsOptional()
+  @IsString()
+  @ApiPropertyOptional({
+    description:
+      'Optional AI service for image editing. Must exist in ai_settings with isArtem=true.',
+    example: 'grok_image_edit',
+  })
+  ai_service?: string;
+
+  @IsOptional()
   @IsNumber()
   @ApiPropertyOptional({ description: 'Contest ID to attach the post to' })
   contest_id?: number;

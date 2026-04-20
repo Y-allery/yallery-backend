@@ -58,7 +58,7 @@ export class ImageGenerationService {
     defaultOrientations: 'vertical',
     defaultColor: 1,
   };
-  private async getAISetting(aiService: AIEnum): Promise<AISettingsEntity | null> {
+  private async getAISetting(aiService: string): Promise<AISettingsEntity | null> {
     return await this.aiSettingsRepository.findOne({
       where: { aiService: aiService, isActive: true, type: 'image' },
     });
@@ -106,12 +106,12 @@ export class ImageGenerationService {
     );
   }
 
-  private logBytedanceEdit(
+  private logEditProvider(
     stage: string,
     payload: Record<string, unknown>,
   ): void {
     this.logger.log(
-      `[bytedance-edit] ${stage} | ${JSON.stringify(payload)}`,
+      `[image-edit-provider] ${stage} | ${JSON.stringify(payload)}`,
     );
   }
 
@@ -129,16 +129,81 @@ export class ImageGenerationService {
     return this.serviceTokenService.getNextAvailableToken(aiService);
   }
 
+  private async resolveEditAiService(
+    aiService?: string,
+  ): Promise<string> {
+    if (!aiService || aiService === AIEnum.BYTEDANCE_EDIT) {
+      return AIEnum.BYTEDANCE_EDIT;
+    }
+
+    const aiSetting = await this.getAISetting(aiService);
+    if (!aiSetting || !aiSetting.isArtem) {
+      throw new BadRequestException(
+        `AI service ${aiService} is not available for image editing`,
+      );
+    }
+
+    return aiSetting.aiService;
+  }
+
+  private getFalEditModel(aiService: string, aiSetting?: AISettingsEntity | null): string {
+    if (aiService === AIEnum.BYTEDANCE_EDIT) {
+      return 'fal-ai/bytedance/seededit/v3/edit-image';
+    }
+
+    return aiSetting?.apiModel || aiService;
+  }
+
+  private buildFalEditInput(
+    aiService: string,
+    editImageDto: EditImageDto,
+  ): Record<string, unknown> {
+    if (aiService === AIEnum.BYTEDANCE_EDIT) {
+      return {
+        image_url: editImageDto.image_url,
+        prompt: editImageDto.prompt,
+        guidance_scale: 0.5,
+      };
+    }
+
+    if (aiService === 'grok_image_edit') {
+      return {
+        prompt: editImageDto.prompt,
+        image_urls: [editImageDto.image_url],
+        resolution: '2k',
+        output_format: 'png',
+        num_images: 1,
+      };
+    }
+
+    return {
+      prompt: editImageDto.prompt,
+      image_url: editImageDto.image_url,
+    };
+  }
+
   async generateBytedanceEdit(editImageDto: EditImageDto): Promise<{
+    generatedImages: string[];
+    suggestedTags: { id: number; name: string }[];
+  }> {
+    return this.generateFalEdit(editImageDto, AIEnum.BYTEDANCE_EDIT);
+  }
+
+  async generateFalEdit(
+    editImageDto: EditImageDto,
+    aiService: string,
+  ): Promise<{
     generatedImages: string[];
     suggestedTags: { id: number; name: string }[];
   }> {
     let token: AiServiceToken;
     let tag: TagEntity;
     try {
-      console.log(`[generateBytedanceEdit] Starting | Prompt: ${editImageDto.prompt.substring(0, 50)}...`);
+      console.log(
+        `[generateFalEdit] Starting | Service: ${aiService} | Prompt: ${editImageDto.prompt.substring(0, 50)}...`,
+      );
       this.logPrompt('edit-start', {
-        service: AIEnum.BYTEDANCE_EDIT,
+        service: aiService,
         contestId: editImageDto.contest_id ?? null,
         imageUrl: editImageDto.image_url,
         prompt: editImageDto.prompt,
@@ -176,9 +241,7 @@ export class ImageGenerationService {
         );
       }
 
-      token = await this.serviceTokenService.getNextAvailableToken(
-        AIEnum.BYTEDANCE_EDIT,
-      );
+      token = await this.serviceTokenService.getNextAvailableToken(aiService);
 
       if (!token) {
         throw new BadRequestException(
@@ -189,60 +252,84 @@ export class ImageGenerationService {
         credentials: token.token,
       });
 
-      this.logBytedanceEdit('token-selected', {
+      this.logEditProvider('token-selected', {
+        service: aiService,
         tokenId: token.id,
         tokenStatus: token.status,
         contestId: editImageDto.contest_id ?? null,
         imageUrl: editImageDto.image_url,
       });
 
-      const generateMethod = fal.run.bind(fal, 'fal-ai/bytedance/seededit/v3/edit-image');
-
-      const inputParams = {
-        image_url: editImageDto.image_url,
-        prompt: editImageDto.prompt,
-        guidance_scale: 0.5,
-      };
+      const aiSetting =
+        aiService === AIEnum.BYTEDANCE_EDIT
+          ? null
+          : await this.getAISetting(aiService);
+      const falModel = this.getFalEditModel(aiService, aiSetting);
+      const generateMethod = fal.run.bind(fal, falModel);
+      const inputParams = this.buildFalEditInput(aiService, editImageDto);
 
       this.logPrompt('edit-provider-input', {
-        service: AIEnum.BYTEDANCE_EDIT,
+        service: aiService,
         contestId: editImageDto.contest_id ?? null,
-        prompt: inputParams.prompt,
-        imageUrl: inputParams.image_url,
+        prompt: editImageDto.prompt,
+        imageUrl: editImageDto.image_url,
+        falModel,
+        inputParams,
       });
 
-      // Detailed Bytedance debug logs removed to avoid noisy console output
-      this.logBytedanceEdit('provider-call-start', {
+      this.logEditProvider('provider-call-start', {
+        service: aiService,
         tokenId: token.id,
-        endpoint: 'fal-ai/bytedance/seededit/v3/edit-image',
-        guidanceScale: inputParams.guidance_scale,
+        endpoint: falModel,
       });
       
       const result = await generateMethod({
         input: inputParams,
       });
 
-      this.logBytedanceEdit('provider-call-success', {
+      this.logEditProvider('provider-call-success', {
+        service: aiService,
         tokenId: token.id,
         resultKeys: Object.keys(result || {}),
         imageFieldType: Array.isArray(result?.image)
           ? 'array'
           : typeof result?.image,
+        imagesFieldType: Array.isArray(result?.images)
+          ? 'array'
+          : typeof result?.images,
       });
       
   
       let imagesToProcess = [];
-      if (Array.isArray(result.image)) {
+      if (Array.isArray(result?.images)) {
+        imagesToProcess = result.images;
+      } else if (Array.isArray(result?.image)) {
         imagesToProcess = result.image;
-      } else if (result.image && typeof result.image === 'object' && result.image.url) {
+      } else if (
+        result?.images &&
+        typeof result.images === 'object' &&
+        result.images.url
+      ) {
+        imagesToProcess = [result.images];
+      } else if (
+        result?.image &&
+        typeof result.image === 'object' &&
+        result.image.url
+      ) {
         imagesToProcess = [result.image];
       } else {
-        console.error('❌ Bytedance Edit Debug - Invalid result.image:', result.image);
-        throw new Error(`Invalid result format: expected image object or array, got ${typeof result.image}`);
+        console.error('❌ Fal Edit Debug - Invalid result.image/result.images:', {
+          service: aiService,
+          image: result?.image,
+          images: result?.images,
+        });
+        throw new Error(
+          `Invalid result format: expected image/images object or array for ${aiService}`,
+        );
       }
       
       if (!imagesToProcess || imagesToProcess.length === 0) {
-        throw new Error('Bytedance Edit returned no images to process');
+        throw new Error(`${aiService} returned no images to process`);
       }
       
       const uploadPromises = imagesToProcess.map(async (image) => {
@@ -253,15 +340,19 @@ export class ImageGenerationService {
 
       const uploadResponses = await Promise.all(uploadPromises);
 
-      console.log(`[generateBytedanceEdit] Success | Generated: ${uploadResponses.length} images`);
-      this.logBytedanceEdit('upload-success', {
+      console.log(
+        `[generateFalEdit] Success | Service: ${aiService} | Generated: ${uploadResponses.length} images`,
+      );
+      this.logEditProvider('upload-success', {
+        service: aiService,
         tokenId: token.id,
         generatedImages: uploadResponses.length,
       });
       return { generatedImages: uploadResponses, suggestedTags };
     } catch (error) {
       this.logger.error(
-        `[bytedance-edit] provider-call-failed | ${JSON.stringify({
+        `[image-edit-provider] provider-call-failed | ${JSON.stringify({
+          service: aiService,
           tokenId: token?.id ?? null,
           contestId: editImageDto.contest_id ?? null,
           imageUrl: editImageDto.image_url,
@@ -278,10 +369,13 @@ export class ImageGenerationService {
         })}`,
         error.stack,
       );
-      console.error(`[generateBytedanceEdit] Failed | Error: ${error.message}`);
+      console.error(
+        `[generateFalEdit] Failed | Service: ${aiService} | Error: ${error.message}`,
+      );
       
       if (token?.token) {
-        this.logBytedanceEdit('token-rate-limit-mark-requested', {
+        this.logEditProvider('token-rate-limit-mark-requested', {
+          service: aiService,
           tokenId: token.id,
           reason: error.message,
           errorCode: error.code ?? null,
@@ -289,11 +383,11 @@ export class ImageGenerationService {
         });
         await this.serviceTokenService.markTokenAsRateLimited(
           token,
-          AIEnum.BYTEDANCE_EDIT,
+          aiService,
         );
       }
 
-      throw new Error(`Failed to edit image: ${error.message}`);
+      throw new Error(`Failed to edit image with ${aiService}: ${error.message}`);
     }
   }
 
@@ -826,10 +920,15 @@ export class ImageGenerationService {
   }
 
   async editImage(editImageDto: EditImageDto, userId: number) {
+    const resolvedAiService = await this.resolveEditAiService(
+      editImageDto.ai_service,
+    );
+    editImageDto.ai_service = resolvedAiService;
+
     const user = await this.getUser(userId);
 
     await this.verifyUserHasEnoughCredits(user, {
-      ai_service: AIEnum.BYTEDANCE_EDIT,
+      ai_service: resolvedAiService,
       image_quantity: 1,
     } as any);
     await this.ensureUserCanParticipateInContest(
@@ -987,7 +1086,8 @@ export class ImageGenerationService {
     userId: number,
   ): Promise<any> {
     try {
-      const mapping = await this.getProcessorMapping(AIEnum.BYTEDANCE_EDIT);
+      const aiService = editImageDto.ai_service || AIEnum.BYTEDANCE_EDIT;
+      const mapping = await this.getProcessorMapping(aiService, true);
       const queue = this.getQueueByProcessorType(mapping.processorType);
       
       const jobOptions = {
@@ -999,7 +1099,7 @@ export class ImageGenerationService {
 
       return await this.addJobToQueue(
         queue,
-        AIEnum.BYTEDANCE_EDIT,
+        aiService,
         editImageDto,
         userId,
         jobOptions,
@@ -1044,12 +1144,27 @@ export class ImageGenerationService {
     }
   }
 
-  private async getProcessorMapping(aiService: AIEnum): Promise<AIProcessorMappingEntity> {
+  private async getProcessorMapping(
+    aiService: string,
+    isEdit = false,
+  ): Promise<AIProcessorMappingEntity> {
     const mapping = await this.aiProcessorMappingRepository.findOne({
       where: { aiService: aiService },
     });
 
     if (!mapping) {
+      if (isEdit) {
+        return this.aiProcessorMappingRepository.create({
+          aiService,
+          processorType: ProcessorType.FAL_AI,
+          queueName: ProcessorType.FAL_AI,
+          concurrency: 60,
+          lockDuration: 120000,
+          isEdit: true,
+          completedNotificationParam: true,
+        });
+      }
+
       throw new HttpException(
         `Processor mapping not found for AI service: ${aiService}`,
         HttpStatus.BAD_REQUEST,
@@ -1075,7 +1190,7 @@ export class ImageGenerationService {
 
   private async addJobToQueue(
     queue: any,
-    aiService: AIEnum,
+    aiService: string,
     dto: any,
     userId: number,
     jobOptions: any,
@@ -1159,7 +1274,7 @@ export class ImageGenerationService {
     generatedImages: string[],
     dto: GenerateImageDto | EditImageDto,
     user: UserEntity,
-    service: AIEnum,
+    service: string,
     suggestedTags?: { id: number; name: string }[],
   ) {
     if (!generatedImages || !Array.isArray(generatedImages) || generatedImages.length === 0) {
@@ -1170,7 +1285,7 @@ export class ImageGenerationService {
 
     const posts: PostEntity[] = await Promise.all(
       generatedImages.map(async (imageUrl): Promise<PostEntity> => {
-        if (service === AIEnum.BYTEDANCE_EDIT) {
+        if ('image_url' in dto) {
           return await this.createPostForEditImage(dto as EditImageDto, imageUrl, user, suggestedTags);
         } else {
           return await this.createPostForImage(dto as GenerateImageDto, imageUrl, user, suggestedTags);
@@ -1180,7 +1295,7 @@ export class ImageGenerationService {
 
     const generationCost = await this.getCostByService(
       service,
-      service === AIEnum.BYTEDANCE_EDIT ? 1 : (dto as GenerateImageDto).image_quantity,
+      'image_url' in dto ? 1 : (dto as GenerateImageDto).image_quantity,
     );
 
     await this.logActivityAndNotify(
@@ -1256,7 +1371,7 @@ export class ImageGenerationService {
     
     const tempDto = {
       prompt: editImageDto.prompt,
-      ai_service: AIEnum.BYTEDANCE_EDIT,
+      ai_service: editImageDto.ai_service || AIEnum.BYTEDANCE_EDIT,
       orientation: 'horizontal' as const,
       image_quantity: 1,
       auto_tag_select: true,
@@ -1298,7 +1413,7 @@ export class ImageGenerationService {
     } else {
       
       cost = await this.calculateTotalCost(
-        AIEnum.BYTEDANCE_EDIT,
+        dto.ai_service || AIEnum.BYTEDANCE_EDIT,
         1,
       );
     }
@@ -1501,7 +1616,7 @@ export class ImageGenerationService {
           isArtem: setting.isArtem,
           cost: setting.cost,
           description: setting.description,
-          modelType: setting.aiService === AIEnum.BYTEDANCE_EDIT ? 'IMAGE_EDITING' : 'TEXT_TO_IMAGE',
+          modelType: setting.isArtem ? 'IMAGE_EDITING' : 'TEXT_TO_IMAGE',
         };
       }),
     );
@@ -1519,7 +1634,7 @@ export class ImageGenerationService {
     };
   }
 
-  async getCostByService(service: AIEnum, quantity: number = 1): Promise<number> {
+  async getCostByService(service: string, quantity: number = 1): Promise<number> {
     const aiSetting = await this.aiSettingsRepository.findOne({
       where: { aiService: service, isActive: true, type: 'image' },
     });
@@ -1548,7 +1663,7 @@ export class ImageGenerationService {
     return { message: 'Post marked as saved successfully' };
   }
 
-  async calculateTotalCost(service: AIEnum, quantity: number): Promise<number> {
+  async calculateTotalCost(service: string, quantity: number): Promise<number> {
     const costPerImage = await this.getCostByService(service);
     return costPerImage * quantity;
   }
@@ -1584,7 +1699,7 @@ export class ImageGenerationService {
   private async logActivityAndNotify(
     userId: number,
     activityType: ActivityEnum,
-    service?: AIEnum,
+    service?: string,
     generationCost?: number,
   ) {
     const description = await this.activityService.createActivitiesV2({

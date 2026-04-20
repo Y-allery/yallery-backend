@@ -9,7 +9,6 @@ import { ContestEntity } from 'src/contest/entity/contest.entity';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { NotificationPreferenceEntity } from 'src/notification/entity/notification.preferences.entity';
 import { PaginatioDto } from 'src/common/dto/pagination.dto';
-import { AIEnum } from 'src/common/enums/ai.enum';
 import { ContestTypeEnum } from 'src/contest/types/contest.status.enum';
 import { NotificationGateway } from 'src/notification/notification.gateway';
 import { UserEntity } from 'src/user/entities/user.entity';
@@ -35,7 +34,7 @@ type CreateActivitiesOptions = {
    * @deprecated Not persisted in `activity` table and not used for points/message building.
    * Kept only for backward compatibility with existing call sites.
    */
-  service?: AIEnum;
+  service?: string;
 };
 
 const ACTIVITY_TO_REWARD_TYPE: Partial<Record<ActivityEnum, RewardTypeEnum>> = {
