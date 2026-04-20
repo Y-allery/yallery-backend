@@ -5,6 +5,7 @@ import {
   BadRequestException,
   forwardRef,
   Inject,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -45,6 +46,8 @@ import { privateKeyToAccount } from 'viem/accounts';
 
 @Injectable()
 export class ImageGenerationService {
+  private readonly logger = new Logger(ImageGenerationService.name);
+
   @InjectRepository(ContestEntity)
   private readonly contestRepository: Repository<ContestEntity>;
   private readonly defaultSettings: Record<string, any> = {
@@ -93,6 +96,15 @@ export class ImageGenerationService {
     this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   }
 
+  private logPrompt(
+    stage: string,
+    payload: Record<string, unknown>,
+  ): void {
+    this.logger.log(
+      `[image-prompt] ${stage} | ${JSON.stringify(payload)}`,
+    );
+  }
+
   async generateBytedanceEdit(editImageDto: EditImageDto): Promise<{
     generatedImages: string[];
     suggestedTags: { id: number; name: string }[];
@@ -101,6 +113,12 @@ export class ImageGenerationService {
     let tag: TagEntity;
     try {
       console.log(`[generateBytedanceEdit] Starting | Prompt: ${editImageDto.prompt.substring(0, 50)}...`);
+      this.logPrompt('edit-start', {
+        service: AIEnum.BYTEDANCE_EDIT,
+        contestId: editImageDto.contest_id ?? null,
+        imageUrl: editImageDto.image_url,
+        prompt: editImageDto.prompt,
+      });
       const suggestedTags = [];
       
       
@@ -155,6 +173,13 @@ export class ImageGenerationService {
         guidance_scale: 0.5,
       };
 
+      this.logPrompt('edit-provider-input', {
+        service: AIEnum.BYTEDANCE_EDIT,
+        contestId: editImageDto.contest_id ?? null,
+        prompt: inputParams.prompt,
+        imageUrl: inputParams.image_url,
+      });
+
       // Detailed Bytedance debug logs removed to avoid noisy console output
       
       const result = await generateMethod({
@@ -208,6 +233,13 @@ export class ImageGenerationService {
     let tag: TagEntity;
     try {
       console.log(`[generateFalAi] Starting | Service: ${createPostDto.ai_service} | Quantity: ${createPostDto.image_quantity} | Prompt: ${createPostDto.prompt.substring(0, 50)}...`);
+      this.logPrompt('generate-start', {
+        service: createPostDto.ai_service,
+        contestId: createPostDto.contest_id ?? null,
+        quantity: createPostDto.image_quantity,
+        orientation: createPostDto.orientation,
+        prompt: createPostDto.prompt,
+      });
       const suggestedTags = [];
       if (createPostDto.auto_tag_select) {
         tag = await this.findBestTag(createPostDto.prompt);
@@ -340,6 +372,14 @@ export class ImageGenerationService {
           finetune_strength: +contest.fineTuneStrength || 1,
         };
       }
+
+      this.logPrompt('generate-provider-input', {
+        service: createPostDto.ai_service,
+        apiModel: serviceName,
+        contestId: createPostDto.contest_id ?? null,
+        quantity: inputParams?.num_images ?? inputParams?.numImages,
+        prompt: inputParams?.prompt,
+      });
 
       // [FalAI] Calling ${serviceName} with params (omitted from logs in production)
 
@@ -541,6 +581,13 @@ export class ImageGenerationService {
     let tag: TagEntity;
     try {
       console.log(`[generateXRouter] Starting | Quantity: ${createPostDto.image_quantity} | Prompt: ${createPostDto.prompt.substring(0, 50)}...`);
+      this.logPrompt('x-router-start', {
+        service: createPostDto.ai_service,
+        contestId: createPostDto.contest_id ?? null,
+        quantity: createPostDto.image_quantity,
+        orientation: createPostDto.orientation,
+        prompt: createPostDto.prompt,
+      });
       const suggestedTags = [];
       
       if (createPostDto.auto_tag_select) {
@@ -607,6 +654,14 @@ export class ImageGenerationService {
         numberResults: Math.min(createPostDto.image_quantity, 4),
         negativePrompt: 'blurry, distorted, low quality, bad anatomy, ugly, watermark',
       };
+
+      this.logPrompt('x-router-provider-input', {
+        service: createPostDto.ai_service,
+        model,
+        quantity: requestBody.numberResults,
+        prompt: requestBody.prompt,
+        negativePrompt: requestBody.negativePrompt,
+      });
 
 
       // [X-Router] Generating images with params (omitted from logs in production)
@@ -686,6 +741,7 @@ export class ImageGenerationService {
 
   async generateImages(createPostDto: GenerateImageDto, userId: number) {
     try {
+      const originalPrompt = createPostDto.prompt;
       const user = await this.getUser(userId);
       await this.verifyUserHasEnoughCredits(user, createPostDto);
 
@@ -697,6 +753,20 @@ export class ImageGenerationService {
       const { style, color } = await this.fetchAndValidateEntities(createPostDto);
 
       await this.prepareDtoForGeneration(createPostDto, style, color);
+
+      this.logPrompt('generate-prepared', {
+        userId,
+        service: createPostDto.ai_service,
+        contestId: createPostDto.contest_id ?? null,
+        originalPrompt,
+        preparedPrompt: createPostDto.prompt,
+        styleId: createPostDto.style_id ?? null,
+        styleName: style?.name ?? null,
+        colorId: createPostDto.color_id ?? null,
+        colorName: color?.name ?? null,
+        tagId: createPostDto.tag_id ?? null,
+        autoTagSelect: createPostDto.auto_tag_select,
+      });
 
       return await this.generateImagesUsingService(createPostDto, userId);
     } catch (error) {
@@ -1212,7 +1282,9 @@ export class ImageGenerationService {
     style: StyleEntity,
     color: ColorEntity,
   ) {
+    const originalPrompt = createPostDto.prompt;
     createPostDto.prompt = this.sanitizePrompt(createPostDto.prompt);
+    const sanitizedPrompt = createPostDto.prompt;
     const { width, height } = getDimensionsForOrientation(
       createPostDto.orientation,
       createPostDto.ai_service,
@@ -1242,6 +1314,22 @@ export class ImageGenerationService {
     } else {
       createPostDto.prompt = `${createPostDto.prompt}${stylePrompt}${colorPrompt}`;
     }
+
+    this.logPrompt('prepare-dto', {
+      service: createPostDto.ai_service,
+      orientation: createPostDto.orientation,
+      width,
+      height,
+      originalPrompt,
+      sanitizedPrompt,
+      finalPrompt: createPostDto.prompt,
+      styleId: createPostDto.style_id ?? null,
+      styleName: style?.name ?? null,
+      colorId: createPostDto.color_id ?? null,
+      colorName: color?.name ?? null,
+      tagId: createPostDto.tag_id ?? null,
+      autoTagSelect: createPostDto.auto_tag_select,
+    });
   }
 
   async deletePost(
