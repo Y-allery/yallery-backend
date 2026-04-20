@@ -13,8 +13,16 @@ import { MEME_GENERATION_QUEUE } from './meme.constants';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PostEntity } from 'src/post/entities/post.entity';
+import axios from 'axios';
+import * as sharp from 'sharp';
 
 const POPULAR_MEMES_LIMIT = 6;
+const KLING_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const KLING_MIN_DIMENSION = 340;
+const KLING_MAX_DIMENSION = 3850;
+const KLING_MIN_ASPECT_RATIO = 1 / 2.5;
+const KLING_MAX_ASPECT_RATIO = 2.5;
+const KLING_ALLOWED_IMAGE_FORMATS = new Set(['jpeg', 'jpg', 'png']);
 
 export interface MemeSuggestedTag {
   id: number;
@@ -39,6 +47,123 @@ export interface MemeSettingsResponse {
 @Injectable()
 export class MemeService {
   private readonly logger = new Logger(MemeService.name);
+
+  private async validateSourceImageForMemeGeneration(
+    imageUrl: string,
+  ): Promise<void> {
+    try {
+      const headResponse = await axios.head(imageUrl, {
+        timeout: 10000,
+        maxRedirects: 5,
+        validateStatus: (status) => status >= 200 && status < 400,
+      }).catch(() => null);
+
+      const headContentType = headResponse?.headers?.['content-type'];
+      const headContentLength = Number(headResponse?.headers?.['content-length']);
+
+      if (
+        headContentType &&
+        typeof headContentType === 'string' &&
+        !headContentType.toLowerCase().startsWith('image/')
+      ) {
+        throw new BadRequestException(
+          'Meme source must be an image URL',
+        );
+      }
+
+      if (
+        Number.isFinite(headContentLength) &&
+        headContentLength > KLING_MAX_IMAGE_BYTES
+      ) {
+        throw new BadRequestException(
+          `Image file is too large. Maximum supported size is ${Math.floor(
+            KLING_MAX_IMAGE_BYTES / (1024 * 1024),
+          )}MB`,
+        );
+      }
+
+      const imageResponse = await axios.get<ArrayBuffer>(imageUrl, {
+        responseType: 'arraybuffer',
+        timeout: 20000,
+        maxRedirects: 5,
+        maxContentLength: KLING_MAX_IMAGE_BYTES + 1024,
+        maxBodyLength: KLING_MAX_IMAGE_BYTES + 1024,
+        validateStatus: (status) => status >= 200 && status < 400,
+      });
+
+      const buffer = Buffer.from(imageResponse.data);
+      if (buffer.length > KLING_MAX_IMAGE_BYTES) {
+        throw new BadRequestException(
+          `Image file is too large. Maximum supported size is ${Math.floor(
+            KLING_MAX_IMAGE_BYTES / (1024 * 1024),
+          )}MB`,
+        );
+      }
+
+      const metadata = await sharp(buffer, {
+        limitInputPixels: false,
+      }).metadata();
+
+      const format = metadata.format?.toLowerCase();
+      const width = Number(metadata.width);
+      const height = Number(metadata.height);
+
+      if (!format || !KLING_ALLOWED_IMAGE_FORMATS.has(format)) {
+        throw new BadRequestException(
+          'Unsupported image format for meme generation. Use JPG or PNG',
+        );
+      }
+
+      if (!Number.isFinite(width) || !Number.isFinite(height)) {
+        throw new BadRequestException(
+          'Could not determine image dimensions for meme generation',
+        );
+      }
+
+      if (width < KLING_MIN_DIMENSION || height < KLING_MIN_DIMENSION) {
+        throw new BadRequestException(
+          `Image is too small. Minimum supported size is ${KLING_MIN_DIMENSION}px on each side`,
+        );
+      }
+
+      if (width > KLING_MAX_DIMENSION || height > KLING_MAX_DIMENSION) {
+        throw new BadRequestException(
+          `Image is too large. Maximum supported size is ${KLING_MAX_DIMENSION}px on each side`,
+        );
+      }
+
+      const aspectRatio = width / height;
+      if (
+        aspectRatio < KLING_MIN_ASPECT_RATIO ||
+        aspectRatio > KLING_MAX_ASPECT_RATIO
+      ) {
+        throw new BadRequestException(
+          'Image aspect ratio is not supported for meme generation',
+        );
+      }
+
+      this.logger.log(
+        `Meme source image validated: ${width}x${height}, format=${format}, bytes=${buffer.length}`,
+      );
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      if (
+        axios.isAxiosError(error) &&
+        (error.code === 'ERR_BAD_RESPONSE' || error.code === 'ERR_BAD_REQUEST')
+      ) {
+        throw new BadRequestException(
+          'Failed to validate meme source image. The file may be too large or inaccessible',
+        );
+      }
+
+      throw new BadRequestException(
+        `Failed to validate meme source image: ${error?.message || error}`,
+      );
+    }
+  }
 
   constructor(
     @InjectRepository(MemeEntity)
@@ -180,6 +305,9 @@ export class MemeService {
         'Meme template has no reference video; cannot generate',
       );
     }
+
+    await this.validateSourceImageForMemeGeneration(imageUrl);
+
     const job = await this.memeGenerationQueue.add(
       'generate',
       { memeId, imageUrl, userId, prompt, characterOrientation },
