@@ -132,7 +132,16 @@ export class ImageGenerationService {
   private async resolveEditAiService(
     aiService?: string,
   ): Promise<string> {
-    if (!aiService || aiService === AIEnum.BYTEDANCE_EDIT) {
+    if (!aiService) {
+      const grokEditSetting = await this.getAISetting('grok_image_edit');
+      if (grokEditSetting?.isArtem) {
+        return grokEditSetting.aiService;
+      }
+
+      return AIEnum.BYTEDANCE_EDIT;
+    }
+
+    if (aiService === AIEnum.BYTEDANCE_EDIT) {
       return AIEnum.BYTEDANCE_EDIT;
     }
 
