@@ -34,6 +34,15 @@ export class ServiceTokenService {
   ): Promise<AiServiceToken | null> {
     const poolKey = this.resolvePoolKey(aiService);
 
+    return this.getNextAvailableTokenFromPool(poolKey, aiService);
+  }
+
+  async getNextAvailableTokenFromPool(
+    poolKey: string,
+    requestedService?: AIEnum | VideoAIEnum | string,
+  ): Promise<AiServiceToken | null> {
+    const serviceLabel = requestedService ?? poolKey;
+
     try {
       const tokens = await this.tokenRepository.find({
         where: {
@@ -54,19 +63,19 @@ export class ServiceTokenService {
 
       if (!token) {
         this.logger.warn(
-          `[service-token] no-active-token | requestedService=${aiService} | poolKey=${poolKey} | total=${tokens.length} | active=${activeTokens.length} | rateLimited=${rateLimitedTokens.length} | inactive=${inactiveTokens.length} | states=${JSON.stringify(tokens.map((t) => ({ id: t.id, poolKey: t.poolKey, status: t.status, resetAt: t.rate_limit_reset_time })))}`,
+          `[service-token] no-active-token | requestedService=${serviceLabel} | poolKey=${poolKey} | total=${tokens.length} | active=${activeTokens.length} | rateLimited=${rateLimitedTokens.length} | inactive=${inactiveTokens.length} | states=${JSON.stringify(tokens.map((t) => ({ id: t.id, poolKey: t.poolKey, status: t.status, resetAt: t.rate_limit_reset_time })))}`,
         );
         throw new Error('No tokens available for this service');
       }
 
       this.logger.log(
-        `[service-token] token-selected | requestedService=${aiService} | poolKey=${poolKey} | tokenId=${token.id} | total=${tokens.length} | active=${activeTokens.length} | rateLimited=${rateLimitedTokens.length} | inactive=${inactiveTokens.length}`,
+        `[service-token] token-selected | requestedService=${serviceLabel} | poolKey=${poolKey} | tokenId=${token.id} | total=${tokens.length} | active=${activeTokens.length} | rateLimited=${rateLimitedTokens.length} | inactive=${inactiveTokens.length}`,
       );
 
       return token;
     } catch (error) {
       this.logger.error(
-        `[service-token] get-next-token-failed | requestedService=${aiService} | poolKey=${poolKey} | error="${error.message}"`,
+        `[service-token] get-next-token-failed | requestedService=${serviceLabel} | poolKey=${poolKey} | error="${error.message}"`,
         error.stack,
       );
       console.error('Task delayed due to error:', error.message);

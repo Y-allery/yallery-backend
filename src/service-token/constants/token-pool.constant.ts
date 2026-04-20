@@ -2,6 +2,7 @@ import { AIEnum, VideoAIEnum } from 'src/common/enums/ai.enum';
 
 export const TOKEN_POOL_KEYS = {
   FAL_SHARED: 'fal_shared',
+  FAL_FINE_TUNE_CONTESTS: 'fal_fine_tune_contests',
 } as const;
 
 export const FAL_SHARED_TOKEN_SERVICES = new Set<string>([

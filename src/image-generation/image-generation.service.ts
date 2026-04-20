@@ -37,6 +37,7 @@ import { Queue } from 'bullmq';
 import { InjectQueue } from '@nestjs/bullmq';
 import { AiServiceToken } from 'src/service-token/entities/service-token.entity';
 import { ServiceTokenService } from 'src/service-token/service-token.service';
+import { TOKEN_POOL_KEYS } from 'src/service-token/constants/token-pool.constant';
 import * as fal from '@fal-ai/serverless-client';
 import OpenAI from 'openai';
 import * as leoProfanity from 'leo-profanity';
@@ -112,6 +113,20 @@ export class ImageGenerationService {
     this.logger.log(
       `[bytedance-edit] ${stage} | ${JSON.stringify(payload)}`,
     );
+  }
+
+  private async selectTokenForImageGeneration(
+    aiService: AIEnum,
+    contestId?: number | null,
+  ): Promise<AiServiceToken | null> {
+    if (aiService === AIEnum.FLUX_PRO_FINE_TUNE && contestId) {
+      return this.serviceTokenService.getNextAvailableTokenFromPool(
+        TOKEN_POOL_KEYS.FAL_FINE_TUNE_CONTESTS,
+        aiService,
+      );
+    }
+
+    return this.serviceTokenService.getNextAvailableToken(aiService);
   }
 
   async generateBytedanceEdit(editImageDto: EditImageDto): Promise<{
@@ -333,8 +348,9 @@ export class ImageGenerationService {
         imageUrl: otherTag.imageUrl,
       });
 
-      token = await this.serviceTokenService.getNextAvailableToken(
+      token = await this.selectTokenForImageGeneration(
         createPostDto.ai_service,
+        createPostDto.contest_id ?? null,
       );
 
       if (!token) {
@@ -351,6 +367,7 @@ export class ImageGenerationService {
           service: createPostDto.ai_service,
           tokenId: token.id,
           tokenStatus: token.status,
+          tokenPoolKey: token.poolKey,
           contestId: createPostDto.contest_id ?? null,
         })}`,
       );
