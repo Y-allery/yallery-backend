@@ -5,6 +5,7 @@ import {
   HttpStatus,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -38,6 +39,7 @@ import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private client: OAuth2Client;
   private oauth2Client;
 
@@ -424,9 +426,24 @@ export class AuthService {
     );
   }
 
+  private logOAuth(stage: string, payload: Record<string, unknown>) {
+    this.logger.log(`[oauth] ${stage} | ${JSON.stringify(payload)}`);
+  }
+
   async verifyAppleToken(token: string) {
+    this.logOAuth('apple-verify-start', {
+      provider: 'apple',
+      hasToken: Boolean(token),
+    });
+
     const payload = await verifyAppleToken.verifyIdToken(token, {
       audience: process.env.APPLE_CLIENT_ID,
+    });
+
+    this.logOAuth('apple-verify-success', {
+      provider: 'apple',
+      email: payload.email ?? null,
+      subject: payload.sub,
     });
 
     return {
@@ -436,6 +453,11 @@ export class AuthService {
     };
   }
   async verifyGoogleAccessToken(token: string) {
+    this.logOAuth('google-verify-start', {
+      provider: 'google',
+      hasToken: Boolean(token),
+    });
+
     this.oauth2Client.setCredentials({
       access_token: token,
     });
@@ -448,20 +470,43 @@ export class AuthService {
     try {
       const { data } = await oauth2.userinfo.get();
 
+      this.logOAuth('google-verify-success', {
+        provider: 'google',
+        email: data.email ?? null,
+        firstName: data.given_name ?? null,
+        lastName: data.family_name ?? null,
+      });
+
       return {
         firstName: data.given_name,
         lastName: data.family_name,
         email: data.email,
       };
     } catch (error) {
+      this.logger.error(
+        `[oauth] google-verify-failed | ${JSON.stringify({
+          provider: 'google',
+          message: error?.message ?? 'unknown',
+        })}`,
+        error?.stack,
+      );
       throw new BadRequestException('Failed to verify Google token');
     }
   }
 
   async signUpWithOAuth(
     payload: OAuthPayload,
-    extras?: { ref?: string; puid?: string },
+    extras?: { ref?: string; puid?: string; provider?: 'google' | 'apple' | 'oauth' },
   ) {
+    const provider = extras?.provider ?? 'oauth';
+
+    this.logOAuth('signup-flow-start', {
+      provider,
+      email: payload.email ?? null,
+      hasRef: Boolean(extras?.ref),
+      hasPuid: Boolean(extras?.puid),
+    });
+
     let user = await this.userRepository.findOne({
       where: { email: payload.email },
     });
@@ -478,6 +523,12 @@ export class AuthService {
       });
       await this.userRepository.save(user);
 
+      this.logOAuth('user-created', {
+        provider,
+        userId: user.id,
+        email: user.email,
+      });
+
       // Відмічаємо що користувач може клеймити DAILY_LOGIN нагороду (після реєстрації це перший логін)
       try {
         await this.rewardService.markRewardEligible(user.id, RewardTypeEnum.DAILY_LOGIN);
@@ -491,6 +542,15 @@ export class AuthService {
           where: { referralToken: extras.ref },
         });
         if (partnership) {
+          this.logOAuth('partnership-found', {
+            provider,
+            userId: user.id,
+            email: user.email,
+            partnershipId: partnership.id,
+            ref: extras.ref,
+            puid: extras.puid,
+            isNewUser: true,
+          });
           const existing = await this.partnerUserLinkRepo.findOne({
             where: {
               partnershipId: partnership.id,
@@ -504,6 +564,14 @@ export class AuthService {
               userId: user.id,
             });
             await this.partnerUserLinkRepo.save(link);
+
+            this.logOAuth('partner-link-created', {
+              provider,
+              userId: user.id,
+              partnershipId: partnership.id,
+              partnerUserId: extras.puid,
+              isNewUser: true,
+            });
             
             // Log partnership activity 'registered' for new OAuth user
             try {
@@ -521,16 +589,57 @@ export class AuthService {
                   activity: 'registered',
                 });
                 await this.partnershipActivityRepo.save(activity);
-                // OAuth partnership activity 'registered' created
+                this.logOAuth('partnership-activity-created', {
+                  provider,
+                  userId: user.id,
+                  partnershipId: partnership.id,
+                  activity: 'registered',
+                  isNewUser: true,
+                });
+              } else {
+                this.logOAuth('partnership-activity-already-exists', {
+                  provider,
+                  userId: user.id,
+                  partnershipId: partnership.id,
+                  activity: 'registered',
+                  isNewUser: true,
+                });
               }
             } catch (error) {
               console.error('[OAuth] Failed to log partnership activity registered:', error?.stack || error);
+              this.logger.error(
+                `[oauth] partnership-activity-create-failed | ${JSON.stringify({
+                  provider,
+                  userId: user.id,
+                  partnershipId: partnership.id,
+                  activity: 'registered',
+                  isNewUser: true,
+                  message: error?.message ?? 'unknown',
+                })}`,
+                error?.stack,
+              );
             }
           } else if (!existing.userId) {
             existing.userId = user.id;
             await this.partnerUserLinkRepo.save(existing);
+            this.logOAuth('partner-link-updated', {
+              provider,
+              userId: user.id,
+              partnershipId: partnership.id,
+              partnerUserId: extras.puid,
+              existingLinkId: existing.id,
+              isNewUser: true,
+            });
           } else {
-            // Partner link already exists and is bound to this user
+            this.logOAuth('partner-link-already-bound', {
+              provider,
+              userId: user.id,
+              partnershipId: partnership.id,
+              partnerUserId: extras.puid,
+              existingLinkId: existing.id,
+              existingLinkedUserId: existing.userId,
+              isNewUser: true,
+            });
           }
           
           // Log registered activity for new OAuth user
@@ -541,16 +650,57 @@ export class AuthService {
               activity: 'registered',
             });
             await this.partnershipActivityRepo.save(activity);
+            this.logOAuth('registered-activity-created', {
+              provider,
+              userId: user.id,
+              partnershipId: partnership.id,
+              activity: 'registered',
+              isNewUser: true,
+            });
           } catch (error) {
             console.error(`[OAuth] Failed to log registered activity:`, error.message);
+            this.logger.error(
+              `[oauth] registered-activity-create-failed | ${JSON.stringify({
+                provider,
+                userId: user.id,
+                partnershipId: partnership.id,
+                activity: 'registered',
+                isNewUser: true,
+                message: error?.message ?? 'unknown',
+              })}`,
+              error?.stack,
+            );
           }
         } else {
           console.warn(
             `[OAuth] Partnership not found for ref=${extras.ref}. Skipping link`,
           );
+          this.logOAuth('partnership-not-found', {
+            provider,
+            userId: user.id,
+            email: user.email,
+            ref: extras.ref,
+            puid: extras.puid,
+            isNewUser: true,
+          });
         }
+      } else {
+        this.logOAuth('partnership-skipped-missing-referral-data', {
+          provider,
+          userId: user.id,
+          email: user.email,
+          hasRef: Boolean(extras?.ref),
+          hasPuid: Boolean(extras?.puid),
+          isNewUser: true,
+        });
       }
     } else {
+      this.logOAuth('existing-user-found', {
+        provider,
+        userId: user.id,
+        email: user.email,
+      });
+
       // Existing user logging in via OAuth: attempt to link partnership if referral extras provided
       // Відмічаємо що користувач може клеймити DAILY_LOGIN нагороду
       try {
@@ -568,7 +718,24 @@ export class AuthService {
             console.warn(
               `[OAuth] Partnership not found for ref=${extras.ref}.`,
             );
+            this.logOAuth('partnership-not-found', {
+              provider,
+              userId: user.id,
+              email: user.email,
+              ref: extras.ref,
+              puid: extras.puid,
+              isNewUser: false,
+            });
           } else {
+            this.logOAuth('partnership-found', {
+              provider,
+              userId: user.id,
+              email: user.email,
+              partnershipId: partnership.id,
+              ref: extras.ref,
+              puid: extras.puid,
+              isNewUser: false,
+            });
             const existing = await this.partnerUserLinkRepo.findOne({
               where: {
                 partnershipId: partnership.id,
@@ -583,20 +750,13 @@ export class AuthService {
               });
               await this.partnerUserLinkRepo.save(link);
 
-              // Log registered activity for existing user linking to partnership
-              try {
-                const activity = this.partnershipActivityRepo.create({
-                  partnershipId: partnership.id,
-                  userId: user.id,
-                  activity: 'registered',
-                });
-                await this.partnershipActivityRepo.save(activity);
-              } catch (error) {
-                console.error(`[OAuth] Failed to log registered activity for existing user:`, error.message);
-              }
-            } else if (!existing.userId) {
-              existing.userId = user.id;
-              await this.partnerUserLinkRepo.save(existing);
+              this.logOAuth('partner-link-created', {
+                provider,
+                userId: user.id,
+                partnershipId: partnership.id,
+                partnerUserId: extras.puid,
+                isNewUser: false,
+              });
 
               // Log registered activity for existing user linking to partnership
               try {
@@ -606,18 +766,115 @@ export class AuthService {
                   activity: 'registered',
                 });
                 await this.partnershipActivityRepo.save(activity);
+                this.logOAuth('registered-activity-created', {
+                  provider,
+                  userId: user.id,
+                  partnershipId: partnership.id,
+                  activity: 'registered',
+                  isNewUser: false,
+                });
+              } catch (error) {
+                console.error(`[OAuth] Failed to log registered activity for existing user:`, error.message);
+                this.logger.error(
+                  `[oauth] registered-activity-create-failed | ${JSON.stringify({
+                    provider,
+                    userId: user.id,
+                    partnershipId: partnership.id,
+                    activity: 'registered',
+                    isNewUser: false,
+                    message: error?.message ?? 'unknown',
+                  })}`,
+                  error?.stack,
+                );
+              }
+            } else if (!existing.userId) {
+              existing.userId = user.id;
+              await this.partnerUserLinkRepo.save(existing);
+
+              this.logOAuth('partner-link-updated', {
+                provider,
+                userId: user.id,
+                partnershipId: partnership.id,
+                partnerUserId: extras.puid,
+                existingLinkId: existing.id,
+                isNewUser: false,
+              });
+
+              // Log registered activity for existing user linking to partnership
+              try {
+                const activity = this.partnershipActivityRepo.create({
+                  partnershipId: partnership.id,
+                  userId: user.id,
+                  activity: 'registered',
+                });
+                await this.partnershipActivityRepo.save(activity);
+                this.logOAuth('registered-activity-created', {
+                  provider,
+                  userId: user.id,
+                  partnershipId: partnership.id,
+                  activity: 'registered',
+                  isNewUser: false,
+                });
               } catch (error) {
                 console.error(`[OAuth] Failed to log registered activity for existing user (link updated):`, error.message);
+                this.logger.error(
+                  `[oauth] registered-activity-create-failed | ${JSON.stringify({
+                    provider,
+                    userId: user.id,
+                    partnershipId: partnership.id,
+                    activity: 'registered',
+                    isNewUser: false,
+                    message: error?.message ?? 'unknown',
+                  })}`,
+                  error?.stack,
+                );
               }
             } else {
-              // Partner link already bound to some user; no changes
+              this.logOAuth('partner-link-already-bound', {
+                provider,
+                userId: user.id,
+                partnershipId: partnership.id,
+                partnerUserId: extras.puid,
+                existingLinkId: existing.id,
+                existingLinkedUserId: existing.userId,
+                isNewUser: false,
+              });
             }
           }
         } catch (err) {
           console.error('[OAuth] Failed to link partnership for existing user:', err?.stack || err);
+          this.logger.error(
+            `[oauth] partnership-link-failed | ${JSON.stringify({
+              provider,
+              userId: user.id,
+              email: user.email,
+              ref: extras?.ref ?? null,
+              puid: extras?.puid ?? null,
+              isNewUser: false,
+              message: err?.message ?? 'unknown',
+            })}`,
+            err?.stack,
+          );
         }
+      } else {
+        this.logOAuth('partnership-skipped-missing-referral-data', {
+          provider,
+          userId: user.id,
+          email: user.email,
+          hasRef: Boolean(extras?.ref),
+          hasPuid: Boolean(extras?.puid),
+          isNewUser: false,
+        });
       }
     }
+
+    this.logOAuth('signup-flow-finished', {
+      provider,
+      userId: user.id,
+      email: user.email,
+      hasRef: Boolean(extras?.ref),
+      hasPuid: Boolean(extras?.puid),
+    });
 
     const accessToken = await this.generateAccessToken(user);
     const refreshToken = await this.generateRefreshToken(user);

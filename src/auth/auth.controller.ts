@@ -248,7 +248,11 @@ export class AuthController {
   })
   async googleLogin(@Body() body: { token: string; ref?: string; puid?: string }) {
     const payload = await this.authService.verifyGoogleAccessToken(body.token);
-    return this.authService.signUpWithOAuth(payload, { ref: body.ref, puid: body.puid });
+    return this.authService.signUpWithOAuth(payload, {
+      ref: body.ref,
+      puid: body.puid,
+      provider: 'google',
+    });
   }
 
   @Post('tegegram-login')
@@ -278,7 +282,11 @@ export class AuthController {
   })
   async appleLogin(@Body() body: { token: string; ref?: string; puid?: string }) {
     const payload = await this.authService.verifyAppleToken(body.token);
-    return this.authService.signUpWithOAuth(payload, { ref: body.ref, puid: body.puid });
+    return this.authService.signUpWithOAuth(payload, {
+      ref: body.ref,
+      puid: body.puid,
+      provider: 'apple',
+    });
   }
 
   @Get('telegram-login')
