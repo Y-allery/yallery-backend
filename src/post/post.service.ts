@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
@@ -42,6 +43,8 @@ const randomSleep = async () =>
 
 @Injectable()
 export class PostService {
+  private readonly logger = new Logger(PostService.name);
+
   constructor(
     @InjectRepository(PostEntity)
     private postEntity: Repository<PostEntity>,
@@ -1783,14 +1786,26 @@ export class PostService {
     post_id: string,
     userId: number,
   ): Promise<{ message: string; tweetUrl: string }> {
+    this.logger.log(
+      `[tweet] service-started | userId=${userId} | postId=${post_id}`,
+    );
+
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user || !user.twitterUsername) {
       console.error(
         '[tweetImageViaPuppeteer] User not found or has no twitter username:',
         user?.twitterUsername || 'null',
       );
+      this.logger.warn(
+        `[tweet] service-aborted-missing-user | userId=${userId} | postId=${post_id} | twitterUsername=${user?.twitterUsername || 'n/a'}`,
+      );
       throw new NotFoundException('User not found or has no twitter username');
     }
+
+    this.logger.log(
+      `[tweet] user-loaded | userId=${user.id} | twitterUsername=${user.twitterUsername}`,
+    );
+
     const post = await this.postEntity.findOne({
       where: { id: +post_id },
       relations: ['contest', 'contest.tag'],
@@ -1798,8 +1813,15 @@ export class PostService {
 
     if (!post) {
       console.error('[tweetImageViaPuppeteer] Post not found');
+      this.logger.warn(
+        `[tweet] service-aborted-missing-post | userId=${userId} | postId=${post_id}`,
+      );
       throw new NotFoundException('Post not found');
     }
+
+    this.logger.log(
+      `[tweet] post-loaded | userId=${user.id} | postId=${post.id} | hasContest=${Boolean(post.contest)} | currentTweetLink=${post.tweetLink || 'n/a'}`,
+    );
 
     const SESSION_PATH = path.resolve(
       process.cwd(),
@@ -1870,6 +1892,9 @@ export class PostService {
       );
 
       if (isLoggedIn) {
+        this.logger.log(
+          `[tweet] session-reused | userId=${user.id} | postId=${post.id}`,
+        );
         const res = await this._postTweet(page, post, user, TWITTER_USERNAME);
         clearInterval(keepAlive);
         return res;
@@ -2008,18 +2033,82 @@ export class PostService {
     return await this._postTweet(page, post, user, TWITTER_USERNAME);
   }
 
+  private async logPostedToTwitterPartnershipActivities(
+    userId: number,
+    postId: number,
+    tweetUrl: string,
+  ): Promise<void> {
+    this.logger.log(
+      `[tweet] partnership-activity-start | userId=${userId} | postId=${postId} | activity=posted_to_twitter | tweetUrl=${tweetUrl}`,
+    );
+
+    const links = await this.partnerUserLinkRepo.find({
+      where: { userId },
+    });
+
+    this.logger.log(
+      `[tweet] partnership-links-loaded | userId=${userId} | postId=${postId} | linksCount=${links.length}`,
+    );
+
+    if (!links.length) {
+      this.logger.warn(
+        `[tweet] partnership-activity-skipped-no-links | userId=${userId} | postId=${postId}`,
+      );
+      return;
+    }
+
+    for (const link of links) {
+      this.logger.log(
+        `[tweet] partnership-activity-checking | userId=${userId} | postId=${postId} | partnershipId=${link.partnershipId}`,
+      );
+
+      const exists = await this.partnershipActivityRepo.findOne({
+        where: {
+          partnershipId: link.partnershipId,
+          userId,
+          activity: 'posted_to_twitter',
+        },
+      });
+
+      if (exists) {
+        this.logger.log(
+          `[tweet] partnership-activity-already-exists | userId=${userId} | postId=${postId} | partnershipId=${link.partnershipId} | activityId=${exists.id}`,
+        );
+        continue;
+      }
+
+      const rec = this.partnershipActivityRepo.create({
+        partnershipId: link.partnershipId,
+        userId,
+        activity: 'posted_to_twitter',
+      });
+
+      const saved = await this.partnershipActivityRepo.save(rec);
+
+      this.logger.log(
+        `[tweet] partnership-activity-saved | table=partnership_activities | activityId=${saved.id} | userId=${userId} | postId=${postId} | partnershipId=${link.partnershipId} | activity=${saved.activity}`,
+      );
+    }
+  }
+
   private async _postTweet(
     page: any,
     post: PostEntity,
     user: UserEntity,
     twitterUsername: string,
   ): Promise<{ message: string; tweetUrl: string }> {
-    // Starting tweet process
+    this.logger.log(
+      `[tweet] post-started | userId=${user?.id || 'n/a'} | postId=${post?.id || 'n/a'} | contestId=${post?.contest?.id || 'n/a'}`,
+    );
+
     // Skip posting if user is null or has no twitter username
     if (!user || !user.twitterUsername) {
       console.error(
         '[_postTweet] SKIPPING: User is null or has no twitter username:',
         user?.twitterUsername || 'null',
+      );
+      this.logger.warn(
+        `[tweet] post-skipped-missing-user | userId=${user?.id || 'n/a'} | postId=${post?.id || 'n/a'}`,
       );
       return { message: 'Skipped: User not found or no twitter username', tweetUrl: '' };
     }
@@ -2221,6 +2310,10 @@ export class PostService {
 
     const tweetUrlFull = `https://twitter.com/${twitterUsername}/status/${tweetId}`;
 
+    this.logger.log(
+      `[tweet] twitter-post-created | userId=${user.id} | postId=${post.id} | tweetId=${tweetId} | tweetUrl=${tweetUrlFull}`,
+    );
+
     post.tweetLink = tweetUrlFull;
     
     // Log partnership activity 'posted_to_twitter'
@@ -2229,30 +2322,21 @@ export class PostService {
         console.warn(
           '[_postTweet] Cannot log partnership activity: missing user.id',
         );
+        this.logger.warn(
+          `[tweet] partnership-activity-skipped-missing-user-id | postId=${post.id} | tweetUrl=${tweetUrlFull}`,
+        );
       } else {
-        const links = await this.partnerUserLinkRepo.find({
-          where: { userId: user.id },
-        });
-        for (const link of links) {
-          const exists = await this.partnershipActivityRepo.findOne({
-            where: {
-              partnershipId: link.partnershipId,
-              userId: user.id,
-              activity: 'posted_to_twitter',
-            },
-          });
-          if (exists) {
-            continue;
-          }
-          const rec = this.partnershipActivityRepo.create({
-            partnershipId: link.partnershipId,
-            userId: user.id,
-            activity: 'posted_to_twitter',
-          });
-          await this.partnershipActivityRepo.save(rec);
-        }
+        await this.logPostedToTwitterPartnershipActivities(
+          user.id,
+          post.id,
+          tweetUrlFull,
+        );
       }
     } catch (error) {
+      this.logger.error(
+        `[tweet] partnership-activity-failed | userId=${user.id} | postId=${post.id} | tweetUrl=${tweetUrlFull} | error="${error?.message || error}"`,
+        error?.stack,
+      );
       console.error(
         '[_postTweet] Failed to log partnership activity posted_to_twitter:',
         error?.stack || error,
@@ -2260,6 +2344,10 @@ export class PostService {
     }
     
     await this.postEntity.save(post);
+
+    this.logger.log(
+      `[tweet] post-saved-with-tweet-link | userId=${user.id} | postId=${post.id} | tweetUrl=${tweetUrlFull}`,
+    );
 
     await page.browser().close();
     

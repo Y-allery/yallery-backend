@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Logger,
   Param,
   ParseIntPipe,
   Patch,
@@ -40,6 +41,8 @@ import { Queue } from 'bullmq';
 @Controller('post')
 @ApiTags('Post')
 export class PostController {
+  private readonly logger = new Logger(PostController.name);
+
   constructor(
     private readonly postService: PostService,
     private readonly notificationGateway: NotificationGateway,
@@ -231,7 +234,7 @@ export class PostController {
   @ApiResponse(POST_SWAGGER.tweet.responses.success)
   @ApiResponse(POST_SWAGGER.tweet.responses.badRequest)
   async tweetImage(@Body() dto: TweetDto, @Req() req: AuthenticatedRequest) {
-    await this.tweetQueue.add(
+    const job = await this.tweetQueue.add(
       'tweet',
       { postId: dto.post_id, userId: req.user.id },
       {
@@ -241,6 +244,11 @@ export class PostController {
         removeOnFail: false,
       },
     );
+
+    this.logger.log(
+      `[tweet] queued | jobId=${job.id} | userId=${req.user.id} | postId=${dto.post_id}`,
+    );
+
     return { message: 'Tweet request queued successfully' };
   }
 
