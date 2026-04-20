@@ -13,7 +13,7 @@ export class PartnerController {
     description:
       'Checks whether a user (by partnerUserId) linked via referralToken has a specific activity flag.\n\n' +
       '**Available flags:**\n' +
-      '- `retweet` - User retweeted the latest post (real-time check via TweetScout API)\n' +
+      '- `retweet` - User published the required `@y_allery` text (real-time check via SocialData API)\n' +
       '- `registered` - User registered via referral link\n' +
       '- `image_generated` - User generated an image\n' +
       '- `posted_to_twitter` - User successfully published a tweet\n\n' +
@@ -66,5 +66,4 @@ export class PartnerController {
     });
   }
 }
-
 

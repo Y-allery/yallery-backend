@@ -29,12 +29,11 @@ import { RoleEnum } from 'src/user/types/role.enum';
 import { FirebaseService } from 'src/firebase/firebase.service';
 import { RewardService } from 'src/reward/reward.service';
 import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
+import { SocialDataService } from 'src/social-data/social-data.service';
 const axios = require('axios');
-import * as https from 'https';
 
 @Injectable()
 export class ContestService {
-  private readonly tweetscoutApiKey: string;
   private readonly logger = new Logger(ContestService.name);
 
   constructor(
@@ -54,9 +53,8 @@ export class ContestService {
     private readonly firebaseService: FirebaseService,
     private readonly notificationGateway: NotificationGateway,
     private readonly rewardService: RewardService,
-  ) {
-    this.tweetscoutApiKey = this.configService.get<string>('TWEETSCOUT_API_KEY');
-  }
+    private readonly socialDataService: SocialDataService,
+  ) {}
 
   async getAllContests(userId: number, type?: ContestTypeEnum, status?: ContestStatusEnum) {
     const whereCondition: any = {};
@@ -630,22 +628,16 @@ export class ContestService {
       
       if (contest.tag.name) {
         try {
-          // Fetching tweets from Twitter API for tag #${contest.tag.name}
-          const response = await axios.post(
-            'https://api.tweetscout.io/v2/user-tweets',
-            {
-              link: 'https://x.com/y_allery',
-            },
-            {
-              headers: {
-                ApiKey: this.tweetscoutApiKey,
-                'Content-Type': 'application/json',
-                Accept: 'application/json',
-              },
-            },
+          const query = `from:y_allery #${contest.tag.name}`;
+          this.logger.log(
+            `[retweet-check] socialdata-request | source=contest-auto-winner | contestId=${contest.id} | query=${query}`,
+          );
+          const response = await this.socialDataService.searchTweets(query);
+          this.logger.log(
+            `[retweet-check] socialdata-response-body | source=contest-auto-winner | contestId=${contest.id} | body=${JSON.stringify(response)}`,
           );
 
-          const tweets = response.data?.tweets || [];
+          const tweets = response?.tweets || [];
 
           const filtered = [];
           for (const t of tweets) {
@@ -722,7 +714,7 @@ export class ContestService {
         } catch (error) {
           console.error(`   ❌ Error in automatic winner selection:`, error.message);
           console.error(
-            'TweetScout error:',
+            'SocialData error:',
             error.response?.data || error.message,
           );
           // Error occurred - closing contest without winner
@@ -996,74 +988,65 @@ export class ContestService {
     tweetLink: string,
     userHandle: string,
   ): Promise<{ retweet: boolean }> {
+    const normalizedUserHandle = userHandle.replace(/^@/, '');
     this.logger.log(
-      `[retweet-check] start | source=contest-winner | userHandle=${userHandle} | tweetLink=${tweetLink}`,
+      `[retweet-check] start | source=contest-winner | userHandle=${normalizedUserHandle} | tweetLink=${tweetLink}`,
     );
+    const tweetId = this.extractTweetIdFromLink(tweetLink);
+    if (!tweetId) {
+      this.logger.warn(
+        `[retweet-check] invalid-tweet-link | source=contest-winner | userHandle=${normalizedUserHandle} | tweetLink=${tweetLink}`,
+      );
+      return { retweet: false };
+    }
 
-    const options = {
-      method: 'POST',
-      hostname: 'api.tweetscout.io',
-      path: '/v2/check-retweet',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        ApiKey: this.tweetscoutApiKey,
-      },
-    };
+    try {
+      this.logger.log(
+        `[retweet-check] socialdata-user-request | source=contest-winner | userHandle=${normalizedUserHandle}`,
+      );
+      const userProfile = await this.socialDataService.getUserProfile(
+        normalizedUserHandle,
+      );
+      this.logger.log(
+        `[retweet-check] socialdata-user-response | source=contest-winner | userHandle=${normalizedUserHandle} | body=${JSON.stringify(userProfile)}`,
+      );
 
-    const body = JSON.stringify({
-      tweet_link: tweetLink,
-      user_handle: userHandle,
-    });
-
-    return new Promise((resolve, reject) => {
-      const req = https.request(options, (res) => {
-        const chunks: Uint8Array[] = [];
-        this.logger.log(
-          `[retweet-check] tweetscout-response-start | source=contest-winner | userHandle=${userHandle} | statusCode=${res.statusCode ?? 'n/a'}`,
+      const userId = String(userProfile?.id_str || userProfile?.id || '');
+      if (!userId) {
+        this.logger.warn(
+          `[retweet-check] missing-user-id | source=contest-winner | userHandle=${normalizedUserHandle}`,
         );
-        res.on('data', (chunk) => chunks.push(chunk));
-        res.on('end', () => {
-          const responseBody = Buffer.concat(chunks).toString();
-          try {
-            const parsed = JSON.parse(responseBody);
-            this.logger.log(
-              `[retweet-check] tweetscout-response-body | source=contest-winner | userHandle=${userHandle} | statusCode=${res.statusCode ?? 'n/a'} | body=${JSON.stringify(parsed)}`,
-            );
-            if (typeof parsed.retweet === 'boolean') {
-              this.logger.log(
-                `[retweet-check] result | source=contest-winner | userHandle=${userHandle} | retweet=${parsed.retweet}`,
-              );
-              resolve({ retweet: parsed.retweet });
-            } else {
-              this.logger.warn(
-                `[retweet-check] invalid-response-shape | source=contest-winner | userHandle=${userHandle} | body=${responseBody}`,
-              );
-              resolve({ retweet: false });
-            }
-          } catch (error) {
-            this.logger.error(
-              `[retweet-check] parse-failed | source=contest-winner | userHandle=${userHandle} | body=${responseBody} | error=${error?.message || error}`,
-            );
-            resolve({ retweet: false });
-          }
-        });
-      });
-
-      req.on('error', (e) => {
-        this.logger.error(
-          `[retweet-check] request-failed | source=contest-winner | userHandle=${userHandle} | error=${e.message}`,
-          e.stack,
-        );
-        resolve({ retweet: false });
-      });
+        return { retweet: false };
+      }
 
       this.logger.log(
-        `[retweet-check] tweetscout-request | source=contest-winner | userHandle=${userHandle} | body=${body}`,
+        `[retweet-check] socialdata-request | source=contest-winner | userHandle=${normalizedUserHandle} | tweetId=${tweetId} | userId=${userId}`,
       );
-      req.write(body);
-      req.end();
-    });
+      const response = await this.socialDataService.verifyUserRetweeted(
+        tweetId,
+        userId,
+      );
+      this.logger.log(
+        `[retweet-check] socialdata-response-body | source=contest-winner | userHandle=${normalizedUserHandle} | tweetId=${tweetId} | userId=${userId} | body=${JSON.stringify(response)}`,
+      );
+
+      const retweet = response?.is_retweeted === true;
+      this.logger.log(
+        `[retweet-check] result | source=contest-winner | userHandle=${normalizedUserHandle} | retweet=${retweet}`,
+      );
+      return { retweet };
+    } catch (error) {
+      this.logger.error(
+        `[retweet-check] failed | source=contest-winner | userHandle=${normalizedUserHandle} | error=${error.message}`,
+        error.stack,
+      );
+      return { retweet: false };
+    }
+  }
+
+  private extractTweetIdFromLink(tweetLink: string): string | null {
+    const match = tweetLink?.match(/status\/(\d+)/);
+    return match?.[1] || null;
   }
 
   async findAllContests(): Promise<any[]> {

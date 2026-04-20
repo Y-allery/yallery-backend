@@ -13,6 +13,7 @@ import { FirebaseModule } from 'src/firebase/firebase.module';
 import { RedisService } from 'src/database/redis.service.connect';
 import { RewardModule } from 'src/reward/reward.module';
 import { DeviceTokenEntity } from 'src/user/entities/device-token.entity';
+import { SocialDataModule } from 'src/social-data/social-data.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { DeviceTokenEntity } from 'src/user/entities/device-token.entity';
     ActivityModule,
     FirebaseModule,
     forwardRef(() => RewardModule),
+    SocialDataModule,
   ],
   providers: [ContestService, RedisService],
   controllers: [ContestController],

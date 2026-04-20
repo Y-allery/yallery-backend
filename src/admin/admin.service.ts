@@ -48,6 +48,7 @@ import { FirebaseService } from 'src/firebase/firebase.service';
 import { MailService } from 'src/mail/mail.service';
 import { DeviceTokenEntity } from 'src/user/entities/device-token.entity';
 import { BroadcastNotificationDto, NotificationType } from './dto/broadcast-notification.dto';
+import { SocialDataService } from 'src/social-data/social-data.service';
 
 @Injectable()
 export class AdminService {
@@ -90,9 +91,13 @@ export class AdminService {
     private readonly deviceTokenRepository: Repository<DeviceTokenEntity>,
     private readonly firebaseService: FirebaseService,
     private readonly mailService: MailService,
+    private readonly socialDataService: SocialDataService,
   ) {
     this.apiKey = this.configService.get<string>('TWEETSCOUT_API_KEY');
-    this.apiUrl = this.configService.get<string>('TWEETSCOUT_API_URL', 'https://api.tweetscout.io/v2');
+    this.apiUrl = this.configService.get<string>(
+      'TWEETSCOUT_API_URL',
+      'https://api.tweetscout.io/v2',
+    );
     this.accountName = this.configService.get<string>('TWITTER_ACCOUNT_NAME', 'y_allery');
     this.twitterScoreKey = this.configService.get<string>('TWITTER_SCORE_API_KEY');
     this.twitterScoreUrl = this.configService.get<string>('TWITTER_SCORE_API_URL', 'https://twitterscore.io/api/v1');
@@ -907,7 +912,7 @@ export class AdminService {
         
         const twitterUsername = user.twitterUsername.replace(/^@/, '');
         this.logger.log(
-          `[retweet-check] referral-flag-call-tweetscout | partnershipId=${partnership.id} | userId=${userIdNum} | twitterUsername=${twitterUsername}`,
+          `[retweet-check] referral-flag-call-socialdata | partnershipId=${partnership.id} | userId=${userIdNum} | twitterUsername=${twitterUsername}`,
         );
         const retweetCheck = await this.checkRetweet(
           twitterUsername,
@@ -1096,109 +1101,63 @@ export class AdminService {
     this.logger.log(
       `[retweet-check] start | source=referral-flag | partnershipId=${partnershipId} | userId=${userId} | userHandle=${userHandle}`,
     );
-    const userLink = `https://twitter.com/${userHandle}`;
     const searchText = '@y_allery';
     const maxTweetsToCheck = 15;
     let cursor: string | null = null;
     let totalTweetsChecked = 0;
     let found = false;
+    const normalizedUserHandle = userHandle.replace(/^@/, '');
+    const query = `from:${normalizedUserHandle} ${searchText}`;
 
     try {
-      // Check up to 15 tweets across multiple pages if needed
       while (totalTweetsChecked < maxTweetsToCheck && !found) {
-        const requestBody: any = {
-          link: userLink,
-        };
-        
-        if (cursor) {
-          requestBody.cursor = cursor;
-        }
-
-        const options = {
-          method: 'POST',
-          hostname: 'api.tweetscout.io',
-          path: '/v2/user-tweets',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-            ApiKey: this.apiKey,
-          },
-        };
-
-        const response = await new Promise<any>((resolve, reject) => {
-          const req = https.request(options, (res) => {
-            const chunks: Uint8Array[] = [];
-            this.logger.log(
-              `[retweet-check] tweetscout-response-start | source=referral-flag | partnershipId=${partnershipId} | userId=${userId} | userHandle=${userHandle} | statusCode=${res.statusCode ?? 'n/a'} | cursor=${cursor ?? 'none'}`,
-            );
-            res.on('data', (chunk) => chunks.push(chunk));
-            res.on('end', () => {
-              const responseBody = Buffer.concat(chunks).toString();
-              try {
-                const parsed = JSON.parse(responseBody);
-                this.logger.log(
-                  `[retweet-check] tweetscout-response-body | source=referral-flag | partnershipId=${partnershipId} | userId=${userId} | userHandle=${userHandle} | statusCode=${res.statusCode ?? 'n/a'} | body=${responseBody}`,
-                );
-                resolve(parsed);
-              } catch (error) {
-                this.logger.error(`[checkRetweet] JSON parse error: ${error.message}`, error.stack);
-                reject(error);
-              }
-            });
-          });
-
-          req.on('error', (e) => {
-            this.logger.error(`[checkRetweet] Request error: ${e.message}`, e.stack);
-            reject(e);
-          });
-
-          this.logger.log(
-            `[retweet-check] tweetscout-request | source=referral-flag | partnershipId=${partnershipId} | userId=${userId} | userHandle=${userHandle} | body=${JSON.stringify(requestBody)}`,
-          );
-          req.write(JSON.stringify(requestBody));
-          req.end();
-        });
+        this.logger.log(
+          `[retweet-check] socialdata-request | source=referral-flag | partnershipId=${partnershipId} | userId=${userId} | userHandle=${normalizedUserHandle} | query=${query} | cursor=${cursor ?? 'none'}`,
+        );
+        const response = await this.socialDataService.searchTweets(
+          query,
+          cursor || undefined,
+        );
+        this.logger.log(
+          `[retweet-check] socialdata-response-body | source=referral-flag | partnershipId=${partnershipId} | userId=${userId} | userHandle=${normalizedUserHandle} | cursor=${cursor ?? 'none'} | body=${JSON.stringify(response)}`,
+        );
 
         const tweets = response?.tweets || [];
         this.logger.log(
-          `[retweet-check] tweetscout-page-loaded | source=referral-flag | partnershipId=${partnershipId} | userId=${userId} | userHandle=${userHandle} | tweets=${tweets.length} | nextCursor=${response?.next_cursor || 'none'} | checkedSoFar=${totalTweetsChecked}`,
+          `[retweet-check] socialdata-page-loaded | source=referral-flag | partnershipId=${partnershipId} | userId=${userId} | userHandle=${normalizedUserHandle} | tweets=${tweets.length} | nextCursor=${response?.next_cursor || 'none'} | checkedSoFar=${totalTweetsChecked}`,
         );
 
-        // Check each tweet for @yallery mention
         for (const tweet of tweets) {
           totalTweetsChecked++;
-          
+
           if (totalTweetsChecked > maxTweetsToCheck) {
             break;
           }
 
-          const tweetText = tweet.full_text || '';
+          const tweetText = tweet.full_text || tweet.text || '';
           const tweetId = tweet.id_str || 'unknown';
-          
+
           if (tweetText.toLowerCase().includes(searchText.toLowerCase())) {
-            // Found @yallery mention - log tweet information
             this.logger.log(`[checkRetweet] ✅ FOUND POST WITH @yallery MENTION!`);
             this.logger.log(`[checkRetweet] Tweet ID: ${tweetId}`);
             this.logger.log(`[checkRetweet] Full Text: "${tweetText}"`);
-            this.logger.log(`[checkRetweet] Tweet URL: https://twitter.com/${userHandle}/status/${tweetId}`);
+            this.logger.log(`[checkRetweet] Tweet URL: https://twitter.com/${normalizedUserHandle}/status/${tweetId}`);
             this.logger.log(
-              `[retweet-check] match-found | source=referral-flag | partnershipId=${partnershipId} | userId=${userId} | userHandle=${userHandle} | tweetId=${tweetId}`,
+              `[retweet-check] match-found | source=referral-flag | partnershipId=${partnershipId} | userId=${userId} | userHandle=${normalizedUserHandle} | tweetId=${tweetId}`,
             );
             found = true;
             break;
           }
         }
 
-        // If we found it, break the loop
         if (found) {
           break;
         }
 
-        // Check if there are more tweets to fetch
         cursor = response?.next_cursor || null;
         if (!cursor || tweets.length === 0) {
           this.logger.log(
-            `[retweet-check] pagination-stop | source=referral-flag | partnershipId=${partnershipId} | userId=${userId} | userHandle=${userHandle} | cursor=${cursor || 'none'} | tweets=${tweets.length}`,
+            `[retweet-check] pagination-stop | source=referral-flag | partnershipId=${partnershipId} | userId=${userId} | userHandle=${normalizedUserHandle} | cursor=${cursor || 'none'} | tweets=${tweets.length}`,
           );
           break;
         }
@@ -1232,13 +1191,13 @@ export class AdminService {
       }
 
       this.logger.log(
-        `[retweet-check] result | source=referral-flag | partnershipId=${partnershipId} | userId=${userId} | userHandle=${userHandle} | retweet=${found} | totalTweetsChecked=${totalTweetsChecked}`,
+        `[retweet-check] result | source=referral-flag | partnershipId=${partnershipId} | userId=${userId} | userHandle=${normalizedUserHandle} | retweet=${found} | totalTweetsChecked=${totalTweetsChecked}`,
       );
       return { retweet: found };
     } catch (error) {
-      this.logger.error(`[checkRetweet] Error checking retweet for ${userHandle}: ${error.message}`, error.stack);
+      this.logger.error(`[checkRetweet] Error checking retweet for ${normalizedUserHandle}: ${error.message}`, error.stack);
       this.logger.error(
-        `[retweet-check] failed | source=referral-flag | partnershipId=${partnershipId} | userId=${userId} | userHandle=${userHandle} | error=${error.message}`,
+        `[retweet-check] failed | source=referral-flag | partnershipId=${partnershipId} | userId=${userId} | userHandle=${normalizedUserHandle} | error=${error.message}`,
         error.stack,
       );
       return { retweet: false };

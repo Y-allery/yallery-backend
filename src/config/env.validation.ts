@@ -49,6 +49,14 @@ export class EnvironmentVariables {
   @IsString()
   TWEETSCOUT_API_URL?: string;
 
+  @IsOptional()
+  @IsString()
+  SOCIALDATA_API_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  SOCIALDATA_API_URL?: string;
+
   @IsString()
   TWITTER_SCORE_API_KEY: string;
 

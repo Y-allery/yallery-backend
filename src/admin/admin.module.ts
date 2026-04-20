@@ -23,6 +23,7 @@ import { FirebaseModule } from 'src/firebase/firebase.module';
 import { MailModule } from 'src/mail/mail.module';
 import { DeviceTokenEntity } from 'src/user/entities/device-token.entity';
 import { MemeModule } from 'src/meme/meme.module';
+import { SocialDataModule } from 'src/social-data/social-data.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { MemeModule } from 'src/meme/meme.module';
     FirebaseModule,
     MailModule,
     MemeModule,
+    SocialDataModule,
   ],
   providers: [AdminService],
   controllers: [AdminController, PartnerController],
