@@ -6,6 +6,10 @@ import { LessThan, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { NotificationGateway } from 'src/notification/notification.gateway';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import {
+  FAL_SHARED_TOKEN_SERVICES,
+  TOKEN_POOL_KEYS,
+} from './constants/token-pool.constant';
 const DEFAULT_WINDOW = 60;
 
 @Injectable()
@@ -17,24 +21,54 @@ export class ServiceTokenService {
     private readonly notificationGateway: NotificationGateway,
   ) {}
 
+  private resolvePoolKey(aiService: AIEnum | VideoAIEnum | string): string {
+    if (FAL_SHARED_TOKEN_SERVICES.has(aiService)) {
+      return TOKEN_POOL_KEYS.FAL_SHARED;
+    }
+
+    return aiService;
+  }
+
   async getNextAvailableToken(
     aiService: AIEnum | VideoAIEnum | string,
   ): Promise<AiServiceToken | null> {
+    const poolKey = this.resolvePoolKey(aiService);
+
     try {
-      const token = await this.tokenRepository.findOne({
+      const tokens = await this.tokenRepository.find({
         where: {
-          aiService: aiService,
-          status: TokenStatus.ACTIVE,
+          poolKey,
         },
         order: { updated_at: 'ASC' },
       });
 
+      const activeTokens = tokens.filter((token) => token.status === TokenStatus.ACTIVE);
+      const rateLimitedTokens = tokens.filter(
+        (token) => token.status === TokenStatus.RATE_LIMITED,
+      );
+      const inactiveTokens = tokens.filter(
+        (token) => token.status === TokenStatus.INACTIVE,
+      );
+
+      const token = activeTokens[0];
+
       if (!token) {
+        this.logger.warn(
+          `[service-token] no-active-token | requestedService=${aiService} | poolKey=${poolKey} | total=${tokens.length} | active=${activeTokens.length} | rateLimited=${rateLimitedTokens.length} | inactive=${inactiveTokens.length} | states=${JSON.stringify(tokens.map((t) => ({ id: t.id, poolKey: t.poolKey, status: t.status, resetAt: t.rate_limit_reset_time })))}`,
+        );
         throw new Error('No tokens available for this service');
       }
 
+      this.logger.log(
+        `[service-token] token-selected | requestedService=${aiService} | poolKey=${poolKey} | tokenId=${token.id} | total=${tokens.length} | active=${activeTokens.length} | rateLimited=${rateLimitedTokens.length} | inactive=${inactiveTokens.length}`,
+      );
+
       return token;
     } catch (error) {
+      this.logger.error(
+        `[service-token] get-next-token-failed | requestedService=${aiService} | poolKey=${poolKey} | error="${error.message}"`,
+        error.stack,
+      );
       console.error('Task delayed due to error:', error.message);
       throw error;
     }
@@ -44,18 +78,28 @@ export class ServiceTokenService {
     token: AiServiceToken,
     aiService: AIEnum | VideoAIEnum | string,
   ) {
+    const poolKey = this.resolvePoolKey(aiService);
     const rateLimit = RATE_LIMITS[aiService as AIEnum];
     const window = rateLimit?.window ?? DEFAULT_WINDOW;
+    const previousStatus = token.status;
 
     token.status = TokenStatus.RATE_LIMITED;
     token.rate_limit_reset_time = new Date(Date.now() + window * 1000);
 
     await this.tokenRepository.save(token);
+
+    this.logger.warn(
+      `[service-token] token-rate-limited | requestedService=${aiService} | poolKey=${poolKey} | tokenId=${token.id} | previousStatus=${previousStatus} | windowSeconds=${window} | resetAt=${token.rate_limit_reset_time.toISOString()}`,
+    );
   }
 
   async markTokenAsInactive(token: AiServiceToken) {
+    const previousStatus = token.status;
     token.status = TokenStatus.INACTIVE;
     await this.tokenRepository.save(token);
+    this.logger.warn(
+      `[service-token] token-inactive | poolKey=${token.poolKey} | tokenId=${token.id} | previousStatus=${previousStatus}`,
+    );
   }
   @Cron(CronExpression.EVERY_SECOND)
   async resetTokens() {

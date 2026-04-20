@@ -105,6 +105,15 @@ export class ImageGenerationService {
     );
   }
 
+  private logBytedanceEdit(
+    stage: string,
+    payload: Record<string, unknown>,
+  ): void {
+    this.logger.log(
+      `[bytedance-edit] ${stage} | ${JSON.stringify(payload)}`,
+    );
+  }
+
   async generateBytedanceEdit(editImageDto: EditImageDto): Promise<{
     generatedImages: string[];
     suggestedTags: { id: number; name: string }[];
@@ -165,6 +174,13 @@ export class ImageGenerationService {
         credentials: token.token,
       });
 
+      this.logBytedanceEdit('token-selected', {
+        tokenId: token.id,
+        tokenStatus: token.status,
+        contestId: editImageDto.contest_id ?? null,
+        imageUrl: editImageDto.image_url,
+      });
+
       const generateMethod = fal.run.bind(fal, 'fal-ai/bytedance/seededit/v3/edit-image');
 
       const inputParams = {
@@ -181,9 +197,22 @@ export class ImageGenerationService {
       });
 
       // Detailed Bytedance debug logs removed to avoid noisy console output
+      this.logBytedanceEdit('provider-call-start', {
+        tokenId: token.id,
+        endpoint: 'fal-ai/bytedance/seededit/v3/edit-image',
+        guidanceScale: inputParams.guidance_scale,
+      });
       
       const result = await generateMethod({
         input: inputParams,
+      });
+
+      this.logBytedanceEdit('provider-call-success', {
+        tokenId: token.id,
+        resultKeys: Object.keys(result || {}),
+        imageFieldType: Array.isArray(result?.image)
+          ? 'array'
+          : typeof result?.image,
       });
       
   
@@ -210,11 +239,39 @@ export class ImageGenerationService {
       const uploadResponses = await Promise.all(uploadPromises);
 
       console.log(`[generateBytedanceEdit] Success | Generated: ${uploadResponses.length} images`);
+      this.logBytedanceEdit('upload-success', {
+        tokenId: token.id,
+        generatedImages: uploadResponses.length,
+      });
       return { generatedImages: uploadResponses, suggestedTags };
     } catch (error) {
+      this.logger.error(
+        `[bytedance-edit] provider-call-failed | ${JSON.stringify({
+          tokenId: token?.id ?? null,
+          contestId: editImageDto.contest_id ?? null,
+          imageUrl: editImageDto.image_url,
+          prompt: editImageDto.prompt,
+          message: error.message,
+          name: error.name,
+          code: error.code,
+          status: error.status,
+          statusCode: error.statusCode,
+          responseStatus: error.response?.status,
+          responseStatusText: error.response?.statusText,
+          responseData: error.response?.data ?? error.data ?? null,
+          causeMessage: error.cause?.message ?? null,
+        })}`,
+        error.stack,
+      );
       console.error(`[generateBytedanceEdit] Failed | Error: ${error.message}`);
       
       if (token?.token) {
+        this.logBytedanceEdit('token-rate-limit-mark-requested', {
+          tokenId: token.id,
+          reason: error.message,
+          errorCode: error.code ?? null,
+          errorStatus: error.status ?? error.statusCode ?? error.response?.status ?? null,
+        });
         await this.serviceTokenService.markTokenAsRateLimited(
           token,
           AIEnum.BYTEDANCE_EDIT,
@@ -288,6 +345,15 @@ export class ImageGenerationService {
       fal.config({
         credentials: token.token,
       });
+
+      this.logger.log(
+        `[fal-generate] token-selected | ${JSON.stringify({
+          service: createPostDto.ai_service,
+          tokenId: token.id,
+          tokenStatus: token.status,
+          contestId: createPostDto.contest_id ?? null,
+        })}`,
+      );
 
       if (createPostDto.ai_service === AIEnum.X_ROUTER) {
         throw new BadRequestException('X_ROUTER service should use generateXRouter method');
@@ -400,6 +466,15 @@ export class ImageGenerationService {
       const result = await generateMethod({
         input: inputParams,
       });
+      this.logger.log(
+        `[fal-generate] provider-call-success | ${JSON.stringify({
+          service: createPostDto.ai_service,
+          tokenId: token.id,
+          durationMs: Date.now() - start,
+          resultKeys: Object.keys(result || {}),
+          imagesCount: Array.isArray(result?.images) ? result.images.length : null,
+        })}`,
+      );
 
       if (!result.images || !Array.isArray(result.images) || result.images.length === 0) {
         throw new Error(
@@ -440,6 +515,15 @@ export class ImageGenerationService {
       );
 
       if (token?.token) {
+        this.logger.warn(
+          `[fal-generate] token-rate-limit-mark-requested | ${JSON.stringify({
+            service: createPostDto.ai_service,
+            tokenId: token.id,
+            reason: error.message,
+            errorCode: error.code ?? null,
+            errorStatus: error.status ?? error.statusCode ?? error.response?.status ?? null,
+          })}`,
+        );
         await this.serviceTokenService.markTokenAsRateLimited(
           token,
           createPostDto.ai_service,

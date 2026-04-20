@@ -1,6 +1,6 @@
 import { Processor, OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ImageGenerationService } from '../image-generation.service';
 import { NotificationGateway } from 'src/notification/notification.gateway';
 import { AIEnum } from 'src/common/enums/ai.enum';
@@ -14,6 +14,8 @@ import { BaseImageProcessor } from './base-image-processor';
   lockDuration: 120000,
 })
 export class FalAiProcessor extends BaseImageProcessor {
+  private readonly logger = new Logger(FalAiProcessor.name);
+
   constructor(
     private readonly imageGenerationService: ImageGenerationService,
     notificationGateway: NotificationGateway,
@@ -28,6 +30,17 @@ export class FalAiProcessor extends BaseImageProcessor {
     const prompt = editImageDto?.prompt || createPostDto?.prompt || 'N/A';
     
     console.log(`[FalAiProcessor] Starting generation | Job: ${job.id} | User: ${userId} | Service: ${serviceName} | Prompt: ${prompt.substring(0, 50)}...`);
+    this.logger.log(
+      `[fal-processor] job-start | ${JSON.stringify({
+        jobId: job.id,
+        userId,
+        service: serviceName,
+        attemptsMade: job.attemptsMade,
+        maxAttempts: job.opts.attempts || 1,
+        isEdit: Boolean(editImageDto),
+        prompt,
+      })}`,
+    );
 
     let generatedImages: string[];
     let suggestedTags: { id: number; name: string }[];
@@ -99,8 +112,30 @@ export class FalAiProcessor extends BaseImageProcessor {
       }
 
       console.log(`[FalAiProcessor] Successfully generated ${generatedImages.length} images | Job: ${job.id} | User: ${userId} | Service: ${serviceName}`);
+      this.logger.log(
+        `[fal-processor] job-success | ${JSON.stringify({
+          jobId: job.id,
+          userId,
+          service: serviceName,
+          generatedImages: generatedImages.length,
+          suggestedTagsCount: suggestedTags?.length ?? 0,
+        })}`,
+      );
       return { data, suggestedTags };
     } catch (error) {
+      this.logger.error(
+        `[fal-processor] job-failed | ${JSON.stringify({
+          jobId: job.id,
+          userId,
+          service: serviceName,
+          attemptsMade: job.attemptsMade + 1,
+          maxAttempts: job.opts.attempts || 1,
+          isEdit: Boolean(editImageDto),
+          message: error.message,
+          name: error.name,
+        })}`,
+        error.stack,
+      );
       throw error;
     }
   }
@@ -112,4 +147,3 @@ export class FalAiProcessor extends BaseImageProcessor {
     await this.handleCompletedNotification(job, isEdit);
   }
 }
-

@@ -17,8 +17,8 @@ export class AiServiceToken {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'text', name: 'ai_service' })
-  aiService: string;
+  @Column({ type: 'varchar', length: 100, name: 'pool_key' })
+  poolKey: string;
 
   @Column({ type: 'text' })
   token: string;
