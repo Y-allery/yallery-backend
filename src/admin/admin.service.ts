@@ -760,7 +760,7 @@ export class AdminService {
           $android_url:
             'https://play.google.com/store/apps/details?id=app.yallery.y_allery_mobile_client&pli=1',
           referral_token: referralToken,
-          $og_title: "Join me on Y'allery. Let's generate pictures together!",
+          $og_title: "Y'allery",
           contest_id: contestId ? Number(contestId) : null,
         },
       };
@@ -842,38 +842,38 @@ export class AdminService {
     this.logger.log(
       `[retweet-check] referral-flag-start | referralToken=${referralToken} | partnerUserId=${partnerUserId} | flag=${flag}`,
     );
-    
+
     const partnership = await this.partnerShipRepo.findOne({
       where: { referralToken },
     });
-    
+
     if (!partnership) {
       this.logger.warn(
         `[retweet-check] referral-flag-partnership-not-found | referralToken=${referralToken} | partnerUserId=${partnerUserId} | flag=${flag}`,
       );
       return { status: "false" };
     }
-    
+
     const link = await this.partnerUserLinkRepository.findOne({
       where: {
         partnershipId: partnership.id,
         partnerUserId,
       },
     });
-    
+
     if (!link || !link.userId) {
       this.logger.warn(
         `[retweet-check] referral-flag-link-not-found | partnershipId=${partnership.id} | partnerUserId=${partnerUserId} | flag=${flag}`,
       );
       return { status: "false" };
     }
-    
+
     const normalizedFlag = (flag || '').trim();
     const userIdNum = Number(link.userId);
     this.logger.log(
       `[retweet-check] referral-flag-link-found | partnershipId=${partnership.id} | partnerUserId=${partnerUserId} | userId=${userIdNum} | normalizedFlag=${normalizedFlag}`,
     );
-    
+
     // Special handling for retweet flag - check retweet
     if (normalizedFlag === 'retweet') {
       try {
@@ -885,7 +885,7 @@ export class AdminService {
           .andWhere('pa.activity = :flag', { flag: 'retweet' })
           .limit(1)
           .getOne();
-        
+
         // If we have a cached result, return it
         if (existingActivity) {
           this.logger.log(
@@ -893,23 +893,23 @@ export class AdminService {
           );
           return { status: "true" };
         }
-        
+
         this.logger.log(
           `[retweet-check] referral-flag-cache-miss | partnershipId=${partnership.id} | userId=${userIdNum}`,
         );
-        
+
         // If no cached result, check with Twitter API
         const user = await this.userRepository.findOne({
           where: { id: userIdNum },
         });
-        
+
         if (!user || !user.twitterUsername) {
           this.logger.warn(
             `[retweet-check] referral-flag-user-missing-twitter | partnershipId=${partnership.id} | userId=${userIdNum}`,
           );
           return { status: "false" };
         }
-        
+
         const twitterUsername = user.twitterUsername.replace(/^@/, '');
         this.logger.log(
           `[retweet-check] referral-flag-call-socialdata | partnershipId=${partnership.id} | userId=${userIdNum} | twitterUsername=${twitterUsername}`,
@@ -922,15 +922,15 @@ export class AdminService {
         this.logger.log(
           `[retweet-check] referral-flag-result | partnershipId=${partnership.id} | userId=${userIdNum} | twitterUsername=${twitterUsername} | retweet=${retweetCheck.retweet}`,
         );
-        
+
         return { status: retweetCheck.retweet ? "true" : "false" };
-        
+
       } catch (error) {
         this.logger.error(`[checkReferralFlag] Error checking retweet: ${error.message}`, error.stack);
         return { status: "false" };
       }
     }
-    
+
     // For other flags, check partnership activity as before
     const exists = await this.partnerShipActivityRepository
       .createQueryBuilder('pa')
@@ -939,11 +939,11 @@ export class AdminService {
       .andWhere('pa.activity = :flag', { flag: normalizedFlag })
       .limit(1)
       .getOne();
-    
+
     this.logger.log(
       `[retweet-check] referral-flag-db-result | partnershipId=${partnership.id} | userId=${userIdNum} | flag=${normalizedFlag} | exists=${Boolean(exists)}`,
     );
-    
+
     return { status: !!exists ? "true" : "false" };
   }
 
@@ -951,8 +951,7 @@ export class AdminService {
     referralToken: string;
     partnerUserId: string;
     flag: string; // e.g. 'posted_to_twitter'
-  }): Promise<{ status: boolean }>
-  {
+  }): Promise<{ status: boolean }> {
     const { referralToken, partnerUserId, flag } = params;
     const partnership = await this.partnerShipRepo.findOne({ where: { referralToken } });
     if (!partnership) return { status: false };
@@ -1018,10 +1017,10 @@ export class AdminService {
       // Delete related data in correct order to avoid foreign key constraints
       // 1. Delete partnership activities first
       await this.partnerShipActivityRepository.delete({ partnershipId });
-      
+
       // 2. Delete partner user links
       await this.partnerUserLinkRepository.delete({ partnershipId });
-      
+
       // 3. Finally delete the partnership
       await this.partnerShipRepo.delete(partnershipId);
 
@@ -1037,7 +1036,7 @@ export class AdminService {
     try {
       // Знаходимо контест
       const contest = await this.contestService.findContestById(contestId);
-      
+
       if (!contest) {
         this.logger.warn(`Contest with ID ${contestId} not found`);
         return {
@@ -1173,7 +1172,7 @@ export class AdminService {
             .andWhere('pa.activity = :flag', { flag: 'retweet' })
             .limit(1)
             .getOne();
-          
+
           if (!existingActivity) {
             const activity = this.partnerShipActivityRepository.create({
               partnershipId,
