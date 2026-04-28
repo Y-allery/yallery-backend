@@ -17,10 +17,10 @@ import { RoleGuard } from 'src/auth/guards/role.guard';
 import { UpdateContestDto } from 'src/contest/dto/update.contest.dto';
 import { ContestStatusEnum } from 'src/contest/types/contest.status.enum';
 import { RoleEnum } from 'src/user/types/role.enum';
-import { CreateContestDto } from '../dto/create-contest.dto';
-import { ForceStartContestDto } from '../dto/force-start-contest.dto';
-import { SetContestWinnerDto } from '../dto/set.contest.winner.dto';
-import { AdminContestsService } from '../services/admin-contests.service';
+import { CreateContestDto } from '../../dto/create-contest.dto';
+import { ForceStartContestDto } from '../../dto/force-start-contest.dto';
+import { SetContestWinnerDto } from '../../dto/set.contest.winner.dto';
+import { AdminContestsService } from './admin-contests.service';
 
 @Controller('admin')
 @ApiTags('Admin')

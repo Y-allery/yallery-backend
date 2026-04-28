@@ -5,60 +5,20 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { UpdateAISettingsDto } from '../dto/update-ai-settings.dto';
+import { UpdateAISettingsDto } from '../../dto/update-ai-settings.dto';
 import {
   MediaAISettingsEntity,
   MediaAISettingsJson,
 } from 'src/media-generation/entities/media-ai-settings.entity';
+import { AISettingsMapper } from './ai-settings.mapper';
 
 @Injectable()
 export class AdminAISettingsService {
   constructor(
     @InjectRepository(MediaAISettingsEntity)
     private readonly mediaAISettingsRepository: Repository<MediaAISettingsEntity>,
+    private readonly aiSettingsMapper: AISettingsMapper,
   ) {}
-
-  private getMediaSettingType(setting: MediaAISettingsEntity) {
-    if (setting.settings?.contestOnly) {
-      return 'finetune';
-    }
-
-    if (setting.capability === 'audio_generate') {
-      return 'music';
-    }
-
-    if (setting.capability === 'meme_generate') {
-      return 'meme';
-    }
-
-    if (setting.capability === 'video_generate') {
-      return 'video';
-    }
-
-    return 'image';
-  }
-
-  private formatMediaAISetting(setting: MediaAISettingsEntity) {
-    const type = this.getMediaSettingType(setting);
-
-    return {
-      id: setting.id,
-      ai_service: setting.aiService,
-      aiService: setting.aiService,
-      name: setting.name,
-      description: setting.description,
-      provider: setting.provider,
-      capability: setting.capability,
-      cost: setting.cost,
-      settings: setting.settings,
-      type,
-      category: type,
-      is_active: setting.isActive,
-      isActive: setting.isActive,
-      createdAt: setting.createdAt,
-      updatedAt: setting.updatedAt,
-    };
-  }
 
   private resolveUpdatedMediaSettings(
     aiSetting: MediaAISettingsEntity,
@@ -129,7 +89,7 @@ export class AdminAISettingsService {
     });
 
     const formattedSettings = allSettings.map((setting) =>
-      this.formatMediaAISetting(setting),
+      this.aiSettingsMapper.format(setting),
     );
 
     return {
@@ -191,6 +151,6 @@ export class AdminAISettingsService {
 
     const savedSetting = await this.mediaAISettingsRepository.save(aiSetting);
 
-    return this.formatMediaAISetting(savedSetting);
+    return this.aiSettingsMapper.format(savedSetting);
   }
 }

@@ -12,8 +12,8 @@ import { Roles } from 'src/auth/decorators/role.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { RoleGuard } from 'src/auth/guards/role.guard';
 import { RoleEnum } from 'src/user/types/role.enum';
-import { UpdateAISettingsDto } from '../dto/update-ai-settings.dto';
-import { AdminAISettingsService } from '../services/admin-ai-settings.service';
+import { UpdateAISettingsDto } from '../../dto/update-ai-settings.dto';
+import { AdminAISettingsService } from './admin-ai-settings.service';
 
 @Controller('admin')
 @ApiTags('Admin')

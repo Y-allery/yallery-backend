@@ -1,12 +1,12 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { AdminPartnershipService } from './services/admin-partnership.service';
+import { ReferralFlagService } from './referral-flag.service';
 
 @Controller('partner')
 @ApiTags('Partner')
 export class PartnerController {
   constructor(
-    private readonly adminPartnershipService: AdminPartnershipService,
+    private readonly referralFlagService: ReferralFlagService,
   ) {}
 
   @Get('referral-status')
@@ -30,7 +30,7 @@ export class PartnerController {
     @Query('puid') puid: string,
     @Query('flag') flag: string,
   ) {
-    return this.adminPartnershipService.checkReferralFlag({
+    return this.referralFlagService.checkReferralFlag({
       referralToken: ref,
       partnerUserId: puid,
       flag,
@@ -61,11 +61,10 @@ export class PartnerController {
     @Body('puid') puid: string,
     @Body('flag') flag: string,
   ) {
-    return this.adminPartnershipService.setReferralFlag({
+    return this.referralFlagService.setReferralFlag({
       referralToken: ref,
       partnerUserId: puid,
       flag,
     });
   }
 }
-

@@ -17,7 +17,7 @@ import { CreateStyleDto } from 'src/post/dto/create.style.dto';
 import { CreateTagDto } from 'src/tag/dto/create.tag.dto';
 import { UpdateTagDto } from 'src/tag/dto/update.tag.dto';
 import { RoleEnum } from 'src/user/types/role.enum';
-import { AdminCatalogService } from '../services/admin-catalog.service';
+import { AdminCatalogService } from './admin-catalog.service';
 
 @Controller('admin')
 @ApiTags('Admin')

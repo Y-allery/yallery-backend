@@ -19,9 +19,9 @@ import { Roles } from 'src/auth/decorators/role.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { RoleGuard } from 'src/auth/guards/role.guard';
 import { RoleEnum } from 'src/user/types/role.enum';
-import { BlockPostDto } from '../dto/block.post.dto';
-import { BlockUserDto } from '../dto/block.user.dto';
-import { AdminModerationService } from '../services/admin-moderation.service';
+import { BlockPostDto } from '../../dto/block.post.dto';
+import { BlockUserDto } from '../../dto/block.user.dto';
+import { AdminModerationService } from './admin-moderation.service';
 
 @Controller('admin')
 @ApiTags('Admin')

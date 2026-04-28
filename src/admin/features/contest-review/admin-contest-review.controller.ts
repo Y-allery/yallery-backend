@@ -17,8 +17,8 @@ import { RoleEnum } from 'src/user/types/role.enum';
 import {
   ContestCandidateRejectDto,
   ContestNoWinnerDto,
-} from '../dto/contest-candidate-action.dto';
-import { AdminContestReviewService } from '../services/admin-contest-review.service';
+} from '../../dto/contest-candidate-action.dto';
+import { AdminContestReviewService } from './admin-contest-review.service';
 
 @Controller('admin')
 @ApiTags('Admin')

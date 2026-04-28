@@ -4,7 +4,7 @@ import { Roles } from 'src/auth/decorators/role.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { RoleGuard } from 'src/auth/guards/role.guard';
 import { RoleEnum } from 'src/user/types/role.enum';
-import { AdminMetricsService } from '../services/admin-metrics.service';
+import { AdminMetricsService } from './admin-metrics.service';
 
 @Controller('admin')
 @ApiTags('Admin')

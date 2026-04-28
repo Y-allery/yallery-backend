@@ -4,7 +4,7 @@ import { Repository } from 'typeorm';
 import {
   BroadcastNotificationDto,
   NotificationType,
-} from '../dto/broadcast-notification.dto';
+} from '../../dto/broadcast-notification.dto';
 import { FirebaseService } from 'src/firebase/firebase.service';
 import { MailService } from 'src/mail/mail.service';
 import { DeviceTokenEntity } from 'src/user/entities/device-token.entity';

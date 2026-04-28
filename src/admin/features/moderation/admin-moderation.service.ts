@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { BlockPostDto } from '../dto/block.post.dto';
-import { BlockUserDto } from '../dto/block.user.dto';
-import { GetAllReportsDto } from '../dto/get.report.post.dto';
+import { BlockPostDto } from '../../dto/block.post.dto';
+import { BlockUserDto } from '../../dto/block.user.dto';
+import { GetAllReportsDto } from '../../dto/get.report.post.dto';
 import { PostService } from 'src/post/post.service';
 import { UserService } from 'src/user/user.service';
 

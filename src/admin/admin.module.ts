@@ -1,15 +1,37 @@
 import { Module } from '@nestjs/common';
-import { PartnerController } from './partner.controller';
-import { AdminAISettingsController } from './controllers/admin-ai-settings.controller';
-import { AdminBroadcastController } from './controllers/admin-broadcast.controller';
-import { AdminCatalogController } from './controllers/admin-catalog.controller';
-import { AdminContestReviewController } from './controllers/admin-contest-review.controller';
-import { AdminContestsController } from './controllers/admin-contests.controller';
-import { AdminFineTunesController } from './controllers/admin-finetunes.controller';
-import { AdminMemesController } from './controllers/admin-memes.controller';
-import { AdminMetricsController } from './controllers/admin-metrics.controller';
-import { AdminModerationController } from './controllers/admin-moderation.controller';
-import { AdminPartnershipsController } from './controllers/admin-partnerships.controller';
+import { AdminAISettingsController } from './features/ai-settings/admin-ai-settings.controller';
+import { AdminAISettingsService } from './features/ai-settings/admin-ai-settings.service';
+import { AISettingsMapper } from './features/ai-settings/ai-settings.mapper';
+import { AdminBroadcastController } from './features/broadcast/admin-broadcast.controller';
+import { AdminBroadcastService } from './features/broadcast/admin-broadcast.service';
+import { AdminCatalogController } from './features/catalog/admin-catalog.controller';
+import { AdminCatalogService } from './features/catalog/admin-catalog.service';
+import { AdminContestReviewController } from './features/contest-review/admin-contest-review.controller';
+import { AdminContestReviewService } from './features/contest-review/admin-contest-review.service';
+import { AdminContestsController } from './features/contests/admin-contests.controller';
+import { AdminContestsService } from './features/contests/admin-contests.service';
+import { AdminFineTuneService } from './features/fine-tunes/admin-finetune.service';
+import { AdminFineTunesController } from './features/fine-tunes/admin-finetunes.controller';
+import { LoraKeyService } from './features/fine-tunes/lora-key.service';
+import { RunpodFineTuneClient } from './features/fine-tunes/runpod-finetune.client';
+import { AdminMemesController } from './features/memes/admin-memes.controller';
+import { AdminMetricsController } from './features/metrics/admin-metrics.controller';
+import { AdminMetricsService } from './features/metrics/admin-metrics.service';
+import { AIUsageMetricsCollector } from './features/metrics/collectors/ai-usage.collector';
+import { ContestMetricsCollector } from './features/metrics/collectors/contest.collector';
+import { PaymentMetricsCollector } from './features/metrics/collectors/payment.collector';
+import { PostMetricsCollector } from './features/metrics/collectors/post.collector';
+import { MetricsSnapshotBuilder } from './features/metrics/metrics-snapshot.builder';
+import { AdminModerationController } from './features/moderation/admin-moderation.controller';
+import { AdminModerationService } from './features/moderation/admin-moderation.service';
+import { AdminPartnershipService } from './features/partnerships/admin-partnership.service';
+import { AdminPartnershipsController } from './features/partnerships/admin-partnerships.controller';
+import { BranchLinkService } from './features/partnerships/branch-link.service';
+import { CsvExportService } from './features/partnerships/csv-export.service';
+import { PartnerController } from './features/partnerships/partner-referral.controller';
+import { ReferralFlagService } from './features/partnerships/referral-flag.service';
+import { TweetScoutReferralService } from './features/partnerships/tweetscout-referral.service';
+import { TwitterScoreExportService } from './features/partnerships/twitter-score-export.service';
 import { ContestModule } from 'src/contest/contest.module';
 import { UserModule } from 'src/user/user.module';
 import { PostModule } from 'src/post/post.module';
@@ -32,15 +54,6 @@ import { MailModule } from 'src/mail/mail.module';
 import { DeviceTokenEntity } from 'src/user/entities/device-token.entity';
 import { MemeModule } from 'src/meme/meme.module';
 import { AIFinetuneEntity } from './entities/ai-finetune.entity';
-import { AdminAISettingsService } from './services/admin-ai-settings.service';
-import { AdminBroadcastService } from './services/admin-broadcast.service';
-import { AdminCatalogService } from './services/admin-catalog.service';
-import { AdminContestReviewService } from './services/admin-contest-review.service';
-import { AdminContestsService } from './services/admin-contests.service';
-import { AdminFineTuneService } from './services/admin-finetune.service';
-import { AdminMetricsService } from './services/admin-metrics.service';
-import { AdminModerationService } from './services/admin-moderation.service';
-import { AdminPartnershipService } from './services/admin-partnership.service';
 
 @Module({
   imports: [
@@ -72,11 +85,24 @@ import { AdminPartnershipService } from './services/admin-partnership.service';
     AdminContestsService,
     AdminContestReviewService,
     AdminFineTuneService,
+    LoraKeyService,
+    RunpodFineTuneClient,
     AdminAISettingsService,
+    AISettingsMapper,
     AdminModerationService,
     AdminCatalogService,
     AdminPartnershipService,
+    BranchLinkService,
+    CsvExportService,
+    ReferralFlagService,
+    TweetScoutReferralService,
+    TwitterScoreExportService,
     AdminMetricsService,
+    MetricsSnapshotBuilder,
+    AIUsageMetricsCollector,
+    ContestMetricsCollector,
+    PaymentMetricsCollector,
+    PostMetricsCollector,
     AdminBroadcastService,
   ],
   controllers: [

@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { CreateContestDto } from '../dto/create-contest.dto';
-import { ForceStartContestDto } from '../dto/force-start-contest.dto';
-import { GetTopPostDto } from '../dto/get-top-post.dto';
-import { SetContestWinnerDto } from '../dto/set.contest.winner.dto';
+import { CreateContestDto } from '../../dto/create-contest.dto';
+import { ForceStartContestDto } from '../../dto/force-start-contest.dto';
+import { GetTopPostDto } from '../../dto/get-top-post.dto';
+import { SetContestWinnerDto } from '../../dto/set.contest.winner.dto';
 import { ContestService } from 'src/contest/contest.service';
 import { UpdateContestDto } from 'src/contest/dto/update.contest.dto';
 import { ContestStatusEnum } from 'src/contest/types/contest.status.enum';

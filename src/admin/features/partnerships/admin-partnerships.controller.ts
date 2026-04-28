@@ -13,8 +13,8 @@ import { Roles } from 'src/auth/decorators/role.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { RoleGuard } from 'src/auth/guards/role.guard';
 import { RoleEnum } from 'src/user/types/role.enum';
-import { CreatePartnershipDto } from '../dto/create.refferal.dto';
-import { AdminPartnershipService } from '../services/admin-partnership.service';
+import { CreatePartnershipDto } from '../../dto/create-referral.dto';
+import { AdminPartnershipService } from './admin-partnership.service';
 
 @Controller('admin')
 @ApiTags('Admin')

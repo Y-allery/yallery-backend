@@ -4,8 +4,8 @@ import { Roles } from 'src/auth/decorators/role.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { RoleGuard } from 'src/auth/guards/role.guard';
 import { RoleEnum } from 'src/user/types/role.enum';
-import { BroadcastNotificationDto } from '../dto/broadcast-notification.dto';
-import { AdminBroadcastService } from '../services/admin-broadcast.service';
+import { BroadcastNotificationDto } from '../../dto/broadcast-notification.dto';
+import { AdminBroadcastService } from './admin-broadcast.service';
 
 @Controller('admin')
 @ApiTags('Admin')

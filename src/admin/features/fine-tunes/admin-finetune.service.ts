@@ -4,49 +4,43 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import axios from 'axios';
 import { Repository } from 'typeorm';
-import { v4 as uuidv4 } from 'uuid';
-import { CreateAIFinetuneDto } from '../dto/create-ai-finetune.dto';
+import { CreateAIFinetuneDto } from '../../dto/create-ai-finetune.dto';
 import {
   AIFinetuneEntity,
   AIFinetuneStatus,
-} from '../entities/ai-finetune.entity';
-
-type RunpodJobStatus =
-  | 'IN_QUEUE'
-  | 'IN_PROGRESS'
-  | 'COMPLETED'
-  | 'FAILED'
-  | 'CANCELLED'
-  | 'TIMED_OUT';
-
-interface RunpodJobResponse {
-  id: string;
-  status: RunpodJobStatus;
-  output?: any;
-  error?: string;
-}
+} from '../../entities/ai-finetune.entity';
+import { LoraKeyService } from './lora-key.service';
+import {
+  mapRunpodStatusToFineTuneStatus,
+  RunpodJobStatus,
+} from './runpod-finetune.types';
+import { RunpodFineTuneClient } from './runpod-finetune.client';
 
 @Injectable()
 export class AdminFineTuneService {
   private readonly logger = new Logger(AdminFineTuneService.name);
 
   constructor(
-    private readonly configService: ConfigService,
     @InjectRepository(AIFinetuneEntity)
     private readonly aiFinetuneRepository: Repository<AIFinetuneEntity>,
+    private readonly loraKeyService: LoraKeyService,
+    private readonly runpodFineTuneClient: RunpodFineTuneClient,
   ) {}
 
   async previewFineTuneLoraKey(triggerWord: string) {
-    const normalizedTriggerWord = this.normalizeLoraKeyPart(triggerWord, 80);
+    const normalizedTriggerWord = this.loraKeyService.normalize(
+      triggerWord,
+      80,
+    );
     if (!normalizedTriggerWord) {
       throw new BadRequestException('triggerWord is required');
     }
 
-    const loraKey = await this.generateUniqueLoraKey(normalizedTriggerWord);
+    const loraKey = await this.loraKeyService.generateUnique(
+      normalizedTriggerWord,
+    );
     return {
       triggerWord: normalizedTriggerWord,
       loraKey,
@@ -84,8 +78,8 @@ export class AdminFineTuneService {
 
   async createFineTune(dto: CreateAIFinetuneDto) {
     const name = dto.name?.trim();
-    const triggerWord = this.normalizeLoraKeyPart(dto.triggerWord, 80);
-    const className = this.normalizeLoraKeyPart(
+    const triggerWord = this.loraKeyService.normalize(dto.triggerWord, 80);
+    const className = this.loraKeyService.normalize(
       dto.className || 'character',
       80,
     );
@@ -98,8 +92,8 @@ export class AdminFineTuneService {
     }
 
     const loraKey = dto.loraKey
-      ? this.normalizeLoraKeyPart(dto.loraKey, 100)
-      : await this.generateUniqueLoraKey(triggerWord);
+      ? this.loraKeyService.normalize(dto.loraKey, 100)
+      : await this.loraKeyService.generateUnique(triggerWord);
 
     if (!loraKey) {
       throw new BadRequestException('loraKey is invalid');
@@ -136,7 +130,7 @@ export class AdminFineTuneService {
       datasetImageCount: dto.datasetImages.length,
       trainingSettings,
       generationDefaults,
-      runpodEndpointId: this.getFineTuneRunpodEndpointId(),
+      runpodEndpointId: this.runpodFineTuneClient.getEndpointId(),
       runpodJobId: null,
       loraUrl: null,
       errorMessage: null,
@@ -164,7 +158,7 @@ export class AdminFineTuneService {
       throw new BadRequestException('At least 10 dataset images are required');
     }
 
-    const job = await this.submitFineTuneRunpodJob({
+    const job = await this.runpodFineTuneClient.submitJob({
       name: item.name,
       triggerWord: item.triggerWord,
       loraKey: item.loraKey,
@@ -192,7 +186,7 @@ export class AdminFineTuneService {
       return item;
     }
 
-    const job = await this.getFineTuneRunpodJobStatus(
+    const job = await this.runpodFineTuneClient.getJobStatus(
       item.runpodEndpointId,
       item.runpodJobId,
     );
@@ -218,102 +212,9 @@ export class AdminFineTuneService {
     return this.aiFinetuneRepository.save(item);
   }
 
-  private async submitFineTuneRunpodJob(input: Record<string, unknown>) {
-    const endpointId = this.getFineTuneRunpodEndpointId();
-    const response = await axios.post<RunpodJobResponse>(
-      `${this.getRunpodApiBaseUrl()}/${endpointId}/run`,
-      { input },
-      {
-        headers: this.getRunpodHeaders(),
-        timeout: Number(
-          this.configService.get<string>('RUNPOD_REQUEST_TIMEOUT_MS') || 60000,
-        ),
-      },
-    );
-
-    return response.data;
-  }
-
-  private async getFineTuneRunpodJobStatus(
-    endpointId: string,
-    jobId: string,
-  ) {
-    const response = await axios.get<RunpodJobResponse>(
-      `${this.getRunpodApiBaseUrl()}/${endpointId}/status/${jobId}`,
-      {
-        headers: this.getRunpodHeaders(),
-        timeout: Number(
-          this.configService.get<string>('RUNPOD_REQUEST_TIMEOUT_MS') || 60000,
-        ),
-      },
-    );
-
-    return response.data;
-  }
-
-  private getFineTuneRunpodEndpointId() {
-    const endpointId = this.configService.get<string>(
-      'RUNPOD_SDXL_LORA_FINETUNE_ENDPOINT_ID',
-    );
-    if (!endpointId) {
-      throw new BadRequestException(
-        'RUNPOD_SDXL_LORA_FINETUNE_ENDPOINT_ID is not configured',
-      );
-    }
-    return endpointId;
-  }
-
-  private getRunpodApiBaseUrl() {
-    return (
-      this.configService.get<string>('RUNPOD_API_BASE_URL') ||
-      'https://api.runpod.ai/v2'
-    );
-  }
-
-  private getRunpodHeaders() {
-    const apiKey = this.configService.get<string>('RUNPOD_API_KEY');
-    if (!apiKey) {
-      throw new BadRequestException('RUNPOD_API_KEY is not configured');
-    }
-    return {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    };
-  }
-
   private mapRunpodStatusToFineTuneStatus(
     status: RunpodJobStatus,
   ): AIFinetuneStatus {
-    if (status === 'COMPLETED') return 'ready';
-    if (status === 'IN_PROGRESS') return 'training';
-    if (status === 'IN_QUEUE') return 'queued';
-    return 'failed';
-  }
-
-  private async generateUniqueLoraKey(baseInput: string) {
-    const base = this.normalizeLoraKeyPart(baseInput, 72) || 'lora';
-
-    for (let attempt = 0; attempt < 12; attempt += 1) {
-      const suffix = uuidv4().replace(/-/g, '').slice(0, 8);
-      const candidate = this.normalizeLoraKeyPart(`${base}_${suffix}`, 100);
-      const count = await this.aiFinetuneRepository.count({
-        where: { loraKey: candidate },
-      });
-      if (count === 0) {
-        return candidate;
-      }
-    }
-
-    throw new BadRequestException('Failed to generate unique LoRA key');
-  }
-
-  private normalizeLoraKeyPart(value: string, maxLength = 100) {
-    return String(value || '')
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '_')
-      .replace(/^_+|_+$/g, '')
-      .slice(0, maxLength)
-      .replace(/_+$/g, '');
+    return mapRunpodStatusToFineTuneStatus(status);
   }
 }

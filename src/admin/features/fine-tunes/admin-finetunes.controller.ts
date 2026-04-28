@@ -13,10 +13,10 @@ import { Roles } from 'src/auth/decorators/role.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { RoleGuard } from 'src/auth/guards/role.guard';
 import { RoleEnum } from 'src/user/types/role.enum';
-import { CreateAIFinetuneDto } from '../dto/create-ai-finetune.dto';
-import { PreviewAIFinetuneLoraKeyDto } from '../dto/preview-ai-finetune-lora-key.dto';
-import { AIFinetuneStatus } from '../entities/ai-finetune.entity';
-import { AdminFineTuneService } from '../services/admin-finetune.service';
+import { CreateAIFinetuneDto } from '../../dto/create-ai-finetune.dto';
+import { PreviewAIFinetuneLoraKeyDto } from '../../dto/preview-ai-finetune-lora-key.dto';
+import { AIFinetuneStatus } from '../../entities/ai-finetune.entity';
+import { AdminFineTuneService } from './admin-finetune.service';
 
 @Controller('admin')
 @ApiTags('Admin')
