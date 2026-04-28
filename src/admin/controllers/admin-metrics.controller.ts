@@ -4,14 +4,14 @@ import { Roles } from 'src/auth/decorators/role.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { RoleGuard } from 'src/auth/guards/role.guard';
 import { RoleEnum } from 'src/user/types/role.enum';
-import { AdminService } from '../admin.service';
+import { AdminMetricsService } from '../services/admin-metrics.service';
 
 @Controller('admin')
 @ApiTags('Admin')
 @UseGuards(JwtAuthGuard, RoleGuard)
 @Roles(RoleEnum.ADMIN)
 export class AdminMetricsController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(private readonly adminMetricsService: AdminMetricsService) {}
 
   @Post('metrics/recalculate')
   @ApiOperation({
@@ -24,7 +24,7 @@ export class AdminMetricsController {
     description: 'Metrics snapshot recalculated successfully.',
   })
   async recalculateAdminMetrics() {
-    await this.adminService.collectAdminMetricsSnapshot();
+    await this.adminMetricsService.collectAdminMetricsSnapshot();
     return { success: true };
   }
 
@@ -40,6 +40,6 @@ export class AdminMetricsController {
     description: 'Aggregated 7-day metrics overview returned successfully.',
   })
   async getAdminMetricsOverview() {
-    return this.adminService.getAdminMetricsOverview();
+    return this.adminMetricsService.getAdminMetricsOverview();
   }
 }

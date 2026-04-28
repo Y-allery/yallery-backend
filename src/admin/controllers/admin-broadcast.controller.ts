@@ -4,15 +4,15 @@ import { Roles } from 'src/auth/decorators/role.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { RoleGuard } from 'src/auth/guards/role.guard';
 import { RoleEnum } from 'src/user/types/role.enum';
-import { AdminService } from '../admin.service';
 import { BroadcastNotificationDto } from '../dto/broadcast-notification.dto';
+import { AdminBroadcastService } from '../services/admin-broadcast.service';
 
 @Controller('admin')
 @ApiTags('Admin')
 @UseGuards(JwtAuthGuard, RoleGuard)
 @Roles(RoleEnum.ADMIN)
 export class AdminBroadcastController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(private readonly adminBroadcastService: AdminBroadcastService) {}
 
   @Post('broadcast-notification')
   @ApiOperation({
@@ -39,6 +39,6 @@ export class AdminBroadcastController {
   })
   @ApiResponse({ status: 400, description: 'Bad request - invalid input' })
   async broadcastNotification(@Body() dto: BroadcastNotificationDto) {
-    return this.adminService.broadcastNotification(dto);
+    return this.adminBroadcastService.broadcastNotification(dto);
   }
 }

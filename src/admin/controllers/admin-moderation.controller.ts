@@ -19,35 +19,37 @@ import { Roles } from 'src/auth/decorators/role.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { RoleGuard } from 'src/auth/guards/role.guard';
 import { RoleEnum } from 'src/user/types/role.enum';
-import { AdminService } from '../admin.service';
 import { BlockPostDto } from '../dto/block.post.dto';
 import { BlockUserDto } from '../dto/block.user.dto';
+import { AdminModerationService } from '../services/admin-moderation.service';
 
 @Controller('admin')
 @ApiTags('Admin')
 @UseGuards(JwtAuthGuard, RoleGuard)
 @Roles(RoleEnum.ADMIN)
 export class AdminModerationController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminModerationService: AdminModerationService,
+  ) {}
 
   @Post('block-user')
   async blockUser(@Body() dto: BlockUserDto) {
-    return this.adminService.blockUser(dto);
+    return this.adminModerationService.blockUser(dto);
   }
 
   @Post('block-post')
   async blockPost(@Body() dto: BlockPostDto) {
-    return this.adminService.blockPost(dto);
+    return this.adminModerationService.blockPost(dto);
   }
 
   @Post('unblock-user')
   async unblockUser(@Body() dto: BlockUserDto) {
-    return this.adminService.unblockUser(dto);
+    return this.adminModerationService.unblockUser(dto);
   }
 
   @Post('unblock-post')
   async unblockPost(@Body() dto: BlockPostDto) {
-    return this.adminService.unblockPost(dto);
+    return this.adminModerationService.unblockPost(dto);
   }
 
   @Delete('reports/:reportId')
@@ -61,7 +63,7 @@ export class AdminModerationController {
   @ApiResponse({ status: 200, description: 'Report deleted successfully.' })
   @ApiResponse({ status: 404, description: 'Report not found.' })
   async deleteReport(@Param('reportId', ParseIntPipe) reportId: number) {
-    return this.adminService.deleteReport(reportId);
+    return this.adminModerationService.deleteReport(reportId);
   }
 
   @Get('get-all-reports')
@@ -70,7 +72,7 @@ export class AdminModerationController {
     @Query('limit', ParseIntPipe) limit: number,
   ) {
     const pagination = { page, limit };
-    return this.adminService.getReportPosts(pagination);
+    return this.adminModerationService.getReportPosts(pagination);
   }
 
   @Get('posts/:postId')
@@ -78,6 +80,6 @@ export class AdminModerationController {
   @ApiResponse({ status: 200, description: 'Post retrieved successfully.' })
   @ApiResponse({ status: 404, description: 'Post not found.' })
   async getPostById(@Param('postId', ParseIntPipe) postId: number) {
-    return this.adminService.getPostById(postId);
+    return this.adminModerationService.getPostById(postId);
   }
 }

@@ -12,15 +12,17 @@ import { Roles } from 'src/auth/decorators/role.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { RoleGuard } from 'src/auth/guards/role.guard';
 import { RoleEnum } from 'src/user/types/role.enum';
-import { AdminService } from '../admin.service';
 import { UpdateAISettingsDto } from '../dto/update-ai-settings.dto';
+import { AdminAISettingsService } from '../services/admin-ai-settings.service';
 
 @Controller('admin')
 @ApiTags('Admin')
 @UseGuards(JwtAuthGuard, RoleGuard)
 @Roles(RoleEnum.ADMIN)
 export class AdminAISettingsController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminAISettingsService: AdminAISettingsService,
+  ) {}
 
   @Get('ai-settings')
   @ApiOperation({
@@ -33,7 +35,7 @@ export class AdminAISettingsController {
     description: 'AI settings retrieved successfully',
   })
   async getAllAISettings() {
-    return this.adminService.getAllAISettings();
+    return this.adminAISettingsService.getAllAISettings();
   }
 
   @Put('ai-settings/:id')
@@ -58,6 +60,6 @@ export class AdminAISettingsController {
     @Param('id', ParseIntPipe) id: number,
     @Body() updateDto: UpdateAISettingsDto,
   ) {
-    return this.adminService.updateAISettings(id, updateDto);
+    return this.adminAISettingsService.updateAISettings(id, updateDto);
   }
 }

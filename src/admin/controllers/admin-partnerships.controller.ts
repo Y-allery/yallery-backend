@@ -13,15 +13,17 @@ import { Roles } from 'src/auth/decorators/role.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { RoleGuard } from 'src/auth/guards/role.guard';
 import { RoleEnum } from 'src/user/types/role.enum';
-import { AdminService } from '../admin.service';
 import { CreatePartnershipDto } from '../dto/create.refferal.dto';
+import { AdminPartnershipService } from '../services/admin-partnership.service';
 
 @Controller('admin')
 @ApiTags('Admin')
 @UseGuards(JwtAuthGuard, RoleGuard)
 @Roles(RoleEnum.ADMIN)
 export class AdminPartnershipsController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminPartnershipService: AdminPartnershipService,
+  ) {}
 
   @Post('create-partnership')
   @ApiOperation({ summary: 'Create a new partnership' })
@@ -31,7 +33,7 @@ export class AdminPartnershipsController {
   })
   @ApiResponse({ status: 400, description: 'Invalid request.' })
   async createPartnership(@Body() dto: CreatePartnershipDto) {
-    return this.adminService.createPartnership(dto);
+    return this.adminPartnershipService.createPartnership(dto);
   }
 
   @Delete('partnership/:id')
@@ -50,13 +52,13 @@ export class AdminPartnershipsController {
   @ApiResponse({ status: 404, description: 'Partnership not found.' })
   @ApiResponse({ status: 500, description: 'Failed to delete partnership.' })
   async deletePartnership(@Param('id', ParseIntPipe) id: number) {
-    return this.adminService.deletePartnership(id);
+    return this.adminPartnershipService.deletePartnership(id);
   }
 
   @Get('partnerships')
   @ApiOperation({ summary: 'Get all partnerships with activity stats' })
   @ApiResponse({ status: 200, description: 'List of partnerships returned' })
   async getAllPartnerships() {
-    return this.adminService.getAllPartnershipsWithStats();
+    return this.adminPartnershipService.getAllPartnershipsWithStats();
   }
 }

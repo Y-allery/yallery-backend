@@ -17,26 +17,26 @@ import { CreateStyleDto } from 'src/post/dto/create.style.dto';
 import { CreateTagDto } from 'src/tag/dto/create.tag.dto';
 import { UpdateTagDto } from 'src/tag/dto/update.tag.dto';
 import { RoleEnum } from 'src/user/types/role.enum';
-import { AdminService } from '../admin.service';
+import { AdminCatalogService } from '../services/admin-catalog.service';
 
 @Controller('admin')
 @ApiTags('Admin')
 @UseGuards(JwtAuthGuard, RoleGuard)
 @Roles(RoleEnum.ADMIN)
 export class AdminCatalogController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(private readonly adminCatalogService: AdminCatalogService) {}
 
   @Get()
   @ApiOperation({ summary: 'Retrieve all tags' })
   @ApiResponse({ status: 200, description: 'Successfully retrieved all tags.' })
   async getTags() {
-    return this.adminService.getAllTags();
+    return this.adminCatalogService.getAllTags();
   }
 
   @Post('tags')
   @ApiOperation({ summary: 'Create tag' })
   async createTag(@Body() createTagDto: CreateTagDto) {
-    return this.adminService.createTag(createTagDto);
+    return this.adminCatalogService.createTag(createTagDto);
   }
 
   @Put('tags/:id')
@@ -45,13 +45,13 @@ export class AdminCatalogController {
     @Param('id', ParseIntPipe) id: number,
     @Body() updateTagDto: UpdateTagDto,
   ) {
-    return this.adminService.updateTag(id, updateTagDto);
+    return this.adminCatalogService.updateTag(id, updateTagDto);
   }
 
   @Delete('tags/:id')
   @ApiOperation({ summary: 'Delete tag' })
   async deleteTag(@Param('id', ParseIntPipe) id: number) {
-    return this.adminService.deleteTag(id);
+    return this.adminCatalogService.deleteTag(id);
   }
 
   @Post('styles')
@@ -59,14 +59,14 @@ export class AdminCatalogController {
   @ApiResponse({ status: 201, description: 'Style created successfully.' })
   @ApiResponse({ status: 400, description: 'Bad Request.' })
   async createStyle(@Body() createStyleDto: CreateStyleDto) {
-    return this.adminService.createStyle(createStyleDto);
+    return this.adminCatalogService.createStyle(createStyleDto);
   }
 
   @Get('styles')
   @ApiOperation({ summary: 'Retrieve all styles' })
   @ApiResponse({ status: 200, description: 'Styles retrieved successfully.' })
   async getStyles() {
-    return this.adminService.findAllStyles();
+    return this.adminCatalogService.findAllStyles();
   }
 
   @Get('styles/:id')
@@ -74,7 +74,7 @@ export class AdminCatalogController {
   @ApiResponse({ status: 200, description: 'Style retrieved successfully.' })
   @ApiResponse({ status: 404, description: 'Style not found.' })
   async getStyle(@Param('id', ParseIntPipe) id: number) {
-    return this.adminService.findStyleById(id);
+    return this.adminCatalogService.findStyleById(id);
   }
 
   @Put('styles/:id')
@@ -85,7 +85,7 @@ export class AdminCatalogController {
     @Param('id', ParseIntPipe) id: number,
     @Body() updateTagDto: CreateStyleDto,
   ) {
-    return this.adminService.updateStyle(id, updateTagDto);
+    return this.adminCatalogService.updateStyle(id, updateTagDto);
   }
 
   @Delete('styles/:id')
@@ -93,6 +93,6 @@ export class AdminCatalogController {
   @ApiResponse({ status: 200, description: 'Style deleted successfully.' })
   @ApiResponse({ status: 404, description: 'Style not found.' })
   async deleteStyle(@Param('id', ParseIntPipe) id: number) {
-    return this.adminService.deleteStyle(id);
+    return this.adminCatalogService.deleteStyle(id);
   }
 }

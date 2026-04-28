@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { AdminService } from './admin.service';
 import { PartnerController } from './partner.controller';
 import { AdminAISettingsController } from './controllers/admin-ai-settings.controller';
 import { AdminBroadcastController } from './controllers/admin-broadcast.controller';
@@ -33,6 +32,15 @@ import { MailModule } from 'src/mail/mail.module';
 import { DeviceTokenEntity } from 'src/user/entities/device-token.entity';
 import { MemeModule } from 'src/meme/meme.module';
 import { AIFinetuneEntity } from './entities/ai-finetune.entity';
+import { AdminAISettingsService } from './services/admin-ai-settings.service';
+import { AdminBroadcastService } from './services/admin-broadcast.service';
+import { AdminCatalogService } from './services/admin-catalog.service';
+import { AdminContestReviewService } from './services/admin-contest-review.service';
+import { AdminContestsService } from './services/admin-contests.service';
+import { AdminFineTuneService } from './services/admin-finetune.service';
+import { AdminMetricsService } from './services/admin-metrics.service';
+import { AdminModerationService } from './services/admin-moderation.service';
+import { AdminPartnershipService } from './services/admin-partnership.service';
 
 @Module({
   imports: [
@@ -60,7 +68,17 @@ import { AIFinetuneEntity } from './entities/ai-finetune.entity';
     MailModule,
     MemeModule,
   ],
-  providers: [AdminService],
+  providers: [
+    AdminContestsService,
+    AdminContestReviewService,
+    AdminFineTuneService,
+    AdminAISettingsService,
+    AdminModerationService,
+    AdminCatalogService,
+    AdminPartnershipService,
+    AdminMetricsService,
+    AdminBroadcastService,
+  ],
   controllers: [
     AdminContestsController,
     AdminContestReviewController,

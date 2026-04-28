@@ -14,23 +14,25 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
 import { RoleGuard } from 'src/auth/guards/role.guard';
 import { AuthenticatedRequest } from 'src/auth/types/auth.user.interface';
 import { RoleEnum } from 'src/user/types/role.enum';
-import { AdminService } from '../admin.service';
 import {
   ContestCandidateRejectDto,
   ContestNoWinnerDto,
 } from '../dto/contest-candidate-action.dto';
+import { AdminContestReviewService } from '../services/admin-contest-review.service';
 
 @Controller('admin')
 @ApiTags('Admin')
 @UseGuards(JwtAuthGuard, RoleGuard)
 @Roles(RoleEnum.ADMIN)
 export class AdminContestReviewController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminContestReviewService: AdminContestReviewService,
+  ) {}
 
   @Get('contests/review-queue')
   @ApiOperation({ summary: 'Get v2 contest winner review queue' })
   async getContestReviewQueue() {
-    return this.adminService.getContestReviewQueue();
+    return this.adminContestReviewService.getContestReviewQueue();
   }
 
   @Post('contests/:contestId/candidates/:candidateId/approve')
@@ -40,7 +42,7 @@ export class AdminContestReviewController {
     @Param('candidateId', ParseIntPipe) candidateId: number,
     @Req() req: AuthenticatedRequest,
   ) {
-    return this.adminService.approveContestCandidate(
+    return this.adminContestReviewService.approveContestCandidate(
       contestId,
       candidateId,
       req.user.id,
@@ -55,7 +57,7 @@ export class AdminContestReviewController {
     @Body() dto: ContestCandidateRejectDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    return this.adminService.rejectContestCandidate(
+    return this.adminContestReviewService.rejectContestCandidate(
       contestId,
       candidateId,
       req.user.id,
@@ -70,7 +72,7 @@ export class AdminContestReviewController {
     @Param('candidateId', ParseIntPipe) candidateId: number,
     @Req() req: AuthenticatedRequest,
   ) {
-    return this.adminService.selectContestCandidate(
+    return this.adminContestReviewService.selectContestCandidate(
       contestId,
       candidateId,
       req.user.id,
@@ -84,7 +86,7 @@ export class AdminContestReviewController {
     @Body() dto: ContestNoWinnerDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    return this.adminService.markContestNoWinner(
+    return this.adminContestReviewService.markContestNoWinner(
       contestId,
       req.user.id,
       dto.reason ?? null,

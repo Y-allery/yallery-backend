@@ -17,21 +17,21 @@ import { RoleGuard } from 'src/auth/guards/role.guard';
 import { UpdateContestDto } from 'src/contest/dto/update.contest.dto';
 import { ContestStatusEnum } from 'src/contest/types/contest.status.enum';
 import { RoleEnum } from 'src/user/types/role.enum';
-import { AdminService } from '../admin.service';
 import { CreateContestDto } from '../dto/create-contest.dto';
 import { ForceStartContestDto } from '../dto/force-start-contest.dto';
 import { SetContestWinnerDto } from '../dto/set.contest.winner.dto';
+import { AdminContestsService } from '../services/admin-contests.service';
 
 @Controller('admin')
 @ApiTags('Admin')
 @UseGuards(JwtAuthGuard, RoleGuard)
 @Roles(RoleEnum.ADMIN)
 export class AdminContestsController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(private readonly adminContestsService: AdminContestsService) {}
 
   @Post('create-contest')
   async createContest(@Body() dto: CreateContestDto) {
-    return this.adminService.createAdminContest(dto);
+    return this.adminContestsService.createAdminContest(dto);
   }
 
   @Get('contests')
@@ -49,7 +49,7 @@ export class AdminContestsController {
   async getAllContests(
     @Query('status') status?: ContestStatusEnum,
   ): Promise<any[]> {
-    return this.adminService.findAllContests(status);
+    return this.adminContestsService.findAllContests(status);
   }
 
   @Put('contests/:id')
@@ -60,7 +60,7 @@ export class AdminContestsController {
     @Param('id', ParseIntPipe) id: number,
     @Body() updateContestDto: UpdateContestDto,
   ) {
-    return this.adminService.updateContest(id, updateContestDto);
+    return this.adminContestsService.updateContest(id, updateContestDto);
   }
 
   @Delete('contests/:id')
@@ -68,7 +68,7 @@ export class AdminContestsController {
   @ApiResponse({ status: 200, description: 'Contest deleted successfully.' })
   @ApiResponse({ status: 404, description: 'Contest not found.' })
   async deleteContest(@Param('id', ParseIntPipe) id: number) {
-    return this.adminService.deleteContest(id);
+    return this.adminContestsService.deleteContest(id);
   }
 
   @Get('contests/posts-sorted-by-likes')
@@ -78,12 +78,12 @@ export class AdminContestsController {
     description: 'Posts retrieved and sorted by likes successfully.',
   })
   async getPostsByContestSortedByLikes() {
-    return this.adminService.getPostsByContestSortedByLikes();
+    return this.adminContestsService.getPostsByContestSortedByLikes();
   }
 
   @Post('set-contest-winner')
   async setContestWinner(@Body() dto: SetContestWinnerDto) {
-    return this.adminService.setContestWinner(dto);
+    return this.adminContestsService.setContestWinner(dto);
   }
 
   @Post('reject-contest-winner')
@@ -95,7 +95,7 @@ export class AdminContestsController {
   @ApiResponse({ status: 404, description: 'Post or contest not found.' })
   @ApiResponse({ status: 400, description: 'Invalid request parameters.' })
   async rejectContestWinner(@Body() dto: SetContestWinnerDto) {
-    return this.adminService.rejectContestWinner(dto);
+    return this.adminContestsService.rejectContestWinner(dto);
   }
 
   @Post('force-start-contest')
@@ -123,6 +123,6 @@ export class AdminContestsController {
   })
   @ApiResponse({ status: 500, description: 'Internal server error' })
   async forceStartContest(@Body() dto: ForceStartContestDto) {
-    return this.adminService.forceStartContest(dto.contestId);
+    return this.adminContestsService.forceStartContest(dto.contestId);
   }
 }
