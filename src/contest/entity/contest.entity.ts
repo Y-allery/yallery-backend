@@ -38,7 +38,7 @@ export class ContestEntity {
   @Column({ nullable: true })
   fineTuneTriggerWord: string;
 
-  @Column({ nullable: true, default: 1 })
+  @Column({ type: 'float', nullable: true, default: 1 })
   fineTuneStrength: number;
 
   @Column({

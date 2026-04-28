@@ -1,6 +1,53 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsNumber, IsBoolean, IsArray, IsEnum, IsOptional, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsEnum,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
+
+export class UpdateAISettingsPricingDto {
+  @ApiPropertyOptional({
+    description: 'Pricing strategy for duration-based models',
+    enum: ['fixed', 'per_second'],
+  })
+  @IsOptional()
+  @IsEnum(['fixed', 'per_second'])
+  strategy?: 'fixed' | 'per_second';
+
+  @ApiPropertyOptional({ description: 'Credits charged per generated second' })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  creditsPerSecond?: number;
+}
+
+export class UpdateMediaAISettingsJsonDto {
+  @ApiPropertyOptional({
+    description: 'Supported video durations in seconds',
+    type: [Number],
+    example: [5, 10],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  @Min(1, { each: true })
+  @Max(10, { each: true })
+  durations?: number[];
+
+  @ApiPropertyOptional({ description: 'Video pricing policy' })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UpdateAISettingsPricingDto)
+  pricing?: UpdateAISettingsPricingDto;
+}
 
 export class UpdateAISettingsDto {
   @ApiPropertyOptional({ description: 'AI service identifier (e.g., flux, aura_flow, byty_dance)' })
@@ -98,5 +145,18 @@ export class UpdateAISettingsDto {
   @IsOptional()
   @IsBoolean()
   is_active?: boolean;
-}
 
+  @ApiPropertyOptional({ description: 'Whether the model is active (camelCase alias)' })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Structured media model settings. Currently editable for video_generate models.',
+    type: UpdateMediaAISettingsJsonDto,
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UpdateMediaAISettingsJsonDto)
+  settings?: UpdateMediaAISettingsJsonDto;
+}

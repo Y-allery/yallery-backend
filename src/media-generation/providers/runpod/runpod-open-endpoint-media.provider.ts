@@ -17,7 +17,7 @@ import { TextVideoGenerationRequest } from '../../contracts/text-video-generatio
 import { VideoGenerationResult } from '../../contracts/video-generation-result.contract';
 import { MediaCapability } from '../../enums/media-capability.enum';
 import { MediaProvider } from '../../enums/media-provider.enum';
-import { getEditImageOutputPreset, getVideoOutputPreset } from '../../presets';
+import { getVideoOutputPreset } from '../../presets';
 
 type RunpodJobStatus =
   | 'IN_QUEUE'
@@ -35,9 +35,6 @@ interface RunpodJobResponse {
   delayTime?: number;
   executionTime?: number;
 }
-
-const NANO_BANANA_PROMPT_PLACEHOLDER_IMAGE =
-  'https://dummyimage.com/1024x1024/ffffff/ffffff.png';
 
 @Injectable()
 export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider {
@@ -239,9 +236,9 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
         );
       }
 
-      if (Date.now() - startedAt > this.getStatusTimeoutMs()) {
+      if (Date.now() - startedAt > this.getStatusTimeoutMs(outputType)) {
         throw new GatewayTimeoutException(
-          `RunPod job ${currentJob.id} did not finish within ${this.getStatusTimeoutMs()}ms`,
+          `RunPod job ${currentJob.id} did not finish within ${this.getStatusTimeoutMs(outputType)}ms`,
         );
       }
 
@@ -289,11 +286,20 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
         const record = value as Record<string, unknown>;
         collect(record.image_url);
         collect(record.imageUrl);
+        collect(record.data_uri);
         collect(record.url);
         collect(record.result);
         collect(record.images);
         collect(record.output);
         collect(record.data);
+
+        if (
+          typeof record.base64 === 'string' &&
+          typeof record.format === 'string'
+        ) {
+          const format = record.format === 'jpg' ? 'jpeg' : record.format;
+          collect(`data:image/${format};base64,${record.base64}`);
+        }
       }
     };
 
@@ -347,10 +353,19 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
         collect(record.video);
         collect(record.video_url);
         collect(record.videoUrl);
+        collect(record.videos);
         collect(record.url);
         collect(record.result);
         collect(record.output);
         collect(record.data);
+
+        if (typeof record.base64 === 'string') {
+          const format =
+            typeof record.format === 'string' && record.format.startsWith('video/')
+              ? record.format
+              : 'video/mp4';
+          collect(`data:${format};base64,${record.base64}`);
+        }
       }
     };
 
@@ -383,46 +398,78 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
     const prompt = request.resolvedPrompt ?? request.prompt;
 
     switch (request.aiService) {
-      case 'nano_banana':
+      case 'flux2_klein':
         return {
           prompt,
-          images: [NANO_BANANA_PROMPT_PLACEHOLDER_IMAGE],
-          resolution: '1k',
-          output_format: 'png',
-          enable_safety_checker: true,
-        };
-      case 'flux_schnell':
-        return {
-          prompt,
-          seed: -1,
           num_inference_steps: 4,
-          guidance: 7,
-          negative_prompt: '',
-          image_format: 'png',
-          width: request.width,
-          height: request.height,
-        };
-      default:
-        return {
-          prompt,
+          guidance_scale: 1,
           width: request.width,
           height: request.height,
           num_images: request.imageQuantity,
+          output_format: 'png',
+          return_base64: true,
+          return_data_uri: true,
         };
+      case 'sdxl':
+        return {
+          prompt,
+          negative_prompt: '',
+          num_inference_steps: 25,
+          guidance_scale: 7,
+          width: request.width,
+          height: request.height,
+          num_images: request.imageQuantity,
+          output_format: 'png',
+          return_base64: true,
+          return_data_uri: true,
+        };
+      case 'sdxl_lora_generation':
+        if (
+          !request.providerSettings?.loraUrl ||
+          !request.providerSettings?.loraKey ||
+          !request.providerSettings?.triggerWord
+        ) {
+          throw new Error(
+            'sdxl_lora_generation requires loraUrl, loraKey and triggerWord provider settings',
+          );
+        }
+
+        return {
+          prompt,
+          triggerWord: request.providerSettings.triggerWord,
+          loraUrl: request.providerSettings.loraUrl,
+          loraKey: request.providerSettings.loraKey,
+          loraScale: request.providerSettings.loraScale ?? 0.8,
+          width: request.width,
+          height: request.height,
+          numImages: request.imageQuantity,
+          negativePrompt: '',
+          numInferenceSteps: 25,
+          guidanceScale: 7,
+          outputFormat: 'png',
+          returnBase64: true,
+          returnDataUri: true,
+        };
+      default:
+        throw new Error(
+          `RunPod prompt-image service ${request.aiService} is not configured`,
+        );
     }
   }
 
   private buildImageEditInput(request: EditImageGenerationRequest) {
-    const { size } = getEditImageOutputPreset(request.aiService);
-
     return {
-      enable_base64_output: false,
-      enable_sync_mode: false,
-      output_format: 'jpeg',
       prompt: request.resolvedPrompt ?? request.prompt,
-      images: [request.imageUrl],
-      seed: -1,
-      size,
+      image_url: request.imageUrl,
+      width: 1024,
+      height: 1024,
+      reference_max_side: 1024,
+      num_inference_steps: 20,
+      true_cfg_scale: 4,
+      num_images: 1,
+      output_format: 'png',
+      return_base64: true,
+      return_data_uri: true,
     };
   }
 
@@ -458,11 +505,14 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
       prompt:
         request.prompt?.trim() ||
         'Make the character in the image follow the movements of the character in the video.',
-      character_orientation: request.characterOrientation ?? 'video',
-      image: request.imageUrl,
-      keep_original_sound: true,
+      image_url: request.imageUrl,
+      match_source_duration: true,
+      motion_only: true,
       negative_prompt: request.negativePrompt?.trim() ?? '',
-      video: request.videoUrl,
+      output_frame_rate: 30,
+      preserve_source_audio: true,
+      return_base64: true,
+      video_url: request.videoUrl,
     };
   }
 
@@ -470,11 +520,18 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
     request: ResolvedPromptImageGenerationRequest,
   ): string {
     switch (request.aiService) {
-      case 'flux_schnell':
-        return this.getRequiredConfig('RUNPOD_FLUX_SCHNELL_ENDPOINT_ID');
-      case 'nano_banana':
+      case 'flux2_klein':
+        return this.getRequiredConfig('RUNPOD_FLUX2_KLEIN_ENDPOINT_ID');
+      case 'sdxl':
+        return this.getRequiredConfig('RUNPOD_SDXL_ENDPOINT_ID');
+      case 'sdxl_lora_generation':
+        return this.getRequiredConfig(
+          'RUNPOD_SDXL_LORA_GENERATION_ENDPOINT_ID',
+        );
       default:
-        return this.getRequiredConfig('RUNPOD_NANO_BANANA_ENDPOINT_ID');
+        throw new Error(
+          `RunPod prompt-image endpoint is not configured for ${request.aiService}`,
+        );
     }
   }
 
@@ -482,9 +539,14 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
     request: EditImageGenerationRequest,
   ): string {
     switch (request.aiService) {
-      case 'qwen_image_edit':
+      case 'qwen_image_edit_baked':
+        return this.getRequiredConfig(
+          'RUNPOD_QWEN_IMAGE_EDIT_BAKED_ENDPOINT_ID',
+        );
       default:
-        return this.getRequiredConfig('RUNPOD_QWEN_IMAGE_EDIT_ENDPOINT_ID');
+        throw new Error(
+          `RunPod image-edit endpoint is not configured for ${request.aiService}`,
+        );
     }
   }
 
@@ -510,10 +572,13 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
 
   private getEndpointIdForMemeRequest(request: MemeGenerationRequest): string {
     switch (request.aiService) {
-      case 'kling_v26_std_motion_control':
-      default:
+      case 'wan22_animate_native':
         return this.getRequiredConfig(
-          'RUNPOD_KLING_V26_STD_MOTION_CONTROL_ENDPOINT_ID',
+          'RUNPOD_WAN22_ANIMATE_MEME_ENDPOINT_ID',
+        );
+      default:
+        throw new Error(
+          `RunPod meme endpoint is not configured for ${request.aiService}`,
         );
     }
   }
@@ -546,8 +611,16 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
     return Number(this.configService.get<string>('RUNPOD_POLL_INTERVAL_MS') || 5000);
   }
 
-  private getStatusTimeoutMs(): number {
-    return Number(this.configService.get<string>('RUNPOD_STATUS_TIMEOUT_MS') || 600000);
+  private getStatusTimeoutMs(outputType: 'image' | 'video' = 'image'): number {
+    const configuredValue = this.configService.get<string>(
+      'RUNPOD_STATUS_TIMEOUT_MS',
+    );
+
+    if (configuredValue) {
+      return Number(configuredValue);
+    }
+
+    return outputType === 'video' ? 1800000 : 600000;
   }
 
   private getRequestTimeoutMs(): number {

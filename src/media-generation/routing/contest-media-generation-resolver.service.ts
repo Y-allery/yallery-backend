@@ -6,6 +6,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { ContestEntity } from 'src/contest/entity/contest.entity';
 import { ContestTypeEnum } from 'src/contest/types/contest.status.enum';
+import { AIFinetuneEntity } from 'src/admin/entities/ai-finetune.entity';
 import { Repository } from 'typeorm';
 import {
   PromptImageGenerationRequest,
@@ -24,6 +25,8 @@ export class ContestMediaGenerationResolverService {
     private readonly contestRepository: Repository<ContestEntity>,
     @InjectRepository(MediaAISettingsEntity)
     private readonly mediaAISettingsRepository: Repository<MediaAISettingsEntity>,
+    @InjectRepository(AIFinetuneEntity)
+    private readonly aiFinetuneRepository: Repository<AIFinetuneEntity>,
   ) {}
 
   async resolvePromptImageRequest(
@@ -45,9 +48,9 @@ export class ContestMediaGenerationResolverService {
     this.assertPromptImageQuantity(aiService, request.imageQuantity);
 
     if (contest.contestType !== ContestTypeEnum.FINE_TUNE) {
-      if (aiService === 'flux_fine_tune') {
+      if (['flux_fine_tune', 'sdxl_lora_generation'].includes(aiService)) {
         throw new BadRequestException(
-          `Contest ${contest.id} is linked to flux_fine_tune but is not marked as a fine-tune contest.`,
+          `Contest ${contest.id} is linked to ${aiService} but is not marked as a fine-tune contest.`,
         );
       }
 
@@ -60,7 +63,7 @@ export class ContestMediaGenerationResolverService {
       };
     }
 
-    if (aiService !== 'flux_fine_tune') {
+    if (!['flux_fine_tune', 'sdxl_lora_generation'].includes(aiService)) {
       throw new BadRequestException(
         `Contest ${contest.id} is marked as fine-tune but is linked to ${aiService}.`,
       );
@@ -74,18 +77,43 @@ export class ContestMediaGenerationResolverService {
 
     const basePrompt = request.resolvedPrompt ?? request.prompt;
 
+    if (aiService === 'flux_fine_tune') {
+      return {
+        ...request,
+        aiService,
+        orientation,
+        width,
+        height,
+        resolvedPrompt: contest.fineTuneTriggerWord
+          ? `Generate me ${contest.fineTuneTriggerWord}. ${basePrompt}`
+          : basePrompt,
+        providerSettings: {
+          finetuneId: contest.fineTuneToken,
+          finetuneStrength: Number(contest.fineTuneStrength) || 1,
+          contestType: contest.contestType,
+        },
+      };
+    }
+
+    const fineTune = await this.getReadyFineTuneByLoraKey(contest.fineTuneToken);
+    const triggerWord = contest.fineTuneTriggerWord || fineTune.triggerWord;
+    const loraScale =
+      Number(contest.fineTuneStrength) ||
+      fineTune.generationDefaults?.loraScale ||
+      0.8;
+
     return {
       ...request,
       aiService,
       orientation,
       width,
       height,
-      resolvedPrompt: contest.fineTuneTriggerWord
-        ? `Generate me ${contest.fineTuneTriggerWord}. ${basePrompt}`
-        : basePrompt,
+      resolvedPrompt: basePrompt,
       providerSettings: {
-        finetuneId: contest.fineTuneToken,
-        finetuneStrength: Number(contest.fineTuneStrength) || 1,
+        loraKey: fineTune.loraKey,
+        loraScale,
+        loraUrl: fineTune.loraUrl,
+        triggerWord,
         contestType: contest.contestType,
       },
     };
@@ -175,7 +203,10 @@ export class ContestMediaGenerationResolverService {
     }
 
     if (contest.contestType === ContestTypeEnum.FINE_TUNE) {
-      return this.getMediaAiSettingByAiService('flux_fine_tune', expectedCapability);
+      return this.getMediaAiSettingByAiService(
+        'sdxl_lora_generation',
+        expectedCapability,
+      );
     }
 
     return this.getDefaultPromptImageContestSetting();
@@ -205,7 +236,7 @@ export class ContestMediaGenerationResolverService {
   private async getDefaultPromptImageContestSetting(): Promise<MediaAISettingsEntity> {
     const preferredSetting = await this.mediaAISettingsRepository.findOne({
       where: {
-        aiService: 'nano_banana',
+        aiService: 'flux2_klein',
         capability: 'image_generate',
         isActive: true,
       },
@@ -215,34 +246,39 @@ export class ContestMediaGenerationResolverService {
       return preferredSetting;
     }
 
-    const settings = await this.mediaAISettingsRepository.find({
-      where: {
-        capability: 'image_generate',
-        isActive: true,
-      },
-      order: {
-        id: 'ASC',
-      },
-    });
-
-    const fallbackSetting = settings.find(
-      (setting) => setting.aiService !== 'flux_fine_tune',
+    throw new BadRequestException(
+      'No active flux2_klein prompt-image model is configured for contests.',
     );
-
-    if (!fallbackSetting) {
-      throw new BadRequestException(
-        'No active prompt-image model is configured for contests.',
-      );
-    }
-
-    return fallbackSetting;
   }
 
   private assertPromptImageQuantity(aiService: string, imageQuantity: number) {
-    if (['nano_banana', 'flux_schnell'].includes(aiService) && imageQuantity !== 1) {
+    if (
+      ['flux2_klein', 'sdxl', 'sdxl_lora_generation'].includes(aiService) &&
+      imageQuantity > 4
+    ) {
       throw new BadRequestException(
-        `Model ${aiService} currently supports only image_quantity=1.`,
+        `Model ${aiService} currently supports up to image_quantity=4.`,
       );
     }
+  }
+
+  private async getReadyFineTuneByLoraKey(
+    loraKey: string,
+  ): Promise<AIFinetuneEntity> {
+    const fineTune = await this.aiFinetuneRepository.findOne({
+      where: { loraKey },
+    });
+
+    if (!fineTune) {
+      throw new BadRequestException(`Fine-tune "${loraKey}" is not configured.`);
+    }
+
+    if (fineTune.status !== 'ready' || !fineTune.loraUrl) {
+      throw new BadRequestException(
+        `Fine-tune "${loraKey}" is not ready for generation.`,
+      );
+    }
+
+    return fineTune;
   }
 }

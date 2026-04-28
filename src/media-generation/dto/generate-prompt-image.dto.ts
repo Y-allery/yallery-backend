@@ -14,7 +14,7 @@ export class GeneratePromptImageDto {
   @ApiPropertyOptional({
     description:
       'Requested AI service/model identifier. Optional when contest_id is provided because the backend resolves the contest model automatically.',
-    example: 'nano_banana',
+    example: 'flux2_klein',
   })
   ai_service?: string;
 
@@ -28,11 +28,11 @@ export class GeneratePromptImageDto {
 
   @IsInt()
   @Min(1)
-  @Max(10)
+  @Max(4)
   @ApiProperty({
     description: 'Number of images to generate.',
     minimum: 1,
-    maximum: 10,
+    maximum: 4,
     example: 1,
   })
   image_quantity: number;

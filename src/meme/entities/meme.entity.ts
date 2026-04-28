@@ -11,6 +11,9 @@ export class MemeEntity extends TimeStampEntity {
   @Column({ type: 'varchar', length: 1024, nullable: true, name: 'referenceVideoUrl' })
   referenceVideoUrl: string | null;
 
+  @Column({ type: 'double', nullable: true, name: 'referenceVideoDurationSeconds' })
+  referenceVideoDurationSeconds: number | null;
+
   @Column({ type: 'varchar', length: 1024, nullable: true, name: 'referenceImageUrl' })
   referenceImageUrl: string | null;
 

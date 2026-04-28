@@ -13,6 +13,7 @@ import { PartnerUserLinkEntity } from './entities/partner-user-link.entity';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
 import { AISettingsEntity } from 'src/media-generation/entities/legacy-ai-settings.entity';
+import { MediaAISettingsEntity } from 'src/media-generation/entities/media-ai-settings.entity';
 import { AdminMetricsEntity } from './entities/admin-metrics.entity';
 import { LikeEntity } from 'src/like/entities/like.entity';
 import { PaymentEntity } from 'src/payment/entities/payment.entity';
@@ -22,6 +23,7 @@ import { FirebaseModule } from 'src/firebase/firebase.module';
 import { MailModule } from 'src/mail/mail.module';
 import { DeviceTokenEntity } from 'src/user/entities/device-token.entity';
 import { MemeModule } from 'src/meme/meme.module';
+import { AIFinetuneEntity } from './entities/ai-finetune.entity';
 
 @Module({
   imports: [
@@ -32,11 +34,13 @@ import { MemeModule } from 'src/meme/meme.module';
       PostEntity,
       UserEntity,
       AISettingsEntity,
+      MediaAISettingsEntity,
       AdminMetricsEntity,
       LikeEntity,
       PaymentEntity,
       ContestEntity,
       DeviceTokenEntity,
+      AIFinetuneEntity,
     ]),
     ContestModule,
     UserModule,

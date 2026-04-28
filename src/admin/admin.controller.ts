@@ -39,6 +39,8 @@ import { BroadcastNotificationDto } from './dto/broadcast-notification.dto';
 import { MemeService } from 'src/meme/meme.service';
 import { CreateMemeDto } from 'src/meme/dto/create-meme.dto';
 import { UpdateMemeDto } from 'src/meme/dto/update-meme.dto';
+import { CreateAIFinetuneDto } from './dto/create-ai-finetune.dto';
+import { PreviewAIFinetuneLoraKeyDto } from './dto/preview-ai-finetune-lora-key.dto';
 
 @Controller('admin')
 @ApiTags('Admin')
@@ -301,10 +303,56 @@ export class AdminController {
     return this.adminService.forceStartContest(dto.contestId);
   }
 
+  @Get('finetunes')
+  @ApiOperation({
+    summary: 'List reusable AI fine-tunes',
+    description:
+      'Returns SDXL LoRA fine-tunes that can be attached to fine-tune contests.',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    description: 'Optional status filter',
+    enum: ['pending', 'queued', 'training', 'ready', 'failed'],
+  })
+  async getFineTunes(
+    @Query('status')
+    status?: 'pending' | 'queued' | 'training' | 'ready' | 'failed',
+  ) {
+    return this.adminService.getFineTunes(status);
+  }
+
+  @Get('finetunes/lora-key')
+  @ApiOperation({
+    summary: 'Preview a unique LoRA key for a trigger word',
+    description:
+      'Backend-generated preview. The key is reserved only when the fine-tune is created.',
+  })
+  @ApiQuery({ name: 'triggerWord', required: true })
+  async previewFineTuneLoraKey(@Query() query: PreviewAIFinetuneLoraKeyDto) {
+    return this.adminService.previewFineTuneLoraKey(query.triggerWord);
+  }
+
+  @Post('finetunes')
+  @ApiOperation({
+    summary: 'Create an SDXL LoRA fine-tune job',
+    description:
+      'Stores the dataset metadata, generates or validates a unique LoRA key, and queues the RunPod trainer worker.',
+  })
+  async createFineTune(@Body() dto: CreateAIFinetuneDto) {
+    return this.adminService.createFineTune(dto);
+  }
+
+  @Get('finetunes/:id/status')
+  @ApiOperation({ summary: 'Refresh and return a fine-tune training status' })
+  async getFineTuneStatus(@Param('id', ParseIntPipe) id: number) {
+    return this.adminService.getFineTuneStatus(id);
+  }
+
   @Get('ai-settings')
   @ApiOperation({ 
     summary: 'Get all AI settings',
-    description: 'Retrieves all AI model settings (image, video, and combined). Returns complete information about all AI models including their configuration, pricing, and capabilities.'
+    description: 'Retrieves all AI model settings from media_ai_settings grouped by image, video, meme, music, and fine-tune contest models.'
   })
   @ApiResponse({ 
     status: 200, 

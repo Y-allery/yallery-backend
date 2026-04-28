@@ -13,6 +13,12 @@ export interface MemeAISettingsResponse {
       characterOrientations?: MemeCharacterOrientation[];
       defaultCharacterOrientation?: MemeCharacterOrientation;
       keepOriginalSound?: boolean;
+      matchSourceDuration?: boolean;
+      outputFrameRate?: number;
+      pricing?: {
+        strategy: 'fixed' | 'per_second';
+        creditsPerSecond?: number;
+      };
     } | null;
   }>;
 }

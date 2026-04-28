@@ -18,6 +18,10 @@ export interface PromptImageGenerationRequest {
   providerSettings?: {
     finetuneId?: string;
     finetuneStrength?: number;
+    loraKey?: string;
+    loraScale?: number;
+    loraUrl?: string;
+    triggerWord?: string;
     contestType?: ContestTypeEnum;
   } | null;
 }

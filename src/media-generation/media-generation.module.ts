@@ -39,6 +39,7 @@ import { MediaTagResolverService } from './services/media-tag-resolver.service';
 import { MediaPromptEnhancerService } from './services/media-prompt-enhancer.service';
 import { AISettingsEntity } from './entities/legacy-ai-settings.entity';
 import { ColorEntity } from './entities/color.entity';
+import { AIFinetuneEntity } from 'src/admin/entities/ai-finetune.entity';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { ColorEntity } from './entities/color.entity';
       StyleEntity,
       TagEntity,
       UserEntity,
+      AIFinetuneEntity,
       ContestEntity,
       PostEntity,
       MemeEntity,

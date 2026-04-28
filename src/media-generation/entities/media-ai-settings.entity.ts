@@ -11,6 +11,8 @@ export interface MediaAISettingsJson {
   characterOrientations?: Array<'image' | 'video'>;
   defaultCharacterOrientation?: 'image' | 'video';
   keepOriginalSound?: boolean;
+  matchSourceDuration?: boolean;
+  outputFrameRate?: number;
 }
 
 @Entity('media_ai_settings')

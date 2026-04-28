@@ -6,7 +6,7 @@ export class GenerateMemeDto {
   @IsString()
   @ApiProperty({
     description: 'Requested AI service/model identifier.',
-    example: 'kling_v26_std_motion_control',
+    example: 'wan22_animate_native',
   })
   ai_service: string;
 
@@ -38,7 +38,7 @@ export class GenerateMemeDto {
   @IsOptional()
   @IsString()
   @ApiPropertyOptional({
-    description: 'Optional negative prompt override for RunPod Kling motion control.',
+    description: 'Optional negative prompt override for RunPod WAN motion transfer.',
     example: 'foreign limbs, copied background, jitter, flicker',
   })
   negative_prompt?: string;

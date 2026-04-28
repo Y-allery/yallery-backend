@@ -12,10 +12,6 @@ type PromptImagePresetMap = Partial<
   Record<MediaOrientation, PromptImageDimensions>
 >;
 
-export type EditImageOutputPreset = {
-  size: string;
-};
-
 const DEFAULT_PROMPT_IMAGE_PRESETS: Record<
   MediaOrientation,
   PromptImageDimensions
@@ -25,16 +21,6 @@ const DEFAULT_PROMPT_IMAGE_PRESETS: Record<
 };
 
 const PROMPT_IMAGE_PRESET_OVERRIDES: Record<string, PromptImagePresetMap> = {};
-
-const DEFAULT_EDIT_IMAGE_OUTPUT_PRESET: EditImageOutputPreset = {
-  size: '1024*1024',
-};
-
-const EDIT_IMAGE_OUTPUT_OVERRIDES: Record<string, EditImageOutputPreset> = {
-  qwen_image_edit: {
-    size: '1024*1024',
-  },
-};
 
 function getPromptImagePresetMap(aiService: string): Record<
   MediaOrientation,
@@ -103,10 +89,4 @@ export function getPromptImageDimensions(
   }
 
   return preset;
-}
-
-export function getEditImageOutputPreset(aiService: string): EditImageOutputPreset {
-  return (
-    EDIT_IMAGE_OUTPUT_OVERRIDES[aiService] ?? DEFAULT_EDIT_IMAGE_OUTPUT_PRESET
-  );
 }

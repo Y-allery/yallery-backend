@@ -29,22 +29,9 @@ export class MediaRouteResolverService {
       };
     }
 
-    if (aiService === 'nano_banana' && this.isRunpodNanoBananaEnabled()) {
-      return {
-        capability: MediaCapability.IMAGE_GENERATE,
-        provider: MediaProvider.RUNPOD,
-        dispatch: MediaDispatch.BULLMQ_QUEUE,
-        aiService,
-        endpointId: this.configService.get<string>(
-          'RUNPOD_NANO_BANANA_ENDPOINT_ID',
-        ),
-        queueName: RUNPOD_IMAGE_GENERATION_QUEUE,
-      };
-    }
-
     if (
-      aiService === 'flux_schnell' &&
-      this.isRunpodFluxSchnellEnabled()
+      aiService === 'sdxl_lora_generation' &&
+      this.isRunpodSdxlLoraGenerationEnabled()
     ) {
       return {
         capability: MediaCapability.IMAGE_GENERATE,
@@ -52,8 +39,32 @@ export class MediaRouteResolverService {
         dispatch: MediaDispatch.BULLMQ_QUEUE,
         aiService,
         endpointId: this.configService.get<string>(
-          'RUNPOD_FLUX_SCHNELL_ENDPOINT_ID',
+          'RUNPOD_SDXL_LORA_GENERATION_ENDPOINT_ID',
         ),
+        queueName: RUNPOD_IMAGE_GENERATION_QUEUE,
+      };
+    }
+
+    if (aiService === 'flux2_klein' && this.isRunpodFlux2KleinEnabled()) {
+      return {
+        capability: MediaCapability.IMAGE_GENERATE,
+        provider: MediaProvider.RUNPOD,
+        dispatch: MediaDispatch.BULLMQ_QUEUE,
+        aiService,
+        endpointId: this.configService.get<string>(
+          'RUNPOD_FLUX2_KLEIN_ENDPOINT_ID',
+        ),
+        queueName: RUNPOD_IMAGE_GENERATION_QUEUE,
+      };
+    }
+
+    if (aiService === 'sdxl' && this.isRunpodSdxlEnabled()) {
+      return {
+        capability: MediaCapability.IMAGE_GENERATE,
+        provider: MediaProvider.RUNPOD,
+        dispatch: MediaDispatch.BULLMQ_QUEUE,
+        aiService,
+        endpointId: this.configService.get<string>('RUNPOD_SDXL_ENDPOINT_ID'),
         queueName: RUNPOD_IMAGE_GENERATION_QUEUE,
       };
     }
@@ -62,14 +73,17 @@ export class MediaRouteResolverService {
   }
 
   resolveImageEditRoute(aiService: string): MediaGenerationRoute | null {
-    if (aiService === 'qwen_image_edit' && this.isRunpodQwenImageEditEnabled()) {
+    if (
+      aiService === 'qwen_image_edit_baked' &&
+      this.isRunpodQwenImageEditBakedEnabled()
+    ) {
       return {
         capability: MediaCapability.IMAGE_EDIT,
         provider: MediaProvider.RUNPOD,
         dispatch: MediaDispatch.BULLMQ_QUEUE,
         aiService,
         endpointId: this.configService.get<string>(
-          'RUNPOD_QWEN_IMAGE_EDIT_ENDPOINT_ID',
+          'RUNPOD_QWEN_IMAGE_EDIT_BAKED_ENDPOINT_ID',
         ),
         queueName: MEDIA_IMAGE_EDIT_GENERATION_QUEUE,
       };
@@ -124,8 +138,8 @@ export class MediaRouteResolverService {
 
   resolveMemeRoute(aiService: string): MediaGenerationRoute | null {
     if (
-      aiService === 'kling_v26_std_motion_control' &&
-      this.isRunpodKlingMotionControlEnabled()
+      aiService === 'wan22_animate_native' &&
+      this.isRunpodWan22AnimateMemeEnabled()
     ) {
       return {
         capability: MediaCapability.MEME_GENERATE,
@@ -133,7 +147,7 @@ export class MediaRouteResolverService {
         dispatch: MediaDispatch.BULLMQ_QUEUE,
         aiService,
         endpointId: this.configService.get<string>(
-          'RUNPOD_KLING_V26_STD_MOTION_CONTROL_ENDPOINT_ID',
+          'RUNPOD_WAN22_ANIMATE_MEME_ENDPOINT_ID',
         ),
         queueName: MEDIA_MEME_GENERATION_QUEUE,
       };
@@ -144,20 +158,21 @@ export class MediaRouteResolverService {
 
   describeRoutes() {
     const routes = [
-      this.resolvePromptImageRoute('nano_banana'),
-      this.resolvePromptImageRoute('flux_schnell'),
-      this.resolveImageEditRoute('qwen_image_edit'),
+      this.resolvePromptImageRoute('flux2_klein'),
+      this.resolvePromptImageRoute('sdxl'),
+      this.resolvePromptImageRoute('sdxl_lora_generation'),
+      this.resolveImageEditRoute('qwen_image_edit_baked'),
       this.resolveAudioRoute('mmaudio_v2'),
       this.resolveTextVideoRoute('p_video_text'),
       this.resolveImageVideoRoute('p_video_image'),
-      this.resolveMemeRoute('kling_v26_std_motion_control'),
+      this.resolveMemeRoute('wan22_animate_native'),
     ].filter(Boolean);
     return routes;
   }
 
-  private isRunpodNanoBananaEnabled(): boolean {
+  private isRunpodFlux2KleinEnabled(): boolean {
     const isEnabled = this.configService.get<string>(
-      'RUNPOD_NANO_BANANA_ENABLED',
+      'RUNPOD_FLUX2_KLEIN_ENABLED',
     );
 
     if (isEnabled && ['0', 'false', 'no'].includes(isEnabled.toLowerCase())) {
@@ -166,14 +181,12 @@ export class MediaRouteResolverService {
 
     return Boolean(
       this.configService.get<string>('RUNPOD_API_KEY') &&
-        this.configService.get<string>('RUNPOD_NANO_BANANA_ENDPOINT_ID'),
+        this.configService.get<string>('RUNPOD_FLUX2_KLEIN_ENDPOINT_ID'),
     );
   }
 
-  private isRunpodFluxSchnellEnabled(): boolean {
-    const isEnabled = this.configService.get<string>(
-      'RUNPOD_FLUX_SCHNELL_ENABLED',
-    );
+  private isRunpodSdxlEnabled(): boolean {
+    const isEnabled = this.configService.get<string>('RUNPOD_SDXL_ENABLED');
 
     if (isEnabled && ['0', 'false', 'no'].includes(isEnabled.toLowerCase())) {
       return false;
@@ -181,13 +194,13 @@ export class MediaRouteResolverService {
 
     return Boolean(
       this.configService.get<string>('RUNPOD_API_KEY') &&
-        this.configService.get<string>('RUNPOD_FLUX_SCHNELL_ENDPOINT_ID'),
+        this.configService.get<string>('RUNPOD_SDXL_ENDPOINT_ID'),
     );
   }
 
-  private isRunpodQwenImageEditEnabled(): boolean {
+  private isRunpodSdxlLoraGenerationEnabled(): boolean {
     const isEnabled = this.configService.get<string>(
-      'RUNPOD_QWEN_IMAGE_EDIT_ENABLED',
+      'RUNPOD_SDXL_LORA_GENERATION_ENABLED',
     );
 
     if (isEnabled && ['0', 'false', 'no'].includes(isEnabled.toLowerCase())) {
@@ -196,7 +209,26 @@ export class MediaRouteResolverService {
 
     return Boolean(
       this.configService.get<string>('RUNPOD_API_KEY') &&
-        this.configService.get<string>('RUNPOD_QWEN_IMAGE_EDIT_ENDPOINT_ID'),
+        this.configService.get<string>(
+          'RUNPOD_SDXL_LORA_GENERATION_ENDPOINT_ID',
+        ),
+    );
+  }
+
+  private isRunpodQwenImageEditBakedEnabled(): boolean {
+    const isEnabled = this.configService.get<string>(
+      'RUNPOD_QWEN_IMAGE_EDIT_BAKED_ENABLED',
+    );
+
+    if (isEnabled && ['0', 'false', 'no'].includes(isEnabled.toLowerCase())) {
+      return false;
+    }
+
+    return Boolean(
+      this.configService.get<string>('RUNPOD_API_KEY') &&
+        this.configService.get<string>(
+          'RUNPOD_QWEN_IMAGE_EDIT_BAKED_ENDPOINT_ID',
+        ),
     );
   }
 
@@ -213,9 +245,9 @@ export class MediaRouteResolverService {
     );
   }
 
-  private isRunpodKlingMotionControlEnabled(): boolean {
+  private isRunpodWan22AnimateMemeEnabled(): boolean {
     const isEnabled = this.configService.get<string>(
-      'RUNPOD_KLING_V26_STD_MOTION_CONTROL_ENABLED',
+      'RUNPOD_WAN22_ANIMATE_MEME_ENABLED',
     );
 
     if (isEnabled && ['0', 'false', 'no'].includes(isEnabled.toLowerCase())) {
@@ -225,7 +257,7 @@ export class MediaRouteResolverService {
     return Boolean(
       this.configService.get<string>('RUNPOD_API_KEY') &&
         this.configService.get<string>(
-          'RUNPOD_KLING_V26_STD_MOTION_CONTROL_ENDPOINT_ID',
+          'RUNPOD_WAN22_ANIMATE_MEME_ENDPOINT_ID',
         ),
     );
   }

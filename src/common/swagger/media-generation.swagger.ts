@@ -26,7 +26,7 @@ This endpoint is intentionally separate from the legacy \`image-generation/ai-se
               properties: {
                 defaultAI: {
                   type: 'string',
-                  example: 'nano_banana',
+                  example: 'flux2_klein',
                   nullable: true,
                 },
                 defaultOrientations: {
@@ -41,18 +41,18 @@ This endpoint is intentionally separate from the legacy \`image-generation/ai-se
               items: {
                 type: 'object',
                 properties: {
-                  aiService: { type: 'string', example: 'nano_banana' },
-                  name: { type: 'string', example: 'Nano Banana' },
+                  aiService: { type: 'string', example: 'flux2_klein' },
+                  name: { type: 'string', example: 'FLUX.2 Klein' },
                   allowedOrientations: {
                     type: 'array',
                     items: { type: 'string', enum: ['horizontal', 'vertical'] },
                   },
-                  cost: { type: 'number', example: 30 },
+                  cost: { type: 'number', example: 11 },
                   description: {
                     type: 'string',
                     nullable: true,
                     example:
-                      'Prompt-to-image generation powered by the public RunPod Google Nano Banana endpoint.',
+                      'Prompt-to-image generation powered by the private RunPod FLUX.2 Klein endpoint.',
                   },
                 },
               },
@@ -108,7 +108,7 @@ This endpoint is separate from the legacy edit flow and reads from the new \`med
               properties: {
                 defaultAI: {
                   type: 'string',
-                  example: 'qwen_image_edit',
+                  example: 'qwen_image_edit_baked',
                   nullable: true,
                 },
               },
@@ -118,13 +118,14 @@ This endpoint is separate from the legacy edit flow and reads from the new \`med
               items: {
                 type: 'object',
                 properties: {
-                  aiService: { type: 'string', example: 'qwen_image_edit' },
-                  name: { type: 'string', example: 'Qwen Image Edit' },
+                  aiService: { type: 'string', example: 'qwen_image_edit_baked' },
+                  name: { type: 'string', example: 'Qwen Image Edit Baked' },
                   cost: { type: 'number', example: 25 },
                   description: {
                     type: 'string',
                     nullable: true,
-                    example: 'Image editing powered by a public RunPod Qwen endpoint.',
+                    example:
+                      'Image editing powered by the private RunPod Qwen Image Edit baked endpoint.',
                   },
                 },
               },
@@ -385,7 +386,7 @@ This endpoint is separate from the meme template catalog. It reads from the new 
               properties: {
                 defaultAI: {
                   type: 'string',
-                  example: 'kling_v26_std_motion_control',
+                  example: 'wan22_animate_native',
                   nullable: true,
                 },
               },
@@ -397,9 +398,9 @@ This endpoint is separate from the meme template catalog. It reads from the new 
                 properties: {
                   aiService: {
                     type: 'string',
-                    example: 'kling_v26_std_motion_control',
+                    example: 'wan22_animate_native',
                   },
-                  name: { type: 'string', example: 'Kling v2.6 Standard Motion Control' },
+                  name: { type: 'string', example: 'WAN 2.2 Animate Native' },
                   cost: { type: 'number', example: 100 },
                   description: { type: 'string', nullable: true },
                   settings: {
@@ -441,9 +442,8 @@ This endpoint is separate from the meme template catalog. It reads from the new 
 This endpoint is the new provider-facing abstraction for media generation. It resolves which backend provider should be used for the requested capability and model.
 
 **Current routing behavior:**
-- **Nano Banana**: routed through the public RunPod Google Nano Banana endpoint when configured
-- **FLUX.1 Schnell**: routed through the public RunPod FLUX.1 Schnell endpoint when configured
-- **Other models**: reserved for future migration into the same orchestration layer
+- **FLUX.2 Klein**: routed through the configured private RunPod FLUX.2 Klein endpoint
+- **SDXL**: routed through the configured private RunPod SDXL endpoint
 
 **What this endpoint does:**
 - Accepts a prompt-driven image generation request
@@ -492,7 +492,7 @@ This endpoint is the new provider-facing abstraction for media generation. It re
     description: `Edit an existing image through the new \`media-generation\` orchestration layer.
 
 **Current routing behavior:**
-- **Qwen Image Edit**: routed through a public RunPod endpoint when configured
+- **Qwen Image Edit Baked**: routed through the configured private RunPod Qwen Image Edit baked endpoint
 
 **What this endpoint does:**
 - Accepts an image edit request with prompt + source image URL
@@ -684,7 +684,7 @@ This endpoint is the new provider-facing abstraction for media generation. It re
     description: `Generate meme motion-transfer videos through the new \`media-generation\` orchestration layer.
 
 **Current routing behavior:**
-- **Kling v2.6 Standard Motion Control**: routed through the public RunPod \`kling-v2-6-std-motion-control\` endpoint when configured
+- **WAN 2.2 Animate Native**: routed through the private RunPod meme endpoint when configured
 
 **What this endpoint does:**
 - Accepts a meme template ID plus a user source image

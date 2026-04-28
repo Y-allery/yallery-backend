@@ -156,15 +156,23 @@ export class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
-  RUNPOD_NANO_BANANA_ENDPOINT_ID?: string;
+  RUNPOD_FLUX2_KLEIN_ENDPOINT_ID?: string;
 
   @IsOptional()
   @IsString()
-  RUNPOD_FLUX_SCHNELL_ENDPOINT_ID?: string;
+  RUNPOD_SDXL_ENDPOINT_ID?: string;
 
   @IsOptional()
   @IsString()
-  RUNPOD_QWEN_IMAGE_EDIT_ENDPOINT_ID?: string;
+  RUNPOD_SDXL_LORA_FINETUNE_ENDPOINT_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  RUNPOD_SDXL_LORA_GENERATION_ENDPOINT_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  RUNPOD_QWEN_IMAGE_EDIT_BAKED_ENDPOINT_ID?: string;
 
   @IsOptional()
   @IsString()
@@ -176,19 +184,27 @@ export class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
+  RUNPOD_WAN22_ANIMATE_MEME_ENDPOINT_ID?: string;
+
+  @IsOptional()
+  @IsString()
   RUNPOD_API_BASE_URL?: string;
 
   @IsOptional()
   @IsString()
-  RUNPOD_NANO_BANANA_ENABLED?: string;
+  RUNPOD_FLUX2_KLEIN_ENABLED?: string;
 
   @IsOptional()
   @IsString()
-  RUNPOD_FLUX_SCHNELL_ENABLED?: string;
+  RUNPOD_SDXL_ENABLED?: string;
 
   @IsOptional()
   @IsString()
-  RUNPOD_QWEN_IMAGE_EDIT_ENABLED?: string;
+  RUNPOD_SDXL_LORA_GENERATION_ENABLED?: string;
+
+  @IsOptional()
+  @IsString()
+  RUNPOD_QWEN_IMAGE_EDIT_BAKED_ENABLED?: string;
 
   @IsOptional()
   @IsString()
@@ -197,6 +213,10 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   RUNPOD_KLING_V26_STD_MOTION_CONTROL_ENABLED?: string;
+
+  @IsOptional()
+  @IsString()
+  RUNPOD_WAN22_ANIMATE_MEME_ENABLED?: string;
 
   @IsOptional()
   @IsNumber()

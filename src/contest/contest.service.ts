@@ -860,15 +860,15 @@ export class ContestService {
         const explicitSetting = await this.getActiveMediaAiSettingById(
           params.mediaAiSettingId,
         );
-        if (explicitSetting.aiService !== 'flux_fine_tune') {
+        if (explicitSetting.aiService !== 'sdxl_lora_generation') {
           throw new BadRequestException(
-            'Fine-tune contests must use the flux_fine_tune media model.',
+            'Fine-tune contests must use the sdxl_lora_generation media model.',
           );
         }
         return explicitSetting;
       }
 
-      return this.getActiveMediaAiSettingByAiService('flux_fine_tune');
+      return this.getActiveMediaAiSettingByAiService('sdxl_lora_generation');
     }
 
     if (params.mediaAiSettingId != null) {
@@ -880,9 +880,13 @@ export class ContestService {
           'Contests currently support only image_generate media models.',
         );
       }
-      if (explicitSetting.aiService === 'flux_fine_tune') {
+      if (
+        ['flux_fine_tune', 'sdxl_lora_generation'].includes(
+          explicitSetting.aiService,
+        )
+      ) {
         throw new BadRequestException(
-          'flux_fine_tune requires fineTuneToken to be configured.',
+          `${explicitSetting.aiService} requires fineTuneToken to be configured.`,
         );
       }
       return explicitSetting;
@@ -890,7 +894,7 @@ export class ContestService {
 
     const defaultSetting = await this.mediaAISettingsRepository.findOne({
       where: {
-        aiService: 'nano_banana',
+        aiService: 'flux2_klein',
         capability: 'image_generate',
         isActive: true,
       },
@@ -900,23 +904,9 @@ export class ContestService {
       return defaultSetting;
     }
 
-    const fallbackSetting = await this.mediaAISettingsRepository.findOne({
-      where: {
-        capability: 'image_generate',
-        isActive: true,
-      },
-      order: {
-        id: 'ASC',
-      },
-    });
-
-    if (!fallbackSetting) {
-      throw new BadRequestException(
-        'No active image_generate media model configured for contests.',
-      );
-    }
-
-    return fallbackSetting;
+    throw new BadRequestException(
+      'No active flux2_klein image_generate media model configured for contests.',
+    );
   }
 
   private async getActiveMediaAiSettingById(
@@ -961,7 +951,9 @@ export class ContestService {
     fineTuneToken: string | null,
     mediaAiService: string,
   ): ContestTypeEnum {
-    return fineTuneToken || mediaAiService === 'flux_fine_tune'
+    return fineTuneToken ||
+      mediaAiService === 'flux_fine_tune' ||
+      mediaAiService === 'sdxl_lora_generation'
         ? ContestTypeEnum.FINE_TUNE
         : ContestTypeEnum.DEFAULT;
   }

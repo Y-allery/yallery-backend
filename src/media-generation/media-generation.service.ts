@@ -12,7 +12,7 @@ import { MemeEntity } from 'src/meme/entities/meme.entity';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { StyleEntity } from 'src/post/entities/style.entity';
 import { UserEntity } from 'src/user/entities/user.entity';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { NotificationGateway } from 'src/notification/notification.gateway';
 import { AudioAISettingsResponse } from './contracts/audio-ai-settings-response.contract';
 import { AudioGenerationRequest } from './contracts/audio-generation-request.contract';
@@ -106,6 +106,7 @@ export class MediaGenerationService {
       this.mediaAISettingsRepository.find({
         where: {
           capability: 'image_generate',
+          aiService: In(['flux2_klein', 'sdxl']),
           isActive: true,
         },
         order: {
@@ -137,9 +138,9 @@ export class MediaGenerationService {
       (setting) => setting.settings?.contestOnly !== true,
     );
 
-    const defaultSetting =
-      visibleSettings.find((setting) => setting.aiService === 'nano_banana') ??
-      visibleSettings[0];
+    const defaultSetting = visibleSettings.find(
+      (setting) => setting.aiService === 'flux2_klein',
+    );
 
     return {
       defaultSettings: {
@@ -172,6 +173,7 @@ export class MediaGenerationService {
       this.mediaAISettingsRepository.find({
         where: {
           capability: 'image_edit',
+          aiService: 'qwen_image_edit_baked',
           isActive: true,
         },
         order: {
@@ -199,9 +201,9 @@ export class MediaGenerationService {
       }),
     ]);
 
-    const defaultSetting =
-      settings.find((setting) => setting.aiService === 'qwen_image_edit') ??
-      settings[0];
+    const defaultSetting = settings.find(
+      (setting) => setting.aiService === 'qwen_image_edit_baked',
+    );
 
     return {
       defaultSettings: {
@@ -322,7 +324,7 @@ export class MediaGenerationService {
 
     const defaultSetting =
       settings.find(
-        (setting) => setting.aiService === 'kling_v26_std_motion_control',
+        (setting) => setting.aiService === 'wan22_animate_native',
       ) ?? settings[0];
 
     return {
@@ -340,6 +342,18 @@ export class MediaGenerationService {
               defaultCharacterOrientation:
                 setting.settings.defaultCharacterOrientation,
               keepOriginalSound: setting.settings.keepOriginalSound,
+              matchSourceDuration: setting.settings.matchSourceDuration,
+              outputFrameRate: setting.settings.outputFrameRate,
+              pricing: setting.settings.pricing
+                ? {
+                    strategy:
+                      setting.settings.pricing.strategy === 'per_second'
+                        ? 'per_second'
+                        : 'fixed',
+                    creditsPerSecond:
+                      setting.settings.pricing.creditsPerSecond,
+                  }
+                : undefined,
             }
           : null,
       })),
@@ -1002,7 +1016,10 @@ export class MediaGenerationService {
       this.generateMemes(request),
       this.getRequiredUser(userId),
     ]);
-    const totalCost = await this.getMemeCost(request.aiService);
+    const totalCost = await this.getMemeCost(
+      request.aiService,
+      meme.referenceVideoDurationSeconds,
+    );
 
     user.points -= totalCost;
     await this.userRepository.save(user);
@@ -1025,6 +1042,7 @@ export class MediaGenerationService {
       mediaType: 'meme',
       mode: 'meme_generation',
       aiService: request.aiService,
+      duration: meme.referenceVideoDurationSeconds ?? undefined,
       postId: post.id,
       previewUrl: post.previewImageUrl ?? post.videoUrl ?? null,
     });
@@ -1055,6 +1073,23 @@ export class MediaGenerationService {
       );
     }
 
+    if (
+      ['flux2_klein', 'sdxl', 'sdxl_lora_generation'].includes(
+        request.aiService,
+      ) &&
+      request.imageQuantity > 4
+    ) {
+      throw new BadRequestException(
+        `${request.aiService} currently supports up to 4 images per generation.`,
+      );
+    }
+
+    if (!this.mediaRouteResolverService.resolvePromptImageRoute(request.aiService)) {
+      throw new BadRequestException(
+        `No prompt-image generation route configured for ${request.aiService}.`,
+      );
+    }
+
     const user = await this.getRequiredUser(userId);
     const totalCost = await this.getPromptImageCost(
       request.aiService,
@@ -1075,6 +1110,12 @@ export class MediaGenerationService {
       await this.contestMediaGenerationResolverService.assertContestCapability(
         request.contestId,
         'image_generate',
+      );
+    }
+
+    if (!this.mediaRouteResolverService.resolveImageEditRoute(request.aiService)) {
+      throw new BadRequestException(
+        `No image-edit generation route configured for ${request.aiService}.`,
       );
     }
 
@@ -1133,10 +1174,13 @@ export class MediaGenerationService {
     request: MemeGenerationRequest,
     userId: number,
   ) {
-    await this.getRequiredMeme(request.memeId);
+    const meme = await this.getRequiredMeme(request.memeId);
 
     const user = await this.getRequiredUser(userId);
-    const totalCost = await this.getMemeCost(request.aiService);
+    const totalCost = await this.getMemeCost(
+      request.aiService,
+      meme.referenceVideoDurationSeconds,
+    );
 
     if (user.points < totalCost) {
       throw new BadRequestException('Not enough credits to generate memes');
@@ -1316,7 +1360,10 @@ export class MediaGenerationService {
     return aiSetting.cost;
   }
 
-  private async getMemeCost(aiService: string): Promise<number> {
+  private async getMemeCost(
+    aiService: string,
+    durationSeconds?: number | null,
+  ): Promise<number> {
     const aiSetting = await this.mediaAISettingsRepository.findOne({
       where: {
         aiService,
@@ -1329,6 +1376,23 @@ export class MediaGenerationService {
       throw new BadRequestException(
         `Media AI settings not found for meme service ${aiService}`,
       );
+    }
+
+    const pricing = aiSetting.settings?.pricing;
+    const billableDurationSeconds =
+      typeof durationSeconds === 'number' &&
+      Number.isFinite(durationSeconds) &&
+      durationSeconds > 0
+        ? Math.ceil(durationSeconds)
+        : null;
+
+    if (
+      pricing?.strategy === 'per_second' &&
+      typeof pricing.creditsPerSecond === 'number' &&
+      pricing.creditsPerSecond > 0 &&
+      billableDurationSeconds
+    ) {
+      return Math.ceil(pricing.creditsPerSecond * billableDurationSeconds);
     }
 
     return aiSetting.cost;
@@ -1359,6 +1423,9 @@ export class MediaGenerationService {
         colorId: request.colorId ?? null,
         styleName: request.styleName ?? null,
         colorName: request.colorName ?? null,
+        loraKey: request.providerSettings?.loraKey ?? null,
+        loraScale: request.providerSettings?.loraScale ?? null,
+        triggerWord: request.providerSettings?.triggerWord ?? null,
       },
     });
 
@@ -1498,6 +1565,10 @@ export class MediaGenerationService {
         memeId: meme.id,
         sourceImageUrl: request.imageUrl,
         sourceVideoUrl: meme.referenceVideoUrl,
+        sourceVideoDurationSeconds: meme.referenceVideoDurationSeconds,
+        billableDurationSeconds: meme.referenceVideoDurationSeconds
+          ? Math.ceil(meme.referenceVideoDurationSeconds)
+          : null,
         memeName: meme.name,
         characterOrientation: request.characterOrientation ?? null,
         suggestedTags,

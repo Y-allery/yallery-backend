@@ -8,6 +8,7 @@ import { MemeEntity } from './entities/meme.entity';
 import { CreateMemeDto } from './dto/create-meme.dto';
 import { UpdateMemeDto } from './dto/update-meme.dto';
 import { PostEntity } from 'src/post/entities/post.entity';
+import { MediaAISettingsEntity } from 'src/media-generation/entities/media-ai-settings.entity';
 
 const POPULAR_MEMES_LIMIT = 6;
 
@@ -20,6 +21,11 @@ export interface MemeSuggestedTag {
 export interface MemeWithGenerationsCount extends MemeEntity {
   generationsCount: number;
   suggestedTags: MemeSuggestedTag[];
+  durationSeconds: number | null;
+  billableDurationSeconds: number | null;
+  creditsPerSecond: number | null;
+  totalCost: number;
+  pricingStrategy: 'fixed' | 'per_second';
 }
 
 export interface MemesListResponse {
@@ -34,6 +40,8 @@ export class MemeService {
     private readonly memeRepository: Repository<MemeEntity>,
     @InjectRepository(PostEntity)
     private readonly postRepository: Repository<PostEntity>,
+    @InjectRepository(MediaAISettingsEntity)
+    private readonly mediaAISettingsRepository: Repository<MediaAISettingsEntity>,
   ) {}
 
   async create(dto: CreateMemeDto): Promise<MemeEntity> {
@@ -41,6 +49,8 @@ export class MemeService {
       name: dto.name,
       tag: { id: dto.tagId },
       referenceVideoUrl: dto.referenceVideoUrl ?? null,
+      referenceVideoDurationSeconds:
+        dto.referenceVideoDurationSeconds ?? null,
       referenceImageUrl: dto.referenceImageUrl ?? null,
       isActive: dto.isActive ?? true,
     });
@@ -68,6 +78,7 @@ export class MemeService {
     }
 
     const memeIds = memes.map((m) => m.id);
+    const memePricing = await this.getMemePricing();
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
@@ -107,6 +118,7 @@ export class MemeService {
       suggestedTags: m.tag
         ? [{ id: m.tag.id, name: '#' + m.tag.name, imageUrl: m.tag.imageUrl }]
         : [],
+      ...this.resolveMemeListPricing(m, memePricing),
     }));
 
     const sortedByMonth = [...withCount].sort(
@@ -134,6 +146,9 @@ export class MemeService {
     const meme = await this.findOne(id);
     if (dto.name !== undefined) meme.name = dto.name;
     if (dto.referenceVideoUrl !== undefined) meme.referenceVideoUrl = dto.referenceVideoUrl;
+    if (dto.referenceVideoDurationSeconds !== undefined) {
+      meme.referenceVideoDurationSeconds = dto.referenceVideoDurationSeconds;
+    }
     if (dto.referenceImageUrl !== undefined) meme.referenceImageUrl = dto.referenceImageUrl;
     if (dto.isActive !== undefined) meme.isActive = dto.isActive;
     if (dto.tagId != null) meme.tag = { id: dto.tagId } as any;
@@ -143,5 +158,83 @@ export class MemeService {
   async remove(id: number): Promise<void> {
     const meme = await this.findOne(id);
     await this.memeRepository.remove(meme);
+  }
+
+  private async getMemePricing(): Promise<{
+    strategy: 'fixed' | 'per_second';
+    cost: number;
+    creditsPerSecond: number | null;
+  }> {
+    const setting = await this.mediaAISettingsRepository.findOne({
+      where: {
+        capability: 'meme_generate',
+        isActive: true,
+      },
+      order: {
+        id: 'ASC',
+      },
+    });
+    const pricing = setting?.settings?.pricing;
+
+    if (
+      pricing?.strategy === 'per_second' &&
+      typeof pricing.creditsPerSecond === 'number' &&
+      pricing.creditsPerSecond > 0
+    ) {
+      return {
+        strategy: 'per_second',
+        cost: setting.cost,
+        creditsPerSecond: pricing.creditsPerSecond,
+      };
+    }
+
+    return {
+      strategy: 'fixed',
+      cost: setting?.cost ?? 0,
+      creditsPerSecond: null,
+    };
+  }
+
+  private resolveMemeListPricing(
+    meme: MemeEntity,
+    pricing: {
+      strategy: 'fixed' | 'per_second';
+      cost: number;
+      creditsPerSecond: number | null;
+    },
+  ) {
+    const durationSeconds =
+      typeof meme.referenceVideoDurationSeconds === 'number' &&
+      Number.isFinite(meme.referenceVideoDurationSeconds) &&
+      meme.referenceVideoDurationSeconds > 0
+        ? meme.referenceVideoDurationSeconds
+        : null;
+    const billableDurationSeconds = durationSeconds
+      ? Math.ceil(durationSeconds)
+      : null;
+
+    if (
+      pricing.strategy === 'per_second' &&
+      pricing.creditsPerSecond &&
+      billableDurationSeconds
+    ) {
+      return {
+        durationSeconds,
+        billableDurationSeconds,
+        creditsPerSecond: pricing.creditsPerSecond,
+        totalCost: Math.ceil(
+          pricing.creditsPerSecond * billableDurationSeconds,
+        ),
+        pricingStrategy: pricing.strategy,
+      };
+    }
+
+    return {
+      durationSeconds,
+      billableDurationSeconds,
+      creditsPerSecond: pricing.creditsPerSecond,
+      totalCost: pricing.cost,
+      pricingStrategy: pricing.strategy,
+    };
   }
 }

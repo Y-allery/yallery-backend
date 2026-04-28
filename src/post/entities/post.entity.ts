@@ -96,6 +96,9 @@ export class PostEntity extends TimeStampEntity {
     styleName?: string;
     colorId?: number;
     colorName?: string;
+    loraKey?: string | null;
+    loraScale?: number | null;
+    triggerWord?: string | null;
     width?: number;
     height?: number;
     duration?: number;
@@ -105,6 +108,8 @@ export class PostEntity extends TimeStampEntity {
     memeId?: number;
     sourceImageUrl?: string;
     sourceVideoUrl?: string;
+    sourceVideoDurationSeconds?: number | null;
+    billableDurationSeconds?: number | null;
     memeName?: string;
     characterOrientation?: 'image' | 'video';
   } | null;

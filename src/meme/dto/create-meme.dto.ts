@@ -1,4 +1,11 @@
-import { IsString, IsOptional, IsBoolean, IsNumber, MaxLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsNumber,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateMemeDto {
@@ -19,6 +26,16 @@ export class CreateMemeDto {
     example: 'https://res.cloudinary.com/xxx/video/upload/v1/ref.mp4',
   })
   referenceVideoUrl?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @ApiPropertyOptional({
+    description:
+      'Reference video duration in seconds. Used to calculate meme generation cost.',
+    example: 9.833333,
+  })
+  referenceVideoDurationSeconds?: number;
 
   @IsOptional()
   @IsString()
