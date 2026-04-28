@@ -8,6 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Queue } from 'bullmq';
 import { ContestEntity } from 'src/contest/entity/contest.entity';
+import { ContestFlowService } from 'src/contest/contest-flow.service';
 import { MemeEntity } from 'src/meme/entities/meme.entity';
 import { PostEntity } from 'src/post/entities/post.entity';
 import { StyleEntity } from 'src/post/entities/style.entity';
@@ -69,6 +70,7 @@ export class MediaGenerationService {
     private readonly mediaRouteResolverService: MediaRouteResolverService,
     private readonly mediaProviderRegistryService: MediaProviderRegistryService,
     private readonly contestMediaGenerationResolverService: ContestMediaGenerationResolverService,
+    private readonly contestFlowService: ContestFlowService,
     private readonly mediaTagResolverService: MediaTagResolverService,
     private readonly mediaPromptEnhancerService: MediaPromptEnhancerService,
     @InjectQueue(MEDIA_PROMPT_IMAGE_GENERATION_QUEUE)
@@ -566,20 +568,39 @@ export class MediaGenerationService {
       );
     await this.assertUserCanGeneratePromptImages(resolvedRequest, userId);
 
-    return await this.mediaPromptImageQueue.add(
-      resolvedRequest.aiService,
-      {
-        request: resolvedRequest,
-        userId,
-        aiService: resolvedRequest.aiService,
-      },
-      {
-        attempts: 2,
-        backoff: 30000,
-        removeOnComplete: true,
-        removeOnFail: false,
-      },
-    );
+    const submission = await this.contestFlowService.startSubmission({
+      contestId: resolvedRequest.contestId ?? null,
+      userId,
+      mediaKind: 'image',
+      aiService: resolvedRequest.aiService,
+      capability: 'image_generate',
+    });
+    const queuedRequest = {
+      ...resolvedRequest,
+      contestSubmissionId: submission?.id ?? null,
+    };
+
+    try {
+      const job = await this.mediaPromptImageQueue.add(
+        queuedRequest.aiService,
+        {
+          request: queuedRequest,
+          userId,
+          aiService: queuedRequest.aiService,
+        },
+        {
+          attempts: 2,
+          backoff: 30000,
+          removeOnComplete: true,
+          removeOnFail: false,
+        },
+      );
+      await this.contestFlowService.attachQueueJob(submission?.id, job.id);
+      return job;
+    } catch (error) {
+      await this.contestFlowService.markSubmissionFailed(submission?.id);
+      throw error;
+    }
   }
 
   async enqueueImageEditGeneration(
@@ -604,20 +625,39 @@ export class MediaGenerationService {
     };
     await this.assertUserCanEditImages(enhancedRequest, userId);
 
-    return await this.mediaImageEditQueue.add(
-      enhancedRequest.aiService,
-      {
-        request: enhancedRequest,
-        userId,
-        aiService: enhancedRequest.aiService,
-      },
-      {
-        attempts: 2,
-        backoff: 30000,
-        removeOnComplete: true,
-        removeOnFail: false,
-      },
-    );
+    const submission = await this.contestFlowService.startSubmission({
+      contestId: enhancedRequest.contestId ?? null,
+      userId,
+      mediaKind: 'image',
+      aiService: enhancedRequest.aiService,
+      capability: 'image_edit',
+    });
+    const queuedRequest = {
+      ...enhancedRequest,
+      contestSubmissionId: submission?.id ?? null,
+    };
+
+    try {
+      const job = await this.mediaImageEditQueue.add(
+        queuedRequest.aiService,
+        {
+          request: queuedRequest,
+          userId,
+          aiService: queuedRequest.aiService,
+        },
+        {
+          attempts: 2,
+          backoff: 30000,
+          removeOnComplete: true,
+          removeOnFail: false,
+        },
+      );
+      await this.contestFlowService.attachQueueJob(submission?.id, job.id);
+      return job;
+    } catch (error) {
+      await this.contestFlowService.markSubmissionFailed(submission?.id);
+      throw error;
+    }
   }
 
   async enqueueAudioGeneration(
@@ -626,20 +666,39 @@ export class MediaGenerationService {
   ) {
     await this.assertUserCanGenerateAudio(request, userId);
 
-    return await this.mediaAudioQueue.add(
-      request.aiService,
-      {
-        request,
-        userId,
-        aiService: request.aiService,
-      },
-      {
-        attempts: 2,
-        backoff: 30000,
-        removeOnComplete: true,
-        removeOnFail: false,
-      },
-    );
+    const submission = await this.contestFlowService.startSubmission({
+      contestId: request.contestId ?? null,
+      userId,
+      mediaKind: 'audio',
+      aiService: request.aiService,
+      capability: 'audio_generate',
+    });
+    const queuedRequest = {
+      ...request,
+      contestSubmissionId: submission?.id ?? null,
+    };
+
+    try {
+      const job = await this.mediaAudioQueue.add(
+        queuedRequest.aiService,
+        {
+          request: queuedRequest,
+          userId,
+          aiService: queuedRequest.aiService,
+        },
+        {
+          attempts: 2,
+          backoff: 30000,
+          removeOnComplete: true,
+          removeOnFail: false,
+        },
+      );
+      await this.contestFlowService.attachQueueJob(submission?.id, job.id);
+      return job;
+    } catch (error) {
+      await this.contestFlowService.markSubmissionFailed(submission?.id);
+      throw error;
+    }
   }
 
   async enqueueTextVideoGeneration(
@@ -648,20 +707,39 @@ export class MediaGenerationService {
   ) {
     await this.assertUserCanGenerateVideos(request, userId);
 
-    return await this.mediaTextVideoQueue.add(
-      request.aiService,
-      {
-        request,
-        userId,
-        aiService: request.aiService,
-      },
-      {
-        attempts: 2,
-        backoff: 30000,
-        removeOnComplete: true,
-        removeOnFail: false,
-      },
-    );
+    const submission = await this.contestFlowService.startSubmission({
+      contestId: request.contestId ?? null,
+      userId,
+      mediaKind: 'video',
+      aiService: request.aiService,
+      capability: 'video_generate',
+    });
+    const queuedRequest = {
+      ...request,
+      contestSubmissionId: submission?.id ?? null,
+    };
+
+    try {
+      const job = await this.mediaTextVideoQueue.add(
+        queuedRequest.aiService,
+        {
+          request: queuedRequest,
+          userId,
+          aiService: queuedRequest.aiService,
+        },
+        {
+          attempts: 2,
+          backoff: 30000,
+          removeOnComplete: true,
+          removeOnFail: false,
+        },
+      );
+      await this.contestFlowService.attachQueueJob(submission?.id, job.id);
+      return job;
+    } catch (error) {
+      await this.contestFlowService.markSubmissionFailed(submission?.id);
+      throw error;
+    }
   }
 
   async enqueueImageVideoGeneration(
@@ -670,20 +748,39 @@ export class MediaGenerationService {
   ) {
     await this.assertUserCanGenerateVideos(request, userId);
 
-    return await this.mediaImageVideoQueue.add(
-      request.aiService,
-      {
-        request,
-        userId,
-        aiService: request.aiService,
-      },
-      {
-        attempts: 2,
-        backoff: 30000,
-        removeOnComplete: true,
-        removeOnFail: false,
-      },
-    );
+    const submission = await this.contestFlowService.startSubmission({
+      contestId: request.contestId ?? null,
+      userId,
+      mediaKind: 'video',
+      aiService: request.aiService,
+      capability: 'video_generate',
+    });
+    const queuedRequest = {
+      ...request,
+      contestSubmissionId: submission?.id ?? null,
+    };
+
+    try {
+      const job = await this.mediaImageVideoQueue.add(
+        queuedRequest.aiService,
+        {
+          request: queuedRequest,
+          userId,
+          aiService: queuedRequest.aiService,
+        },
+        {
+          attempts: 2,
+          backoff: 30000,
+          removeOnComplete: true,
+          removeOnFail: false,
+        },
+      );
+      await this.contestFlowService.attachQueueJob(submission?.id, job.id);
+      return job;
+    } catch (error) {
+      await this.contestFlowService.markSubmissionFailed(submission?.id);
+      throw error;
+    }
   }
 
   async enqueueMemeGeneration(
@@ -745,7 +842,11 @@ export class MediaGenerationService {
       }),
     );
 
-    const primaryPost = posts[0] ?? null;
+    const savedPosts = await this.contestFlowService.completeGenerationPosts(
+      request.contestSubmissionId,
+      posts,
+    );
+    const primaryPost = savedPosts[0] ?? null;
     await this.userActivityService.logMediaGenerationSpent({
       userId: user.id,
       pointsDelta: -totalCost,
@@ -761,7 +862,7 @@ export class MediaGenerationService {
     });
 
     return {
-      data: posts.map((post) => ({
+      data: savedPosts.map((post) => ({
         id: post.id,
         imageUrl: post.imageUrl,
         videoUrl: post.videoUrl,
@@ -801,7 +902,11 @@ export class MediaGenerationService {
       }),
     );
 
-    const primaryPost = posts[0] ?? null;
+    const savedPosts = await this.contestFlowService.completeGenerationPosts(
+      request.contestSubmissionId,
+      posts,
+    );
+    const primaryPost = savedPosts[0] ?? null;
     await this.userActivityService.logMediaGenerationSpent({
       userId: user.id,
       pointsDelta: -totalCost,
@@ -816,7 +921,7 @@ export class MediaGenerationService {
     });
 
     return {
-      data: posts.map((post) => ({
+      data: savedPosts.map((post) => ({
         id: post.id,
         imageUrl: post.imageUrl,
         videoUrl: post.videoUrl,
@@ -855,6 +960,10 @@ export class MediaGenerationService {
         : null,
       resolvedTag,
     );
+    const [savedPost] = await this.contestFlowService.completeGenerationPosts(
+      request.contestSubmissionId,
+      [post],
+    );
 
     await this.userActivityService.logMediaGenerationSpent({
       userId: user.id,
@@ -863,18 +972,19 @@ export class MediaGenerationService {
       mode: 'audio_generation',
       aiService: request.aiService,
       contestId: request.contestId ?? null,
-      postId: post.id,
-      previewUrl: post.previewImageUrl ?? post.videoUrl ?? null,
+      postId: savedPost?.id ?? post.id,
+      previewUrl:
+        savedPost?.previewImageUrl ?? savedPost?.videoUrl ?? post.previewImageUrl ?? post.videoUrl ?? null,
     });
 
     return {
       data: [
         {
-          id: post.id,
-          imageUrl: post.imageUrl,
-          videoUrl: post.videoUrl,
-          previewImageUrl: post.previewImageUrl,
-          generationParams: post.generationParams,
+          id: savedPost?.id ?? post.id,
+          imageUrl: savedPost?.imageUrl ?? post.imageUrl,
+          videoUrl: savedPost?.videoUrl ?? post.videoUrl,
+          previewImageUrl: savedPost?.previewImageUrl ?? post.previewImageUrl,
+          generationParams: savedPost?.generationParams ?? post.generationParams,
           publishTo,
         },
       ],
@@ -915,6 +1025,10 @@ export class MediaGenerationService {
       this.generateCloudinaryVideoPreviewUrl(result.videoUrl),
       resolvedTag,
     );
+    const [savedPost] = await this.contestFlowService.completeGenerationPosts(
+      request.contestSubmissionId,
+      [post],
+    );
 
     await this.userActivityService.logMediaGenerationSpent({
       userId: user.id,
@@ -925,18 +1039,19 @@ export class MediaGenerationService {
       orientation: request.orientation,
       duration: request.duration,
       contestId: request.contestId ?? null,
-      postId: post.id,
-      previewUrl: post.previewImageUrl ?? post.videoUrl ?? null,
+      postId: savedPost?.id ?? post.id,
+      previewUrl:
+        savedPost?.previewImageUrl ?? savedPost?.videoUrl ?? post.previewImageUrl ?? post.videoUrl ?? null,
     });
 
     return {
       data: [
         {
-          id: post.id,
-          imageUrl: post.imageUrl,
-          videoUrl: post.videoUrl,
-          previewImageUrl: post.previewImageUrl,
-          generationParams: post.generationParams,
+          id: savedPost?.id ?? post.id,
+          imageUrl: savedPost?.imageUrl ?? post.imageUrl,
+          videoUrl: savedPost?.videoUrl ?? post.videoUrl,
+          previewImageUrl: savedPost?.previewImageUrl ?? post.previewImageUrl,
+          generationParams: savedPost?.generationParams ?? post.generationParams,
           publishTo,
         },
       ],
@@ -978,6 +1093,10 @@ export class MediaGenerationService {
       request.imageUrl,
       resolvedTag,
     );
+    const [savedPost] = await this.contestFlowService.completeGenerationPosts(
+      request.contestSubmissionId,
+      [post],
+    );
 
     await this.userActivityService.logMediaGenerationSpent({
       userId: user.id,
@@ -988,18 +1107,19 @@ export class MediaGenerationService {
       orientation: request.orientation,
       duration: request.duration,
       contestId: request.contestId ?? null,
-      postId: post.id,
-      previewUrl: post.previewImageUrl ?? post.videoUrl ?? null,
+      postId: savedPost?.id ?? post.id,
+      previewUrl:
+        savedPost?.previewImageUrl ?? savedPost?.videoUrl ?? post.previewImageUrl ?? post.videoUrl ?? null,
     });
 
     return {
       data: [
         {
-          id: post.id,
-          imageUrl: post.imageUrl,
-          videoUrl: post.videoUrl,
-          previewImageUrl: post.previewImageUrl,
-          generationParams: post.generationParams,
+          id: savedPost?.id ?? post.id,
+          imageUrl: savedPost?.imageUrl ?? post.imageUrl,
+          videoUrl: savedPost?.videoUrl ?? post.videoUrl,
+          previewImageUrl: savedPost?.previewImageUrl ?? post.previewImageUrl,
+          generationParams: savedPost?.generationParams ?? post.generationParams,
           publishTo,
         },
       ],

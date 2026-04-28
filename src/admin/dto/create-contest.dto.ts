@@ -90,13 +90,25 @@ export class CreateContestDto {
   })
   tag_id: number;
 
+  @IsOptional()
   @IsEnum(ContestStatusEnum)
   @ApiProperty({
     default: ContestStatusEnum.CLOSED,
     type: 'enum',
     enum: ContestStatusEnum,
+    required: false,
   })
-  status: ContestStatusEnum;
+  status?: ContestStatusEnum;
+
+  @IsOptional()
+  @IsString()
+  @ApiProperty({
+    default: 'standard',
+    type: String,
+    required: false,
+    enum: ['standard', 'fine_tune', 'DEFAULT', 'FINE_TUNE'],
+  })
+  contestType?: 'standard' | 'fine_tune' | 'DEFAULT' | 'FINE_TUNE';
 
   @IsOptional()
   @IsString()
@@ -108,6 +120,17 @@ export class CreateContestDto {
     nullable: true,
   })
   fineTuneToken: string | null;
+
+  @IsOptional()
+  @IsNumber()
+  @ApiProperty({
+    default: 1,
+    type: Number,
+    nullable: true,
+    required: false,
+    description: 'Ready ai_finetunes profile id for fine-tune contests.',
+  })
+  fineTuneId?: number | null;
 
   @IsOptional()
   @IsString()
@@ -148,7 +171,7 @@ export class CreateContestDto {
     type: Number,
     required: false,
     description:
-      'Optional media_ai_settings row used by this contest. Fine-tune contests automatically use flux_fine_tune.',
+      'Optional media_ai_settings row used by this contest. Fine-tune contests automatically use sdxl_lora_generation.',
   })
   media_ai_setting_id?: number;
 }

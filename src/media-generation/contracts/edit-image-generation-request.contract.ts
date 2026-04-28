@@ -5,6 +5,7 @@ export interface EditImageGenerationRequest {
   resolvedPrompt?: string;
   imageUrl: string;
   contestId?: number | null;
+  contestSubmissionId?: number | null;
   styleId?: number | null;
   colorId?: number | null;
   styleName?: string | null;

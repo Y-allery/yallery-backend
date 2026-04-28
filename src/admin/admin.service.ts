@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CreateContestDto } from './dto/create-contest.dto';
 import { ContestService } from 'src/contest/contest.service';
+import { ContestFlowService } from 'src/contest/contest-flow.service';
 import { BlockUserDto } from './dto/block.user.dto';
 import { UserService } from 'src/user/user.service';
 import { BlockPostDto } from './dto/block.post.dto';
@@ -83,6 +84,7 @@ export class AdminService {
   constructor(
     private readonly configService: ConfigService,
     private readonly contestService: ContestService,
+    private readonly contestFlowService: ContestFlowService,
     private readonly userService: UserService,
     private readonly postService: PostService,
     private readonly tagService: TagService,
@@ -806,6 +808,60 @@ export class AdminService {
 
   async rejectContestWinner(data: SetContestWinnerDto) {
     return this.contestService.rejectContestWinner(data);
+  }
+
+  async getContestReviewQueue() {
+    return this.contestFlowService.getReviewQueue();
+  }
+
+  async approveContestCandidate(
+    contestId: number,
+    candidateId: number,
+    adminUserId?: number | null,
+  ) {
+    return this.contestFlowService.approveCandidate(
+      contestId,
+      candidateId,
+      adminUserId ?? null,
+    );
+  }
+
+  async rejectContestCandidate(
+    contestId: number,
+    candidateId: number,
+    adminUserId?: number | null,
+    reason?: string | null,
+  ) {
+    return this.contestFlowService.rejectCandidate(
+      contestId,
+      candidateId,
+      adminUserId ?? null,
+      reason ?? null,
+    );
+  }
+
+  async selectContestCandidate(
+    contestId: number,
+    candidateId: number,
+    adminUserId?: number | null,
+  ) {
+    return this.contestFlowService.selectCandidate(
+      contestId,
+      candidateId,
+      adminUserId ?? null,
+    );
+  }
+
+  async markContestNoWinner(
+    contestId: number,
+    adminUserId?: number | null,
+    reason?: string | null,
+  ) {
+    return this.contestFlowService.markNoWinner(
+      contestId,
+      adminUserId ?? null,
+      reason ?? null,
+    );
   }
 
   async getReportPosts(data: GetAllReportsDto) {

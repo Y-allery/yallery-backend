@@ -10,6 +10,7 @@ export interface PromptImageGenerationRequest {
   imageQuantity: number;
   orientation?: MediaOrientation;
   contestId?: number | null;
+  contestSubmissionId?: number | null;
   styleId?: number | null;
   colorId?: number | null;
   styleName?: string | null;

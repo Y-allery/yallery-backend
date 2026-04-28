@@ -131,7 +131,7 @@ export class UpdateContestDto {
     default: 1,
     type: Number,
     description:
-      'Optional media_ai_settings row used by this contest. Fine-tune contests automatically use flux_fine_tune.',
+      'Optional media_ai_settings row used by this contest. Fine-tune contests automatically use sdxl_lora_generation.',
   })
   media_ai_setting_id?: number;
 }

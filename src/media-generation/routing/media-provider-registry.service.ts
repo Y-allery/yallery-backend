@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { MediaProvider } from '../enums/media-provider.enum';
-import { FalAiMediaProvider } from '../providers/fal/fal-ai-media.provider';
 import { InternalMediaProvider } from '../providers/internal/internal-media.provider';
 import { RunpodOpenEndpointMediaProvider } from '../providers/runpod/runpod-open-endpoint-media.provider';
 import { XRouterMediaProvider } from '../providers/x-router/x-router-media.provider';
@@ -9,7 +8,6 @@ import { MediaGenerationProvider } from '../contracts/media-generation-provider.
 @Injectable()
 export class MediaProviderRegistryService {
   constructor(
-    private readonly falAiMediaProvider: FalAiMediaProvider,
     private readonly runpodOpenEndpointMediaProvider: RunpodOpenEndpointMediaProvider,
     private readonly xRouterMediaProvider: XRouterMediaProvider,
     private readonly internalMediaProvider: InternalMediaProvider,
@@ -17,8 +15,6 @@ export class MediaProviderRegistryService {
 
   getProvider(provider: MediaProvider): MediaGenerationProvider {
     switch (provider) {
-      case MediaProvider.FAL_AI:
-        return this.falAiMediaProvider;
       case MediaProvider.RUNPOD:
         return this.runpodOpenEndpointMediaProvider;
       case MediaProvider.X_ROUTER:

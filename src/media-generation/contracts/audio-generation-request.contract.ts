@@ -3,4 +3,5 @@ export interface AudioGenerationRequest {
   prompt: string;
   videoUrl: string;
   contestId?: number | null;
+  contestSubmissionId?: number | null;
 }

@@ -176,6 +176,10 @@ export class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
+  RUNPOD_MMAUDIO_ENDPOINT_ID?: string;
+
+  @IsOptional()
+  @IsString()
   RUNPOD_P_VIDEO_ENDPOINT_ID?: string;
 
   @IsOptional()
@@ -205,6 +209,10 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   RUNPOD_QWEN_IMAGE_EDIT_BAKED_ENABLED?: string;
+
+  @IsOptional()
+  @IsString()
+  RUNPOD_MMAUDIO_ENABLED?: string;
 
   @IsOptional()
   @IsString()

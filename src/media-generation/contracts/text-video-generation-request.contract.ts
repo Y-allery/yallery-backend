@@ -6,4 +6,5 @@ export interface TextVideoGenerationRequest {
   orientation: MediaOrientation;
   duration: number;
   contestId?: number | null;
+  contestSubmissionId?: number | null;
 }

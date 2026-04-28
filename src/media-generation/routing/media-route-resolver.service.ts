@@ -5,7 +5,6 @@ import {
   MEDIA_IMAGE_EDIT_GENERATION_QUEUE,
   MEDIA_IMAGE_VIDEO_GENERATION_QUEUE,
   MEDIA_MEME_GENERATION_QUEUE,
-  MEDIA_PROMPT_IMAGE_GENERATION_QUEUE,
   MEDIA_TEXT_VIDEO_GENERATION_QUEUE,
   RUNPOD_IMAGE_GENERATION_QUEUE,
 } from '../constants/media-generation.queue';
@@ -19,16 +18,6 @@ export class MediaRouteResolverService {
   constructor(private readonly configService: ConfigService) {}
 
   resolvePromptImageRoute(aiService: string): MediaGenerationRoute | null {
-    if (aiService === 'flux_fine_tune') {
-      return {
-        capability: MediaCapability.IMAGE_GENERATE,
-        provider: MediaProvider.FAL_AI,
-        dispatch: MediaDispatch.BULLMQ_QUEUE,
-        aiService,
-        queueName: MEDIA_PROMPT_IMAGE_GENERATION_QUEUE,
-      };
-    }
-
     if (
       aiService === 'sdxl_lora_generation' &&
       this.isRunpodSdxlLoraGenerationEnabled()
@@ -93,12 +82,15 @@ export class MediaRouteResolverService {
   }
 
   resolveAudioRoute(aiService: string): MediaGenerationRoute | null {
-    if (aiService === 'mmaudio_v2') {
+    if (aiService === 'mmaudio_v2' && this.isRunpodMmaudioEnabled()) {
       return {
         capability: MediaCapability.AUDIO_GENERATE,
-        provider: MediaProvider.FAL_AI,
+        provider: MediaProvider.RUNPOD,
         dispatch: MediaDispatch.BULLMQ_QUEUE,
         aiService,
+        endpointId: this.configService.get<string>(
+          'RUNPOD_MMAUDIO_ENDPOINT_ID',
+        ),
         queueName: MEDIA_AUDIO_GENERATION_QUEUE,
       };
     }
@@ -229,6 +221,19 @@ export class MediaRouteResolverService {
         this.configService.get<string>(
           'RUNPOD_QWEN_IMAGE_EDIT_BAKED_ENDPOINT_ID',
         ),
+    );
+  }
+
+  private isRunpodMmaudioEnabled(): boolean {
+    const isEnabled = this.configService.get<string>('RUNPOD_MMAUDIO_ENABLED');
+
+    if (isEnabled && ['0', 'false', 'no'].includes(isEnabled.toLowerCase())) {
+      return false;
+    }
+
+    return Boolean(
+      this.configService.get<string>('RUNPOD_API_KEY') &&
+        this.configService.get<string>('RUNPOD_MMAUDIO_ENDPOINT_ID'),
     );
   }
 

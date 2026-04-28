@@ -2,13 +2,13 @@ import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ContestEntity } from 'src/contest/entity/contest.entity';
+import { ContestModule } from 'src/contest/contest.module';
+import { ContestFlowMetadataEntity } from 'src/contest/entity/contest-flow-metadata.entity';
 import { NotificationModule } from 'src/notification/notification.module';
 import { PostEntity } from 'src/post/entities/post.entity';
-import { ServiceTokenModule } from 'src/service-token/service-token.module';
 import { StyleEntity } from 'src/post/entities/style.entity';
 import { TagEntity } from 'src/tag/entities/tag.entity';
 import { MemeEntity } from 'src/meme/entities/meme.entity';
-import { FalAiMediaProvider } from './providers/fal/fal-ai-media.provider';
 import { InternalMediaProvider } from './providers/internal/internal-media.provider';
 import { RunpodOpenEndpointMediaProvider } from './providers/runpod/runpod-open-endpoint-media.provider';
 import { XRouterMediaProvider } from './providers/x-router/x-router-media.provider';
@@ -37,7 +37,6 @@ import { MediaAISettingsEntity } from './entities/media-ai-settings.entity';
 import { UserActivityModule } from 'src/user-activity/user-activity.module';
 import { MediaTagResolverService } from './services/media-tag-resolver.service';
 import { MediaPromptEnhancerService } from './services/media-prompt-enhancer.service';
-import { AISettingsEntity } from './entities/legacy-ai-settings.entity';
 import { ColorEntity } from './entities/color.entity';
 import { AIFinetuneEntity } from 'src/admin/entities/ai-finetune.entity';
 
@@ -50,7 +49,6 @@ import { AIFinetuneEntity } from 'src/admin/entities/ai-finetune.entity';
     BullModule.registerQueue({ name: MEDIA_PROMPT_IMAGE_GENERATION_QUEUE }),
     BullModule.registerQueue({ name: MEDIA_TEXT_VIDEO_GENERATION_QUEUE }),
     TypeOrmModule.forFeature([
-      AISettingsEntity,
       MediaAISettingsEntity,
       ColorEntity,
       StyleEntity,
@@ -58,12 +56,13 @@ import { AIFinetuneEntity } from 'src/admin/entities/ai-finetune.entity';
       UserEntity,
       AIFinetuneEntity,
       ContestEntity,
+      ContestFlowMetadataEntity,
       PostEntity,
       MemeEntity,
     ]),
     UploadModule,
+    ContestModule,
     NotificationModule,
-    ServiceTokenModule,
     UserActivityModule,
   ],
   controllers: [MediaGenerationController],
@@ -80,7 +79,6 @@ import { AIFinetuneEntity } from 'src/admin/entities/ai-finetune.entity';
     MediaMemeProcessor,
     MediaPromptImageProcessor,
     MediaTextVideoProcessor,
-    FalAiMediaProvider,
     RunpodOpenEndpointMediaProvider,
     XRouterMediaProvider,
     InternalMediaProvider,

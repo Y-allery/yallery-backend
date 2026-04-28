@@ -8,6 +8,7 @@ import {
   Post,
   Put,
   Query,
+  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
@@ -41,6 +42,11 @@ import { CreateMemeDto } from 'src/meme/dto/create-meme.dto';
 import { UpdateMemeDto } from 'src/meme/dto/update-meme.dto';
 import { CreateAIFinetuneDto } from './dto/create-ai-finetune.dto';
 import { PreviewAIFinetuneLoraKeyDto } from './dto/preview-ai-finetune-lora-key.dto';
+import {
+  ContestCandidateRejectDto,
+  ContestNoWinnerDto,
+} from './dto/contest-candidate-action.dto';
+import { AuthenticatedRequest } from 'src/auth/types/auth.user.interface';
 
 @Controller('admin')
 @ApiTags('Admin')
@@ -138,6 +144,70 @@ export class AdminController {
   @ApiResponse({ status: 400, description: 'Invalid request parameters.' })
   async rejectContestWinner(@Body() dto: SetContestWinnerDto) {
     return this.adminService.rejectContestWinner(dto);
+  }
+
+  @Get('contests/review-queue')
+  @ApiOperation({ summary: 'Get v2 contest winner review queue' })
+  async getContestReviewQueue() {
+    return this.adminService.getContestReviewQueue();
+  }
+
+  @Post('contests/:contestId/candidates/:candidateId/approve')
+  @ApiOperation({ summary: 'Approve a v2 contest winner candidate' })
+  async approveContestCandidate(
+    @Param('contestId', ParseIntPipe) contestId: number,
+    @Param('candidateId', ParseIntPipe) candidateId: number,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.adminService.approveContestCandidate(
+      contestId,
+      candidateId,
+      req.user.id,
+    );
+  }
+
+  @Post('contests/:contestId/candidates/:candidateId/reject')
+  @ApiOperation({ summary: 'Reject a v2 contest winner candidate' })
+  async rejectContestCandidate(
+    @Param('contestId', ParseIntPipe) contestId: number,
+    @Param('candidateId', ParseIntPipe) candidateId: number,
+    @Body() dto: ContestCandidateRejectDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.adminService.rejectContestCandidate(
+      contestId,
+      candidateId,
+      req.user.id,
+      dto.reason ?? null,
+    );
+  }
+
+  @Post('contests/:contestId/candidates/:candidateId/select')
+  @ApiOperation({ summary: 'Select a v2 contest winner candidate for review' })
+  async selectContestCandidate(
+    @Param('contestId', ParseIntPipe) contestId: number,
+    @Param('candidateId', ParseIntPipe) candidateId: number,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.adminService.selectContestCandidate(
+      contestId,
+      candidateId,
+      req.user.id,
+    );
+  }
+
+  @Post('contests/:contestId/no-winner')
+  @ApiOperation({ summary: 'Mark a v2 contest as completed with no winner' })
+  async markContestNoWinner(
+    @Param('contestId', ParseIntPipe) contestId: number,
+    @Body() dto: ContestNoWinnerDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.adminService.markContestNoWinner(
+      contestId,
+      req.user.id,
+      dto.reason ?? null,
+    );
   }
 
   @Delete('reports/:reportId')

@@ -1,5 +1,6 @@
 import {
   BadGatewayException,
+  BadRequestException,
   GatewayTimeoutException,
   Injectable,
 } from '@nestjs/common';
@@ -7,6 +8,8 @@ import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { UploadService } from 'src/upload/upload.service';
 import { MediaGenerationProvider } from '../../contracts/media-generation-provider.contract';
+import { AudioGenerationRequest } from '../../contracts/audio-generation-request.contract';
+import { AudioGenerationResult } from '../../contracts/audio-generation-result.contract';
 import { EditImageGenerationRequest } from '../../contracts/edit-image-generation-request.contract';
 import { ImageVideoGenerationRequest } from '../../contracts/image-video-generation-request.contract';
 import { MemeGenerationRequest } from '../../contracts/meme-generation-request.contract';
@@ -48,6 +51,7 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
   readonly capabilities = [
     MediaCapability.IMAGE_GENERATE,
     MediaCapability.IMAGE_EDIT,
+    MediaCapability.AUDIO_GENERATE,
     MediaCapability.VIDEO_GENERATE,
     MediaCapability.MEME_GENERATE,
   ];
@@ -91,6 +95,37 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
 
     return {
       imageUrls: uploadedImageUrls,
+      rawOutput: completedJob.output,
+    };
+  }
+
+  async generateAudio(
+    request: AudioGenerationRequest,
+  ): Promise<AudioGenerationResult> {
+    const prompt = request.prompt.trim();
+    const videoUrl = request.videoUrl.trim();
+    if (!prompt) {
+      throw new BadRequestException('prompt is required');
+    }
+    if (!videoUrl) {
+      throw new BadRequestException('videoUrl is required');
+    }
+
+    const endpointId = this.getEndpointIdForAudioRequest(request);
+    const initialJob = await this.submitJob(endpointId, {
+      input: this.buildAudioInput({ ...request, prompt, videoUrl }),
+    });
+    const completedJob = await this.waitForCompletion(
+      endpointId,
+      initialJob,
+      'video',
+    );
+    const providerVideoSource = this.extractVideoSource(completedJob.output);
+    const uploadedVideoUrl =
+      await this.uploadService.uploadVideoByUrl(providerVideoSource);
+
+    return {
+      videoUrl: uploadedVideoUrl,
       rawOutput: completedJob.output,
     };
   }
@@ -473,6 +508,18 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
     };
   }
 
+  private buildAudioInput(request: AudioGenerationRequest) {
+    return {
+      video_url: request.videoUrl,
+      prompt: request.prompt,
+      negative_prompt: '',
+      match_source_duration: true,
+      return_base64: true,
+      num_steps: 25,
+      cfg_strength: 4.5,
+    };
+  }
+
   private buildTextVideoInput(request: TextVideoGenerationRequest) {
     const { size, aspectRatio } = getVideoOutputPreset(
       request.aiService,
@@ -546,6 +593,19 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
       default:
         throw new Error(
           `RunPod image-edit endpoint is not configured for ${request.aiService}`,
+        );
+    }
+  }
+
+  private getEndpointIdForAudioRequest(
+    request: AudioGenerationRequest,
+  ): string {
+    switch (request.aiService) {
+      case 'mmaudio_v2':
+        return this.getRequiredConfig('RUNPOD_MMAUDIO_ENDPOINT_ID');
+      default:
+        throw new Error(
+          `RunPod audio endpoint is not configured for ${request.aiService}`,
         );
     }
   }

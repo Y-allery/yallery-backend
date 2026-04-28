@@ -118,7 +118,7 @@ export class UpdateAISettingsDto {
   @IsNumber()
   cost?: number;
 
-  @ApiPropertyOptional({ description: 'API model identifier (e.g., fal-ai/flux-pro/v1.1-ultra)' })
+  @ApiPropertyOptional({ description: 'Provider model identifier, when the model needs one' })
   @IsOptional()
   @IsString()
   api_model?: string | null;

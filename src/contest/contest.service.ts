@@ -28,6 +28,13 @@ import { RewardTypeEnum } from 'src/reward/types/reward-type.enum';
 import { MediaAISettingsEntity } from 'src/media-generation/entities/media-ai-settings.entity';
 import { UserActivityService } from 'src/user-activity/services/user-activity.service';
 import { UserNotificationTypeEnum } from 'src/notification/types/user-notification-type.enum';
+import { AIFinetuneEntity } from 'src/admin/entities/ai-finetune.entity';
+import { ContestFlowService } from './contest-flow.service';
+import {
+  ContestLifecycleStatus,
+  ContestReviewStatus,
+  ContestWinnerCandidateReviewStatus,
+} from './types/contest-flow.enums';
 const axios = require('axios');
 import * as https from 'https';
 
@@ -47,6 +54,8 @@ export class ContestService {
     private readonly tagRepository: Repository<TagEntity>,
     @InjectRepository(MediaAISettingsEntity)
     private readonly mediaAISettingsRepository: Repository<MediaAISettingsEntity>,
+    @InjectRepository(AIFinetuneEntity)
+    private readonly aiFinetuneRepository: Repository<AIFinetuneEntity>,
     @InjectRepository(DeviceTokenEntity)
     private readonly deviceTokenModel: Repository<DeviceTokenEntity>,
     private readonly userService: UserService,
@@ -54,6 +63,7 @@ export class ContestService {
     private readonly firebaseService: FirebaseService,
     private readonly notificationGateway: NotificationGateway,
     private readonly rewardService: RewardService,
+    private readonly contestFlowService: ContestFlowService,
   ) {
     this.tweetscoutApiKey = this.configService.get<string>('TWEETSCOUT_API_KEY');
   }
@@ -93,26 +103,29 @@ export class ContestService {
     }
 
     // Повертаємо точно таку саму структуру, як в оригіналі
-    return contests.map((contest) => ({
-      id: contest.id,
-      name: contest.name,
-      imageUrl: contest.imageUrl,
-      status: contest.status,
-      reward: contest.reward,
-      description: contest.description,
-      is_won: contest.winner?.id === userId,
-      is_approved: contest.isApproved,
-      contestType: contest.contestType,
-      mediaAiService: contest.mediaAiSetting?.aiService ?? null,
-      mediaCapability: contest.mediaAiSetting?.capability ?? null,
-      examplePrompt: contest.promptExample,
-      endTime: contest.endTime,
-      tag: {
-        id: contest?.tag?.id,
-        name: contest?.tag?.name,
-      },
-      is_participant: participantContestIds.includes(contest.id),
-    }));
+    return await Promise.all(
+      contests.map(async (contest) => ({
+        id: contest.id,
+        name: contest.name,
+        imageUrl: contest.imageUrl,
+        status: contest.status,
+        reward: contest.reward,
+        description: contest.description,
+        is_won: contest.winner?.id === userId,
+        is_approved: contest.isApproved,
+        contestType: contest.contestType,
+        mediaAiService: contest.mediaAiSetting?.aiService ?? null,
+        mediaCapability: contest.mediaAiSetting?.capability ?? null,
+        examplePrompt: contest.promptExample,
+        endTime: contest.endTime,
+        tag: {
+          id: contest?.tag?.id,
+          name: contest?.tag?.name,
+        },
+        is_participant: participantContestIds.includes(contest.id),
+        ...(await this.contestFlowService.getContestSummary(contest.id)),
+      })),
+    );
   }
   async getMyContests(userId: number) {
     const contests = await this.contestRepository
@@ -137,22 +150,25 @@ export class ContestService {
       ])
       .where('user.id = :userId', { userId })
       .getMany();
-    return contests.map((contest) => ({
-      id: contest.id,
-      name: contest.name,
-      imageUrl: contest.imageUrl,
-      status: contest.status,
-      reward: contest.reward,
-      description: contest.description,
-      is_won: contest.winner?.id === userId,
-      mediaAiService: contest.mediaAiSetting?.aiService ?? null,
-      mediaCapability: contest.mediaAiSetting?.capability ?? null,
-      tag: {
-        id: contest?.tag?.id,
-        name: contest?.tag?.name,
-      },
-      is_participant: true,
-    }));
+    return await Promise.all(
+      contests.map(async (contest) => ({
+        id: contest.id,
+        name: contest.name,
+        imageUrl: contest.imageUrl,
+        status: contest.status,
+        reward: contest.reward,
+        description: contest.description,
+        is_won: contest.winner?.id === userId,
+        mediaAiService: contest.mediaAiSetting?.aiService ?? null,
+        mediaCapability: contest.mediaAiSetting?.capability ?? null,
+        tag: {
+          id: contest?.tag?.id,
+          name: contest?.tag?.name,
+        },
+        is_participant: true,
+        ...(await this.contestFlowService.getContestSummary(contest.id)),
+      })),
+    );
   }
 
   async getWonContests(userId: number) {
@@ -161,22 +177,25 @@ export class ContestService {
       relations: { tag: true, participants: true, mediaAiSetting: true },
     });
 
-    return contests.map((contest) => ({
-      id: contest.id,
-      name: contest.name,
-      imageUrl: contest.imageUrl,
-      status: contest.status,
-      reward: contest.reward,
-      description: contest.description,
-      is_won: true,
-      mediaAiService: contest.mediaAiSetting?.aiService ?? null,
-      mediaCapability: contest.mediaAiSetting?.capability ?? null,
-      tag: {
-        id: contest?.tag?.id,
-        name: contest?.tag?.name,
-      },
-      is_participant: true,
-    }));
+    return await Promise.all(
+      contests.map(async (contest) => ({
+        id: contest.id,
+        name: contest.name,
+        imageUrl: contest.imageUrl,
+        status: contest.status,
+        reward: contest.reward,
+        description: contest.description,
+        is_won: true,
+        mediaAiService: contest.mediaAiSetting?.aiService ?? null,
+        mediaCapability: contest.mediaAiSetting?.capability ?? null,
+        tag: {
+          id: contest?.tag?.id,
+          name: contest?.tag?.name,
+        },
+        is_participant: true,
+        ...(await this.contestFlowService.getContestSummary(contest.id)),
+      })),
+    );
   }
 
   async participateInContest(contestId: number, userId: number) {
@@ -426,6 +445,17 @@ export class ContestService {
 
     for (let contest of contests) {
       try {
+        const v2Result =
+          await this.contestFlowService.advanceContestLifecycle(contest);
+        if (v2Result.handled) {
+          if (v2Result.opened) {
+            const title = 'Join the contest!';
+            const body = `The ${contest.name} contest is now live! Join now for a chance to win points!`;
+            await this.sendContestNotificationsToAllUsers(contest, title, body);
+          }
+          continue;
+        }
+
         const postsCount = await this.postRepository.count({
           where: {
             contest: { id: contest.id },
@@ -797,10 +827,35 @@ export class ContestService {
       where: { id: data.tag_id },
     });
     if (!tag) throw new BadRequestException('Tag not found');
+
+    const requestedContestType = this.normalizeCreateContestType(
+      data.contestType,
+    );
+    const readyFineTune = data.fineTuneId
+      ? await this.getReadyFineTuneById(data.fineTuneId)
+      : null;
+    const fineTuneToken =
+      readyFineTune?.loraKey ?? data.fineTuneToken?.trim() ?? null;
+    const fineTuneTriggerWord =
+      data.fineTuneTriggerWord?.trim() ?? readyFineTune?.triggerWord ?? null;
+    const fineTuneStrength =
+      data.fineTuneStrength ??
+      readyFineTune?.generationDefaults?.loraScale ??
+      1;
     const mediaAiSetting = await this.resolveContestMediaAiSettingForAdmin({
       mediaAiSettingId: data.media_ai_setting_id ?? null,
-      fineTuneToken: data.fineTuneToken ?? null,
+      fineTuneToken:
+        requestedContestType === ContestTypeEnum.FINE_TUNE || fineTuneToken
+          ? fineTuneToken
+          : null,
     });
+    const contestType =
+      requestedContestType ??
+      this.resolveContestType(fineTuneToken, mediaAiSetting?.aiService ?? null);
+
+    if (contestType === ContestTypeEnum.FINE_TUNE) {
+      await this.assertReadyFineTune(fineTuneToken);
+    }
 
     const socialPostSettings = {
       postToTwitter: data.socialPostSettings?.postToTwitter ?? false,
@@ -812,20 +867,26 @@ export class ContestService {
       tag,
       mediaAiSetting,
       promptExample: data.examplePrompt,
-      contestType: this.resolveContestType(
-        data.fineTuneToken ?? null,
-        mediaAiSetting.aiService,
-      ),
+      status: data.status ?? ContestStatusEnum.CLOSED,
+      contestType,
+      fineTuneToken:
+        contestType === ContestTypeEnum.FINE_TUNE ? fineTuneToken : null,
+      fineTuneTriggerWord:
+        contestType === ContestTypeEnum.FINE_TUNE ? fineTuneTriggerWord : null,
+      fineTuneStrength:
+        contestType === ContestTypeEnum.FINE_TUNE ? fineTuneStrength : null,
       startTime: new Date(data.start_time),
       endTime: new Date(data.end_time),
       isApproved: false,
       socialPostSettings,
     });
 
-    await this.contestRepository.save(contest);
+    const savedContest = await this.contestRepository.save(contest);
+    await this.contestFlowService.createMetadataForContest(savedContest);
     return {
       success: true,
       message: 'Contest created successfully',
+      contestId: savedContest.id,
     };
   }
 
@@ -852,7 +913,7 @@ export class ContestService {
   private async resolveContestMediaAiSettingForAdmin(params: {
     mediaAiSettingId?: number | null;
     fineTuneToken?: string | null;
-  }): Promise<MediaAISettingsEntity> {
+  }): Promise<MediaAISettingsEntity | null> {
     const fineTuneToken = params.fineTuneToken?.trim();
 
     if (fineTuneToken) {
@@ -875,38 +936,15 @@ export class ContestService {
       const explicitSetting = await this.getActiveMediaAiSettingById(
         params.mediaAiSettingId,
       );
-      if (explicitSetting.capability !== 'image_generate') {
-        throw new BadRequestException(
-          'Contests currently support only image_generate media models.',
-        );
-      }
-      if (
-        ['flux_fine_tune', 'sdxl_lora_generation'].includes(
-          explicitSetting.aiService,
-        )
-      ) {
+      if (explicitSetting.aiService === 'sdxl_lora_generation') {
         throw new BadRequestException(
           `${explicitSetting.aiService} requires fineTuneToken to be configured.`,
         );
       }
-      return explicitSetting;
+      return null;
     }
 
-    const defaultSetting = await this.mediaAISettingsRepository.findOne({
-      where: {
-        aiService: 'flux2_klein',
-        capability: 'image_generate',
-        isActive: true,
-      },
-    });
-
-    if (defaultSetting) {
-      return defaultSetting;
-    }
-
-    throw new BadRequestException(
-      'No active flux2_klein image_generate media model configured for contests.',
-    );
+    return null;
   }
 
   private async getActiveMediaAiSettingById(
@@ -949,13 +987,72 @@ export class ContestService {
 
   private resolveContestType(
     fineTuneToken: string | null,
-    mediaAiService: string,
+    mediaAiService: string | null,
   ): ContestTypeEnum {
-    return fineTuneToken ||
-      mediaAiService === 'flux_fine_tune' ||
-      mediaAiService === 'sdxl_lora_generation'
+    return fineTuneToken || mediaAiService === 'sdxl_lora_generation'
         ? ContestTypeEnum.FINE_TUNE
         : ContestTypeEnum.DEFAULT;
+  }
+
+  private normalizeCreateContestType(
+    contestType?: CreateContestDto['contestType'] | null,
+  ): ContestTypeEnum | null {
+    if (!contestType) {
+      return null;
+    }
+
+    if (
+      contestType === 'fine_tune' ||
+      contestType === ContestTypeEnum.FINE_TUNE
+    ) {
+      return ContestTypeEnum.FINE_TUNE;
+    }
+
+    if (
+      contestType === 'standard' ||
+      contestType === ContestTypeEnum.DEFAULT
+    ) {
+      return ContestTypeEnum.DEFAULT;
+    }
+
+    throw new BadRequestException(`Unsupported contestType: ${contestType}`);
+  }
+
+  private async getReadyFineTuneById(
+    fineTuneId: number,
+  ): Promise<AIFinetuneEntity> {
+    const fineTune = await this.aiFinetuneRepository.findOne({
+      where: { id: fineTuneId },
+    });
+
+    if (!fineTune || fineTune.status !== 'ready' || !fineTune.loraUrl) {
+      throw new BadRequestException(
+        'Fine-tune contests require a ready LoRA training profile.',
+      );
+    }
+
+    return fineTune;
+  }
+
+  private async assertReadyFineTune(
+    fineTuneToken?: string | null,
+  ): Promise<AIFinetuneEntity> {
+    const loraKey = fineTuneToken?.trim();
+    if (!loraKey) {
+      throw new BadRequestException('Fine-tune contests require fineTuneToken.');
+    }
+
+    const fineTune = await this.aiFinetuneRepository.findOne({
+      where: { loraKey },
+    });
+
+    if (!fineTune || fineTune.status !== 'ready' || !fineTune.loraUrl) {
+      throw new BadRequestException(
+        'Fine-tune contests require a ready LoRA training profile.',
+      );
+    }
+
+    return fineTune;
   }
 
 
@@ -1005,6 +1102,18 @@ export class ContestService {
   }
 
   async setContestWinner({ post_id, contest_id }: SetContestWinnerDto) {
+    if (await this.contestFlowService.isV2Contest(contest_id)) {
+      const candidates = await this.contestFlowService.getReviewQueue();
+      const contestReview = candidates.find((item) => item.contestId === contest_id);
+      const candidate = contestReview?.candidates.find(
+        (item) => item.post?.id === post_id,
+      );
+      if (!candidate) {
+        throw new NotFoundException('Winner candidate not found');
+      }
+      return this.contestFlowService.approveCandidate(contest_id, candidate.id);
+    }
+
     const contest = await this.contestRepository.findOne({
       where: {
         id: contest_id,
@@ -1149,14 +1258,14 @@ export class ContestService {
     }));
   }
 
-  async findContestById(id: number): Promise<ContestEntity> {
+  async findContestById(id: number): Promise<ContestEntity & Record<string, any>> {
     const contest = await this.contestRepository.findOne({
       where: { id },
       relations: ['tag', 'winner', 'participants', 'mediaAiSetting'],
     });
     if (!contest)
       throw new NotFoundException(`Contest with ID ${id} not found`);
-    return contest;
+    return Object.assign(contest, await this.contestFlowService.getContestSummary(id));
   }
 
   async findContestsByStatus(status?: ContestStatusEnum): Promise<any[]> {
@@ -1196,19 +1305,22 @@ export class ContestService {
       // Raw contest data debug removed
     }
 
-    return contests.map((contest) => ({
-      id: contest.contest_id,
-      name: contest.contest_name,
-      imageUrl: contest.contest_imageUrl,
-      endTime: contest.end_time,
-      startTime: contest.start_time,
-      description: contest.contest_description,
-      reward: contest.contest_reward,
-      status: contest.contest_status,
-      tag: {
-        name: contest.tagName ? `#${contest.tagName}` : null,
-      },
-    }));
+    return await Promise.all(
+      contests.map(async (contest) => ({
+        id: contest.contest_id,
+        name: contest.contest_name,
+        imageUrl: contest.contest_imageUrl,
+        endTime: contest.end_time,
+        startTime: contest.start_time,
+        description: contest.contest_description,
+        reward: contest.contest_reward,
+        status: contest.contest_status,
+        tag: {
+          name: contest.tagName ? `#${contest.tagName}` : null,
+        },
+        ...(await this.contestFlowService.getContestSummary(contest.contest_id)),
+      })),
+    );
   }
   async updateContest(
     id: number,
@@ -1291,14 +1403,37 @@ export class ContestService {
       contest.mediaAiSetting = mediaAiSetting;
       contest.contestType = this.resolveContestType(
         contest.fineTuneToken ?? null,
-        mediaAiSetting.aiService,
+        mediaAiSetting?.aiService ?? null,
       );
+      if (contest.contestType === ContestTypeEnum.FINE_TUNE) {
+        await this.assertReadyFineTune(contest.fineTuneToken);
+      }
     }
 
-    return this.contestRepository.save(contest);
+    const savedContest = await this.contestRepository.save(contest);
+    if (savedContest.status === ContestStatusEnum.OPEN) {
+      await this.contestFlowService.setLifecycleStatus(
+        savedContest.id,
+        ContestLifecycleStatus.RUNNING,
+        ContestReviewStatus.NONE,
+      );
+    }
+    return savedContest;
   }
 
   async rejectContestWinner({ post_id, contest_id }: SetContestWinnerDto) {
+    if (await this.contestFlowService.isV2Contest(contest_id)) {
+      const candidates = await this.contestFlowService.getReviewQueue();
+      const contestReview = candidates.find((item) => item.contestId === contest_id);
+      const candidate = contestReview?.candidates.find(
+        (item) => item.post?.id === post_id,
+      );
+      if (!candidate) {
+        throw new NotFoundException('Winner candidate not found');
+      }
+      return this.contestFlowService.rejectCandidate(contest_id, candidate.id);
+    }
+
     const post = await this.postRepository.findOne({
       where: { id: post_id },
       relations: ['contest', 'user'],
@@ -1400,6 +1535,58 @@ export class ContestService {
     }
   }
   async getTopPostForEachContest() {
+    const v2ReviewQueue = await this.contestFlowService.getReviewQueue();
+    const v2Results = v2ReviewQueue
+      .map((contestReview) => {
+        const currentCandidate =
+          contestReview.candidates.find(
+            (candidate) =>
+              candidate.reviewStatus ===
+                ContestWinnerCandidateReviewStatus.SELECTED ||
+              candidate.reviewStatus ===
+                ContestWinnerCandidateReviewStatus.APPROVED,
+          ) ?? contestReview.candidates[0];
+
+        if (!currentCandidate?.post) {
+          return null;
+        }
+
+        return {
+          contestId: contestReview.contestId,
+          contestName: contestReview.contestName,
+          contestStatus:
+            contestReview.reviewStatus === ContestReviewStatus.APPROVED
+              ? ContestStatusEnum.CLOSED
+              : ContestStatusEnum.PENDING_REVIEW,
+          contestIsApproved:
+            contestReview.reviewStatus === ContestReviewStatus.APPROVED,
+          lifecycleStatus: contestReview.lifecycleStatus,
+          reviewStatus: contestReview.reviewStatus,
+          post: {
+            id: currentCandidate.post.id,
+            imageUrl:
+              currentCandidate.post.imageUrl ??
+              currentCandidate.post.previewImageUrl,
+            videoUrl: currentCandidate.post.videoUrl,
+            previewImageUrl: currentCandidate.post.previewImageUrl,
+            user: currentCandidate.post.user,
+            likeCount: currentCandidate.scoreBreakdown?.likes ?? 0,
+            score: currentCandidate.score,
+            scoreBreakdown: currentCandidate.scoreBreakdown,
+            eligibilityStatus: currentCandidate.eligibilityStatus,
+            status:
+              currentCandidate.reviewStatus ===
+              ContestWinnerCandidateReviewStatus.APPROVED
+                ? 'approved'
+                : currentCandidate.reviewStatus ===
+                    ContestWinnerCandidateReviewStatus.REJECTED
+                  ? 'rejected'
+                  : 'pending_review',
+          },
+        };
+      })
+      .filter(Boolean);
+
     const contests = await this.contestRepository.find({
       relations: ['postWinner', 'postWinner.user'],
       where: {
@@ -1512,6 +1699,6 @@ export class ContestService {
       },
     }));
 
-    return [...fineTuneResults, ...regularResults];
+    return [...v2Results, ...fineTuneResults, ...regularResults];
   }
 }

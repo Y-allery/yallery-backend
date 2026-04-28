@@ -30,7 +30,6 @@
     "@bull-board/express": "^5.21.7",
     "@bull-board/nestjs": "^5.21.7",
     "@bull-board/ui": "^5.21.7",
-    "@fal-ai/serverless-client": "^0.14.3",
     "@google-cloud/local-auth": "^3.0.1",
     "@nestjs/bullmq": "^10.2.1",
     "@nestjs/cli": "^10.0.0",

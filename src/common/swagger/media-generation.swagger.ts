@@ -448,7 +448,7 @@ This endpoint is the new provider-facing abstraction for media generation. It re
 **What this endpoint does:**
 - Accepts a prompt-driven image generation request
 - Resolves the provider through \`media-generation\`
-- If \`contest_id\` is provided, resolves the contest model on the backend and can switch into FAL fine-tune mode automatically
+- If \`contest_id\` is provided, resolves the contest model on the backend and can switch into SDXL LoRA fine-tune mode automatically
 - Pushes the request into a dedicated queue
 - Deducts credits before persistence is finalized
 - Saves generated posts with optional contest context
