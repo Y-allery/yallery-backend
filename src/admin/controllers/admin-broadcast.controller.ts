@@ -1,0 +1,44 @@
+import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Roles } from 'src/auth/decorators/role.decorator';
+import { JwtAuthGuard } from 'src/auth/guards/jwt.auth.guard';
+import { RoleGuard } from 'src/auth/guards/role.guard';
+import { RoleEnum } from 'src/user/types/role.enum';
+import { AdminService } from '../admin.service';
+import { BroadcastNotificationDto } from '../dto/broadcast-notification.dto';
+
+@Controller('admin')
+@ApiTags('Admin')
+@UseGuards(JwtAuthGuard, RoleGuard)
+@Roles(RoleEnum.ADMIN)
+export class AdminBroadcastController {
+  constructor(private readonly adminService: AdminService) {}
+
+  @Post('broadcast-notification')
+  @ApiOperation({
+    summary: 'Broadcast notification to all users',
+    description:
+      'Sends push notifications or email notifications to all verified users. ' +
+      'Notifications are sent in batches to prevent system overload. ' +
+      'Event loop is preserved with delays between batches.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Notification broadcast started successfully.',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        type: { type: 'string', enum: ['push', 'email'] },
+        totalProcessed: { type: 'number' },
+        totalSuccess: { type: 'number' },
+        totalErrors: { type: 'number' },
+        message: { type: 'string' },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Bad request - invalid input' })
+  async broadcastNotification(@Body() dto: BroadcastNotificationDto) {
+    return this.adminService.broadcastNotification(dto);
+  }
+}

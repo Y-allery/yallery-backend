@@ -1,7 +1,16 @@
 import { Module } from '@nestjs/common';
 import { AdminService } from './admin.service';
-import { AdminController } from './admin.controller';
 import { PartnerController } from './partner.controller';
+import { AdminAISettingsController } from './controllers/admin-ai-settings.controller';
+import { AdminBroadcastController } from './controllers/admin-broadcast.controller';
+import { AdminCatalogController } from './controllers/admin-catalog.controller';
+import { AdminContestReviewController } from './controllers/admin-contest-review.controller';
+import { AdminContestsController } from './controllers/admin-contests.controller';
+import { AdminFineTunesController } from './controllers/admin-finetunes.controller';
+import { AdminMemesController } from './controllers/admin-memes.controller';
+import { AdminMetricsController } from './controllers/admin-metrics.controller';
+import { AdminModerationController } from './controllers/admin-moderation.controller';
+import { AdminPartnershipsController } from './controllers/admin-partnerships.controller';
 import { ContestModule } from 'src/contest/contest.module';
 import { UserModule } from 'src/user/user.module';
 import { PostModule } from 'src/post/post.module';
@@ -52,6 +61,18 @@ import { AIFinetuneEntity } from './entities/ai-finetune.entity';
     MemeModule,
   ],
   providers: [AdminService],
-  controllers: [AdminController, PartnerController],
+  controllers: [
+    AdminContestsController,
+    AdminContestReviewController,
+    AdminFineTunesController,
+    AdminAISettingsController,
+    AdminModerationController,
+    AdminCatalogController,
+    AdminPartnershipsController,
+    AdminMetricsController,
+    AdminMemesController,
+    AdminBroadcastController,
+    PartnerController,
+  ],
 })
 export class AdminModule {}
