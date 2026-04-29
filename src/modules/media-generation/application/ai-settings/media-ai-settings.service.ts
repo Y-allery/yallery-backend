@@ -27,6 +27,14 @@ import { MediaGenerationPricingService } from 'src/modules/media-generation/appl
 
 @Injectable()
 export class MediaAISettingsService {
+  private getImageLimitSettings(setting: MediaAISettingsEntity) {
+    return {
+      minImages: setting.settings?.minImages ?? 1,
+      maxImages: setting.settings?.maxImages ?? 4,
+      maxPromptLength: setting.settings?.maxPromptLength ?? null,
+    };
+  }
+
   constructor(
     private readonly mediaRouteResolverService: MediaRouteResolverService,
     private readonly mediaGenerationPricingService: MediaGenerationPricingService,
@@ -75,6 +83,7 @@ export class MediaAISettingsService {
         allowedOrientations: getPromptImageAllowedOrientations(
           setting.aiService,
         ),
+        ...this.getImageLimitSettings(setting),
         cost: setting.cost,
         description: setting.description,
       })),
@@ -117,6 +126,7 @@ export class MediaAISettingsService {
       aiSettings: settings.map((setting) => ({
         aiService: setting.aiService,
         name: setting.name,
+        ...this.getImageLimitSettings(setting),
         cost: setting.cost,
         description: setting.description,
       })),

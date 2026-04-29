@@ -24,13 +24,42 @@ export class AdminAISettingsService {
     aiSetting: MediaAISettingsEntity,
     updateDto: UpdateAISettingsDto,
   ): MediaAISettingsJson | null {
-    if (updateDto.settings === undefined) {
+    const hasTopLevelImageLimits =
+      updateDto.minImages !== undefined ||
+      updateDto.maxImages !== undefined ||
+      updateDto.maxPromptLength !== undefined;
+
+    if (updateDto.settings === undefined && !hasTopLevelImageLimits) {
       return aiSetting.settings;
     }
 
-    if (!['video_generate', 'meme_generate'].includes(aiSetting.capability)) {
+    const supportsDurationSettings = ['video_generate', 'meme_generate'].includes(
+      aiSetting.capability,
+    );
+    const supportsImageLimits = ['image_generate', 'image_edit'].includes(
+      aiSetting.capability,
+    );
+
+    if (
+      updateDto.settings !== undefined &&
+      !supportsDurationSettings &&
+      (updateDto.settings.durations !== undefined ||
+        updateDto.settings.pricing !== undefined)
+    ) {
       throw new BadRequestException(
         'Structured settings can only be edited for video and meme generation models',
+      );
+    }
+
+    if (
+      !supportsImageLimits &&
+      (hasTopLevelImageLimits ||
+        updateDto.settings?.minImages !== undefined ||
+        updateDto.settings?.maxImages !== undefined ||
+        updateDto.settings?.maxPromptLength !== undefined)
+    ) {
+      throw new BadRequestException(
+        'Image limits can only be edited for image generation and image edit models',
       );
     }
 
@@ -38,7 +67,32 @@ export class AdminAISettingsService {
       ...(aiSetting.settings ?? {}),
     };
 
-    if (updateDto.settings.durations !== undefined) {
+    const minImages = updateDto.minImages ?? updateDto.settings?.minImages;
+    const maxImages = updateDto.maxImages ?? updateDto.settings?.maxImages;
+    const maxPromptLength =
+      updateDto.maxPromptLength ?? updateDto.settings?.maxPromptLength;
+
+    if (minImages !== undefined) {
+      nextSettings.minImages = minImages;
+    }
+
+    if (maxImages !== undefined) {
+      nextSettings.maxImages = maxImages;
+    }
+
+    if (maxPromptLength !== undefined) {
+      nextSettings.maxPromptLength = maxPromptLength;
+    }
+
+    if (
+      nextSettings.minImages !== undefined &&
+      nextSettings.maxImages !== undefined &&
+      nextSettings.maxImages < nextSettings.minImages
+    ) {
+      throw new BadRequestException('maxImages must be greater than or equal to minImages');
+    }
+
+    if (updateDto.settings?.durations !== undefined) {
       const durations = [...new Set(updateDto.settings.durations)].sort(
         (a, b) => a - b,
       );
@@ -50,7 +104,7 @@ export class AdminAISettingsService {
       nextSettings.durations = durations;
     }
 
-    if (updateDto.settings.pricing !== undefined) {
+    if (updateDto.settings?.pricing !== undefined) {
       const strategy = updateDto.settings.pricing.strategy ?? 'fixed';
 
       if (strategy === 'per_second') {
@@ -142,7 +196,12 @@ export class AdminAISettingsService {
     if (updateDto.is_active !== undefined || updateDto.isActive !== undefined) {
       aiSetting.isActive = updateDto.is_active ?? updateDto.isActive;
     }
-    if (updateDto.settings !== undefined) {
+    if (
+      updateDto.settings !== undefined ||
+      updateDto.minImages !== undefined ||
+      updateDto.maxImages !== undefined ||
+      updateDto.maxPromptLength !== undefined
+    ) {
       aiSetting.settings = this.resolveUpdatedMediaSettings(
         aiSetting,
         updateDto,

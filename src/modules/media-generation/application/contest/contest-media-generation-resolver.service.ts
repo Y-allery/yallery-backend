@@ -56,8 +56,6 @@ export class ContestMediaGenerationResolverService {
     const orientation = resolvePromptImageOrientation(aiService, request.orientation);
     const { width, height } = getPromptImageDimensions(aiService, orientation);
 
-    this.assertPromptImageQuantity(aiService, request.imageQuantity);
-
     if (contest.contestType !== ContestTypeEnum.FINE_TUNE) {
       if (aiService === 'sdxl_lora_generation') {
         throw new BadRequestException(
@@ -144,8 +142,6 @@ export class ContestMediaGenerationResolverService {
     const aiService = request.aiService.trim();
     const orientation = resolvePromptImageOrientation(aiService, request.orientation);
     const { width, height } = getPromptImageDimensions(aiService, orientation);
-
-    this.assertPromptImageQuantity(aiService, request.imageQuantity);
 
     return {
       ...request,
@@ -253,17 +249,6 @@ export class ContestMediaGenerationResolverService {
     throw new BadRequestException(
       'No active flux2_klein prompt-image model is configured for contests.',
     );
-  }
-
-  private assertPromptImageQuantity(aiService: string, imageQuantity: number) {
-    if (
-      ['flux2_klein', 'sdxl', 'sdxl_lora_generation'].includes(aiService) &&
-      imageQuantity > 4
-    ) {
-      throw new BadRequestException(
-        `Model ${aiService} currently supports up to image_quantity=4.`,
-      );
-    }
   }
 
   private assertFineTuneContestPromptModel(

@@ -30,6 +30,24 @@ export class UpdateAISettingsPricingDto {
 }
 
 export class UpdateMediaAISettingsJsonDto {
+  @ApiPropertyOptional({ description: 'Minimum number of images that can be generated' })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  minImages?: number;
+
+  @ApiPropertyOptional({ description: 'Maximum number of images that can be generated' })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  maxImages?: number;
+
+  @ApiPropertyOptional({ description: 'Maximum prompt length in characters' })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  maxPromptLength?: number;
+
   @ApiPropertyOptional({
     description: 'Supported video durations in seconds',
     type: [Number],

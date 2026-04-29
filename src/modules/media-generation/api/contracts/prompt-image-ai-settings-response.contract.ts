@@ -9,6 +9,9 @@ export interface PromptImageAISettingItem {
   aiService: string;
   name: string;
   allowedOrientations: MediaOrientation[];
+  minImages: number;
+  maxImages: number;
+  maxPromptLength: number | null;
   cost: number;
   description: string | null;
 }

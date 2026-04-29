@@ -11,6 +11,40 @@ export class MediaGenerationPricingService {
     private readonly mediaAISettingsRepository: Repository<MediaAISettingsEntity>,
   ) {}
 
+  private getImageLimits(aiSetting: MediaAISettingsEntity) {
+    return {
+      minImages: aiSetting.settings?.minImages ?? 1,
+      maxImages: aiSetting.settings?.maxImages ?? 4,
+    };
+  }
+
+  async assertPromptImageQuantity(
+    aiService: string,
+    imageQuantity: number,
+  ): Promise<void> {
+    const aiSetting = await this.mediaAISettingsRepository.findOne({
+      where: {
+        aiService,
+        capability: 'image_generate',
+        isActive: true,
+      },
+    });
+
+    if (!aiSetting) {
+      throw new BadRequestException(
+        `Media AI settings not found for prompt image service ${aiService}`,
+      );
+    }
+
+    const { minImages, maxImages } = this.getImageLimits(aiSetting);
+
+    if (imageQuantity < minImages || imageQuantity > maxImages) {
+      throw new BadRequestException(
+        `${aiService} supports image_quantity from ${minImages} to ${maxImages}.`,
+      );
+    }
+  }
+
   async getPromptImageCost(
     aiService: string,
     imageQuantity: number,

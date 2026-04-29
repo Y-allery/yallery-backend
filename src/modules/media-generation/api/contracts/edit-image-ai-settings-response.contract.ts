@@ -5,6 +5,9 @@ export interface EditImageDefaultSettings {
 export interface EditImageAISettingItem {
   aiService: string;
   name: string;
+  minImages: number;
+  maxImages: number;
+  maxPromptLength: number | null;
   cost: number;
   description: string | null;
 }

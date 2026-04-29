@@ -36,16 +36,10 @@ export class MediaGenerationGuardsService {
       );
     }
 
-    if (
-      ['flux2_klein', 'sdxl', 'sdxl_lora_generation'].includes(
-        request.aiService,
-      ) &&
-      request.imageQuantity > 4
-    ) {
-      throw new BadRequestException(
-        `${request.aiService} currently supports up to 4 images per generation.`,
-      );
-    }
+    await this.mediaGenerationPricingService.assertPromptImageQuantity(
+      request.aiService,
+      request.imageQuantity,
+    );
 
     if (
       !this.mediaRouteResolverService.resolvePromptImageRoute(request.aiService)

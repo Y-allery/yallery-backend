@@ -54,4 +54,22 @@ describe('MediaGenerationPricingService', () => {
       BadRequestException,
     );
   });
+
+  it('validates prompt image quantity from model settings', async () => {
+    const service = createService(
+      jest.fn().mockResolvedValue({
+        settings: {
+          minImages: 1,
+          maxImages: 5,
+        },
+      }),
+    );
+
+    await expect(
+      service.assertPromptImageQuantity('sdxl', 5),
+    ).resolves.toBeUndefined();
+    await expect(
+      service.assertPromptImageQuantity('sdxl', 6),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
 });

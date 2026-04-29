@@ -2,6 +2,9 @@ import { Column, Entity, Index } from 'typeorm';
 import { TimeStampEntity } from 'src/core/database/entities/time-stamp.entity';
 
 export interface MediaAISettingsJson {
+  minImages?: number;
+  maxImages?: number;
+  maxPromptLength?: number;
   durations?: number[];
   pricing?: {
     strategy?: 'fixed' | 'per_second';

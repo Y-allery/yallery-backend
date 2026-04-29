@@ -32,7 +32,7 @@ export class GeneratePromptImageDto {
   @ApiProperty({
     description: 'Number of images to generate.',
     minimum: 1,
-    maximum: 4,
+    maximum: 5,
     example: 1,
   })
   image_quantity: number;
