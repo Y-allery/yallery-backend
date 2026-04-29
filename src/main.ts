@@ -1,16 +1,15 @@
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
+import { AppModule } from './app/app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
 import * as bodyParser from 'body-parser';
 import { IoAdapter } from '@nestjs/platform-socket.io';
-import './sentry/instrument';
+import './core/observability/sentry/instrument';
 import * as session from 'express-session';
 import * as passport from 'passport';
 import { RedisStore } from 'connect-redis';
 import { createClient } from 'redis';
 import * as jwt from 'jsonwebtoken';
-import { closeBrowser } from './common/puppeteer-browser';
 
 let redisClient: ReturnType<typeof createClient>;
 const SWAGGER_AUTH_SCHEME = 'bearer';
@@ -178,7 +177,6 @@ process.on('uncaughtException', (error) => {
 
   process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully...');
-  await closeBrowser();
   if (redisClient) {
     await redisClient.quit().catch(console.error);
   }
@@ -187,7 +185,6 @@ process.on('uncaughtException', (error) => {
 
   process.on('SIGINT', async () => {
   console.log('SIGINT received, shutting down gracefully...');
-  await closeBrowser();
   if (redisClient) {
     await redisClient.quit().catch(console.error);
   }
