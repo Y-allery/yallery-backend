@@ -99,6 +99,53 @@ export class MediaAISettingsService {
     };
   }
 
+  async getFineTunePromptImageAISettings(): Promise<PromptImageAISettingsResponse> {
+    const [settings, colors, styles] = await Promise.all([
+      this.mediaAISettingsRepository.find({
+        where: {
+          capability: 'image_generate',
+          aiService: 'sdxl_lora_generation',
+          isActive: true,
+        },
+        order: {
+          id: 'ASC',
+        },
+      }),
+      this.getColors(),
+      this.getStyles(),
+    ]);
+
+    const defaultSetting = settings[0];
+
+    return {
+      defaultSettings: {
+        defaultAI: defaultSetting?.aiService ?? null,
+        defaultOrientations: defaultSetting
+          ? getPromptImageDefaultOrientation(defaultSetting.aiService)
+          : 'vertical',
+      },
+      aiSettings: settings.map((setting) => ({
+        aiService: setting.aiService,
+        name: setting.name,
+        allowedOrientations: getPromptImageAllowedOrientations(
+          setting.aiService,
+        ),
+        ...this.getImageLimitSettings(setting),
+        cost: setting.cost,
+        description: setting.description,
+      })),
+      colors: colors.map((color) => ({
+        id: color.id,
+        name: color.name,
+      })),
+      styles: styles.map((style) => ({
+        id: style.id,
+        name: style.name,
+        imageUrl: style.imageUrl,
+      })),
+    };
+  }
+
   async getEditImageAISettings(): Promise<EditImageAISettingsResponse> {
     const [settings, colors, styles] = await Promise.all([
       this.mediaAISettingsRepository.find({
@@ -191,10 +238,9 @@ export class MediaAISettingsService {
       aiSettings: settings.map((setting) => ({
         aiService: setting.aiService,
         name: setting.name,
-        cost:
-          this.mediaGenerationPricingService.resolveVideoGenerationCost(
-            setting,
-          ),
+        cost: this.mediaGenerationPricingService.resolveVideoGenerationCost(
+          setting,
+        ),
         description: setting.description,
         settings:
           this.mediaGenerationPricingService.buildVideoAISettingsPayload(
@@ -225,10 +271,9 @@ export class MediaAISettingsService {
       aiSettings: settings.map((setting) => ({
         aiService: setting.aiService,
         name: setting.name,
-        cost:
-          this.mediaGenerationPricingService.resolveVideoGenerationCost(
-            setting,
-          ),
+        cost: this.mediaGenerationPricingService.resolveVideoGenerationCost(
+          setting,
+        ),
         description: setting.description,
         settings:
           this.mediaGenerationPricingService.buildVideoAISettingsPayload(
@@ -277,8 +322,7 @@ export class MediaAISettingsService {
                       setting.settings.pricing.strategy === 'per_second'
                         ? 'per_second'
                         : 'fixed',
-                    creditsPerSecond:
-                      setting.settings.pricing.creditsPerSecond,
+                    creditsPerSecond: setting.settings.pricing.creditsPerSecond,
                   }
                 : undefined,
             }

@@ -1,6 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
-import { MEDIA_ORIENTATIONS, MediaOrientation } from 'src/modules/media-generation/domain/presets';
+import {
+  MEDIA_ORIENTATIONS,
+  MediaOrientation,
+} from 'src/modules/media-generation/domain/presets';
 
 export class GeneratePromptImageDto {
   @IsString()
@@ -28,7 +31,7 @@ export class GeneratePromptImageDto {
 
   @IsInt()
   @Min(1)
-  @Max(4)
+  @Max(5)
   @ApiProperty({
     description: 'Number of images to generate.',
     minimum: 1,
@@ -40,7 +43,8 @@ export class GeneratePromptImageDto {
   @IsOptional()
   @IsInt()
   @ApiPropertyOptional({
-    description: 'Optional style ID. When provided, the backend enriches the prompt with the selected style.',
+    description:
+      'Optional style ID. When provided, the backend enriches the prompt with the selected style.',
     example: 12,
   })
   style_id?: number;
@@ -48,7 +52,8 @@ export class GeneratePromptImageDto {
   @IsOptional()
   @IsInt()
   @ApiPropertyOptional({
-    description: 'Optional color ID. When provided, the backend enriches the prompt with the selected color direction.',
+    description:
+      'Optional color ID. When provided, the backend enriches the prompt with the selected color direction.',
     example: 3,
   })
   color_id?: number;
@@ -56,7 +61,8 @@ export class GeneratePromptImageDto {
   @IsOptional()
   @IsInt()
   @ApiPropertyOptional({
-    description: 'Optional contest ID. When present, generated images are attached to the contest flow.',
+    description:
+      'Optional contest ID. When present, generated images are attached to the contest flow.',
     example: 12,
   })
   contest_id?: number;

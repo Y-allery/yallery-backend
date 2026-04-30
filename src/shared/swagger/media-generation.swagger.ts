@@ -91,6 +91,99 @@ This endpoint is intentionally separate from the legacy \`image-generation/ai-se
       },
     },
   },
+  getFineTunePromptImageAISettings: {
+    summary: 'Get fine-tune prompt image AI settings',
+    description: `Return prompt-image settings for fine-tune contests.
+
+This endpoint intentionally exposes only the active \`sdxl_lora_generation\` model so clients do not need to filter regular image generation models before entering a fine-tune contest flow.`,
+    responses: {
+      success: {
+        status: 200,
+        description:
+          'Fine-tune prompt image AI settings retrieved successfully.',
+        schema: {
+          type: 'object',
+          properties: {
+            defaultSettings: {
+              type: 'object',
+              properties: {
+                defaultAI: {
+                  type: 'string',
+                  example: 'sdxl_lora_generation',
+                  nullable: true,
+                },
+                defaultOrientations: {
+                  type: 'string',
+                  enum: ['horizontal', 'vertical'],
+                  example: 'vertical',
+                },
+              },
+            },
+            aiSettings: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  aiService: {
+                    type: 'string',
+                    example: 'sdxl_lora_generation',
+                  },
+                  name: { type: 'string', example: 'SDXL LoRA Generation' },
+                  allowedOrientations: {
+                    type: 'array',
+                    items: { type: 'string', enum: ['horizontal', 'vertical'] },
+                  },
+                  minImages: { type: 'number', example: 1 },
+                  maxImages: { type: 'number', example: 1 },
+                  maxPromptLength: {
+                    type: 'number',
+                    nullable: true,
+                    example: null,
+                  },
+                  cost: { type: 'number', example: 20 },
+                  description: {
+                    type: 'string',
+                    nullable: true,
+                    example:
+                      'Fine-tune contest image generation powered by SDXL LoRA.',
+                  },
+                },
+              },
+            },
+            colors: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'number', example: 1 },
+                  name: { type: 'string', example: 'Warm' },
+                },
+              },
+            },
+            styles: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'number', example: 12 },
+                  name: { type: 'string', example: 'Cinematic' },
+                  imageUrl: {
+                    type: 'string',
+                    nullable: true,
+                    example: 'https://res.cloudinary.com/example/style.png',
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      unauthorized: {
+        status: 401,
+        description: 'Unauthorized - invalid or missing JWT token.',
+      },
+    },
+  },
   getEditImageAISettings: {
     summary: 'Get image edit AI settings',
     description: `Return the image-edit models served by the new \`media-generation\` module.
@@ -118,7 +211,10 @@ This endpoint is separate from the legacy edit flow and reads from the new \`med
               items: {
                 type: 'object',
                 properties: {
-                  aiService: { type: 'string', example: 'qwen_image_edit_baked' },
+                  aiService: {
+                    type: 'string',
+                    example: 'qwen_image_edit_baked',
+                  },
                   name: { type: 'string', example: 'Qwen Image Edit Baked' },
                   cost: { type: 'number', example: 25 },
                   description: {
@@ -226,7 +322,11 @@ This endpoint is separate from the legacy video flow and reads from the new \`me
             defaultSettings: {
               type: 'object',
               properties: {
-                defaultAI: { type: 'string', example: 'p_video_text', nullable: true },
+                defaultAI: {
+                  type: 'string',
+                  example: 'p_video_text',
+                  nullable: true,
+                },
               },
             },
             aiSettings: {
@@ -305,7 +405,11 @@ This endpoint is separate from the legacy video flow and reads from the new \`me
             defaultSettings: {
               type: 'object',
               properties: {
-                defaultAI: { type: 'string', example: 'p_video_image', nullable: true },
+                defaultAI: {
+                  type: 'string',
+                  example: 'p_video_image',
+                  nullable: true,
+                },
               },
             },
             aiSettings: {
@@ -475,7 +579,8 @@ This endpoint is the new provider-facing abstraction for media generation. It re
       },
       badRequest: {
         status: 400,
-        description: 'Invalid request payload or unsupported model/orientation combination.',
+        description:
+          'Invalid request payload or unsupported model/orientation combination.',
       },
       unauthorized: {
         status: 401,
@@ -483,7 +588,8 @@ This endpoint is the new provider-facing abstraction for media generation. It re
       },
       notImplemented: {
         status: 501,
-        description: 'No media-generation route/provider is configured for the requested model yet.',
+        description:
+          'No media-generation route/provider is configured for the requested model yet.',
       },
     },
   },
@@ -531,7 +637,8 @@ This endpoint is the new provider-facing abstraction for media generation. It re
       },
       notImplemented: {
         status: 501,
-        description: 'No media-generation route/provider is configured for the requested image edit model yet.',
+        description:
+          'No media-generation route/provider is configured for the requested image edit model yet.',
       },
     },
   },
@@ -579,7 +686,8 @@ This endpoint is the new provider-facing abstraction for media generation. It re
       },
       notImplemented: {
         status: 501,
-        description: 'No media-generation route/provider is configured for the requested audio model yet.',
+        description:
+          'No media-generation route/provider is configured for the requested audio model yet.',
       },
     },
   },
@@ -606,7 +714,8 @@ This endpoint is the new provider-facing abstraction for media generation. It re
     responses: {
       success: {
         status: 201,
-        description: 'Text-to-video generation task has been queued successfully.',
+        description:
+          'Text-to-video generation task has been queued successfully.',
         schema: {
           type: 'object',
           properties: {
@@ -619,7 +728,8 @@ This endpoint is the new provider-facing abstraction for media generation. It re
       },
       badRequest: {
         status: 400,
-        description: 'Invalid request payload or unsupported text-to-video model.',
+        description:
+          'Invalid request payload or unsupported text-to-video model.',
       },
       unauthorized: {
         status: 401,
@@ -627,7 +737,8 @@ This endpoint is the new provider-facing abstraction for media generation. It re
       },
       notImplemented: {
         status: 501,
-        description: 'No media-generation route/provider is configured for the requested text-to-video model yet.',
+        description:
+          'No media-generation route/provider is configured for the requested text-to-video model yet.',
       },
     },
   },
@@ -654,7 +765,8 @@ This endpoint is the new provider-facing abstraction for media generation. It re
     responses: {
       success: {
         status: 201,
-        description: 'Image-to-video generation task has been queued successfully.',
+        description:
+          'Image-to-video generation task has been queued successfully.',
         schema: {
           type: 'object',
           properties: {
@@ -667,7 +779,8 @@ This endpoint is the new provider-facing abstraction for media generation. It re
       },
       badRequest: {
         status: 400,
-        description: 'Invalid request payload or unsupported image-to-video model.',
+        description:
+          'Invalid request payload or unsupported image-to-video model.',
       },
       unauthorized: {
         status: 401,
@@ -675,7 +788,8 @@ This endpoint is the new provider-facing abstraction for media generation. It re
       },
       notImplemented: {
         status: 501,
-        description: 'No media-generation route/provider is configured for the requested image-to-video model yet.',
+        description:
+          'No media-generation route/provider is configured for the requested image-to-video model yet.',
       },
     },
   },
@@ -715,7 +829,8 @@ This endpoint is the new provider-facing abstraction for media generation. It re
       },
       badRequest: {
         status: 400,
-        description: 'Invalid request payload, inactive meme template, or not enough credits.',
+        description:
+          'Invalid request payload, inactive meme template, or not enough credits.',
       },
       unauthorized: {
         status: 401,
@@ -723,7 +838,8 @@ This endpoint is the new provider-facing abstraction for media generation. It re
       },
       notImplemented: {
         status: 501,
-        description: 'No media-generation route/provider is configured for the requested meme model yet.',
+        description:
+          'No media-generation route/provider is configured for the requested meme model yet.',
       },
     },
   },
@@ -735,7 +851,8 @@ This endpoint is useful for understanding how the orchestration layer is structu
     responses: {
       success: {
         status: 200,
-        description: 'Capabilities and provider declarations returned successfully.',
+        description:
+          'Capabilities and provider declarations returned successfully.',
       },
       unauthorized: {
         status: 401,

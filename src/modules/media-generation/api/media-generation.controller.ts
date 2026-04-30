@@ -35,16 +35,37 @@ export class MediaGenerationController {
 
   @Get('image/prompt/ai-settings')
   @ApiOperation(MEDIA_GENERATION_SWAGGER.getPromptImageAISettings)
-  @ApiResponse(MEDIA_GENERATION_SWAGGER.getPromptImageAISettings.responses.success)
-  @ApiResponse(MEDIA_GENERATION_SWAGGER.getPromptImageAISettings.responses.unauthorized)
+  @ApiResponse(
+    MEDIA_GENERATION_SWAGGER.getPromptImageAISettings.responses.success,
+  )
+  @ApiResponse(
+    MEDIA_GENERATION_SWAGGER.getPromptImageAISettings.responses.unauthorized,
+  )
   getPromptImageAISettings() {
     return this.mediaAISettingsService.getPromptImageAISettings();
   }
 
+  @Get('image/finetune/ai-settings')
+  @ApiOperation(MEDIA_GENERATION_SWAGGER.getFineTunePromptImageAISettings)
+  @ApiResponse(
+    MEDIA_GENERATION_SWAGGER.getFineTunePromptImageAISettings.responses.success,
+  )
+  @ApiResponse(
+    MEDIA_GENERATION_SWAGGER.getFineTunePromptImageAISettings.responses
+      .unauthorized,
+  )
+  getFineTunePromptImageAISettings() {
+    return this.mediaAISettingsService.getFineTunePromptImageAISettings();
+  }
+
   @Get('image/edit/ai-settings')
   @ApiOperation(MEDIA_GENERATION_SWAGGER.getEditImageAISettings)
-  @ApiResponse(MEDIA_GENERATION_SWAGGER.getEditImageAISettings.responses.success)
-  @ApiResponse(MEDIA_GENERATION_SWAGGER.getEditImageAISettings.responses.unauthorized)
+  @ApiResponse(
+    MEDIA_GENERATION_SWAGGER.getEditImageAISettings.responses.success,
+  )
+  @ApiResponse(
+    MEDIA_GENERATION_SWAGGER.getEditImageAISettings.responses.unauthorized,
+  )
   getEditImageAISettings() {
     return this.mediaAISettingsService.getEditImageAISettings();
   }
@@ -52,23 +73,33 @@ export class MediaGenerationController {
   @Get('audio/ai-settings')
   @ApiOperation(MEDIA_GENERATION_SWAGGER.getAudioAISettings)
   @ApiResponse(MEDIA_GENERATION_SWAGGER.getAudioAISettings.responses.success)
-  @ApiResponse(MEDIA_GENERATION_SWAGGER.getAudioAISettings.responses.unauthorized)
+  @ApiResponse(
+    MEDIA_GENERATION_SWAGGER.getAudioAISettings.responses.unauthorized,
+  )
   getAudioAISettings() {
     return this.mediaAISettingsService.getAudioAISettings();
   }
 
   @Get('video/text/ai-settings')
   @ApiOperation(MEDIA_GENERATION_SWAGGER.getTextVideoAISettings)
-  @ApiResponse(MEDIA_GENERATION_SWAGGER.getTextVideoAISettings.responses.success)
-  @ApiResponse(MEDIA_GENERATION_SWAGGER.getTextVideoAISettings.responses.unauthorized)
+  @ApiResponse(
+    MEDIA_GENERATION_SWAGGER.getTextVideoAISettings.responses.success,
+  )
+  @ApiResponse(
+    MEDIA_GENERATION_SWAGGER.getTextVideoAISettings.responses.unauthorized,
+  )
   getTextVideoAISettings() {
     return this.mediaAISettingsService.getTextVideoAISettings();
   }
 
   @Get('video/image/ai-settings')
   @ApiOperation(MEDIA_GENERATION_SWAGGER.getImageVideoAISettings)
-  @ApiResponse(MEDIA_GENERATION_SWAGGER.getImageVideoAISettings.responses.success)
-  @ApiResponse(MEDIA_GENERATION_SWAGGER.getImageVideoAISettings.responses.unauthorized)
+  @ApiResponse(
+    MEDIA_GENERATION_SWAGGER.getImageVideoAISettings.responses.success,
+  )
+  @ApiResponse(
+    MEDIA_GENERATION_SWAGGER.getImageVideoAISettings.responses.unauthorized,
+  )
   getImageVideoAISettings() {
     return this.mediaAISettingsService.getImageVideoAISettings();
   }
@@ -76,7 +107,9 @@ export class MediaGenerationController {
   @Get('meme/ai-settings')
   @ApiOperation(MEDIA_GENERATION_SWAGGER.getMemeAISettings)
   @ApiResponse(MEDIA_GENERATION_SWAGGER.getMemeAISettings.responses.success)
-  @ApiResponse(MEDIA_GENERATION_SWAGGER.getMemeAISettings.responses.unauthorized)
+  @ApiResponse(
+    MEDIA_GENERATION_SWAGGER.getMemeAISettings.responses.unauthorized,
+  )
   getMemeAISettings() {
     return this.mediaAISettingsService.getMemeAISettings();
   }
@@ -85,12 +118,19 @@ export class MediaGenerationController {
   @ApiOperation(MEDIA_GENERATION_SWAGGER.generatePromptImage)
   @ApiBody({
     type: GeneratePromptImageDto,
-    description: 'Prompt-to-image generation request routed through media-generation.',
+    description:
+      'Prompt-to-image generation request routed through media-generation.',
   })
   @ApiResponse(MEDIA_GENERATION_SWAGGER.generatePromptImage.responses.success)
-  @ApiResponse(MEDIA_GENERATION_SWAGGER.generatePromptImage.responses.badRequest)
-  @ApiResponse(MEDIA_GENERATION_SWAGGER.generatePromptImage.responses.unauthorized)
-  @ApiResponse(MEDIA_GENERATION_SWAGGER.generatePromptImage.responses.notImplemented)
+  @ApiResponse(
+    MEDIA_GENERATION_SWAGGER.generatePromptImage.responses.badRequest,
+  )
+  @ApiResponse(
+    MEDIA_GENERATION_SWAGGER.generatePromptImage.responses.unauthorized,
+  )
+  @ApiResponse(
+    MEDIA_GENERATION_SWAGGER.generatePromptImage.responses.notImplemented,
+  )
   async generatePromptImage(
     @Body() dto: GeneratePromptImageDto,
     @Req() req: AuthenticatedRequest,
@@ -121,8 +161,12 @@ export class MediaGenerationController {
   })
   @ApiResponse(MEDIA_GENERATION_SWAGGER.generateEditImage.responses.success)
   @ApiResponse(MEDIA_GENERATION_SWAGGER.generateEditImage.responses.badRequest)
-  @ApiResponse(MEDIA_GENERATION_SWAGGER.generateEditImage.responses.unauthorized)
-  @ApiResponse(MEDIA_GENERATION_SWAGGER.generateEditImage.responses.notImplemented)
+  @ApiResponse(
+    MEDIA_GENERATION_SWAGGER.generateEditImage.responses.unauthorized,
+  )
+  @ApiResponse(
+    MEDIA_GENERATION_SWAGGER.generateEditImage.responses.notImplemented,
+  )
   async generateEditImage(
     @Body() dto: GenerateEditImageDto,
     @Req() req: AuthenticatedRequest,
@@ -177,12 +221,17 @@ export class MediaGenerationController {
   @ApiOperation(MEDIA_GENERATION_SWAGGER.generateTextVideo)
   @ApiBody({
     type: GenerateTextVideoDto,
-    description: 'Text-to-video generation request routed through media-generation.',
+    description:
+      'Text-to-video generation request routed through media-generation.',
   })
   @ApiResponse(MEDIA_GENERATION_SWAGGER.generateTextVideo.responses.success)
   @ApiResponse(MEDIA_GENERATION_SWAGGER.generateTextVideo.responses.badRequest)
-  @ApiResponse(MEDIA_GENERATION_SWAGGER.generateTextVideo.responses.unauthorized)
-  @ApiResponse(MEDIA_GENERATION_SWAGGER.generateTextVideo.responses.notImplemented)
+  @ApiResponse(
+    MEDIA_GENERATION_SWAGGER.generateTextVideo.responses.unauthorized,
+  )
+  @ApiResponse(
+    MEDIA_GENERATION_SWAGGER.generateTextVideo.responses.notImplemented,
+  )
   async generateTextVideo(
     @Body() dto: GenerateTextVideoDto,
     @Req() req: AuthenticatedRequest,
@@ -220,12 +269,17 @@ export class MediaGenerationController {
   @ApiOperation(MEDIA_GENERATION_SWAGGER.generateImageVideo)
   @ApiBody({
     type: GenerateImageVideoDto,
-    description: 'Image-to-video generation request routed through media-generation.',
+    description:
+      'Image-to-video generation request routed through media-generation.',
   })
   @ApiResponse(MEDIA_GENERATION_SWAGGER.generateImageVideo.responses.success)
   @ApiResponse(MEDIA_GENERATION_SWAGGER.generateImageVideo.responses.badRequest)
-  @ApiResponse(MEDIA_GENERATION_SWAGGER.generateImageVideo.responses.unauthorized)
-  @ApiResponse(MEDIA_GENERATION_SWAGGER.generateImageVideo.responses.notImplemented)
+  @ApiResponse(
+    MEDIA_GENERATION_SWAGGER.generateImageVideo.responses.unauthorized,
+  )
+  @ApiResponse(
+    MEDIA_GENERATION_SWAGGER.generateImageVideo.responses.notImplemented,
+  )
   async generateImageVideo(
     @Body() dto: GenerateImageVideoDto,
     @Req() req: AuthenticatedRequest,
