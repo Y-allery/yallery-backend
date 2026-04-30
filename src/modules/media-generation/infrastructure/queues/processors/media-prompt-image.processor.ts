@@ -24,7 +24,7 @@ export class MediaPromptImageProcessor extends BaseMediaProcessor {
     private readonly mediaGenerationFinalizeService: MediaGenerationFinalizeService,
     notificationGateway: NotificationGateway,
   ) {
-    super(notificationGateway);
+    super(notificationGateway, 'image');
   }
 
   async process(job: Job<MediaPromptImageJobData>) {

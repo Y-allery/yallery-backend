@@ -1,9 +1,15 @@
 import { WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
-import { NotificationGateway } from 'src/modules/notifications/notification.gateway';
+import {
+  MediaGenerationErrorType,
+  NotificationGateway,
+} from 'src/modules/notifications/notification.gateway';
 
 export abstract class BaseMediaProcessor extends WorkerHost {
-  constructor(protected readonly notificationGateway: NotificationGateway) {
+  constructor(
+    protected readonly notificationGateway: NotificationGateway,
+    private readonly mediaGenerationErrorType: MediaGenerationErrorType,
+  ) {
     super();
   }
 
@@ -72,16 +78,22 @@ export abstract class BaseMediaProcessor extends WorkerHost {
     }
 
     try {
+      const message = `${messagePrefix}: ${err.message}`;
       console.error(
-        `[${processorName}] Sending error notification for job ${job.id} after ${attemptsMade} failed attempts`,
+        `[${processorName}] Sending media generation error for job ${job.id} after ${attemptsMade} failed attempts`,
       );
-      await this.notificationGateway.sendErrorNotification(
+      await this.notificationGateway.sendMediaGenerationError(
         userId.toString(),
-        `${messagePrefix}: ${err.message}`,
+        {
+          type: this.mediaGenerationErrorType,
+          message,
+          jobId: job.id?.toString(),
+          aiService,
+        },
       );
     } catch (error) {
       console.error(
-        `[${processorName}] Failed to send error notification for job ${job.id}:`,
+        `[${processorName}] Failed to send media generation error for job ${job.id}:`,
         error,
       );
     }

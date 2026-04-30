@@ -24,7 +24,7 @@ export class MediaAudioProcessor extends BaseMediaProcessor {
     private readonly mediaGenerationFinalizeService: MediaGenerationFinalizeService,
     notificationGateway: NotificationGateway,
   ) {
-    super(notificationGateway);
+    super(notificationGateway, 'audio');
   }
 
   async process(job: Job<MediaAudioJobData>) {

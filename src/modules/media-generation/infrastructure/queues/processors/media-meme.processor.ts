@@ -24,7 +24,7 @@ export class MediaMemeProcessor extends BaseMediaProcessor {
     private readonly mediaGenerationFinalizeService: MediaGenerationFinalizeService,
     notificationGateway: NotificationGateway,
   ) {
-    super(notificationGateway);
+    super(notificationGateway, 'meme');
   }
 
   async process(job: Job<MediaMemeJobData>) {
@@ -65,21 +65,6 @@ export class MediaMemeProcessor extends BaseMediaProcessor {
 
   @OnWorkerEvent('failed')
   async onFailed(job: Job<MediaMemeJobData>, err: Error) {
-    const { aiService, userId } = job.data;
-    const attemptsMade = job.attemptsMade || 0;
-    const maxAttempts = job.opts?.attempts ?? 3;
-
-    console.error(
-      `Job ${job.id} for ${aiService || 'unknown'} failed in MediaMemeProcessor: ${err.message} | Attempts: ${attemptsMade}/${maxAttempts}`,
-    );
-
-    if (attemptsMade < maxAttempts || !userId) {
-      return;
-    }
-
-    await this.notificationGateway.sendMemeGenerationFailed(
-      userId.toString(),
-      MemeNotificationPresenter.failed(String(job.id), err.message),
-    );
+    await this.handleFailedGeneration(job, err, 'Generation failed');
   }
 }

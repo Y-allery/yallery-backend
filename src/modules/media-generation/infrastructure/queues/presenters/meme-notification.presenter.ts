@@ -24,11 +24,4 @@ export class MemeNotificationPresenter {
       publishTo: meme.publishTo,
     };
   }
-
-  static failed(jobId: string, error: string) {
-    return {
-      jobId,
-      error,
-    };
-  }
 }

@@ -24,7 +24,7 @@ export class MediaTextVideoProcessor extends BaseMediaProcessor {
     private readonly mediaGenerationFinalizeService: MediaGenerationFinalizeService,
     notificationGateway: NotificationGateway,
   ) {
-    super(notificationGateway);
+    super(notificationGateway, 'video');
   }
 
   async process(job: Job<MediaTextVideoJobData>) {

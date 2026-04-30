@@ -13,6 +13,13 @@ import { PostEntity } from 'src/modules/posts/entities/post.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TagEntity } from 'src/modules/catalog/tags/entities/tag.entity';
 
+export type MediaGenerationErrorType =
+  | 'image'
+  | 'image_edit'
+  | 'video'
+  | 'audio'
+  | 'meme';
+
 @WebSocketGateway({
   cors: {
     origin: '*',
@@ -228,10 +235,16 @@ export class NotificationGateway {
     }
   }
 
-  async sendErrorNotification(to_user_id: string, errorMessage: string) {
-    this.server.to(to_user_id).emit('error', {
-      error: errorMessage,
-    });
+  async sendMediaGenerationError(
+    toUserId: string,
+    payload: {
+      type: MediaGenerationErrorType;
+      message: string;
+      jobId?: string;
+      aiService?: string;
+    },
+  ) {
+    this.server.to(toUserId).emit('mediaGenerationError', payload);
   }
 
   /** Meme generation: progress (e.g. "started", "processing") */
@@ -264,14 +277,6 @@ export class NotificationGateway {
       { id: payload.id },
       { isDelivered: false },
     );
-  }
-
-  /** Meme generation: failed */
-  async sendMemeGenerationFailed(
-    toUserId: string,
-    payload: { jobId: string; error: string },
-  ) {
-    this.server.to(toUserId).emit('memeGenerationFailed', payload);
   }
 
   @SubscribeMessage('joinRoom')

@@ -24,7 +24,7 @@ export class MediaEditImageProcessor extends BaseMediaProcessor {
     private readonly mediaGenerationFinalizeService: MediaGenerationFinalizeService,
     notificationGateway: NotificationGateway,
   ) {
-    super(notificationGateway);
+    super(notificationGateway, 'image_edit');
   }
 
   async process(job: Job<MediaEditImageJobData>) {
