@@ -73,9 +73,10 @@ describe('GeneratedPostFactory', () => {
       55,
       'https://cdn.test/result.mp4',
       'https://cdn.test/result.jpg',
-      { width: 1080, height: 1080 },
+      { width: 1080, height: 1080, hasAudio: true },
     );
 
+    expect(post.hasAudio).toBe(true);
     expect(post.generationParams).toMatchObject({
       aiService: 'wan22_animate_native',
       memeId: 7,
@@ -99,6 +100,7 @@ describe('GeneratedPostFactory', () => {
         duration: 5,
         width: 1280,
         height: 720,
+        hasAudio: true,
       },
       55,
       'https://cdn.test/video.mp4',
@@ -114,5 +116,6 @@ describe('GeneratedPostFactory', () => {
       width: 1280,
       height: 720,
     });
+    expect(post.hasAudio).toBe(true);
   });
 });

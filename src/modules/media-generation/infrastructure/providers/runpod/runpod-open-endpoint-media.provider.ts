@@ -124,6 +124,7 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
       previewImageUrl: uploadedVideoAsset.previewImageUrl,
       width: uploadedVideoAsset.width,
       height: uploadedVideoAsset.height,
+      hasAudio: uploadedVideoAsset.hasAudio,
       rawOutput: completedJob.output,
     };
   }
@@ -146,6 +147,7 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
       videoUrl: uploadedVideoAsset.videoUrl,
       previewImageUrl: uploadedVideoAsset.previewImageUrl,
       ...this.resolvePresetBackedVideoDimensions(request, uploadedVideoAsset),
+      hasAudio: uploadedVideoAsset.hasAudio,
       rawOutput: completedJob.output,
     };
   }
@@ -168,6 +170,7 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
       videoUrl: uploadedVideoAsset.videoUrl,
       previewImageUrl: uploadedVideoAsset.previewImageUrl,
       ...this.resolvePresetBackedVideoDimensions(request, uploadedVideoAsset),
+      hasAudio: uploadedVideoAsset.hasAudio,
       rawOutput: completedJob.output,
     };
   }
@@ -191,6 +194,7 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
       previewImageUrl: uploadedVideoAsset.previewImageUrl,
       width: uploadedVideoAsset.width,
       height: uploadedVideoAsset.height,
+      hasAudio: uploadedVideoAsset.hasAudio,
       rawOutput: completedJob.output,
     };
   }

@@ -7,6 +7,7 @@ export interface StandardPost {
   imageUrl: string | null;
   videoUrl: string | null;
   previewImageUrl: string | null;
+  hasAudio: boolean | null;
   likeCount: number | null;
   viewCount: number | null;
   createdAt: Date | string | null;
@@ -37,4 +38,3 @@ export interface StandardPost {
     characterOrientation?: 'image' | 'video' | null;
   } | null;
 }
-

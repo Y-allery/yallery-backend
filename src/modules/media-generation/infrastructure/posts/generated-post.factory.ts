@@ -91,13 +91,17 @@ export class GeneratedPostFactory {
     videoUrl: string,
     previewImageUrl: string | null,
     tag: TagEntity | null,
-    videoDimensions?: { width?: number | null; height?: number | null },
+    videoMetadata?: {
+      width?: number | null;
+      height?: number | null;
+      hasAudio?: boolean | null;
+    },
   ): Promise<PostEntity> {
     const post = this.postRepository.create({
       user: { id: userId },
       imageUrl: null,
       videoUrl,
-      hasAudio: true,
+      hasAudio: videoMetadata?.hasAudio ?? true,
       previewImageUrl,
       tag,
       contest: request.contestId
@@ -109,8 +113,8 @@ export class GeneratedPostFactory {
         prompt: request.prompt,
         aiService: request.aiService,
         sourceVideoUrl: request.videoUrl,
-        width: videoDimensions?.width ?? null,
-        height: videoDimensions?.height ?? null,
+        width: videoMetadata?.width ?? null,
+        height: videoMetadata?.height ?? null,
       },
     });
 
@@ -127,6 +131,7 @@ export class GeneratedPostFactory {
       sourceImageUrl?: string;
       width?: number | null;
       height?: number | null;
+      hasAudio?: boolean | null;
     },
     userId: number,
     videoUrl: string,
@@ -137,7 +142,7 @@ export class GeneratedPostFactory {
       user: { id: userId },
       imageUrl: null,
       videoUrl,
-      hasAudio: false,
+      hasAudio: generationParams.hasAudio ?? false,
       previewImageUrl,
       tag,
       contest: generationParams.contestId
@@ -165,13 +170,17 @@ export class GeneratedPostFactory {
     userId: number,
     videoUrl: string,
     previewImageUrl: string | null,
-    videoDimensions?: { width?: number | null; height?: number | null },
+    videoMetadata?: {
+      width?: number | null;
+      height?: number | null;
+      hasAudio?: boolean | null;
+    },
   ): Promise<PostEntity> {
     const post = this.postRepository.create({
       user: { id: userId },
       imageUrl: null,
       videoUrl,
-      hasAudio: true,
+      hasAudio: videoMetadata?.hasAudio ?? true,
       previewImageUrl,
       tag: meme.tag,
       isPublished: false,
@@ -189,8 +198,8 @@ export class GeneratedPostFactory {
         billableDurationSeconds: meme.referenceVideoDurationSeconds
           ? Math.ceil(meme.referenceVideoDurationSeconds)
           : null,
-        width: videoDimensions?.width ?? null,
-        height: videoDimensions?.height ?? null,
+        width: videoMetadata?.width ?? null,
+        height: videoMetadata?.height ?? null,
         memeName: meme.name,
         characterOrientation: request.characterOrientation ?? null,
       },

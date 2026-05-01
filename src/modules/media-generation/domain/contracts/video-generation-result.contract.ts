@@ -3,5 +3,6 @@ export interface VideoGenerationResult {
   previewImageUrl?: string | null;
   width?: number | null;
   height?: number | null;
+  hasAudio?: boolean | null;
   rawOutput?: unknown;
 }

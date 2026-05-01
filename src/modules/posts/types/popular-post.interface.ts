@@ -13,6 +13,7 @@ export interface PopularPost {
   isPublished: boolean;
   isBlocked: boolean;
   isRejected: boolean;
+  hasAudio: boolean;
   isLiked: boolean;
   isViewed: boolean;
   generationParams?: {

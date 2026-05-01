@@ -38,6 +38,9 @@ export class PopularPostDto implements PopularPost {
   @ApiProperty({ description: 'Is post published' })
   isPublished: boolean;
 
+  @ApiProperty({ description: 'Whether the video post contains an audio track' })
+  hasAudio: boolean;
+
   @ApiProperty({ description: 'Is post blocked' })
   isBlocked: boolean;
 

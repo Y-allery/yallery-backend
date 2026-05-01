@@ -33,6 +33,7 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
         previewImageUrl: 'https://cdn.test/generated-preview.jpg',
         width: 1920,
         height: 1080,
+        hasAudio: true,
       })),
     } as unknown as UploadService;
 
@@ -99,6 +100,7 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
       previewImageUrl: 'https://cdn.test/generated-preview.jpg',
       width: 1920,
       height: 1080,
+      hasAudio: true,
     });
   });
 
@@ -130,6 +132,7 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
     );
     expect(result.width).toBe(1920);
     expect(result.height).toBe(1080);
+    expect(result.hasAudio).toBe(true);
   });
 
   it('uses video preset dimensions when Cloudinary metadata is missing for text video', async () => {
@@ -139,6 +142,7 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
       previewImageUrl: 'https://cdn.test/generated-preview.jpg',
       width: null,
       height: null,
+      hasAudio: null,
     });
 
     mockedAxios.post.mockResolvedValueOnce({
@@ -160,6 +164,7 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
 
     expect(result.width).toBe(1280);
     expect(result.height).toBe(720);
+    expect(result.hasAudio).toBeNull();
   });
 
   it('returns uploaded preview image URL for image video output', async () => {
@@ -191,6 +196,7 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
     );
     expect(result.width).toBe(1920);
     expect(result.height).toBe(1080);
+    expect(result.hasAudio).toBe(true);
   });
 
   it('returns uploaded preview image URL for meme output', async () => {
@@ -221,6 +227,7 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
     );
     expect(result.width).toBe(1920);
     expect(result.height).toBe(1080);
+    expect(result.hasAudio).toBe(true);
   });
 
   it('fails cleanly when RunPod completes without video output', async () => {

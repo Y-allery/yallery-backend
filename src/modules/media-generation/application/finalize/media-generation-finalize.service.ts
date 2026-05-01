@@ -183,7 +183,11 @@ export class MediaGenerationFinalizeService {
       result.videoUrl,
       audioPreset.generatePreviewFromVideo ? result.previewImageUrl ?? null : null,
       resolvedTag,
-      { width: result.width ?? null, height: result.height ?? null },
+      {
+        width: result.width ?? null,
+        height: result.height ?? null,
+        hasAudio: result.hasAudio ?? true,
+      },
     );
     const [savedPost] = await this.contestFlowService.completeGenerationPosts(
       request.contestSubmissionId,
@@ -249,6 +253,7 @@ export class MediaGenerationFinalizeService {
         contestId: request.contestId ?? null,
         width: result.width ?? null,
         height: result.height ?? null,
+        hasAudio: result.hasAudio ?? false,
       },
       user.id,
       result.videoUrl,
@@ -322,6 +327,7 @@ export class MediaGenerationFinalizeService {
         sourceImageUrl: request.imageUrl,
         width: result.width ?? null,
         height: result.height ?? null,
+        hasAudio: result.hasAudio ?? false,
       },
       user.id,
       result.videoUrl,
@@ -391,7 +397,11 @@ export class MediaGenerationFinalizeService {
       user.id,
       result.videoUrl,
       result.previewImageUrl ?? meme.referenceImageUrl ?? request.imageUrl,
-      { width: result.width ?? null, height: result.height ?? null },
+      {
+        width: result.width ?? null,
+        height: result.height ?? null,
+        hasAudio: result.hasAudio ?? true,
+      },
     );
 
     await this.userActivityService.logMediaGenerationSpent({

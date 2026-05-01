@@ -72,7 +72,10 @@ export class PostFeedService {
 
     const normalizedPosts = posts.map((post) => ({
       ...post,
-      generationParams: this.normalizeGenerationParams(post.generationParams),
+      hasAudio: Boolean(post.hasAudio),
+      generationParams: this.normalizeGenerationParams(
+        this.parseGenerationParams(post.generationParams),
+      ),
     }));
 
     return {
@@ -114,7 +117,8 @@ export class PostFeedService {
           ELSE FALSE
         END AS isViewed,
         p.generationParams AS generationParams,
-        p.isPublished AS isPublished
+        p.isPublished AS isPublished,
+        p.hasAudio AS hasAudio
       FROM posts p
       JOIN users u ON p.userId = u.id
       JOIN tags t ON p.tagId = t.id
@@ -144,7 +148,10 @@ export class PostFeedService {
 
     const normalizedPosts = posts.map((post) => ({
       ...post,
-      generationParams: this.normalizeGenerationParams(post.generationParams),
+      hasAudio: Boolean(post.hasAudio),
+      generationParams: this.normalizeGenerationParams(
+        this.parseGenerationParams(post.generationParams),
+      ),
     }));
 
     return {
@@ -212,6 +219,7 @@ export class PostFeedService {
 
     const data = posts.map((post) => ({
       ...post,
+      hasAudio: Boolean(post.hasAudio),
       generationParams: this.normalizeGenerationParams(
         this.parseGenerationParams(post.generationParams),
       ),
@@ -291,6 +299,7 @@ export class PostFeedService {
 
     const data = posts.map((post) => ({
       ...post,
+      hasAudio: Boolean(post.hasAudio),
       generationParams: this.normalizeGenerationParams(
         this.parseGenerationParams(post.generationParams),
       ),
@@ -344,7 +353,8 @@ export class PostFeedService {
             THEN TRUE
             ELSE FALSE
           END AS isViewed,
-          p.generationParams AS generationParams
+          p.generationParams AS generationParams,
+          p.hasAudio AS hasAudio
         FROM
           posts p
           JOIN users u ON p.userId = u.id
@@ -400,7 +410,8 @@ export class PostFeedService {
               THEN TRUE
               ELSE FALSE
             END AS isViewed,
-            p.generationParams AS generationParams
+            p.generationParams AS generationParams,
+            p.hasAudio AS hasAudio
           FROM
             posts p
             JOIN users u ON p.userId = u.id
@@ -458,7 +469,8 @@ export class PostFeedService {
               THEN TRUE
               ELSE FALSE
             END AS isViewed,
-            p.generationParams AS generationParams
+            p.generationParams AS generationParams,
+            p.hasAudio AS hasAudio
           FROM
             posts p
             JOIN users u ON p.userId = u.id
@@ -512,12 +524,15 @@ export class PostFeedService {
         tagName: item.post.tagName,
         tagId: item.post.tagId,
         isPublished: item.post.isPublished,
+        hasAudio: Boolean(item.post.hasAudio),
         isBlocked: item.post.isBlocked || false,
         isRejected: item.post.isRejected || false,
         isLiked: item.post.isLiked,
         isViewed: item.post.isViewed,
         generationParams:
-          this.normalizeGenerationParams(item.post.generationParams) || null,
+          this.normalizeGenerationParams(
+            this.parseGenerationParams(item.post.generationParams),
+          ) || null,
       }));
 
       return {

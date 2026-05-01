@@ -9,6 +9,7 @@ export interface UploadedVideoAsset {
   previewImageUrl: string | null;
   width: number | null;
   height: number | null;
+  hasAudio: boolean | null;
 }
 
 @Injectable()
@@ -126,6 +127,7 @@ export class UploadService {
             const previewImageUrl = result?.eager?.[0]?.secure_url ?? null;
             const width = this.toFiniteNumberOrNull(result?.width);
             const height = this.toFiniteNumberOrNull(result?.height);
+            const hasAudio = this.resolveHasAudio(result);
             if (!previewImageUrl) {
               console.warn(
                 `[UploadService] Cloudinary video upload did not return eager preview for ${result?.public_id ?? videoUrl}`,
@@ -142,11 +144,39 @@ export class UploadService {
               previewImageUrl,
               width,
               height,
+              hasAudio,
             });
           }
         },
       );
     });
+  }
+
+  private resolveHasAudio(result: Record<string, any>): boolean | null {
+    const directAudio = result.audio;
+    if (typeof directAudio === 'boolean') {
+      return directAudio;
+    }
+    if (directAudio && typeof directAudio === 'object') {
+      return Object.values(directAudio).some((value) => Boolean(value));
+    }
+
+    const audioCodec =
+      result.audio_codec ??
+      result.audioCodec ??
+      result.audio?.codec ??
+      result.media_metadata?.audio_codec ??
+      result.metadata?.audio_codec;
+
+    if (typeof audioCodec === 'string') {
+      const normalizedCodec = audioCodec.trim().toLowerCase();
+      if (!normalizedCodec || normalizedCodec === 'none') {
+        return false;
+      }
+      return true;
+    }
+
+    return null;
   }
 
   private toFiniteNumberOrNull(value: unknown): number | null {

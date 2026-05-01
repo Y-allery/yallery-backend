@@ -58,11 +58,12 @@ describe('PostFeedService', () => {
   it('does not expose top-level suggestedTags in published posts', async () => {
     const { service, postRepository } = createService();
     postRepository.query
-      .mockResolvedValueOnce([postRow])
+      .mockResolvedValueOnce([{ ...postRow, hasAudio: 1 }])
       .mockResolvedValueOnce([{ total: '1' }]);
 
     const result = await service.getPublishedPosts(55);
 
+    expect(result.data[0].hasAudio).toBe(true);
     expect(result.data[0]).not.toHaveProperty('suggestedTags');
     expect(result.data[0].generationParams).not.toHaveProperty('suggestedTags');
   });
@@ -77,5 +78,22 @@ describe('PostFeedService', () => {
 
     expect(result.data[0]).not.toHaveProperty('suggestedTags');
     expect(result.data[0].generationParams).not.toHaveProperty('suggestedTags');
+  });
+
+  it('returns hasAudio in popular posts', async () => {
+    const { service, postRepository } = createService();
+    postRepository.query.mockResolvedValueOnce(
+      Array.from({ length: 6 }, (_, index) => ({
+        ...postRow,
+        id: index + 1,
+        hasAudio: true,
+      })),
+    );
+
+    const result = await service.getPopularPosts(55);
+
+    expect(result.posts[0].hasAudio).toBe(true);
+    expect(result.posts[0]).not.toHaveProperty('suggestedTags');
+    expect(result.posts[0].generationParams).not.toHaveProperty('suggestedTags');
   });
 });
