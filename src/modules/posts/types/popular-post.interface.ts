@@ -19,9 +19,8 @@ export interface PopularPost {
     prompt?: string;
     aiService?: string;
     orientation?: 'horizontal' | 'vertical';
-    width?: number;
-    height?: number;
-    suggestedTags?: { id: number | null; name: string | null }[] | null;
+    width?: number | null;
+    height?: number | null;
   } | null;
 }
 

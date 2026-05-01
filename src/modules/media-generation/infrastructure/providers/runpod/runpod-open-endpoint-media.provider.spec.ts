@@ -31,6 +31,8 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
       uploadVideoAssetByUrl: jest.fn(async () => ({
         videoUrl: 'https://cdn.test/generated.mp4',
         previewImageUrl: 'https://cdn.test/generated-preview.jpg',
+        width: 1920,
+        height: 1080,
       })),
     } as unknown as UploadService;
 
@@ -95,6 +97,8 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
     expect(result).toMatchObject({
       videoUrl: 'https://cdn.test/generated.mp4',
       previewImageUrl: 'https://cdn.test/generated-preview.jpg',
+      width: 1920,
+      height: 1080,
     });
   });
 
@@ -124,6 +128,38 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
     expect(result.previewImageUrl).toBe(
       'https://cdn.test/generated-preview.jpg',
     );
+    expect(result.width).toBe(1920);
+    expect(result.height).toBe(1080);
+  });
+
+  it('uses video preset dimensions when Cloudinary metadata is missing for text video', async () => {
+    const { provider, uploadService } = createProvider();
+    (uploadService.uploadVideoAssetByUrl as jest.Mock).mockResolvedValueOnce({
+      videoUrl: 'https://cdn.test/generated.mp4',
+      previewImageUrl: 'https://cdn.test/generated-preview.jpg',
+      width: null,
+      height: null,
+    });
+
+    mockedAxios.post.mockResolvedValueOnce({
+      data: {
+        id: 'job-1',
+        status: 'COMPLETED',
+        output: {
+          videos: [{ base64: 'BBBB', mime_type: 'video/mp4' }],
+        },
+      },
+    });
+
+    const result = await provider.generateTextVideos({
+      aiService: 'p_video_text',
+      prompt: 'a cinematic robot',
+      orientation: 'horizontal',
+      duration: 5,
+    });
+
+    expect(result.width).toBe(1280);
+    expect(result.height).toBe(720);
   });
 
   it('returns uploaded preview image URL for image video output', async () => {
@@ -153,6 +189,8 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
     expect(result.previewImageUrl).toBe(
       'https://cdn.test/generated-preview.jpg',
     );
+    expect(result.width).toBe(1920);
+    expect(result.height).toBe(1080);
   });
 
   it('returns uploaded preview image URL for meme output', async () => {
@@ -181,6 +219,8 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
     expect(result.previewImageUrl).toBe(
       'https://cdn.test/generated-preview.jpg',
     );
+    expect(result.width).toBe(1920);
+    expect(result.height).toBe(1080);
   });
 
   it('fails cleanly when RunPod completes without video output', async () => {

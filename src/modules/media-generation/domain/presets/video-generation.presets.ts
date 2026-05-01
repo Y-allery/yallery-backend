@@ -6,13 +6,15 @@ import {
 type VideoOutputPreset = {
   size: string;
   aspectRatio: string;
+  width: number;
+  height: number;
 };
 
 type VideoPresetMap = Partial<Record<MediaOrientation, VideoOutputPreset>>;
 
 const DEFAULT_VIDEO_PRESETS: Record<MediaOrientation, VideoOutputPreset> = {
-  vertical: { size: '720p', aspectRatio: '9:16' },
-  horizontal: { size: '720p', aspectRatio: '16:9' },
+  vertical: { size: '720p', aspectRatio: '9:16', width: 720, height: 1280 },
+  horizontal: { size: '720p', aspectRatio: '16:9', width: 1280, height: 720 },
 };
 
 const VIDEO_PRESET_OVERRIDES: Record<string, VideoPresetMap> = {};

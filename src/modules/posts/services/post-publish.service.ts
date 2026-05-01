@@ -164,7 +164,6 @@ export class PostPublishService {
     imageUrl: string,
     userId: number,
     contestId: number | null,
-    suggestedTags?: { id: number; name: string }[],
   ) {
     let actualWidth: number | undefined = undefined;
     let actualHeight: number | undefined = undefined;
@@ -195,7 +194,6 @@ export class PostPublishService {
         width: actualWidth,
         height: actualHeight,
         negativePrompt: undefined,
-        suggestedTags: suggestedTags || undefined,
       },
     });
 

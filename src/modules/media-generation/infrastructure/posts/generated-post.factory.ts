@@ -91,6 +91,7 @@ export class GeneratedPostFactory {
     videoUrl: string,
     previewImageUrl: string | null,
     tag: TagEntity | null,
+    videoDimensions?: { width?: number | null; height?: number | null },
   ): Promise<PostEntity> {
     const post = this.postRepository.create({
       user: { id: userId },
@@ -108,6 +109,8 @@ export class GeneratedPostFactory {
         prompt: request.prompt,
         aiService: request.aiService,
         sourceVideoUrl: request.videoUrl,
+        width: videoDimensions?.width ?? null,
+        height: videoDimensions?.height ?? null,
       },
     });
 
@@ -122,6 +125,8 @@ export class GeneratedPostFactory {
       duration: number;
       contestId?: number | null;
       sourceImageUrl?: string;
+      width?: number | null;
+      height?: number | null;
     },
     userId: number,
     videoUrl: string,
@@ -146,6 +151,8 @@ export class GeneratedPostFactory {
         orientation: generationParams.orientation,
         duration: generationParams.duration,
         sourceImageUrl: generationParams.sourceImageUrl,
+        width: generationParams.width ?? null,
+        height: generationParams.height ?? null,
       },
     });
 
@@ -158,17 +165,8 @@ export class GeneratedPostFactory {
     userId: number,
     videoUrl: string,
     previewImageUrl: string | null,
+    videoDimensions?: { width?: number | null; height?: number | null },
   ): Promise<PostEntity> {
-    const suggestedTags = meme.tag
-      ? [
-          {
-            id: meme.tag.id,
-            name: `#${meme.tag.name}`,
-            imageUrl: meme.tag.imageUrl,
-          },
-        ]
-      : [];
-
     const post = this.postRepository.create({
       user: { id: userId },
       imageUrl: null,
@@ -191,9 +189,10 @@ export class GeneratedPostFactory {
         billableDurationSeconds: meme.referenceVideoDurationSeconds
           ? Math.ceil(meme.referenceVideoDurationSeconds)
           : null,
+        width: videoDimensions?.width ?? null,
+        height: videoDimensions?.height ?? null,
         memeName: meme.name,
         characterOrientation: request.characterOrientation ?? null,
-        suggestedTags,
       },
     });
 

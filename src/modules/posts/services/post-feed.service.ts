@@ -210,19 +210,12 @@ export class PostFeedService {
     const total = parseInt(totalResult[0]?.total || '0', 10);
     const totalPages = Math.ceil(total / safeLimit) || 1;
 
-    const data = posts.map((post) => {
-      const rawParams = this.parseGenerationParams(post.generationParams);
-      const generationParams = this.normalizeGenerationParams(rawParams);
-      const suggestedTags =
-        rawParams && Array.isArray(rawParams.suggestedTags)
-          ? rawParams.suggestedTags
-          : [];
-      return {
-        ...post,
-        generationParams,
-        suggestedTags,
-      };
-    });
+    const data = posts.map((post) => ({
+      ...post,
+      generationParams: this.normalizeGenerationParams(
+        this.parseGenerationParams(post.generationParams),
+      ),
+    }));
 
     return {
       data,
@@ -296,19 +289,12 @@ export class PostFeedService {
     const total = parseInt(totalResult[0]?.total || '0', 10);
     const totalPages = Math.ceil(total / safeLimit) || 1;
 
-    const data = posts.map((post) => {
-      const rawParams = this.parseGenerationParams(post.generationParams);
-      const generationParams = this.normalizeGenerationParams(rawParams);
-      const suggestedTags =
-        rawParams && Array.isArray(rawParams.suggestedTags)
-          ? rawParams.suggestedTags
-          : [];
-      return {
-        ...post,
-        generationParams,
-        suggestedTags,
-      };
-    });
+    const data = posts.map((post) => ({
+      ...post,
+      generationParams: this.normalizeGenerationParams(
+        this.parseGenerationParams(post.generationParams),
+      ),
+    }));
 
     return {
       data,
@@ -567,20 +553,18 @@ export class PostFeedService {
         prompt: 'Unknown',
         ai_service: 'flux',
         orientation: 'vertical',
-        suggestedTags: [],
       };
     }
 
     return {
       prompt: params.prompt || 'Unknown',
-      ai_service: params.ai_service || 'flux',
+      ai_service: params.ai_service || params.aiService || 'flux',
       orientation: params.orientation || 'vertical',
       style_id: params.style_id,
       color_id: params.color_id,
       width: params.width,
       height: params.height,
-      negative_prompt: params.negative_prompt,
-      suggestedTags: Array.isArray(params.suggestedTags) ? params.suggestedTags : [],
+      negative_prompt: params.negative_prompt || params.negativePrompt,
     };
   }
 }

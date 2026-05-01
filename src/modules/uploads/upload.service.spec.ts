@@ -38,6 +38,8 @@ describe('UploadService video assets', () => {
       callback(null, {
         secure_url: 'https://cdn.test/video.mp4',
         public_id: 'octoai_videos/video',
+        width: 1920,
+        height: 1080,
         eager: [{ secure_url: 'https://cdn.test/video-preview.jpg' }],
       });
     });
@@ -64,6 +66,8 @@ describe('UploadService video assets', () => {
     expect(result).toEqual({
       videoUrl: 'https://cdn.test/video.mp4',
       previewImageUrl: 'https://cdn.test/video-preview.jpg',
+      width: 1920,
+      height: 1080,
     });
   });
 
@@ -81,6 +85,8 @@ describe('UploadService video assets', () => {
     ).resolves.toEqual({
       videoUrl: 'https://cdn.test/video.mp4',
       previewImageUrl: null,
+      width: null,
+      height: null,
     });
 
     expect(warnSpy).toHaveBeenCalled();

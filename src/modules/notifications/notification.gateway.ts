@@ -11,7 +11,6 @@ import { UserService } from 'src/modules/users/user.service';
 import { In, Repository } from 'typeorm';
 import { PostEntity } from 'src/modules/posts/entities/post.entity';
 import { InjectRepository } from '@nestjs/typeorm';
-import { TagEntity } from 'src/modules/catalog/tags/entities/tag.entity';
 
 export type MediaGenerationErrorType =
   | 'image'
@@ -35,8 +34,6 @@ export class NotificationGateway {
     private readonly userService: UserService,
     @InjectRepository(PostEntity)
     private readonly postRepository: Repository<PostEntity>,
-    @InjectRepository(TagEntity)
-    private readonly tagRepository: Repository<TagEntity>,
   ) {}
 
   @WebSocketServer()
@@ -142,7 +139,6 @@ export class NotificationGateway {
       previewImageUrl?: string;
       generationParams?: any;
       generation_params?: any;
-      suggestedTags: { id: number; name: string; imageUrl: string }[];
       publishTo?: { postToTwitter: boolean; postToInstagram: boolean };
     },
     activity_type?: string,
@@ -173,13 +169,9 @@ export class NotificationGateway {
       }
       this.server.to(to_user_id).emit('videoGenerated', payload);
     } else {
-      const suggestedTagId = video.suggestedTags?.[0]?.id ?? null;
       await this.postRepository.update(
         { id: video.id },
-        {
-          isDelivered: false,
-          ...(suggestedTagId ? { tag: { id: suggestedTagId } } : {}),
-        },
+        { isDelivered: false },
       );
     }
   }
@@ -193,7 +185,6 @@ export class NotificationGateway {
       previewImageUrl?: string;
       generationParams?: any;
       generation_params?: any;
-      suggestedTags: { id: number; name: string; imageUrl: string }[];
       publishTo?: { postToTwitter: boolean; postToInstagram: boolean };
     },
     activity_type?: string,
@@ -224,13 +215,9 @@ export class NotificationGateway {
       }
       this.server.to(to_user_id).emit('audioGenerated', payload);
     } else {
-      const suggestedTagId = video.suggestedTags?.[0]?.id ?? null;
       await this.postRepository.update(
         { id: video.id },
-        {
-          isDelivered: false,
-          ...(suggestedTagId ? { tag: { id: suggestedTagId } } : {}),
-        },
+        { isDelivered: false },
       );
     }
   }
@@ -294,7 +281,7 @@ export class NotificationGateway {
 
     const undeliveredPosts = await this.postRepository.find({
       where: { user: { id: userId }, isDelivered: false },
-      relations: ['tag', 'contest'],
+      relations: ['contest'],
     });
 
     const getPublishTo = (contest: { socialPostSettings?: { postToTwitter?: boolean; postToInstagram?: boolean } | null } | null) => {
@@ -306,14 +293,6 @@ export class NotificationGateway {
     };
 
     if (undeliveredPosts.length > 0) {
-      const OTHER_TAG = {
-        id: 48,
-        name: '#other',
-        imageUrl:
-          'https://res.cloudinary.com/dsypundib/image/upload/v1732808917/other_tag-min_qd9y0c.png',
-      };
-
-      
       const imageEdits = undeliveredPosts
         .filter(
           (post) =>
@@ -327,7 +306,6 @@ export class NotificationGateway {
           videoUrl: post.videoUrl,
           previewImageUrl: post.previewImageUrl,
           generationParams: post.generationParams,
-          tagId: post.tag?.id,
           publishTo: getPublishTo(post.contest ?? null),
         }));
 
@@ -344,7 +322,6 @@ export class NotificationGateway {
           videoUrl: post.videoUrl,
           previewImageUrl: post.previewImageUrl,
           generationParams: post.generationParams,
-          tagId: post.tag?.id,
           publishTo: getPublishTo(post.contest ?? null),
         }));
 
@@ -356,7 +333,6 @@ export class NotificationGateway {
           videoUrl: post.videoUrl,
           previewImageUrl: post.previewImageUrl,
           generationParams: post.generationParams,
-          tagId: post.tag?.id,
           publishTo: getPublishTo(post.contest ?? null),
         }));
 
@@ -367,7 +343,6 @@ export class NotificationGateway {
           videoUrl: post.videoUrl,
           previewImageUrl: post.previewImageUrl,
           generationParams: post.generationParams,
-          tagId: post.tag?.id,
           publishTo: getPublishTo(post.contest ?? null),
         }));
 
@@ -378,43 +353,10 @@ export class NotificationGateway {
           videoUrl: post.videoUrl,
           previewImageUrl: post.previewImageUrl,
           generationParams: post.generationParams,
-          tagId: post.tag?.id,
           publishTo: getPublishTo(post.contest ?? null),
         }));
 
-      
-      const allTagIds = [
-        ...images.map((img) => img.tagId),
-        ...imageEdits.map((img) => img.tagId),
-        ...memes.map((m) => m.tagId),
-        ...videos.map((vid) => vid.tagId),
-        ...audioVideos.map((aud) => aud.tagId),
-      ]
-        .filter((id) => id && id !== 48)
-        .filter((id, idx, arr) => arr.indexOf(id) === idx);
-
-      let tagEntities: TagEntity[] = [];
-      if (allTagIds.length > 0) {
-        tagEntities = await this.tagRepository.findBy({ id: In(allTagIds) });
-      }
-
       if (images.length > 0 && client.connected) {
-    
-        let suggestedTags = [OTHER_TAG];
-        const imageTagIds = images
-          .map((img) => img.tagId)
-          .filter((id) => id && id !== 48)
-          .filter((id, idx, arr) => arr.indexOf(id) === idx);
-        for (const tagId of imageTagIds) {
-          const foundTag = tagEntities.find((t) => t.id === tagId);
-          if (foundTag && !suggestedTags.find((t) => t.id === foundTag.id)) {
-            suggestedTags.push({
-              id: foundTag.id,
-              name: foundTag.name,
-              imageUrl: foundTag.imageUrl,
-            });
-          }
-        }
         client.emit('undeliveredImages', {
           images: {
             data: images.map(({ id, imageUrl, videoUrl, previewImageUrl, generationParams, publishTo }) => ({
@@ -446,21 +388,6 @@ export class NotificationGateway {
       }
 
       if (videos.length > 0 && client.connected) {
-        let suggestedTags = [OTHER_TAG];
-        const videoTagIds = videos
-          .map((vid) => vid.tagId)
-          .filter((id) => id && id !== 48)
-          .filter((id, idx, arr) => arr.indexOf(id) === idx);
-        for (const tagId of videoTagIds) {
-          const foundTag = tagEntities.find((t) => t.id === tagId);
-          if (foundTag && !suggestedTags.find((t) => t.id === foundTag.id)) {
-            suggestedTags.push({
-              id: foundTag.id,
-              name: foundTag.name,
-              imageUrl: foundTag.imageUrl,
-            });
-          }
-        }
         client.emit('undeliveredVideo', {
           video: {
             data: videos.map(({ id, videoUrl, previewImageUrl, generationParams, publishTo }) => ({

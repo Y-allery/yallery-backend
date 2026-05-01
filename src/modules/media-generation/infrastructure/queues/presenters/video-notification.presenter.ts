@@ -14,7 +14,6 @@ export class VideoNotificationPresenter {
       videoUrl: video.videoUrl,
       previewImageUrl: video.previewImageUrl,
       generationParams: video.generationParams,
-      suggestedTags: [],
       publishTo: video.publishTo,
     };
   }

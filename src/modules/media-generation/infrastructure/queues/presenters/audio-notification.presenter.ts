@@ -14,7 +14,6 @@ export class AudioNotificationPresenter {
       videoUrl: audio.videoUrl,
       previewImageUrl: audio.previewImageUrl,
       generationParams: audio.generationParams,
-      suggestedTags: [],
       publishTo: audio.publishTo,
     };
   }

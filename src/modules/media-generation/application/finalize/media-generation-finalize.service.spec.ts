@@ -32,21 +32,29 @@ describe('MediaGenerationFinalizeService', () => {
       generateAudio: jest.fn(async () => ({
         videoUrl: 'https://cdn.test/result.mp4',
         previewImageUrl: 'https://cdn.test/eager-preview.jpg',
+        width: 1920,
+        height: 1080,
         rawOutput: { job: 'ok' },
       })),
       generateTextVideos: jest.fn(async () => ({
         videoUrl: 'https://cdn.test/text-video.mp4',
         previewImageUrl: 'https://cdn.test/text-video-preview.jpg',
+        width: 1280,
+        height: 720,
         rawOutput: { job: 'text-video-ok' },
       })),
       generateImageVideos: jest.fn(async () => ({
         videoUrl: 'https://cdn.test/image-video.mp4',
         previewImageUrl: 'https://cdn.test/image-video-preview.jpg',
+        width: 720,
+        height: 1280,
         rawOutput: { job: 'image-video-ok' },
       })),
       generateMemes: jest.fn(async () => ({
         videoUrl: 'https://cdn.test/meme.mp4',
         previewImageUrl: 'https://cdn.test/meme-preview.jpg',
+        width: 1080,
+        height: 1080,
         rawOutput: { job: 'meme-ok' },
       })),
     };
@@ -138,6 +146,7 @@ describe('MediaGenerationFinalizeService', () => {
       'https://cdn.test/result.mp4',
       'https://cdn.test/eager-preview.jpg',
       null,
+      { width: 1920, height: 1080 },
     );
     expect(userActivityService.logMediaGenerationSpent).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -168,7 +177,11 @@ describe('MediaGenerationFinalizeService', () => {
     );
 
     expect(generatedPostFactory.createVideoPost).toHaveBeenCalledWith(
-      expect.objectContaining({ aiService: 'p_video_text' }),
+      expect.objectContaining({
+        aiService: 'p_video_text',
+        width: 1280,
+        height: 720,
+      }),
       55,
       'https://cdn.test/text-video.mp4',
       'https://cdn.test/text-video-preview.jpg',
@@ -191,7 +204,11 @@ describe('MediaGenerationFinalizeService', () => {
     );
 
     expect(generatedPostFactory.createVideoPost).toHaveBeenCalledWith(
-      expect.objectContaining({ sourceImageUrl: 'https://cdn.test/source.png' }),
+      expect.objectContaining({
+        sourceImageUrl: 'https://cdn.test/source.png',
+        width: 720,
+        height: 1280,
+      }),
       55,
       'https://cdn.test/image-video.mp4',
       'https://cdn.test/image-video-preview.jpg',
@@ -206,6 +223,8 @@ describe('MediaGenerationFinalizeService', () => {
     mediaGenerationExecutionService.generateImageVideos.mockResolvedValueOnce({
       videoUrl: 'https://cdn.test/image-video.mp4',
       previewImageUrl: null,
+      width: null,
+      height: null,
       rawOutput: { job: 'image-video-ok' },
     });
 
@@ -248,6 +267,7 @@ describe('MediaGenerationFinalizeService', () => {
       55,
       'https://cdn.test/meme.mp4',
       'https://cdn.test/meme-preview.jpg',
+      { width: 1080, height: 1080 },
     );
   });
 });

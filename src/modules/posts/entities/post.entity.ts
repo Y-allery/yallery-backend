@@ -99,11 +99,10 @@ export class PostEntity extends TimeStampEntity {
     loraKey?: string | null;
     loraScale?: number | null;
     triggerWord?: string | null;
-    width?: number;
-    height?: number;
+    width?: number | null;
+    height?: number | null;
     duration?: number;
     negativePrompt?: string;
-    suggestedTags?: { id: number; name: string; imageUrl?: string | null }[];
     /** Meme generation (Kling motion control) */
     memeId?: number;
     sourceImageUrl?: string;

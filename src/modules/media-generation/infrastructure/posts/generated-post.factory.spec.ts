@@ -73,6 +73,7 @@ describe('GeneratedPostFactory', () => {
       55,
       'https://cdn.test/result.mp4',
       'https://cdn.test/result.jpg',
+      { width: 1080, height: 1080 },
     );
 
     expect(post.generationParams).toMatchObject({
@@ -81,6 +82,37 @@ describe('GeneratedPostFactory', () => {
       billableDurationSeconds: 5,
       sourceImageUrl: 'https://cdn.test/input.png',
       sourceVideoUrl: 'https://cdn.test/reference.mp4',
+      width: 1080,
+      height: 1080,
+    });
+    expect(post.generationParams).not.toHaveProperty('suggestedTags');
+  });
+
+  it('shapes video generation params with dimensions', async () => {
+    const { factory } = createFactory();
+
+    const post = await factory.createVideoPost(
+      {
+        aiService: 'p_video_text',
+        prompt: 'cinematic robot',
+        orientation: 'horizontal',
+        duration: 5,
+        width: 1280,
+        height: 720,
+      },
+      55,
+      'https://cdn.test/video.mp4',
+      'https://cdn.test/video-preview.jpg',
+      null,
+    );
+
+    expect(post.generationParams).toMatchObject({
+      aiService: 'p_video_text',
+      prompt: 'cinematic robot',
+      orientation: 'horizontal',
+      duration: 5,
+      width: 1280,
+      height: 720,
     });
   });
 });

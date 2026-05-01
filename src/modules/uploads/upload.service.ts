@@ -7,6 +7,8 @@ import { Worker } from 'worker_threads';
 export interface UploadedVideoAsset {
   videoUrl: string;
   previewImageUrl: string | null;
+  width: number | null;
+  height: number | null;
 }
 
 @Injectable()
@@ -122,20 +124,36 @@ export class UploadService {
             reject(new Error('Cloudinary video upload did not return secure_url'));
           } else {
             const previewImageUrl = result?.eager?.[0]?.secure_url ?? null;
+            const width = this.toFiniteNumberOrNull(result?.width);
+            const height = this.toFiniteNumberOrNull(result?.height);
             if (!previewImageUrl) {
               console.warn(
                 `[UploadService] Cloudinary video upload did not return eager preview for ${result?.public_id ?? videoUrl}`,
+              );
+            }
+            if (!width || !height) {
+              console.warn(
+                `[UploadService] Cloudinary video upload did not return dimensions for ${result?.public_id ?? videoUrl}`,
               );
             }
 
             resolve({
               videoUrl: result.secure_url,
               previewImageUrl,
+              width,
+              height,
             });
           }
         },
       );
     });
+  }
+
+  private toFiniteNumberOrNull(value: unknown): number | null {
+    const numericValue = Number(value);
+    return Number.isFinite(numericValue) && numericValue > 0
+      ? numericValue
+      : null;
   }
 
   async uploadVideoByUrl(videoUrl: string): Promise<string> {

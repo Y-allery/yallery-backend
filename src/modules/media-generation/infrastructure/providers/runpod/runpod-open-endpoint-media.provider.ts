@@ -1,5 +1,8 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { UploadService } from 'src/modules/uploads/upload.service';
+import {
+  UploadedVideoAsset,
+  UploadService,
+} from 'src/modules/uploads/upload.service';
 import { AudioGenerationRequest } from 'src/modules/media-generation/domain/contracts/audio-generation-request.contract';
 import { AudioGenerationResult } from 'src/modules/media-generation/domain/contracts/audio-generation-result.contract';
 import { EditImageGenerationRequest } from 'src/modules/media-generation/domain/contracts/edit-image-generation-request.contract';
@@ -13,6 +16,7 @@ import { TextVideoGenerationRequest } from 'src/modules/media-generation/domain/
 import { VideoGenerationResult } from 'src/modules/media-generation/domain/contracts/video-generation-result.contract';
 import { MediaCapability } from 'src/modules/media-generation/domain/enums/media-capability.enum';
 import { MediaProvider } from 'src/modules/media-generation/domain/enums/media-provider.enum';
+import { getVideoOutputPreset } from 'src/modules/media-generation/domain/presets';
 import { RunpodEndpointResolver } from './runpod-endpoint.resolver';
 import { RunpodMediaClient } from './runpod-media.client';
 import { RunpodJobResponse } from './runpod-media.types';
@@ -118,6 +122,8 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
     return {
       videoUrl: uploadedVideoAsset.videoUrl,
       previewImageUrl: uploadedVideoAsset.previewImageUrl,
+      width: uploadedVideoAsset.width,
+      height: uploadedVideoAsset.height,
       rawOutput: completedJob.output,
     };
   }
@@ -139,6 +145,7 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
     return {
       videoUrl: uploadedVideoAsset.videoUrl,
       previewImageUrl: uploadedVideoAsset.previewImageUrl,
+      ...this.resolvePresetBackedVideoDimensions(request, uploadedVideoAsset),
       rawOutput: completedJob.output,
     };
   }
@@ -160,6 +167,7 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
     return {
       videoUrl: uploadedVideoAsset.videoUrl,
       previewImageUrl: uploadedVideoAsset.previewImageUrl,
+      ...this.resolvePresetBackedVideoDimensions(request, uploadedVideoAsset),
       rawOutput: completedJob.output,
     };
   }
@@ -181,6 +189,8 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
     return {
       videoUrl: uploadedVideoAsset.videoUrl,
       previewImageUrl: uploadedVideoAsset.previewImageUrl,
+      width: uploadedVideoAsset.width,
+      height: uploadedVideoAsset.height,
       rawOutput: completedJob.output,
     };
   }
@@ -195,5 +205,17 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
       this.extractor.hasExtractableVideoSource.bind(this.extractor),
       'video',
     );
+  }
+
+  private resolvePresetBackedVideoDimensions(
+    request: TextVideoGenerationRequest | ImageVideoGenerationRequest,
+    asset: UploadedVideoAsset,
+  ): { width: number | null; height: number | null } {
+    const preset = getVideoOutputPreset(request.aiService, request.orientation);
+
+    return {
+      width: asset.width ?? preset.width,
+      height: asset.height ?? preset.height,
+    };
   }
 }

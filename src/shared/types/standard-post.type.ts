@@ -29,7 +29,6 @@ export interface StandardPost {
     colorName?: string | null;
     width?: number | null;
     height?: number | null;
-    suggestedTags?: { id: number | null; name: string | null }[] | null;
     negativePrompt?: string | null;
     memeId?: number | null;
     sourceImageUrl?: string | null;
@@ -38,5 +37,4 @@ export interface StandardPost {
     characterOrientation?: 'image' | 'video' | null;
   } | null;
 }
-
 
