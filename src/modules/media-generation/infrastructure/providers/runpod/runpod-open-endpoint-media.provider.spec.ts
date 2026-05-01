@@ -19,6 +19,8 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
         const values: Record<string, string> = {
           RUNPOD_API_KEY: 'test-runpod-key',
           RUNPOD_MMAUDIO_ENDPOINT_ID: 'test-mmaudio-endpoint',
+          RUNPOD_P_VIDEO_ENDPOINT_ID: 'test-p-video-endpoint',
+          RUNPOD_WAN22_ANIMATE_MEME_ENDPOINT_ID: 'test-wan-endpoint',
           RUNPOD_COMPLETED_OUTPUT_RETRY_COUNT: '0',
         };
         return values[key];
@@ -26,7 +28,10 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
     } as unknown as ConfigService;
 
     const uploadService = {
-      uploadVideoByUrl: jest.fn(async () => 'https://cdn.test/mmaudio.mp4'),
+      uploadVideoAssetByUrl: jest.fn(async () => ({
+        videoUrl: 'https://cdn.test/generated.mp4',
+        previewImageUrl: 'https://cdn.test/generated-preview.jpg',
+      })),
     } as unknown as UploadService;
 
     return {
@@ -84,10 +89,98 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
       },
       expect.any(Object),
     );
-    expect(uploadService.uploadVideoByUrl).toHaveBeenCalledWith(
+    expect(uploadService.uploadVideoAssetByUrl).toHaveBeenCalledWith(
       'data:video/mp4;base64,AAAA',
     );
-    expect(result.videoUrl).toBe('https://cdn.test/mmaudio.mp4');
+    expect(result).toMatchObject({
+      videoUrl: 'https://cdn.test/generated.mp4',
+      previewImageUrl: 'https://cdn.test/generated-preview.jpg',
+    });
+  });
+
+  it('returns uploaded preview image URL for text video output', async () => {
+    const { provider, uploadService } = createProvider();
+
+    mockedAxios.post.mockResolvedValueOnce({
+      data: {
+        id: 'job-1',
+        status: 'COMPLETED',
+        output: {
+          videos: [{ base64: 'BBBB', mime_type: 'video/mp4' }],
+        },
+      },
+    });
+
+    const result = await provider.generateTextVideos({
+      aiService: 'p_video_text',
+      prompt: 'a cinematic robot',
+      orientation: 'horizontal',
+      duration: 5,
+    });
+
+    expect(uploadService.uploadVideoAssetByUrl).toHaveBeenCalledWith(
+      'data:video/mp4;base64,BBBB',
+    );
+    expect(result.previewImageUrl).toBe(
+      'https://cdn.test/generated-preview.jpg',
+    );
+  });
+
+  it('returns uploaded preview image URL for image video output', async () => {
+    const { provider, uploadService } = createProvider();
+
+    mockedAxios.post.mockResolvedValueOnce({
+      data: {
+        id: 'job-1',
+        status: 'COMPLETED',
+        output: {
+          videos: [{ base64: 'CCCC', mime_type: 'video/mp4' }],
+        },
+      },
+    });
+
+    const result = await provider.generateImageVideos({
+      aiService: 'p_video_image',
+      prompt: 'animate this',
+      imageUrl: 'https://cdn.test/source.png',
+      orientation: 'vertical',
+      duration: 5,
+    });
+
+    expect(uploadService.uploadVideoAssetByUrl).toHaveBeenCalledWith(
+      'data:video/mp4;base64,CCCC',
+    );
+    expect(result.previewImageUrl).toBe(
+      'https://cdn.test/generated-preview.jpg',
+    );
+  });
+
+  it('returns uploaded preview image URL for meme output', async () => {
+    const { provider, uploadService } = createProvider();
+
+    mockedAxios.post.mockResolvedValueOnce({
+      data: {
+        id: 'job-1',
+        status: 'COMPLETED',
+        output: {
+          videos: [{ base64: 'DDDD', mime_type: 'video/mp4' }],
+        },
+      },
+    });
+
+    const result = await provider.generateMemes({
+      aiService: 'wan22_animate_native',
+      memeId: 1,
+      imageUrl: 'https://cdn.test/source.png',
+      videoUrl: 'https://cdn.test/reference.mp4',
+    });
+
+    expect(uploadService.uploadVideoAssetByUrl).toHaveBeenCalledWith(
+      'data:video/mp4;base64,DDDD',
+    );
+    expect(result.previewImageUrl).toBe(
+      'https://cdn.test/generated-preview.jpg',
+    );
   });
 
   it('fails cleanly when RunPod completes without video output', async () => {

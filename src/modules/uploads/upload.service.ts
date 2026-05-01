@@ -4,6 +4,11 @@ import { v2 as cloudinary } from 'cloudinary';
 import * as path from 'path';
 import { Worker } from 'worker_threads';
 
+export interface UploadedVideoAsset {
+  videoUrl: string;
+  previewImageUrl: string | null;
+}
+
 @Injectable()
 export class UploadService {
   constructor(private readonly configService: ConfigService) {
@@ -95,23 +100,47 @@ export class UploadService {
     };
   }
 
-  async uploadVideoByUrl(videoUrl: string): Promise<string> {
+  async uploadVideoAssetByUrl(videoUrl: string): Promise<UploadedVideoAsset> {
     return new Promise((resolve, reject) => {
       cloudinary.uploader.upload(
         videoUrl,
         {
           resource_type: 'video',
           folder: 'octoai_videos',
+          eager_async: false,
+          eager: [
+            {
+              start_offset: '0',
+              format: 'jpg',
+            },
+          ],
         },
         (error, result) => {
           if (error) {
             reject(error);
+          } else if (!result?.secure_url) {
+            reject(new Error('Cloudinary video upload did not return secure_url'));
           } else {
-            resolve(result.secure_url);
+            const previewImageUrl = result?.eager?.[0]?.secure_url ?? null;
+            if (!previewImageUrl) {
+              console.warn(
+                `[UploadService] Cloudinary video upload did not return eager preview for ${result?.public_id ?? videoUrl}`,
+              );
+            }
+
+            resolve({
+              videoUrl: result.secure_url,
+              previewImageUrl,
+            });
           }
         },
       );
     });
+  }
+
+  async uploadVideoByUrl(videoUrl: string): Promise<string> {
+    const asset = await this.uploadVideoAssetByUrl(videoUrl);
+    return asset.videoUrl;
   }
 
   async uploadByUrl(imageUrl: string): Promise<string> {

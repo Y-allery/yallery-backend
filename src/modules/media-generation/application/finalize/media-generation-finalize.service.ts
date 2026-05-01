@@ -17,7 +17,6 @@ import { GeneratedPostFactory } from 'src/modules/media-generation/infrastructur
 import { MediaGenerationExecutionService } from 'src/modules/media-generation/application/execution/media-generation-execution.service';
 import { MediaGenerationGuardsService } from 'src/modules/media-generation/application/guards/media-generation-guards.service';
 import { MediaGenerationPricingService } from 'src/modules/media-generation/application/pricing/media-generation-pricing.service';
-import { MediaPreviewService } from 'src/modules/media-generation/infrastructure/previews/media-preview.service';
 import { MediaTagResolverService } from 'src/modules/media-generation/infrastructure/tagging/media-tag-resolver.service';
 
 @Injectable()
@@ -28,7 +27,6 @@ export class MediaGenerationFinalizeService {
     private readonly mediaGenerationExecutionService: MediaGenerationExecutionService,
     private readonly mediaGenerationGuardsService: MediaGenerationGuardsService,
     private readonly mediaGenerationPricingService: MediaGenerationPricingService,
-    private readonly mediaPreviewService: MediaPreviewService,
     private readonly mediaTagResolverService: MediaTagResolverService,
     private readonly notificationGateway: NotificationGateway,
     private readonly userActivityService: UserActivityService,
@@ -183,11 +181,7 @@ export class MediaGenerationFinalizeService {
       request,
       user.id,
       result.videoUrl,
-      audioPreset.generatePreviewFromVideo
-        ? this.mediaPreviewService.generateCloudinaryVideoPreviewUrl(
-            result.videoUrl,
-          )
-        : null,
+      audioPreset.generatePreviewFromVideo ? result.previewImageUrl ?? null : null,
       resolvedTag,
     );
     const [savedPost] = await this.contestFlowService.completeGenerationPosts(
@@ -255,9 +249,7 @@ export class MediaGenerationFinalizeService {
       },
       user.id,
       result.videoUrl,
-      this.mediaPreviewService.generateCloudinaryVideoPreviewUrl(
-        result.videoUrl,
-      ),
+      result.previewImageUrl ?? null,
       resolvedTag,
     );
     const [savedPost] = await this.contestFlowService.completeGenerationPosts(
@@ -328,7 +320,7 @@ export class MediaGenerationFinalizeService {
       },
       user.id,
       result.videoUrl,
-      request.imageUrl,
+      result.previewImageUrl ?? request.imageUrl,
       resolvedTag,
     );
     const [savedPost] = await this.contestFlowService.completeGenerationPosts(
@@ -393,11 +385,7 @@ export class MediaGenerationFinalizeService {
       meme,
       user.id,
       result.videoUrl,
-      this.mediaPreviewService.generateCloudinaryVideoPreviewUrl(
-        result.videoUrl,
-      ) ??
-        meme.referenceImageUrl ??
-        request.imageUrl,
+      result.previewImageUrl ?? meme.referenceImageUrl ?? request.imageUrl,
     );
 
     await this.userActivityService.logMediaGenerationSpent({

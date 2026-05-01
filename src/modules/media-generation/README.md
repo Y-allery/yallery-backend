@@ -26,7 +26,7 @@ generation workflow lives here.
 2. `MediaGenerationGuardsService` checks active routes, user credits, contest capability rules, and source entities before billing/enqueue.
 3. BullMQ processors call `MediaGenerationFinalizeService`.
 4. Finalization calls `MediaGenerationExecutionService`, which dispatches to the selected provider via `MediaProviderRegistryService`.
-5. `GeneratedPostFactory` creates posts, `MediaPreviewService` derives previews, and contest v2 completion is reported through `ContestFlowService`.
+5. `GeneratedPostFactory` creates posts from provider results; video previews come from signed Cloudinary eager transformations during upload, and contest v2 completion is reported through `ContestFlowService`.
 6. Processors emit websocket payloads through small notification presenters.
 
 There is no god-service facade in this module. Controllers and processors inject
@@ -39,3 +39,4 @@ the specific application service they need.
 - `RunpodMediaClient`: owns `/run`, `/runsync`, `/status`, polling, timeouts, and RunPod headers.
 - `RunpodOutputExtractor`: extracts URL, data URI, and base64 image/video outputs.
 - `RunpodOpenEndpointMediaProvider`: thin adapter that coordinates those helpers and uploads provider output to Cloudinary.
+- `UploadService.uploadVideoAssetByUrl`: uploads videos with a signed eager JPG preview and returns both `videoUrl` and `previewImageUrl`.

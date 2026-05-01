@@ -112,11 +112,12 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
     const providerVideoSource = this.extractor.extractVideoSource(
       completedJob.output,
     );
-    const uploadedVideoUrl =
-      await this.uploadService.uploadVideoByUrl(providerVideoSource);
+    const uploadedVideoAsset =
+      await this.uploadService.uploadVideoAssetByUrl(providerVideoSource);
 
     return {
-      videoUrl: uploadedVideoUrl,
+      videoUrl: uploadedVideoAsset.videoUrl,
+      previewImageUrl: uploadedVideoAsset.previewImageUrl,
       rawOutput: completedJob.output,
     };
   }
@@ -132,11 +133,12 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
     const providerVideoSource = this.extractor.extractVideoSource(
       completedJob.output,
     );
-    const uploadedVideoUrl =
-      await this.uploadService.uploadVideoByUrl(providerVideoSource);
+    const uploadedVideoAsset =
+      await this.uploadService.uploadVideoAssetByUrl(providerVideoSource);
 
     return {
-      videoUrl: uploadedVideoUrl,
+      videoUrl: uploadedVideoAsset.videoUrl,
+      previewImageUrl: uploadedVideoAsset.previewImageUrl,
       rawOutput: completedJob.output,
     };
   }
@@ -152,11 +154,12 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
     const providerVideoSource = this.extractor.extractVideoSource(
       completedJob.output,
     );
-    const uploadedVideoUrl =
-      await this.uploadService.uploadVideoByUrl(providerVideoSource);
+    const uploadedVideoAsset =
+      await this.uploadService.uploadVideoAssetByUrl(providerVideoSource);
 
     return {
-      videoUrl: uploadedVideoUrl,
+      videoUrl: uploadedVideoAsset.videoUrl,
+      previewImageUrl: uploadedVideoAsset.previewImageUrl,
       rawOutput: completedJob.output,
     };
   }
@@ -172,11 +175,12 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
     const providerVideoSource = this.extractor.extractVideoSource(
       completedJob.output,
     );
-    const uploadedVideoUrl =
-      await this.uploadService.uploadVideoByUrl(providerVideoSource);
+    const uploadedVideoAsset =
+      await this.uploadService.uploadVideoAssetByUrl(providerVideoSource);
 
     return {
-      videoUrl: uploadedVideoUrl,
+      videoUrl: uploadedVideoAsset.videoUrl,
+      previewImageUrl: uploadedVideoAsset.previewImageUrl,
       rawOutput: completedJob.output,
     };
   }
