@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ContestEntity } from 'src/modules/contests/entity/contest.entity';
 import { PostEntity } from 'src/modules/posts/entities/post.entity';
@@ -9,9 +9,11 @@ import { UserActivityEntity } from './entities/user-activity.entity';
 import { UserActivityQueryService } from './services/user-activity-query.service';
 import { UserReadStateService } from './services/user-read-state.service';
 import { UserActivityService } from './services/user-activity.service';
+import { NotificationModule } from 'src/modules/notifications/notification.module';
 
 @Module({
   imports: [
+    forwardRef(() => NotificationModule),
     TypeOrmModule.forFeature([
       UserActivityEntity,
       UserEntity,

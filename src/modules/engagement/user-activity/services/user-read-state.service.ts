@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { ContestTypeEnum } from 'src/modules/contests/types/contest.status.enum';
 import { PostEntity } from 'src/modules/posts/entities/post.entity';
 import { ViewedPostEntity } from 'src/modules/posts/entities/viwed.entity';
+import { NotificationGateway } from 'src/modules/notifications/notification.gateway';
 import { MarkUserReadStateDto } from '../dto/mark-user-read-state.dto';
 import { UserActivityQueryService } from './user-activity-query.service';
 import { USER_READ_STATE_KINDS } from '../types/user-read-state.constants';
@@ -16,20 +17,25 @@ export class UserReadStateService {
     private readonly postRepository: Repository<PostEntity>,
     @InjectRepository(ViewedPostEntity)
     private readonly viewedPostRepository: Repository<ViewedPostEntity>,
+    @Inject(forwardRef(() => NotificationGateway))
+    private readonly notificationGateway: NotificationGateway,
   ) {}
 
   async markReadState(userId: number, dto: MarkUserReadStateDto) {
+    let response!: Record<string, unknown>;
+
     switch (dto.kind) {
       case USER_READ_STATE_KINDS.FEED: {
         const markedCount = await this.userActivityQueryService.markFeedAsRead(
           userId,
         );
-        return {
+        response = {
           status: 'success',
           kind: dto.kind,
           message: 'Activity feed marked as read',
           markedCount,
         };
+        break;
       }
 
       case USER_READ_STATE_KINDS.REGULAR_CONTESTS: {
@@ -39,12 +45,13 @@ export class UserReadStateService {
             ContestTypeEnum.DEFAULT,
           );
 
-        return {
+        response = {
           status: 'success',
           kind: dto.kind,
           message: 'Regular contests marked as read',
           markedCount,
         };
+        break;
       }
 
       case USER_READ_STATE_KINDS.FINE_TUNE_CONTESTS: {
@@ -54,12 +61,13 @@ export class UserReadStateService {
             ContestTypeEnum.FINE_TUNE,
           );
 
-        return {
+        response = {
           status: 'success',
           kind: dto.kind,
           message: 'Fine-tune contests marked as read',
           markedCount,
         };
+        break;
       }
 
       case USER_READ_STATE_KINDS.STORIES: {
@@ -68,14 +76,19 @@ export class UserReadStateService {
           dto.post_ids ?? [],
         );
 
-        return {
+        response = {
           status: 'success',
           kind: dto.kind,
           message: 'Stories marked as read',
           ...result,
         };
+        break;
       }
     }
+
+    await this.notificationGateway.emitProfileUpdate(userId.toString());
+
+    return response;
   }
 
   private async markStoriesAsViewed(userId: number, postIds: number[]) {
