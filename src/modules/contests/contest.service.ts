@@ -102,31 +102,45 @@ export class ContestService {
       participantContestIds = participantResults.map((r) => r.id);
     }
 
-    // Повертаємо точно таку саму структуру, як в оригіналі
     return await Promise.all(
-      contests.map(async (contest) => ({
-        id: contest.id,
-        name: contest.name,
-        imageUrl: contest.imageUrl,
-        status: contest.status,
-        reward: contest.reward,
-        description: contest.description,
-        is_won: contest.winner?.id === userId,
-        is_approved: contest.isApproved,
-        contestType: contest.contestType,
-        mediaAiService: contest.mediaAiSetting?.aiService ?? null,
-        mediaCapability: contest.mediaAiSetting?.capability ?? null,
-        examplePrompt: contest.promptExample,
-        endTime: contest.endTime,
-        tag: {
-          id: contest?.tag?.id,
-          name: contest?.tag?.name,
-        },
-        is_participant: participantContestIds.includes(contest.id),
-        ...(await this.contestFlowService.getContestSummary(contest.id)),
-      })),
+      contests.map((contest) =>
+        this.buildContestResponse(
+          contest,
+          userId,
+          participantContestIds.includes(contest.id),
+        ),
+      ),
     );
   }
+
+  private async buildContestResponse(
+    contest: ContestEntity,
+    userId: number,
+    isParticipant: boolean,
+  ) {
+    return {
+      id: contest.id,
+      name: contest.name,
+      imageUrl: contest.imageUrl,
+      status: contest.status,
+      reward: contest.reward,
+      description: contest.description,
+      is_won: contest.winner?.id === userId,
+      is_approved: contest.isApproved,
+      contestType: contest.contestType,
+      mediaAiService: contest.mediaAiSetting?.aiService ?? null,
+      mediaCapability: contest.mediaAiSetting?.capability ?? null,
+      examplePrompt: contest.promptExample,
+      endTime: contest.endTime,
+      tag: {
+        id: contest?.tag?.id,
+        name: contest?.tag?.name,
+      },
+      is_participant: isParticipant,
+      ...(await this.contestFlowService.getContestSummary(contest.id)),
+    };
+  }
+
   async getMyContests(userId: number) {
     const contests = await this.contestRepository
       .createQueryBuilder('contest')
@@ -1266,6 +1280,23 @@ export class ContestService {
     if (!contest)
       throw new NotFoundException(`Contest with ID ${id} not found`);
     return Object.assign(contest, await this.contestFlowService.getContestSummary(id));
+  }
+
+  async getContestById(id: number, userId: number) {
+    const contest = await this.contestRepository.findOne({
+      where: { id },
+      relations: ['tag', 'winner', 'participants', 'mediaAiSetting'],
+    });
+
+    if (!contest) {
+      throw new NotFoundException(`Contest with ID ${id} not found`);
+    }
+
+    const isParticipant =
+      contest.participants?.some((participant) => participant.id === userId) ??
+      false;
+
+    return this.buildContestResponse(contest, userId, isParticipant);
   }
 
   async findContestsByStatus(status?: ContestStatusEnum): Promise<any[]> {

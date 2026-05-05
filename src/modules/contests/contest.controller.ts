@@ -132,7 +132,10 @@ export class ContestController {
   })
   @ApiResponse(CONTEST_SWAGGER.getContestById.responses.success)
   @ApiResponse(CONTEST_SWAGGER.getContestById.responses.notFound)
-  getContestById(@Param('id') id: number) {
-    return this.contestService.findContestById(id);
+  getContestById(
+    @Param('id') id: number,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.contestService.getContestById(+id, req.user.id);
   }
 }
