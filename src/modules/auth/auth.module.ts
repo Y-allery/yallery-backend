@@ -23,10 +23,18 @@ import { RewardModule } from 'src/modules/billing/rewards/reward.module';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET') || 'dev',
-        signOptions: { expiresIn: '3 days' },
-      }),
+      useFactory: async (configService: ConfigService) => {
+        const expiresIn = configService.get<string>('JWT_EXPIRES_IN');
+
+        if (!expiresIn) {
+          throw new Error('JWT_EXPIRES_IN is required');
+        }
+
+        return {
+          secret: configService.get<string>('JWT_SECRET') || 'dev',
+          signOptions: { expiresIn },
+        };
+      },
     }),
     UserModule,
     MailModule,

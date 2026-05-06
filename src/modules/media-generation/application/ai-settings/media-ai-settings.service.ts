@@ -368,7 +368,7 @@ export class MediaAISettingsService {
     return requestedDuration;
   }
 
-  getCapabilities() {
+  async getCapabilities() {
     return {
       capabilities: [
         imageGenerateCapability,
@@ -377,7 +377,7 @@ export class MediaAISettingsService {
         videoGenerateCapability,
         memeGenerateCapability,
       ],
-      routes: this.mediaRouteResolverService.describeRoutes(),
+      routes: await this.mediaRouteResolverService.describeRoutes(),
     };
   }
 

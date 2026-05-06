@@ -27,6 +27,7 @@ import { RewardModule } from 'src/modules/billing/rewards/reward.module';
 import { MemeModule } from 'src/modules/memes/meme.module';
 import { UserActivityModule } from 'src/modules/engagement/user-activity/user-activity.module';
 import { MediaGenerationModule } from 'src/modules/media-generation/media-generation.module';
+import { ProviderSettingsModule } from 'src/modules/provider-settings/provider-settings.module';
 
 @Module({
   imports: [
@@ -77,6 +78,7 @@ import { MediaGenerationModule } from 'src/modules/media-generation/media-genera
     RewardModule,
     MemeModule,
     UserActivityModule,
+    ProviderSettingsModule,
     MediaGenerationModule,
   ],
   providers: [

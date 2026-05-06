@@ -42,7 +42,9 @@ export class MediaGenerationGuardsService {
     );
 
     if (
-      !this.mediaRouteResolverService.resolvePromptImageRoute(request.aiService)
+      !(await this.mediaRouteResolverService.resolvePromptImageRoute(
+        request.aiService,
+      ))
     ) {
       throw new BadRequestException(
         `No prompt-image generation route configured for ${request.aiService}.`,
@@ -72,7 +74,11 @@ export class MediaGenerationGuardsService {
       );
     }
 
-    if (!this.mediaRouteResolverService.resolveImageEditRoute(request.aiService)) {
+    if (
+      !(await this.mediaRouteResolverService.resolveImageEditRoute(
+        request.aiService,
+      ))
+    ) {
       throw new BadRequestException(
         `No image-edit generation route configured for ${request.aiService}.`,
       );

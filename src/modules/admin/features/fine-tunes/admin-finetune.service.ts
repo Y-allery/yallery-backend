@@ -130,7 +130,7 @@ export class AdminFineTuneService {
       datasetImageCount: dto.datasetImages.length,
       trainingSettings,
       generationDefaults,
-      runpodEndpointId: this.runpodFineTuneClient.getEndpointId(),
+      runpodEndpointId: await this.runpodFineTuneClient.getEndpointId(),
       runpodJobId: null,
       loraUrl: null,
       errorMessage: null,

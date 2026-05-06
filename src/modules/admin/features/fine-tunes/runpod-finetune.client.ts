@@ -1,14 +1,16 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+import { ProviderRuntimeConfigService } from 'src/modules/provider-settings/provider-runtime-config.service';
 import { RunpodJobResponse } from './runpod-finetune.types';
 
 @Injectable()
 export class RunpodFineTuneClient {
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly providerRuntimeConfigService: ProviderRuntimeConfigService,
+  ) {}
 
-  getEndpointId() {
-    const endpointId = this.configService.get<string>(
+  async getEndpointId() {
+    const endpointId = await this.providerRuntimeConfigService.getString(
       'RUNPOD_SDXL_LORA_FINETUNE_ENDPOINT_ID',
     );
     if (!endpointId) {
@@ -20,13 +22,18 @@ export class RunpodFineTuneClient {
   }
 
   async submitJob(input: Record<string, unknown>) {
-    const endpointId = this.getEndpointId();
+    const [endpointId, apiBaseUrl, headers, timeout] = await Promise.all([
+      this.getEndpointId(),
+      this.getApiBaseUrl(),
+      this.getHeaders(),
+      this.getRequestTimeoutMs(),
+    ]);
     const response = await axios.post<RunpodJobResponse>(
-      `${this.getApiBaseUrl()}/${endpointId}/run`,
+      `${apiBaseUrl}/${endpointId}/run`,
       { input },
       {
-        headers: this.getHeaders(),
-        timeout: this.getRequestTimeoutMs(),
+        headers,
+        timeout,
       },
     );
 
@@ -34,26 +41,33 @@ export class RunpodFineTuneClient {
   }
 
   async getJobStatus(endpointId: string, jobId: string) {
+    const [apiBaseUrl, headers, timeout] = await Promise.all([
+      this.getApiBaseUrl(),
+      this.getHeaders(),
+      this.getRequestTimeoutMs(),
+    ]);
     const response = await axios.get<RunpodJobResponse>(
-      `${this.getApiBaseUrl()}/${endpointId}/status/${jobId}`,
+      `${apiBaseUrl}/${endpointId}/status/${jobId}`,
       {
-        headers: this.getHeaders(),
-        timeout: this.getRequestTimeoutMs(),
+        headers,
+        timeout,
       },
     );
 
     return response.data;
   }
 
-  private getApiBaseUrl() {
+  private async getApiBaseUrl() {
     return (
-      this.configService.get<string>('RUNPOD_API_BASE_URL') ||
+      (await this.providerRuntimeConfigService.getString('RUNPOD_API_BASE_URL')) ||
       'https://api.runpod.ai/v2'
     );
   }
 
-  private getHeaders() {
-    const apiKey = this.configService.get<string>('RUNPOD_API_KEY');
+  private async getHeaders() {
+    const apiKey = await this.providerRuntimeConfigService.getString(
+      'RUNPOD_API_KEY',
+    );
     if (!apiKey) {
       throw new BadRequestException('RUNPOD_API_KEY is not configured');
     }
@@ -63,9 +77,11 @@ export class RunpodFineTuneClient {
     };
   }
 
-  private getRequestTimeoutMs() {
-    return Number(
-      this.configService.get<string>('RUNPOD_REQUEST_TIMEOUT_MS') || 60000,
+  private async getRequestTimeoutMs() {
+    return (
+      (await this.providerRuntimeConfigService.getNumber(
+        'RUNPOD_REQUEST_TIMEOUT_MS',
+      )) ?? 60000
     );
   }
 }

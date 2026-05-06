@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import {
   MEDIA_AUDIO_GENERATION_QUEUE,
   MEDIA_IMAGE_EDIT_GENERATION_QUEUE,
@@ -12,6 +11,7 @@ import { MediaGenerationRoute } from 'src/modules/media-generation/domain/contra
 import { MediaCapability } from 'src/modules/media-generation/domain/enums/media-capability.enum';
 import { MediaDispatch } from 'src/modules/media-generation/domain/enums/media-dispatch.enum';
 import { MediaProvider } from 'src/modules/media-generation/domain/enums/media-provider.enum';
+import { ProviderRuntimeConfigService } from 'src/modules/provider-settings/provider-runtime-config.service';
 
 interface MediaRouteCatalogEntry {
   routeType:
@@ -115,72 +115,87 @@ export class MediaRouteResolverService {
     },
   ];
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly providerRuntimeConfigService: ProviderRuntimeConfigService,
+  ) {}
 
-  resolvePromptImageRoute(aiService: string): MediaGenerationRoute | null {
+  resolvePromptImageRoute(aiService: string): Promise<MediaGenerationRoute | null> {
     return this.resolveRoute(aiService, 'promptImage');
   }
 
-  resolveImageEditRoute(aiService: string): MediaGenerationRoute | null {
+  resolveImageEditRoute(aiService: string): Promise<MediaGenerationRoute | null> {
     return this.resolveRoute(aiService, 'imageEdit');
   }
 
-  resolveAudioRoute(aiService: string): MediaGenerationRoute | null {
+  resolveAudioRoute(aiService: string): Promise<MediaGenerationRoute | null> {
     return this.resolveRoute(aiService, 'audio');
   }
 
-  resolveTextVideoRoute(aiService: string): MediaGenerationRoute | null {
+  resolveTextVideoRoute(aiService: string): Promise<MediaGenerationRoute | null> {
     return this.resolveRoute(aiService, 'textVideo');
   }
 
-  resolveImageVideoRoute(aiService: string): MediaGenerationRoute | null {
+  resolveImageVideoRoute(aiService: string): Promise<MediaGenerationRoute | null> {
     return this.resolveRoute(aiService, 'imageVideo');
   }
 
-  resolveMemeRoute(aiService: string): MediaGenerationRoute | null {
+  resolveMemeRoute(aiService: string): Promise<MediaGenerationRoute | null> {
     return this.resolveRoute(aiService, 'meme');
   }
 
-  describeRoutes() {
-    return this.routeCatalog
-      .map((entry) => this.resolveRoute(entry.aiService, entry.routeType))
-      .filter(Boolean);
+  async describeRoutes() {
+    const routes = await Promise.all(
+      this.routeCatalog.map((entry) =>
+        this.resolveRoute(entry.aiService, entry.routeType),
+      ),
+    );
+
+    return routes.filter(Boolean);
   }
 
-  private resolveRoute(
+  private async resolveRoute(
     aiService: string,
     routeType: MediaRouteCatalogEntry['routeType'],
-  ): MediaGenerationRoute | null {
+  ): Promise<MediaGenerationRoute | null> {
     const entry = this.routeCatalog.find(
       (route) => route.aiService === aiService && route.routeType === routeType,
     );
 
-    if (!entry || !this.isRouteEnabled(entry)) {
+    if (!entry || !(await this.isRouteEnabled(entry))) {
       return null;
     }
+
+    const endpointId = await this.providerRuntimeConfigService.getString(
+      entry.endpointConfigKey,
+    );
 
     return {
       capability: entry.capability,
       provider: entry.provider,
       dispatch: entry.dispatch,
       aiService: entry.aiService,
-      endpointId: this.configService.get<string>(entry.endpointConfigKey),
+      endpointId,
       queueName: entry.queueName,
     };
   }
 
-  private isRouteEnabled(entry: MediaRouteCatalogEntry): boolean {
+  private async isRouteEnabled(entry: MediaRouteCatalogEntry): Promise<boolean> {
     const isEnabled = entry.enabledConfigKey
-      ? this.configService.get<string>(entry.enabledConfigKey)
-      : undefined;
+      ? await this.providerRuntimeConfigService.getBoolean(
+          entry.enabledConfigKey,
+          true,
+        )
+      : true;
 
-    if (isEnabled && ['0', 'false', 'no'].includes(isEnabled.toLowerCase())) {
+    if (!isEnabled) {
       return false;
     }
 
-    return Boolean(
-      this.configService.get<string>('RUNPOD_API_KEY') &&
-        this.configService.get<string>(entry.endpointConfigKey),
-    );
+    const [apiKey, endpointId] = await Promise.all([
+      this.providerRuntimeConfigService.getString('RUNPOD_API_KEY'),
+      this.providerRuntimeConfigService.getString(entry.endpointConfigKey),
+    ]);
+
+    return Boolean(apiKey && endpointId);
   }
 }

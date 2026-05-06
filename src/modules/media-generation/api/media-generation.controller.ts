@@ -349,7 +349,7 @@ export class MediaGenerationController {
   @ApiOperation(MEDIA_GENERATION_SWAGGER.getCapabilities)
   @ApiResponse(MEDIA_GENERATION_SWAGGER.getCapabilities.responses.success)
   @ApiResponse(MEDIA_GENERATION_SWAGGER.getCapabilities.responses.unauthorized)
-  getCapabilities() {
+  async getCapabilities() {
     return this.mediaAISettingsService.getCapabilities();
   }
 }

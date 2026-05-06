@@ -2,21 +2,18 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import OpenAI from 'openai';
 import { TagEntity } from 'src/modules/catalog/tags/entities/tag.entity';
+import { ProviderRuntimeConfigService } from 'src/modules/provider-settings/provider-runtime-config.service';
 import { Repository } from 'typeorm';
 
 @Injectable()
 export class MediaTagResolverService {
   private readonly logger = new Logger(MediaTagResolverService.name);
-  private readonly openai: OpenAI | null;
 
   constructor(
     @InjectRepository(TagEntity)
     private readonly tagRepository: Repository<TagEntity>,
-  ) {
-    this.openai = process.env.OPENAI_API_KEY
-      ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-      : null;
-  }
+    private readonly providerRuntimeConfigService: ProviderRuntimeConfigService,
+  ) {}
 
   async resolveTagForPrompt(
     prompt: string,
@@ -42,12 +39,18 @@ export class MediaTagResolverService {
       return keywordMatch;
     }
 
-    if (!this.openai || candidateTags.length === 0) {
+    const openai = await this.createOpenAIClient();
+
+    if (!openai || candidateTags.length === 0) {
       return otherTag;
     }
 
     try {
-      const bestTag = await this.findBestTagWithAI(normalizedPrompt, candidateTags);
+      const bestTag = await this.findBestTagWithAI(
+        normalizedPrompt,
+        candidateTags,
+        openai,
+      );
       return bestTag ?? otherTag;
     } catch (error: any) {
       this.logger.warn(
@@ -109,12 +112,13 @@ export class MediaTagResolverService {
   private async findBestTagWithAI(
     prompt: string,
     tags: TagEntity[],
+    openai: OpenAI,
   ): Promise<TagEntity | null> {
     const tagDescriptions = tags
       .map((tag) => `ID: ${tag.id}, Name: ${tag.name}`)
       .join('\n');
 
-    const response = await this.openai!.chat.completions.create({
+    const response = await openai.chat.completions.create({
       model: 'gpt-4',
       temperature: 0,
       max_tokens: 100,
@@ -154,6 +158,14 @@ Rules:
     }
 
     return tags.find((tag) => tag.id === tagId) ?? null;
+  }
+
+  private async createOpenAIClient(): Promise<OpenAI | null> {
+    const apiKey = await this.providerRuntimeConfigService.getString(
+      'OPENAI_API_KEY',
+    );
+
+    return apiKey ? new OpenAI({ apiKey }) : null;
   }
 
   private normalizeText(value: string): string {

@@ -1,19 +1,21 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { AudioGenerationRequest } from 'src/modules/media-generation/domain/contracts/audio-generation-request.contract';
 import { EditImageGenerationRequest } from 'src/modules/media-generation/domain/contracts/edit-image-generation-request.contract';
 import { ImageVideoGenerationRequest } from 'src/modules/media-generation/domain/contracts/image-video-generation-request.contract';
 import { MemeGenerationRequest } from 'src/modules/media-generation/domain/contracts/meme-generation-request.contract';
 import { ResolvedPromptImageGenerationRequest } from 'src/modules/media-generation/domain/contracts/prompt-image-generation-request.contract';
 import { TextVideoGenerationRequest } from 'src/modules/media-generation/domain/contracts/text-video-generation-request.contract';
+import { ProviderRuntimeConfigService } from 'src/modules/provider-settings/provider-runtime-config.service';
 
 @Injectable()
 export class RunpodEndpointResolver {
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly providerRuntimeConfigService: ProviderRuntimeConfigService,
+  ) {}
 
-  getEndpointIdForPromptImageRequest(
+  async getEndpointIdForPromptImageRequest(
     request: ResolvedPromptImageGenerationRequest,
-  ): string {
+  ): Promise<string> {
     switch (request.aiService) {
       case 'flux2_klein':
         return this.getRequiredConfig('RUNPOD_FLUX2_KLEIN_ENDPOINT_ID');
@@ -30,9 +32,9 @@ export class RunpodEndpointResolver {
     }
   }
 
-  getEndpointIdForImageEditRequest(
+  async getEndpointIdForImageEditRequest(
     request: EditImageGenerationRequest,
-  ): string {
+  ): Promise<string> {
     switch (request.aiService) {
       case 'qwen_image_edit_baked':
         return this.getRequiredConfig(
@@ -45,7 +47,9 @@ export class RunpodEndpointResolver {
     }
   }
 
-  getEndpointIdForAudioRequest(request: AudioGenerationRequest): string {
+  async getEndpointIdForAudioRequest(
+    request: AudioGenerationRequest,
+  ): Promise<string> {
     switch (request.aiService) {
       case 'mmaudio_v2':
         return this.getRequiredConfig('RUNPOD_MMAUDIO_ENDPOINT_ID');
@@ -56,9 +60,9 @@ export class RunpodEndpointResolver {
     }
   }
 
-  getEndpointIdForTextVideoRequest(
+  async getEndpointIdForTextVideoRequest(
     request: TextVideoGenerationRequest,
-  ): string {
+  ): Promise<string> {
     switch (request.aiService) {
       case 'p_video_text':
       default:
@@ -66,9 +70,9 @@ export class RunpodEndpointResolver {
     }
   }
 
-  getEndpointIdForImageVideoRequest(
+  async getEndpointIdForImageVideoRequest(
     request: ImageVideoGenerationRequest,
-  ): string {
+  ): Promise<string> {
     switch (request.aiService) {
       case 'p_video_image':
       default:
@@ -76,7 +80,9 @@ export class RunpodEndpointResolver {
     }
   }
 
-  getEndpointIdForMemeRequest(request: MemeGenerationRequest): string {
+  async getEndpointIdForMemeRequest(
+    request: MemeGenerationRequest,
+  ): Promise<string> {
     switch (request.aiService) {
       case 'wan22_animate_native':
         return this.getRequiredConfig(
@@ -89,8 +95,8 @@ export class RunpodEndpointResolver {
     }
   }
 
-  private getRequiredConfig(key: string): string {
-    const value = this.configService.get<string>(key);
+  private async getRequiredConfig(key: string): Promise<string> {
+    const value = await this.providerRuntimeConfigService.getString(key);
 
     if (!value) {
       throw new Error(`${key} is not configured`);

@@ -46,7 +46,8 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
   async generatePromptImages(
     request: ResolvedPromptImageGenerationRequest,
   ): Promise<PromptImageGenerationResult> {
-    const endpointId = this.endpoints.getEndpointIdForPromptImageRequest(request);
+    const endpointId =
+      await this.endpoints.getEndpointIdForPromptImageRequest(request);
     const initialJob = await this.client.submitJob(endpointId, {
       input: this.payloadBuilder.buildPromptImageInput(request),
     });
@@ -73,7 +74,9 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
   async editImages(
     request: EditImageGenerationRequest,
   ): Promise<PromptImageGenerationResult> {
-    const endpointId = this.endpoints.getEndpointIdForImageEditRequest(request);
+    const endpointId = await this.endpoints.getEndpointIdForImageEditRequest(
+      request,
+    );
     const completedJob = await this.client.submitSyncJob(
       endpointId,
       this.payloadBuilder.buildImageEditInput(request),
@@ -106,7 +109,7 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
     }
 
     const normalizedRequest = { ...request, prompt, videoUrl };
-    const endpointId = this.endpoints.getEndpointIdForAudioRequest(
+    const endpointId = await this.endpoints.getEndpointIdForAudioRequest(
       normalizedRequest,
     );
     const initialJob = await this.client.submitJob(endpointId, {
@@ -132,7 +135,8 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
   async generateTextVideos(
     request: TextVideoGenerationRequest,
   ): Promise<VideoGenerationResult> {
-    const endpointId = this.endpoints.getEndpointIdForTextVideoRequest(request);
+    const endpointId =
+      await this.endpoints.getEndpointIdForTextVideoRequest(request);
     const initialJob = await this.client.submitJob(endpointId, {
       input: this.payloadBuilder.buildTextVideoInput(request),
     });
@@ -155,7 +159,8 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
   async generateImageVideos(
     request: ImageVideoGenerationRequest,
   ): Promise<VideoGenerationResult> {
-    const endpointId = this.endpoints.getEndpointIdForImageVideoRequest(request);
+    const endpointId =
+      await this.endpoints.getEndpointIdForImageVideoRequest(request);
     const initialJob = await this.client.submitJob(endpointId, {
       input: this.payloadBuilder.buildImageVideoInput(request),
     });
@@ -178,7 +183,7 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
   async generateMemes(
     request: MemeGenerationRequest,
   ): Promise<MemeGenerationResult> {
-    const endpointId = this.endpoints.getEndpointIdForMemeRequest(request);
+    const endpointId = await this.endpoints.getEndpointIdForMemeRequest(request);
     const initialJob = await this.client.submitJob(endpointId, {
       input: this.payloadBuilder.buildMemeInput(request),
     });

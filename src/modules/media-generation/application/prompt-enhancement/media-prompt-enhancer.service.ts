@@ -6,6 +6,7 @@ import OpenAI from 'openai';
 import { StyleEntity } from 'src/modules/posts/entities/style.entity';
 import { Repository } from 'typeorm';
 import { ColorEntity } from 'src/modules/media-generation/persistence/entities/color.entity';
+import { ProviderRuntimeConfigService } from 'src/modules/provider-settings/provider-runtime-config.service';
 
 type MediaPromptEnhancementMode = 'image_generate' | 'image_edit';
 
@@ -26,18 +27,14 @@ interface MediaPromptEnhancementResult {
 @Injectable()
 export class MediaPromptEnhancerService {
   private readonly logger = new Logger(MediaPromptEnhancerService.name);
-  private readonly openai: OpenAI | null;
 
   constructor(
     @InjectRepository(StyleEntity)
     private readonly styleRepository: Repository<StyleEntity>,
     @InjectRepository(ColorEntity)
     private readonly colorRepository: Repository<ColorEntity>,
-  ) {
-    this.openai = process.env.OPENAI_API_KEY
-      ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-      : null;
-  }
+    private readonly providerRuntimeConfigService: ProviderRuntimeConfigService,
+  ) {}
 
   async enhancePrompt(
     input: MediaPromptEnhancementInput,
@@ -73,8 +70,9 @@ export class MediaPromptEnhancerService {
 
     const sanitizedPrompt = this.sanitizePrompt(prompt);
     const translatedPrompt = await this.translatePromptToEnglish(sanitizedPrompt);
+    const openai = await this.createOpenAIClient();
 
-    if (!this.openai) {
+    if (!openai) {
       return {
         translatedPrompt,
         enhancedPrompt: this.buildFallbackPrompt(
@@ -89,7 +87,7 @@ export class MediaPromptEnhancerService {
     }
 
     try {
-      const completion = await this.openai.chat.completions.create({
+      const completion = await openai.chat.completions.create({
         model: 'gpt-4',
         temperature: 0.4,
         max_tokens: 400,
@@ -153,6 +151,14 @@ Return strict JSON only in this format:
         color,
       };
     }
+  }
+
+  private async createOpenAIClient(): Promise<OpenAI | null> {
+    const apiKey = await this.providerRuntimeConfigService.getString(
+      'OPENAI_API_KEY',
+    );
+
+    return apiKey ? new OpenAI({ apiKey }) : null;
   }
 
   private sanitizePrompt(prompt: string): string {

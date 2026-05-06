@@ -37,6 +37,10 @@ export class EnvironmentVariables {
   @IsString()
   JWT_EXPIRES_IN: string;
 
+  @IsOptional()
+  @IsString()
+  SETTINGS_ENCRYPTION_KEY?: string;
+
   // Session
   @IsString()
   SESSION_SECRET: string;
@@ -136,19 +140,6 @@ export class EnvironmentVariables {
   @IsString()
   WEB_APP_URL?: string; // e.g. https://yallery.web.app
 
-  // X-Router AI Configuration
-  @IsOptional()
-  @IsString()
-  X_ROUTER_API_URL?: string; // https://api.x-router.ai/v1/images/generate
-
-  @IsOptional()
-  @IsString()
-  X_ROUTER_PRIVATE_KEY?: string; // Private key for x402 wallet (0x...)
-
-  @IsOptional()
-  @IsString()
-  X_ROUTER_MODEL?: string; // Model name, default: flux-schnell
-
   // RunPod
   @IsOptional()
   @IsString()
@@ -184,10 +175,6 @@ export class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
-  RUNPOD_KLING_V26_STD_MOTION_CONTROL_ENDPOINT_ID?: string;
-
-  @IsOptional()
-  @IsString()
   RUNPOD_WAN22_ANIMATE_MEME_ENDPOINT_ID?: string;
 
   @IsOptional()
@@ -217,10 +204,6 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   RUNPOD_P_VIDEO_ENABLED?: string;
-
-  @IsOptional()
-  @IsString()
-  RUNPOD_KLING_V26_STD_MOTION_CONTROL_ENABLED?: string;
 
   @IsOptional()
   @IsString()

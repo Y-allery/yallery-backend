@@ -22,7 +22,7 @@ export class MediaGenerationExecutionService {
   async generatePromptImages(
     request: ResolvedPromptImageGenerationRequest,
   ): Promise<PromptImageGenerationResult> {
-    const route = this.mediaRouteResolverService.resolvePromptImageRoute(
+    const route = await this.mediaRouteResolverService.resolvePromptImageRoute(
       request.aiService,
     );
 
@@ -48,7 +48,7 @@ export class MediaGenerationExecutionService {
   async editImages(
     request: EditImageGenerationRequest,
   ): Promise<PromptImageGenerationResult> {
-    const route = this.mediaRouteResolverService.resolveImageEditRoute(
+    const route = await this.mediaRouteResolverService.resolveImageEditRoute(
       request.aiService,
     );
 
@@ -74,7 +74,7 @@ export class MediaGenerationExecutionService {
   async generateAudio(
     request: AudioGenerationRequest,
   ): Promise<AudioGenerationResult> {
-    const route = this.mediaRouteResolverService.resolveAudioRoute(
+    const route = await this.mediaRouteResolverService.resolveAudioRoute(
       request.aiService,
     );
 
@@ -100,7 +100,7 @@ export class MediaGenerationExecutionService {
   async generateTextVideos(
     request: TextVideoGenerationRequest,
   ): Promise<VideoGenerationResult> {
-    const route = this.mediaRouteResolverService.resolveTextVideoRoute(
+    const route = await this.mediaRouteResolverService.resolveTextVideoRoute(
       request.aiService,
     );
 
@@ -126,7 +126,7 @@ export class MediaGenerationExecutionService {
   async generateImageVideos(
     request: ImageVideoGenerationRequest,
   ): Promise<VideoGenerationResult> {
-    const route = this.mediaRouteResolverService.resolveImageVideoRoute(
+    const route = await this.mediaRouteResolverService.resolveImageVideoRoute(
       request.aiService,
     );
 
@@ -152,7 +152,7 @@ export class MediaGenerationExecutionService {
   async generateMemes(
     request: MemeGenerationRequest,
   ): Promise<MemeGenerationResult> {
-    const route = this.mediaRouteResolverService.resolveMemeRoute(
+    const route = await this.mediaRouteResolverService.resolveMemeRoute(
       request.aiService,
     );
 

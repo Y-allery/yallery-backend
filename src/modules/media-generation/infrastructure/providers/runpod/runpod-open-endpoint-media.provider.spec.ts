@@ -1,7 +1,7 @@
 import { BadGatewayException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { UploadService } from 'src/modules/uploads/upload.service';
+import { ProviderRuntimeConfigService } from 'src/modules/provider-settings/provider-runtime-config.service';
 import { RunpodEndpointResolver } from './runpod-endpoint.resolver';
 import { RunpodMediaClient } from './runpod-media.client';
 import { RunpodOutputExtractor } from './runpod-output.extractor';
@@ -14,18 +14,19 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
   const mockedAxios = axios as jest.Mocked<typeof axios>;
 
   const createProvider = () => {
-    const configService = {
-      get: jest.fn((key: string) => {
-        const values: Record<string, string> = {
-          RUNPOD_API_KEY: 'test-runpod-key',
-          RUNPOD_MMAUDIO_ENDPOINT_ID: 'test-mmaudio-endpoint',
-          RUNPOD_P_VIDEO_ENDPOINT_ID: 'test-p-video-endpoint',
-          RUNPOD_WAN22_ANIMATE_MEME_ENDPOINT_ID: 'test-wan-endpoint',
-          RUNPOD_COMPLETED_OUTPUT_RETRY_COUNT: '0',
-        };
-        return values[key];
-      }),
-    } as unknown as ConfigService;
+    const values: Record<string, string> = {
+      RUNPOD_API_KEY: 'test-runpod-key',
+      RUNPOD_MMAUDIO_ENDPOINT_ID: 'test-mmaudio-endpoint',
+      RUNPOD_P_VIDEO_ENDPOINT_ID: 'test-p-video-endpoint',
+      RUNPOD_WAN22_ANIMATE_MEME_ENDPOINT_ID: 'test-wan-endpoint',
+      RUNPOD_COMPLETED_OUTPUT_RETRY_COUNT: '0',
+    };
+    const providerRuntimeConfigService = {
+      getString: jest.fn(async (key: string) => values[key] ?? null),
+      getNumber: jest.fn(async (key: string) =>
+        values[key] !== undefined ? Number(values[key]) : undefined,
+      ),
+    } as unknown as ProviderRuntimeConfigService;
 
     const uploadService = {
       uploadVideoAssetByUrl: jest.fn(async () => ({
@@ -39,8 +40,8 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
 
     return {
       provider: new RunpodOpenEndpointMediaProvider(
-        new RunpodMediaClient(configService),
-        new RunpodEndpointResolver(configService),
+        new RunpodMediaClient(providerRuntimeConfigService),
+        new RunpodEndpointResolver(providerRuntimeConfigService),
         new RunpodOutputExtractor(),
         new RunpodPayloadBuilder(),
         uploadService,
