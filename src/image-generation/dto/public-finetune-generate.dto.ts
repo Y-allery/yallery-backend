@@ -17,15 +17,14 @@ export class PublicFineTuneGenerateRequestDto {
 
   @ApiPropertyOptional({
     description: [
-      'Fine-tune preset selector.',
+      'Fine-tune preset selector. Kept for backwards compatibility; generation currently always uses the trained Nomisma RunPod LoRA.',
       '',
-      '**Available:**',
-      '- `xoob` → `fca9b669-380a-4d5e-873b-ac0b116c82a0`',
-      '- `nomisma` → `62a50ee2-5e66-4fe2-ad6b-64cead6834e8`',
+      '**Effective model:**',
+      '- `nomisma` → `nomisma_style_8acd427f`',
     ].join('\n'),
     enum: PublicFineTunePresetEnum,
-    default: PublicFineTunePresetEnum.XOOB,
-    example: PublicFineTunePresetEnum.XOOB,
+    default: PublicFineTunePresetEnum.NOMISMA,
+    example: PublicFineTunePresetEnum.NOMISMA,
   })
   @IsOptional()
   @IsEnum(PublicFineTunePresetEnum)
@@ -58,14 +57,14 @@ export class PublicFineTuneGenerateResponseDto {
   images: string[];
 
   @ApiProperty({
-    description: 'Fine-tune token used for generation (selected by preset).',
-    example: 'fca9b669-380a-4d5e-873b-ac0b116c82a0',
+    description: 'RunPod LoRA key used for generation.',
+    example: 'nomisma_style_8acd427f',
   })
   fineTuneToken: string;
 
   @ApiProperty({
-    description: 'Underlying provider model name taken from AI settings.',
-    example: 'fal-ai/black-forest-labs/flux-pro/v1.1',
+    description: 'Underlying provider endpoint.',
+    example: 'runpod/6fka********4v5x',
   })
   providerModel: string;
 
@@ -75,5 +74,4 @@ export class PublicFineTuneGenerateResponseDto {
   })
   elapsedMs: number;
 }
-
 

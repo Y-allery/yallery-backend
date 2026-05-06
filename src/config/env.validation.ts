@@ -161,6 +161,31 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   REPLICATE_API_TOKEN?: string;
+
+  // RunPod
+  @IsOptional()
+  @IsString()
+  RUNPOD_API_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  RUNPOD_API_BASE_URL?: string;
+
+  @IsOptional()
+  @IsString()
+  RUNPOD_SDXL_LORA_GENERATION_ENDPOINT_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  RUNPOD_POLL_INTERVAL_MS?: string;
+
+  @IsOptional()
+  @IsString()
+  RUNPOD_STATUS_TIMEOUT_MS?: string;
+
+  @IsOptional()
+  @IsString()
+  RUNPOD_REQUEST_TIMEOUT_MS?: string;
 }
 
 export function validate(config: Record<string, unknown>) {

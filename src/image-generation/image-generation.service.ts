@@ -3,6 +3,8 @@ import {
   HttpException,
   HttpStatus,
   BadRequestException,
+  BadGatewayException,
+  GatewayTimeoutException,
   forwardRef,
   Inject,
   Logger,
@@ -44,6 +46,47 @@ import * as leoProfanity from 'leo-profanity';
 import axios from 'axios';
 import { wrapFetchWithPayment } from 'x402-fetch';
 import { privateKeyToAccount } from 'viem/accounts';
+
+type RunpodJobStatus =
+  | 'IN_QUEUE'
+  | 'IN_PROGRESS'
+  | 'COMPLETED'
+  | 'FAILED'
+  | 'CANCELLED'
+  | 'TIMED_OUT';
+
+type RunpodJobResponse = {
+  id: string;
+  status: RunpodJobStatus;
+  output?: unknown;
+  error?: string;
+};
+
+type NomismaFineTuneConfig = {
+  loraKey: string;
+  loraUrl: string;
+  loraScale: number;
+  triggerWord: string;
+};
+
+const NOMISMA_RUNPOD_FINE_TUNE: NomismaFineTuneConfig = {
+  loraKey: 'nomisma_style_8acd427f',
+  loraUrl:
+    'https://res.cloudinary.com/dqsrgkdui/raw/upload/v1777332654/ai_finetunes/loras/nomisma_style_8acd427f.safetensors',
+  loraScale: 0.8,
+  triggerWord: 'nomisma_style',
+};
+
+function imageQuantityOutOfRange(
+  imageQuantity: number,
+  minImages?: number,
+  maxImages?: number,
+): boolean {
+  return (
+    (typeof minImages === 'number' && imageQuantity < minImages) ||
+    (typeof maxImages === 'number' && imageQuantity > maxImages)
+  );
+}
 
 @Injectable()
 export class ImageGenerationService {
@@ -113,6 +156,304 @@ export class ImageGenerationService {
     this.logger.log(
       `[image-edit-provider] ${stage} | ${JSON.stringify(payload)}`,
     );
+  }
+
+  private async generateRunpodNomismaImages(
+    prompt: string,
+    imageQuantity: number,
+    width = 1024,
+    height = 1024,
+  ): Promise<{ images: string[]; fineTuneToken: string; providerModel: string }> {
+    const trimmedPrompt = (prompt || '').trim();
+    if (!trimmedPrompt) {
+      throw new BadRequestException('prompt is required');
+    }
+
+    const endpointId = this.getRequiredRunpodConfig(
+      'RUNPOD_SDXL_LORA_GENERATION_ENDPOINT_ID',
+    );
+    const fineTune = await this.getNomismaFineTuneConfig();
+    const input = {
+      prompt: `${fineTune.triggerWord}, ${trimmedPrompt}`,
+      triggerWord: fineTune.triggerWord,
+      loraUrl: fineTune.loraUrl,
+      loraKey: fineTune.loraKey,
+      loraScale: fineTune.loraScale,
+      width,
+      height,
+      numImages: imageQuantity,
+      negativePrompt: '',
+      numInferenceSteps: 25,
+      guidanceScale: 7,
+      outputFormat: 'png',
+      returnBase64: true,
+      returnDataUri: true,
+    };
+
+    this.logger.log(
+      `[runpod-nomisma] job-submit | ${JSON.stringify({
+        endpointId,
+        loraKey: fineTune.loraKey,
+        triggerWord: fineTune.triggerWord,
+        imageQuantity,
+        width,
+        height,
+      })}`,
+    );
+
+    const initialJob = await this.submitRunpodJob(endpointId, input);
+    const completedJob = await this.waitForRunpodCompletion(
+      endpointId,
+      initialJob,
+    );
+    const providerImageSources = this.extractRunpodImageSources(
+      completedJob.output,
+    ).slice(0, imageQuantity);
+
+    const images = await Promise.all(
+      providerImageSources.map(async (imageSource) => {
+        return await this.uploadService.uploadByUrl(imageSource);
+      }),
+    );
+
+    return {
+      images,
+      fineTuneToken: fineTune.loraKey,
+      providerModel: `runpod/${endpointId}`,
+    };
+  }
+
+  private async getNomismaFineTuneConfig(): Promise<NomismaFineTuneConfig> {
+    try {
+      const rows = await this.contestRepository.manager.query(
+        `
+          SELECT triggerWord, loraKey, loraUrl, generationDefaults
+          FROM ai_finetunes
+          WHERE loraKey = ? AND status = 'ready'
+          LIMIT 1
+        `,
+        [NOMISMA_RUNPOD_FINE_TUNE.loraKey],
+      );
+      const [row] = rows || [];
+
+      if (row?.loraUrl && row?.loraKey && row?.triggerWord) {
+        const generationDefaults =
+          typeof row.generationDefaults === 'string'
+            ? JSON.parse(row.generationDefaults || '{}')
+            : row.generationDefaults || {};
+
+        return {
+          loraKey: row.loraKey,
+          loraUrl: row.loraUrl,
+          loraScale:
+            Number(generationDefaults?.loraScale) ||
+            NOMISMA_RUNPOD_FINE_TUNE.loraScale,
+          triggerWord: row.triggerWord,
+        };
+      }
+    } catch (error) {
+      this.logger.warn(
+        `[runpod-nomisma] fine-tune-config-fallback | ${JSON.stringify({
+          message: error.message,
+        })}`,
+      );
+    }
+
+    return NOMISMA_RUNPOD_FINE_TUNE;
+  }
+
+  private async submitRunpodJob(
+    endpointId: string,
+    input: Record<string, unknown>,
+  ): Promise<RunpodJobResponse> {
+    const response = await axios.post<RunpodJobResponse>(
+      `${this.getRunpodApiBaseUrl()}/${endpointId}/run`,
+      { input },
+      {
+        headers: this.getRunpodHeaders(),
+        timeout: this.getRunpodRequestTimeoutMs(),
+      },
+    );
+
+    return response.data;
+  }
+
+  private async waitForRunpodCompletion(
+    endpointId: string,
+    initialJob: RunpodJobResponse,
+  ): Promise<RunpodJobResponse> {
+    let currentJob = initialJob;
+    const startedAt = Date.now();
+    let completedWithoutOutputPolls = 0;
+
+    while (true) {
+      if (currentJob.status === 'COMPLETED') {
+        if (this.hasExtractableRunpodImageSource(currentJob.output)) {
+          return currentJob;
+        }
+
+        completedWithoutOutputPolls += 1;
+        if (completedWithoutOutputPolls > 6) {
+          throw new BadGatewayException(
+            `RunPod job ${currentJob.id} completed without image output`,
+          );
+        }
+
+        await this.sleep(2000);
+        currentJob = await this.fetchRunpodJobStatus(endpointId, currentJob.id);
+        continue;
+      }
+
+      if (
+        currentJob.status === 'FAILED' ||
+        currentJob.status === 'CANCELLED' ||
+        currentJob.status === 'TIMED_OUT'
+      ) {
+        throw new BadGatewayException(
+          `RunPod job ${currentJob.id} failed with status ${currentJob.status}${currentJob.error ? `: ${currentJob.error}` : ''}`,
+        );
+      }
+
+      if (Date.now() - startedAt > this.getRunpodStatusTimeoutMs()) {
+        throw new GatewayTimeoutException(
+          `RunPod job ${currentJob.id} did not finish within ${this.getRunpodStatusTimeoutMs()}ms`,
+        );
+      }
+
+      await this.sleep(this.getRunpodPollIntervalMs());
+      currentJob = await this.fetchRunpodJobStatus(endpointId, currentJob.id);
+    }
+  }
+
+  private async fetchRunpodJobStatus(
+    endpointId: string,
+    jobId: string,
+  ): Promise<RunpodJobResponse> {
+    const response = await axios.get<RunpodJobResponse>(
+      `${this.getRunpodApiBaseUrl()}/${endpointId}/status/${jobId}`,
+      {
+        headers: this.getRunpodHeaders(),
+        timeout: this.getRunpodRequestTimeoutMs(),
+      },
+    );
+
+    return response.data;
+  }
+
+  private extractRunpodImageSources(output: unknown): string[] {
+    const candidates: string[] = [];
+
+    const collect = (value: unknown) => {
+      if (!value) {
+        return;
+      }
+
+      if (typeof value === 'string') {
+        if (value.startsWith('http') || value.startsWith('data:image/')) {
+          candidates.push(value);
+        }
+        return;
+      }
+
+      if (Array.isArray(value)) {
+        value.forEach(collect);
+        return;
+      }
+
+      if (typeof value === 'object') {
+        const record = value as Record<string, unknown>;
+        collect(record.image);
+        collect(record.image_url);
+        collect(record.imageUrl);
+        collect(record.image_urls);
+        collect(record.imageUrls);
+        collect(record.data_uri);
+        collect(record.url);
+        collect(record.urls);
+        collect(record.result);
+        collect(record.images);
+        collect(record.output);
+        collect(record.data);
+
+        if (typeof record.base64 === 'string') {
+          const rawFormat =
+            typeof record.format === 'string' ? record.format : 'png';
+          const format = rawFormat
+            .replace(/^image\//, '')
+            .replace('jpg', 'jpeg');
+          collect(`data:image/${format};base64,${record.base64}`);
+        }
+
+        if (typeof record.b64_json === 'string') {
+          collect(`data:image/png;base64,${record.b64_json}`);
+        }
+      }
+    };
+
+    collect(output);
+
+    const uniqueSources = [...new Set(candidates)];
+    if (uniqueSources.length === 0) {
+      throw new BadGatewayException(
+        `RunPod response did not include image URLs: ${JSON.stringify(output)}`,
+      );
+    }
+
+    return uniqueSources;
+  }
+
+  private hasExtractableRunpodImageSource(output: unknown): boolean {
+    try {
+      return this.extractRunpodImageSources(output).length > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  private getRunpodApiBaseUrl(): string {
+    return (
+      this.configService.get<string>('RUNPOD_API_BASE_URL') ||
+      'https://api.runpod.ai/v2'
+    );
+  }
+
+  private getRunpodHeaders() {
+    return {
+      Authorization: `Bearer ${this.getRequiredRunpodConfig('RUNPOD_API_KEY')}`,
+      'Content-Type': 'application/json',
+    };
+  }
+
+  private getRequiredRunpodConfig(key: string): string {
+    const value = this.configService.get<string>(key);
+
+    if (!value) {
+      throw new BadRequestException(`${key} is not configured`);
+    }
+
+    return value;
+  }
+
+  private getRunpodPollIntervalMs(): number {
+    return Number(
+      this.configService.get<string>('RUNPOD_POLL_INTERVAL_MS') || 5000,
+    );
+  }
+
+  private getRunpodStatusTimeoutMs(): number {
+    return Number(
+      this.configService.get<string>('RUNPOD_STATUS_TIMEOUT_MS') || 600000,
+    );
+  }
+
+  private getRunpodRequestTimeoutMs(): number {
+    return Number(
+      this.configService.get<string>('RUNPOD_REQUEST_TIMEOUT_MS') || 30000,
+    );
+  }
+
+  private async sleep(ms: number): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   private async selectTokenForImageGeneration(
@@ -451,6 +792,74 @@ export class ImageGenerationService {
         imageUrl: otherTag.imageUrl,
       });
 
+      if (createPostDto.ai_service === AIEnum.FLUX_PRO_FINE_TUNE) {
+        if (!createPostDto.contest_id) {
+          throw new BadRequestException(
+            'contest_id is required for Flux Pro Fine Tune service',
+          );
+        }
+
+        const contest = await this.contestRepository.findOne({
+          where: { id: createPostDto.contest_id },
+        });
+
+        if (!contest) {
+          throw new BadRequestException(
+            `Contest with id ${createPostDto.contest_id} not found`,
+          );
+        }
+
+        const aiSetting = await this.getAISetting(AIEnum.FLUX_PRO_FINE_TUNE);
+        if (!aiSetting) {
+          throw new BadRequestException(
+            `AI service ${AIEnum.FLUX_PRO_FINE_TUNE} not found`,
+          );
+        }
+
+        if (
+          aiSetting.maxPromptLength &&
+          createPostDto.prompt.length > aiSetting.maxPromptLength
+        ) {
+          throw new BadRequestException(
+            `Prompt length must not exceed ${aiSetting.maxPromptLength} characters for ${aiSetting.name}`,
+          );
+        }
+
+        if (
+          imageQuantityOutOfRange(
+            createPostDto.image_quantity,
+            aiSetting.minImages,
+            aiSetting.maxImages,
+          )
+        ) {
+          throw new BadRequestException(
+            `image_quantity must be between ${aiSetting.minImages} and ${aiSetting.maxImages} for ${aiSetting.name}`,
+          );
+        }
+
+        const { width, height } = getDimensionsForOrientation(
+          createPostDto.orientation,
+          createPostDto.ai_service,
+        );
+        const result = await this.generateRunpodNomismaImages(
+          createPostDto.prompt,
+          createPostDto.image_quantity,
+          width,
+          height,
+        );
+
+        this.logger.log(
+          `[runpod-nomisma] generate-success | ${JSON.stringify({
+            contestId: createPostDto.contest_id,
+            generatedImages: result.images.length,
+            fineTuneToken: result.fineTuneToken,
+            providerModel: result.providerModel,
+          })}`,
+        );
+
+        return { generatedImages: result.images, suggestedTags };
+      }
+
       token = await this.selectTokenForImageGeneration(
         createPostDto.ai_service,
         createPostDto.contest_id ?? null,
@@ -513,51 +922,6 @@ export class ImageGenerationService {
         negativePrompt: 'Blurry photo, distortion, low-res, poor quality',
         num_images: createPostDto.image_quantity,
       };
-
-      if (AIEnum.FLUX_PRO_FINE_TUNE === createPostDto.ai_service) {
-        if (!createPostDto.contest_id) {
-          throw new BadRequestException(
-            'contest_id is required for Flux Pro Fine Tune service',
-          );
-        }
-
-        const contest = await this.contestRepository.findOne({
-          where: { id: createPostDto.contest_id },
-        });
-
-        if (!contest) {
-          throw new BadRequestException(
-            `Contest with id ${createPostDto.contest_id} not found`,
-          );
-        }
-
-        if (!contest.fineTuneToken) {
-          throw new BadRequestException(
-            `Contest ${createPostDto.contest_id} does not have fineTuneToken configured`,
-          );
-        }
-
-        if (!contest.fineTuneTriggerWord) {
-          console.warn(
-            `[Flux Pro Fine Tune] Contest ${createPostDto.contest_id} missing fineTuneTriggerWord, using default`,
-          );
-        }
-
-        // Flux Pro Fine Tune contest params prepared
-
-        inputParams = {
-          prompt: contest.fineTuneTriggerWord
-            ? `Generate me ${contest.fineTuneTriggerWord}.${createPostDto.prompt}`
-            : createPostDto.prompt,
-          finetune_id: contest.fineTuneToken,
-          output_format: 'jpeg',
-          safety_tolerance: 2,
-          num_images: createPostDto.image_quantity,
-          guidance_scale: 15,
-          num_inference_steps: 28,
-          finetune_strength: +contest.fineTuneStrength || 1,
-        };
-      }
 
       this.logPrompt('generate-provider-input', {
         service: createPostDto.ai_service,
@@ -684,98 +1048,53 @@ export class ImageGenerationService {
     imageQuantity: number,
     preset: PublicFineTunePresetEnum = PublicFineTunePresetEnum.XOOB,
   ): Promise<{ images: string[]; fineTuneToken: string; providerModel: string }> {
-    const fineTuneTokenByPreset: Record<PublicFineTunePresetEnum, string> = {
-      [PublicFineTunePresetEnum.XOOB]:
-        'fca9b669-380a-4d5e-873b-ac0b116c82a0',
-      [PublicFineTunePresetEnum.NOMISMA]:
-        '62a50ee2-5e66-4fe2-ad6b-64cead6834e8',
-    };
-    const fineTuneToken = fineTuneTokenByPreset[preset] ?? fineTuneTokenByPreset[PublicFineTunePresetEnum.XOOB];
-    let token: AiServiceToken;
-
-    try {
-      const trimmedPrompt = (prompt || '').trim();
-      if (!trimmedPrompt) {
-        throw new BadRequestException('prompt is required');
-      }
-
-      const aiSetting = await this.getAISetting(AIEnum.FLUX_PRO_FINE_TUNE);
-      if (!aiSetting || !aiSetting.apiModel) {
-        throw new BadRequestException(
-          `AI service ${AIEnum.FLUX_PRO_FINE_TUNE} not found or apiModel not configured`,
-        );
-      }
-
-      if (trimmedPrompt.length > aiSetting.maxPromptLength) {
-        throw new BadRequestException(
-          `Prompt length must not exceed ${aiSetting.maxPromptLength} characters for ${aiSetting.name}`,
-        );
-      }
-
-      if (imageQuantity < aiSetting.minImages || imageQuantity > aiSetting.maxImages) {
-        throw new BadRequestException(
-          `imageQuantity must be between ${aiSetting.minImages} and ${aiSetting.maxImages} for ${aiSetting.name}`,
-        );
-      }
-
-      token = await this.serviceTokenService.getNextAvailableToken(
-        AIEnum.FLUX_PRO_FINE_TUNE,
-      );
-      if (!token) {
-        throw new BadRequestException(
-          'No tokens available for the selected AI service',
-        );
-      }
-
-      fal.config({ credentials: token.token });
-
-      const generateMethod = fal.run.bind(fal, aiSetting.apiModel);
-      const inputParams: any = {
-        prompt: trimmedPrompt,
-        finetune_id: fineTuneToken,
-        output_format: 'jpeg',
-        safety_tolerance: 2,
-        num_images: imageQuantity,
-        guidance_scale: 15,
-        num_inference_steps: 28,
-        finetune_strength: 1,
-      };
-
-      const result = await generateMethod({ input: inputParams });
-
-      if (!result?.images || !Array.isArray(result.images) || result.images.length === 0) {
-        throw new Error(
-          `FalAI service returned no images. Result: ${JSON.stringify(result)}`,
-        );
-      }
-
-      const uploadResponses = await Promise.all(
-        result.images.map(async (image) => {
-          if (!image?.url) {
-            throw new Error('FalAI returned an image without url');
-          }
-          return await this.uploadService.uploadByUrl(image.url);
-        }),
-      );
-
-      return {
-        images: uploadResponses,
-        fineTuneToken,
-        providerModel: aiSetting.apiModel,
-      };
-    } catch (error) {
-      if (token?.token) {
-        try {
-          await this.serviceTokenService.markTokenAsRateLimited(
-            token,
-            AIEnum.FLUX_PRO_FINE_TUNE,
-          );
-        } catch {
-          // ignore secondary failures
-        }
-      }
-      throw error;
+    const trimmedPrompt = (prompt || '').trim();
+    if (!trimmedPrompt) {
+      throw new BadRequestException('prompt is required');
     }
+
+    const aiSetting = await this.getAISetting(AIEnum.FLUX_PRO_FINE_TUNE);
+    if (!aiSetting) {
+      throw new BadRequestException(
+        `AI service ${AIEnum.FLUX_PRO_FINE_TUNE} not found`,
+      );
+    }
+
+    if (
+      aiSetting.maxPromptLength &&
+      trimmedPrompt.length > aiSetting.maxPromptLength
+    ) {
+      throw new BadRequestException(
+        `Prompt length must not exceed ${aiSetting.maxPromptLength} characters for ${aiSetting.name}`,
+      );
+    }
+
+    if (
+      imageQuantityOutOfRange(
+        imageQuantity,
+        aiSetting.minImages,
+        aiSetting.maxImages,
+      )
+    ) {
+      throw new BadRequestException(
+        `imageQuantity must be between ${aiSetting.minImages} and ${aiSetting.maxImages} for ${aiSetting.name}`,
+      );
+    }
+
+    this.logger.log(
+      `[runpod-nomisma] public-generate | ${JSON.stringify({
+        requestedPreset: preset,
+        effectiveFineTuneToken: NOMISMA_RUNPOD_FINE_TUNE.loraKey,
+        imageQuantity,
+      })}`,
+    );
+
+    return await this.generateRunpodNomismaImages(
+      trimmedPrompt,
+      imageQuantity,
+      1024,
+      1024,
+    );
   }
 
   async generateXRouter(createPostDto: GenerateImageDto): Promise<{

@@ -14,19 +14,18 @@ export class PublicImageGenerationController {
 
   @Post('fine-tune/generate')
   @ApiOperation({
-    summary: 'Generate images (public, no auth, no credits) using a selected fine-tune preset',
+    summary: 'Generate images (public, no auth, no credits) using the Nomisma RunPod fine-tune',
     description: [
       'This endpoint is **public** (no JWT required) and does **not** charge user credits.',
       '',
-      'It uses a fine-tune token based on the `preset` selector:',
-      `- \`xoob\` → \`fca9b669-380a-4d5e-873b-ac0b116c82a0\``,
-      `- \`nomisma\` → \`62a50ee2-5e66-4fe2-ad6b-64cead6834e8\``,
+      'For the current collaboration flow it always uses the trained Nomisma RunPod LoRA:',
+      `- \`nomisma_style_8acd427f\``,
       '',
       'The request accepts only a prompt and number of images. The response returns the generated image URLs (uploaded to Cloudinary) directly in HTTP.',
       '',
       '**Notes:**',
       '- Generation is performed synchronously (no queue).',
-      '- The provider model is read from `ai_settings` for `flux_pro_fine_tune`.',
+      '- The `preset` request field is kept for backwards compatibility but is ignored by the backend for now.',
     ].join('\n'),
   })
   @ApiBody({ type: PublicFineTuneGenerateRequestDto })
@@ -46,7 +45,7 @@ export class PublicImageGenerationController {
     const result = await this.imageGenerationService.generateFineTuneImagesPublic(
       dto.prompt,
       dto.imageQuantity,
-      dto.preset ?? PublicFineTunePresetEnum.XOOB,
+      dto.preset ?? PublicFineTunePresetEnum.NOMISMA,
     );
 
     return {
@@ -58,5 +57,4 @@ export class PublicImageGenerationController {
     };
   }
 }
-
 
