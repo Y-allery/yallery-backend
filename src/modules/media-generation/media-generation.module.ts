@@ -14,6 +14,7 @@ import { RunpodMediaClient } from 'src/modules/media-generation/infrastructure/p
 import { RunpodOpenEndpointMediaProvider } from 'src/modules/media-generation/infrastructure/providers/runpod/runpod-open-endpoint-media.provider';
 import { RunpodOutputExtractor } from 'src/modules/media-generation/infrastructure/providers/runpod/runpod-output.extractor';
 import { RunpodPayloadBuilder } from 'src/modules/media-generation/infrastructure/providers/runpod/runpod-payload.builder';
+import { RunpodTimeoutPolicyService } from 'src/modules/media-generation/infrastructure/providers/runpod/runpod-timeout-policy.service';
 import { MediaGenerationController } from 'src/modules/media-generation/api/media-generation.controller';
 import {
   MEDIA_AUDIO_GENERATION_QUEUE,
@@ -100,6 +101,7 @@ import { MediaPreviewService } from 'src/modules/media-generation/infrastructure
     RunpodOpenEndpointMediaProvider,
     RunpodOutputExtractor,
     RunpodPayloadBuilder,
+    RunpodTimeoutPolicyService,
   ],
   exports: [MediaProviderRegistryService, MediaRouteResolverService],
 })

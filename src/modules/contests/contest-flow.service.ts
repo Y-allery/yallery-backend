@@ -5,8 +5,6 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import axios from 'axios';
-import * as https from 'https';
 import { DataSource, In, Repository } from 'typeorm';
 import { MediaAISettingsEntity } from 'src/modules/media-generation/persistence/entities/media-ai-settings.entity';
 import { PostEntity } from 'src/modules/posts/entities/post.entity';
@@ -36,6 +34,7 @@ import {
   ContestStatusEnum,
   ContestTypeEnum,
 } from './types/contest.status.enum';
+import { TwitterApiIoService } from 'src/integrations/twitter-api-io/twitter-api-io.service';
 
 type StartSubmissionParams = {
   contestId?: number | null;
@@ -52,8 +51,6 @@ type LifecycleAdvanceResult = {
 
 @Injectable()
 export class ContestFlowService {
-  private readonly tweetscoutApiKey: string;
-
   constructor(
     private readonly configService: ConfigService,
     private readonly dataSource: DataSource,
@@ -78,9 +75,8 @@ export class ContestFlowService {
     private readonly rewardService: RewardService,
     private readonly userActivityService: UserActivityService,
     private readonly notificationGateway: NotificationGateway,
-  ) {
-    this.tweetscoutApiKey = this.configService.get<string>('TWEETSCOUT_API_KEY');
-  }
+    private readonly twitterApiIoService: TwitterApiIoService,
+  ) {}
 
   async createMetadataForContest(
     contest: ContestEntity,
@@ -1103,24 +1099,19 @@ export class ContestFlowService {
   }
 
   private async fetchTweetsForContest(contest: ContestEntity): Promise<any[]> {
-    if (!this.tweetscoutApiKey || !contest.tag?.name) {
+    if (!contest.tag?.name) {
       return [];
     }
 
     try {
-      const response = await axios.post(
-        'https://api.tweetscout.io/v2/user-tweets',
-        { link: 'https://x.com/y_allery' },
-        {
-          headers: {
-            ApiKey: this.tweetscoutApiKey,
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-          },
-        },
+      const response = await this.twitterApiIoService.searchTweets(
+        `from:y_allery #${contest.tag.name}`,
+        'Latest',
+        this.toUnixSeconds(contest.startTime),
+        this.toUnixSeconds(contest.endTime),
       );
 
-      return Array.isArray(response.data?.tweets) ? response.data.tweets : [];
+      return Array.isArray(response?.tweets) ? response.tweets : [];
     } catch {
       return [];
     }
@@ -1139,10 +1130,10 @@ export class ContestFlowService {
   }
 
   private getTweetScoreBreakdown(tweet: any) {
-    const likes = Number(tweet.favorite_count ?? 0);
-    const retweets = Number(tweet.retweet_count ?? 0);
-    const replies = Number(tweet.reply_count ?? 0);
-    const views = Number(tweet.view_count ?? 0);
+    const likes = Number(tweet.favorite_count ?? tweet.likeCount ?? 0);
+    const retweets = Number(tweet.retweet_count ?? tweet.retweetCount ?? 0);
+    const replies = Number(tweet.reply_count ?? tweet.replyCount ?? 0);
+    const views = Number(tweet.view_count ?? tweet.viewCount ?? 0);
     return {
       likes,
       retweets,
@@ -1161,43 +1152,30 @@ export class ContestFlowService {
     tweetLink: string,
     userHandle: string,
   ): Promise<{ retweet: boolean }> {
-    if (!tweetLink || !this.tweetscoutApiKey) {
+    const tweetId = this.extractTweetIdFromLink(tweetLink);
+    if (!tweetId) {
       return { retweet: false };
     }
 
-    const options = {
-      method: 'POST',
-      hostname: 'api.tweetscout.io',
-      path: '/v2/check-retweet',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        ApiKey: this.tweetscoutApiKey,
-      },
-    };
+    try {
+      return await this.twitterApiIoService.verifyUserRetweeted(
+        tweetId,
+        userHandle,
+      );
+    } catch {
+      return { retweet: false };
+    }
+  }
 
-    const body = JSON.stringify({
-      tweet_link: tweetLink,
-      user_handle: userHandle,
-    });
+  private extractTweetIdFromLink(tweetLink: string): string | null {
+    const match = tweetLink?.match(/status\/(\d+)/);
+    return match?.[1] || null;
+  }
 
-    return new Promise((resolve) => {
-      const req = https.request(options, (res) => {
-        const chunks: Uint8Array[] = [];
-        res.on('data', (chunk) => chunks.push(chunk));
-        res.on('end', () => {
-          try {
-            const parsed = JSON.parse(Buffer.concat(chunks).toString());
-            resolve({ retweet: parsed.retweet === true });
-          } catch {
-            resolve({ retweet: false });
-          }
-        });
-      });
-
-      req.on('error', () => resolve({ retweet: false }));
-      req.write(body);
-      req.end();
-    });
+  private toUnixSeconds(date?: Date | string | null): number | undefined {
+    if (!date) return undefined;
+    const time = new Date(date).getTime();
+    if (!Number.isFinite(time)) return undefined;
+    return Math.floor(time / 1000);
   }
 }

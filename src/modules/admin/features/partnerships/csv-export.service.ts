@@ -39,7 +39,7 @@ export class CsvExportService {
     const records = data.map((item) => ({
       id: item.id,
       name: item.name,
-      screenName: item.screeName,
+      screenName: item.screenName || item.userName,
       score: item.score,
       followersCount: item.followersCount,
       friendsCount: item.friendsCount,

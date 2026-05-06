@@ -5,10 +5,7 @@ import {
 } from '@nestjs/common';
 import axios from 'axios';
 import { ProviderRuntimeConfigService } from 'src/modules/provider-settings/provider-runtime-config.service';
-import {
-  RunpodJobResponse,
-  RunpodOutputType,
-} from './runpod-media.types';
+import { RunpodJobResponse } from './runpod-media.types';
 
 @Injectable()
 export class RunpodMediaClient {
@@ -64,12 +61,11 @@ export class RunpodMediaClient {
     endpointId: string,
     initialJob: RunpodJobResponse,
     hasExtractableOutput: (output: unknown) => boolean,
-    outputType: RunpodOutputType = 'image',
+    statusTimeoutMs: number,
   ): Promise<RunpodJobResponse> {
     let currentJob = initialJob;
     const startedAt = Date.now();
     let completedWithoutOutputPolls = 0;
-    const statusTimeoutMs = await this.getStatusTimeoutMs(outputType);
 
     while (true) {
       if (currentJob.status === 'COMPLETED') {
@@ -102,7 +98,7 @@ export class RunpodMediaClient {
         );
       }
 
-      if (Date.now() - startedAt > statusTimeoutMs) {
+      if (Date.now() - startedAt >= statusTimeoutMs) {
         throw new GatewayTimeoutException(
           `RunPod job ${currentJob.id} did not finish within ${statusTimeoutMs}ms`,
         );
@@ -165,20 +161,6 @@ export class RunpodMediaClient {
     );
   }
 
-  private async getStatusTimeoutMs(
-    outputType: RunpodOutputType = 'image',
-  ): Promise<number> {
-    const configuredValue = await this.providerRuntimeConfigService.getNumber(
-      'RUNPOD_STATUS_TIMEOUT_MS',
-    );
-
-    if (configuredValue) {
-      return Number(configuredValue);
-    }
-
-    return outputType === 'video' ? 1800000 : 600000;
-  }
-
   private async getRequestTimeoutMs(): Promise<number> {
     return (
       (await this.providerRuntimeConfigService.getNumber(
@@ -191,7 +173,7 @@ export class RunpodMediaClient {
     return (
       (await this.providerRuntimeConfigService.getNumber(
         'RUNPOD_SYNC_REQUEST_TIMEOUT_MS',
-      )) ?? (await this.getStatusTimeoutMs())
+      )) ?? 1800000
     );
   }
 

@@ -1,3 +1,5 @@
+import { RUNPOD_MEDIA_ROUTE_CATALOG } from 'src/modules/media-generation/infrastructure/routing/media-route.catalog';
+
 export type ProviderSettingGroup =
   | 'openai'
   | 'runpod_core'
@@ -25,6 +27,31 @@ export interface ProviderSettingDefinition {
   validationKind: ProviderSettingValidationKind;
   defaultValue?: string;
 }
+
+const RUNPOD_STATUS_TIMEOUT_SETTING_DEFINITIONS: ProviderSettingDefinition[] =
+  RUNPOD_MEDIA_ROUTE_CATALOG.filter(
+    (
+      route,
+    ): route is typeof route & {
+      statusTimeoutConfigKey: string;
+      statusTimeoutLabel: string;
+      defaultStatusTimeoutMs: number;
+    } =>
+      Boolean(
+        route.statusTimeoutConfigKey &&
+          route.statusTimeoutLabel &&
+          route.defaultStatusTimeoutMs !== undefined,
+      ),
+  ).map((route) => ({
+    key: route.statusTimeoutConfigKey,
+    provider: 'runpod',
+    group: 'runpod_timeouts',
+    label: route.statusTimeoutLabel,
+    type: 'number',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: String(route.defaultStatusTimeoutMs),
+  }));
 
 export const PROVIDER_SETTING_DEFINITIONS: ProviderSettingDefinition[] = [
   {
@@ -198,16 +225,7 @@ export const PROVIDER_SETTING_DEFINITIONS: ProviderSettingDefinition[] = [
     validationKind: 'none',
     defaultValue: 'true',
   },
-  {
-    key: 'RUNPOD_STATUS_TIMEOUT_MS',
-    provider: 'runpod',
-    group: 'runpod_timeouts',
-    label: 'Status Timeout',
-    type: 'number',
-    isSecret: false,
-    validationKind: 'none',
-    defaultValue: '1800000',
-  },
+  ...RUNPOD_STATUS_TIMEOUT_SETTING_DEFINITIONS,
   {
     key: 'RUNPOD_POLL_INTERVAL_MS',
     provider: 'runpod',

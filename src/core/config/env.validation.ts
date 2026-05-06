@@ -47,21 +47,21 @@ export class EnvironmentVariables {
 
   // External APIs
   @IsString()
-  TWEETSCOUT_API_KEY: string;
+  TWITTERAPI_IO_API_KEY: string;
 
   @IsOptional()
   @IsString()
-  TWEETSCOUT_API_URL?: string;
-
-  @IsString()
-  TWITTER_SCORE_API_KEY: string;
+  TWITTERAPI_IO_API_URL?: string;
 
   @IsOptional()
-  @IsString()
-  TWITTER_SCORE_API_URL?: string;
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10))
+  TWITTERAPI_IO_RETWEETER_MAX_PAGES?: number;
 
-  @IsString()
-  TWITTER_ACCOUNT_ID: string;
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10))
+  TWITTERAPI_IO_PAGE_SIZE?: number;
 
   @IsOptional()
   @IsString()
@@ -217,7 +217,37 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10))
-  RUNPOD_STATUS_TIMEOUT_MS?: number;
+  RUNPOD_FLUX2_KLEIN_STATUS_TIMEOUT_MS?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10))
+  RUNPOD_SDXL_STATUS_TIMEOUT_MS?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10))
+  RUNPOD_SDXL_LORA_GENERATION_STATUS_TIMEOUT_MS?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10))
+  RUNPOD_P_VIDEO_TEXT_STATUS_TIMEOUT_MS?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10))
+  RUNPOD_P_VIDEO_IMAGE_STATUS_TIMEOUT_MS?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10))
+  RUNPOD_MMAUDIO_STATUS_TIMEOUT_MS?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value, 10))
+  RUNPOD_WAN22_ANIMATE_MEME_STATUS_TIMEOUT_MS?: number;
 
   @IsOptional()
   @IsNumber()

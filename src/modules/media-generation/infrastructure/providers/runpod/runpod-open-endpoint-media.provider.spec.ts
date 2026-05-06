@@ -7,6 +7,7 @@ import { RunpodMediaClient } from './runpod-media.client';
 import { RunpodOutputExtractor } from './runpod-output.extractor';
 import { RunpodOpenEndpointMediaProvider } from './runpod-open-endpoint-media.provider';
 import { RunpodPayloadBuilder } from './runpod-payload.builder';
+import { RunpodTimeoutPolicyService } from './runpod-timeout-policy.service';
 
 jest.mock('axios');
 
@@ -44,6 +45,7 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
         new RunpodEndpointResolver(providerRuntimeConfigService),
         new RunpodOutputExtractor(),
         new RunpodPayloadBuilder(),
+        new RunpodTimeoutPolicyService(providerRuntimeConfigService),
         uploadService,
       ),
       uploadService,

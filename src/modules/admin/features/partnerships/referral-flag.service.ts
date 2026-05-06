@@ -5,7 +5,7 @@ import { PartnershipActivityEntity } from 'src/modules/admin/entities/partnershi
 import { PartnerUserLinkEntity } from 'src/modules/admin/entities/partner-user-link.entity';
 import { PartnershipEntity } from 'src/modules/admin/entities/partner.entity';
 import { UserEntity } from 'src/modules/users/entities/user.entity';
-import { TweetScoutReferralService } from './tweetscout-referral.service';
+import { TwitterApiIoService } from 'src/integrations/twitter-api-io/twitter-api-io.service';
 
 @Injectable()
 export class ReferralFlagService {
@@ -20,7 +20,7 @@ export class ReferralFlagService {
     private readonly partnerUserLinkRepository: Repository<PartnerUserLinkEntity>,
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
-    private readonly tweetScoutReferralService: TweetScoutReferralService,
+    private readonly twitterApiIoService: TwitterApiIoService,
   ) {}
 
   async checkReferralFlag(params: {
@@ -127,7 +127,7 @@ export class ReferralFlagService {
       }
 
       const twitterUsername = user.twitterUsername.replace(/^@/, '');
-      const retweetCheck = await this.tweetScoutReferralService.checkRetweet(
+      const retweetCheck = await this.checkRetweetWithTwitterApiIo(
         twitterUsername,
         partnershipId,
         userIdNum,
@@ -141,5 +141,72 @@ export class ReferralFlagService {
       );
       return { status: 'false' };
     }
+  }
+
+  private async checkRetweetWithTwitterApiIo(
+    userHandle: string,
+    partnershipId: number,
+    userId: number,
+  ): Promise<{ retweet: boolean }> {
+    const searchText = '@y_allery';
+    const maxTweetsToCheck = 15;
+    const normalizedUserHandle = userHandle.replace(/^@/, '');
+    const query = `from:${normalizedUserHandle} ${searchText}`;
+    let totalTweetsChecked = 0;
+    let found = false;
+
+    try {
+      const response = await this.twitterApiIoService.searchTweets(
+        query,
+        'Latest',
+      );
+      const tweets = response?.tweets || [];
+
+      for (const tweet of tweets) {
+        totalTweetsChecked++;
+        if (totalTweetsChecked > maxTweetsToCheck) {
+          break;
+        }
+
+        const tweetText = tweet.full_text || tweet.text || '';
+        if (tweetText.toLowerCase().includes(searchText.toLowerCase())) {
+          found = true;
+          break;
+        }
+      }
+
+      if (found) {
+        await this.saveRetweetActivity(partnershipId, userId);
+      }
+
+      return { retweet: found };
+    } catch (error) {
+      this.logger.error(
+        `[checkRetweet] Error checking retweet for ${normalizedUserHandle}: ${error.message}`,
+        error.stack,
+      );
+      return { retweet: false };
+    }
+  }
+
+  private async saveRetweetActivity(partnershipId: number, userId: number) {
+    const existingActivity = await this.partnerShipActivityRepository
+      .createQueryBuilder('pa')
+      .where('pa.partnershipId = :pid', { pid: partnershipId })
+      .andWhere('pa.userId = :uid', { uid: userId })
+      .andWhere('pa.activity = :flag', { flag: 'retweet' })
+      .limit(1)
+      .getOne();
+
+    if (existingActivity) {
+      return;
+    }
+
+    const activity = this.partnerShipActivityRepository.create({
+      partnershipId,
+      userId,
+      activity: 'retweet',
+    });
+    await this.partnerShipActivityRepository.save(activity);
   }
 }

@@ -26,6 +26,7 @@ import { UserActivityEntity } from 'src/modules/engagement/user-activity/entitie
 import { ContestStartNotificationQueueService } from './notifications/contest-start-notification-queue.service';
 import { ContestStartNotificationProcessor } from './notifications/contest-start-notification.processor';
 import { CONTEST_START_NOTIFICATIONS_QUEUE } from './notifications/contest-start-notification.queue';
+import { TwitterApiIoModule } from 'src/integrations/twitter-api-io/twitter-api-io.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { CONTEST_START_NOTIFICATIONS_QUEUE } from './notifications/contest-start
     UserActivityModule,
     FirebaseModule,
     forwardRef(() => RewardModule),
+    TwitterApiIoModule,
   ],
   providers: [
     ContestService,

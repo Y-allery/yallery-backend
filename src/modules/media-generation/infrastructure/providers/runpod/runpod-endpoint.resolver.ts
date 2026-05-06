@@ -6,6 +6,10 @@ import { MemeGenerationRequest } from 'src/modules/media-generation/domain/contr
 import { ResolvedPromptImageGenerationRequest } from 'src/modules/media-generation/domain/contracts/prompt-image-generation-request.contract';
 import { TextVideoGenerationRequest } from 'src/modules/media-generation/domain/contracts/text-video-generation-request.contract';
 import { ProviderRuntimeConfigService } from 'src/modules/provider-settings/provider-runtime-config.service';
+import {
+  getRunpodMediaRoute,
+  MediaRouteType,
+} from 'src/modules/media-generation/infrastructure/routing/media-route.catalog';
 
 @Injectable()
 export class RunpodEndpointResolver {
@@ -16,90 +20,57 @@ export class RunpodEndpointResolver {
   async getEndpointIdForPromptImageRequest(
     request: ResolvedPromptImageGenerationRequest,
   ): Promise<string> {
-    switch (request.aiService) {
-      case 'flux2_klein':
-        return this.getRequiredConfig('RUNPOD_FLUX2_KLEIN_ENDPOINT_ID');
-      case 'sdxl':
-        return this.getRequiredConfig('RUNPOD_SDXL_ENDPOINT_ID');
-      case 'sdxl_lora_generation':
-        return this.getRequiredConfig(
-          'RUNPOD_SDXL_LORA_GENERATION_ENDPOINT_ID',
-        );
-      default:
-        throw new Error(
-          `RunPod prompt-image endpoint is not configured for ${request.aiService}`,
-        );
-    }
+    return this.getRequiredEndpointId(request.aiService, 'promptImage');
   }
 
   async getEndpointIdForImageEditRequest(
     request: EditImageGenerationRequest,
   ): Promise<string> {
-    switch (request.aiService) {
-      case 'qwen_image_edit_baked':
-        return this.getRequiredConfig(
-          'RUNPOD_QWEN_IMAGE_EDIT_BAKED_ENDPOINT_ID',
-        );
-      default:
-        throw new Error(
-          `RunPod image-edit endpoint is not configured for ${request.aiService}`,
-        );
-    }
+    return this.getRequiredEndpointId(request.aiService, 'imageEdit');
   }
 
   async getEndpointIdForAudioRequest(
     request: AudioGenerationRequest,
   ): Promise<string> {
-    switch (request.aiService) {
-      case 'mmaudio_v2':
-        return this.getRequiredConfig('RUNPOD_MMAUDIO_ENDPOINT_ID');
-      default:
-        throw new Error(
-          `RunPod audio endpoint is not configured for ${request.aiService}`,
-        );
-    }
+    return this.getRequiredEndpointId(request.aiService, 'audio');
   }
 
   async getEndpointIdForTextVideoRequest(
     request: TextVideoGenerationRequest,
   ): Promise<string> {
-    switch (request.aiService) {
-      case 'p_video_text':
-      default:
-        return this.getRequiredConfig('RUNPOD_P_VIDEO_ENDPOINT_ID');
-    }
+    return this.getRequiredEndpointId(request.aiService, 'textVideo');
   }
 
   async getEndpointIdForImageVideoRequest(
     request: ImageVideoGenerationRequest,
   ): Promise<string> {
-    switch (request.aiService) {
-      case 'p_video_image':
-      default:
-        return this.getRequiredConfig('RUNPOD_P_VIDEO_ENDPOINT_ID');
-    }
+    return this.getRequiredEndpointId(request.aiService, 'imageVideo');
   }
 
   async getEndpointIdForMemeRequest(
     request: MemeGenerationRequest,
   ): Promise<string> {
-    switch (request.aiService) {
-      case 'wan22_animate_native':
-        return this.getRequiredConfig(
-          'RUNPOD_WAN22_ANIMATE_MEME_ENDPOINT_ID',
-        );
-      default:
-        throw new Error(
-          `RunPod meme endpoint is not configured for ${request.aiService}`,
-        );
-    }
+    return this.getRequiredEndpointId(request.aiService, 'meme');
   }
 
-  private async getRequiredConfig(key: string): Promise<string> {
-    const value = await this.providerRuntimeConfigService.getString(key);
+  private async getRequiredEndpointId(
+    aiService: string,
+    routeType: MediaRouteType,
+  ): Promise<string> {
+    const route = getRunpodMediaRoute(aiService, routeType);
+
+    if (!route) {
+      throw new Error(
+        `RunPod ${routeType} endpoint is not configured for ${aiService}`,
+      );
+    }
+
+    const value = await this.providerRuntimeConfigService.getString(
+      route.endpointConfigKey,
+    );
 
     if (!value) {
-      throw new Error(`${key} is not configured`);
+      throw new Error(`${route.endpointConfigKey} is not configured`);
     }
 
     return value;

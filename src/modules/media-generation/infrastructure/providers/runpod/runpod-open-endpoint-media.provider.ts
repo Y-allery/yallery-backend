@@ -22,6 +22,7 @@ import { RunpodMediaClient } from './runpod-media.client';
 import { RunpodJobResponse } from './runpod-media.types';
 import { RunpodOutputExtractor } from './runpod-output.extractor';
 import { RunpodPayloadBuilder } from './runpod-payload.builder';
+import { RunpodTimeoutPolicyService } from './runpod-timeout-policy.service';
 
 @Injectable()
 export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider {
@@ -32,6 +33,7 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
     private readonly endpoints: RunpodEndpointResolver,
     private readonly extractor: RunpodOutputExtractor,
     private readonly payloadBuilder: RunpodPayloadBuilder,
+    private readonly timeoutPolicy: RunpodTimeoutPolicyService,
     private readonly uploadService: UploadService,
   ) {}
 
@@ -55,6 +57,10 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
       endpointId,
       initialJob,
       this.extractor.hasExtractableImageSource.bind(this.extractor),
+      await this.timeoutPolicy.getStatusTimeoutMs(
+        request.aiService,
+        'promptImage',
+      ),
     );
     const providerImageSources = this.extractor.extractImageSources(
       completedJob.output,
@@ -115,7 +121,12 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
     const initialJob = await this.client.submitJob(endpointId, {
       input: this.payloadBuilder.buildAudioInput(normalizedRequest),
     });
-    const completedJob = await this.waitForVideo(endpointId, initialJob);
+    const completedJob = await this.waitForVideo(
+      endpointId,
+      initialJob,
+      request.aiService,
+      'audio',
+    );
     const providerVideoSource = this.extractor.extractVideoSource(
       completedJob.output,
     );
@@ -140,7 +151,12 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
     const initialJob = await this.client.submitJob(endpointId, {
       input: this.payloadBuilder.buildTextVideoInput(request),
     });
-    const completedJob = await this.waitForVideo(endpointId, initialJob);
+    const completedJob = await this.waitForVideo(
+      endpointId,
+      initialJob,
+      request.aiService,
+      'textVideo',
+    );
     const providerVideoSource = this.extractor.extractVideoSource(
       completedJob.output,
     );
@@ -164,7 +180,12 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
     const initialJob = await this.client.submitJob(endpointId, {
       input: this.payloadBuilder.buildImageVideoInput(request),
     });
-    const completedJob = await this.waitForVideo(endpointId, initialJob);
+    const completedJob = await this.waitForVideo(
+      endpointId,
+      initialJob,
+      request.aiService,
+      'imageVideo',
+    );
     const providerVideoSource = this.extractor.extractVideoSource(
       completedJob.output,
     );
@@ -187,7 +208,12 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
     const initialJob = await this.client.submitJob(endpointId, {
       input: this.payloadBuilder.buildMemeInput(request),
     });
-    const completedJob = await this.waitForVideo(endpointId, initialJob);
+    const completedJob = await this.waitForVideo(
+      endpointId,
+      initialJob,
+      request.aiService,
+      'meme',
+    );
     const providerVideoSource = this.extractor.extractVideoSource(
       completedJob.output,
     );
@@ -207,12 +233,14 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
   private async waitForVideo(
     endpointId: string,
     initialJob: RunpodJobResponse,
+    aiService: string,
+    routeType: 'audio' | 'textVideo' | 'imageVideo' | 'meme',
   ) {
     return await this.client.waitForCompletion(
       endpointId,
       initialJob,
       this.extractor.hasExtractableVideoSource.bind(this.extractor),
-      'video',
+      await this.timeoutPolicy.getStatusTimeoutMs(aiService, routeType),
     );
   }
 

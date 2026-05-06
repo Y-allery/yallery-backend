@@ -30,8 +30,7 @@ import { BranchLinkService } from './features/partnerships/branch-link.service';
 import { CsvExportService } from './features/partnerships/csv-export.service';
 import { PartnerController } from './features/partnerships/partner-referral.controller';
 import { ReferralFlagService } from './features/partnerships/referral-flag.service';
-import { TweetScoutReferralService } from './features/partnerships/tweetscout-referral.service';
-import { TwitterScoreExportService } from './features/partnerships/twitter-score-export.service';
+import { TwitterApiIoExportService } from './features/partnerships/twitter-score-export.service';
 import { ContestModule } from 'src/modules/contests/contest.module';
 import { UserModule } from 'src/modules/users/user.module';
 import { PostModule } from 'src/modules/posts/post.module';
@@ -53,6 +52,7 @@ import { MailModule } from 'src/integrations/mail/mail.module';
 import { DeviceTokenEntity } from 'src/modules/users/entities/device-token.entity';
 import { MemeModule } from 'src/modules/memes/meme.module';
 import { AIFinetuneEntity } from 'src/modules/admin/entities/ai-finetune.entity';
+import { TwitterApiIoModule } from 'src/integrations/twitter-api-io/twitter-api-io.module';
 
 @Module({
   imports: [
@@ -78,6 +78,7 @@ import { AIFinetuneEntity } from 'src/modules/admin/entities/ai-finetune.entity'
     FirebaseModule,
     MailModule,
     MemeModule,
+    TwitterApiIoModule,
   ],
   providers: [
     AdminContestsService,
@@ -93,8 +94,7 @@ import { AIFinetuneEntity } from 'src/modules/admin/entities/ai-finetune.entity'
     BranchLinkService,
     CsvExportService,
     ReferralFlagService,
-    TweetScoutReferralService,
-    TwitterScoreExportService,
+    TwitterApiIoExportService,
     AdminMetricsService,
     MetricsSnapshotBuilder,
     AIUsageMetricsCollector,

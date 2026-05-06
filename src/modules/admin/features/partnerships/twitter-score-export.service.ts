@@ -1,80 +1,55 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
 import * as AdmZip from 'adm-zip';
 import { CsvExportService } from './csv-export.service';
+import { TwitterApiIoService } from 'src/integrations/twitter-api-io/twitter-api-io.service';
 
 @Injectable()
-export class TwitterScoreExportService {
-  private readonly apiKey: string;
-  private readonly apiUrl: string;
+export class TwitterApiIoExportService {
   private readonly accountName: string;
-  private readonly twitterScoreKey: string;
-  private readonly twitterScoreUrl: string;
-  private readonly twitterId: string;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly csvExportService: CsvExportService,
+    private readonly twitterApiIoService: TwitterApiIoService,
   ) {
-    this.apiKey = this.configService.get<string>('TWEETSCOUT_API_KEY');
-    this.apiUrl = this.configService.get<string>(
-      'TWEETSCOUT_API_URL',
-      'https://api.tweetscout.io/v2',
-    );
     this.accountName = this.configService.get<string>(
       'TWITTER_ACCOUNT_NAME',
       'y_allery',
     );
-    this.twitterScoreKey = this.configService.get<string>(
-      'TWITTER_SCORE_API_KEY',
-    );
-    this.twitterScoreUrl = this.configService.get<string>(
-      'TWITTER_SCORE_API_URL',
-      'https://twitterscore.io/api/v1',
-    );
-    this.twitterId = this.configService.get<string>('TWITTER_ACCOUNT_ID');
   }
 
-  async getTopFollowersTwitterScore() {
-    const url = `${this.twitterScoreUrl}/get_twitter_top_followers?api_key=${this.twitterScoreKey}&twitter_id=${this.twitterId}`;
-
-    const res = await axios.get(url, {
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': 'NestJS TwitterScore Client',
-      },
-    });
-    return res.data.data;
+  async getTopFollowersFromTwitterApiIo() {
+    const response = await this.twitterApiIoService.getFollowers(
+      this.accountName,
+    );
+    return response.followers;
   }
 
   async getFollowersHistory() {
-    const url = `${this.twitterScoreUrl}/followers_count_history?api_key=${this.twitterScoreKey}&twitter_id=${this.twitterId}&period=30`;
-    const res = await axios.get(url, {
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': 'NestJS TwitterScore Client',
+    const profile = await this.twitterApiIoService.getUserProfile(
+      this.accountName,
+    );
+    return [
+      {
+        date: new Date().toISOString().slice(0, 10),
+        followers_count: profile.followersCount,
       },
-    });
-    return res.data.data;
+    ];
   }
 
   async getNewFollowers() {
-    const url = `${this.twitterScoreUrl}/get_twitter_top_followers?api_key=${this.twitterScoreKey}&twitter_id=${this.twitterId}&period=30`;
-    const res = await axios.get(url, {
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': 'NestJS TwitterScore Client',
-      },
-    });
-    return res.data.data;
+    const response = await this.twitterApiIoService.getFollowers(
+      this.accountName,
+    );
+    return response.followers;
   }
 
   async exportTwitterDataWithFollowers() {
     const topFollowing = await this.getTopFollowing();
     const score = await this.getScore();
 
-    const topFollowers = await this.getTopFollowersTwitterScore();
+    const topFollowers = await this.getTopFollowersFromTwitterApiIo();
     const followersHistory = await this.getFollowersHistory();
     const newFollowers = await this.getNewFollowers();
 
@@ -102,25 +77,23 @@ export class TwitterScoreExportService {
   }
 
   async getTopFollowers() {
-    return this.fetchFromApi(`/top-followers/${this.accountName}?from=db`);
+    const response = await this.twitterApiIoService.getFollowers(
+      this.accountName,
+    );
+    return response.followers;
   }
 
   async getTopFollowing() {
-    return this.fetchFromApi(`/top-following/${this.accountName}`);
+    const response = await this.twitterApiIoService.getFollowings(
+      this.accountName,
+    );
+    return response.followings;
   }
 
   async getScore() {
-    const response = await this.fetchFromApi(`/score/${this.accountName}`);
-    return response.score;
-  }
-
-  private async fetchFromApi(endpoint: string) {
-    const response = await axios.get(`${this.apiUrl}${endpoint}`, {
-      headers: {
-        Accept: 'application/json',
-        ApiKey: this.apiKey,
-      },
-    });
-    return response.data;
+    const profile = await this.twitterApiIoService.getUserProfile(
+      this.accountName,
+    );
+    return profile.score;
   }
 }

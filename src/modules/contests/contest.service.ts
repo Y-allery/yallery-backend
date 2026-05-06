@@ -4,7 +4,6 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { ContestEntity } from './entity/contest.entity';
@@ -35,15 +34,11 @@ import {
   ContestReviewStatus,
   ContestWinnerCandidateReviewStatus,
 } from './types/contest-flow.enums';
-const axios = require('axios');
-import * as https from 'https';
+import { TwitterApiIoService } from 'src/integrations/twitter-api-io/twitter-api-io.service';
 
 @Injectable()
 export class ContestService {
-  private readonly tweetscoutApiKey: string;
-
   constructor(
-    private readonly configService: ConfigService,
     @InjectRepository(ContestEntity)
     private readonly contestRepository: Repository<ContestEntity>,
     @InjectRepository(UserEntity)
@@ -64,9 +59,8 @@ export class ContestService {
     private readonly notificationGateway: NotificationGateway,
     private readonly rewardService: RewardService,
     private readonly contestFlowService: ContestFlowService,
-  ) {
-    this.tweetscoutApiKey = this.configService.get<string>('TWEETSCOUT_API_KEY');
-  }
+    private readonly twitterApiIoService: TwitterApiIoService,
+  ) {}
 
   async getAllContests(userId: number, type?: ContestTypeEnum, status?: ContestStatusEnum) {
     const whereCondition: any = {};
@@ -665,22 +659,15 @@ export class ContestService {
       
       if (contest.tag.name) {
         try {
-          // Fetching tweets from Twitter API for tag #${contest.tag.name}
-          const response = await axios.post(
-            'https://api.tweetscout.io/v2/user-tweets',
-            {
-              link: 'https://x.com/y_allery',
-            },
-            {
-              headers: {
-                ApiKey: this.tweetscoutApiKey,
-                'Content-Type': 'application/json',
-                Accept: 'application/json',
-              },
-            },
+          const query = `from:y_allery #${contest.tag.name}`;
+          const response = await this.twitterApiIoService.searchTweets(
+            query,
+            'Latest',
+            this.toUnixSeconds(contest.startTime),
+            this.toUnixSeconds(contest.endTime),
           );
 
-          const tweets = response.data?.tweets || [];
+          const tweets = response?.tweets || [];
 
           const filtered = [];
           for (const t of tweets) {
@@ -707,16 +694,8 @@ export class ContestService {
           if (filtered.length > 0) {
             // Selecting winner from valid tweets
             const topTweet = filtered.reduce((max, t) => {
-              const score =
-                t.favorite_count +
-                t.retweet_count * 2 +
-                t.reply_count +
-                t.view_count * 0.01;
-              const maxScore =
-                max.favorite_count +
-                max.retweet_count * 2 +
-                max.reply_count +
-                max.view_count * 0.01;
+              const score = this.getTweetEngagementScore(t);
+              const maxScore = this.getTweetEngagementScore(max);
               return score > maxScore ? t : max;
             }, filtered[0]);
 
@@ -757,7 +736,7 @@ export class ContestService {
         } catch (error) {
           console.error(`   ❌ Error in automatic winner selection:`, error.message);
           console.error(
-            'TweetScout error:',
+            'TwitterAPI.io error:',
             error.response?.data || error.message,
           );
           // Error occurred - closing contest without winner
@@ -832,6 +811,11 @@ export class ContestService {
   private extractPostIdFromTweetText(text: string): string | null {
     const match = text.match(/#(\d{1,10})\b/);
     return match ? match[1] : null;
+  }
+
+  private extractTweetIdFromLink(tweetLink: string): string | null {
+    const match = tweetLink?.match(/status\/(\d+)/);
+    return match?.[1] || null;
   }
 
   async createAdminContest(data: CreateContestDto) {
@@ -1208,48 +1192,35 @@ export class ContestService {
     tweetLink: string,
     userHandle: string,
   ): Promise<{ retweet: boolean }> {
-    const options = {
-      method: 'POST',
-      hostname: 'api.tweetscout.io',
-      path: '/v2/check-retweet',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        ApiKey: this.tweetscoutApiKey,
-      },
-    };
+    const tweetId = this.extractTweetIdFromLink(tweetLink);
+    if (!tweetId) {
+      return { retweet: false };
+    }
 
-    const body = JSON.stringify({
-      tweet_link: tweetLink,
-      user_handle: userHandle,
-    });
+    try {
+      return await this.twitterApiIoService.verifyUserRetweeted(
+        tweetId,
+        userHandle,
+      );
+    } catch {
+      return { retweet: false };
+    }
+  }
 
-    return new Promise((resolve, reject) => {
-      const req = https.request(options, (res) => {
-        const chunks: Uint8Array[] = [];
-        res.on('data', (chunk) => chunks.push(chunk));
-        res.on('end', () => {
-          const responseBody = Buffer.concat(chunks).toString();
-          try {
-            const parsed = JSON.parse(responseBody);
-            if (typeof parsed.retweet === 'boolean') {
-              resolve({ retweet: parsed.retweet });
-            } else {
-              resolve({ retweet: false });
-            }
-          } catch (error) {
-            resolve({ retweet: false });
-          }
-        });
-      });
+  private toUnixSeconds(date?: Date | string | null): number | undefined {
+    if (!date) return undefined;
+    const time = new Date(date).getTime();
+    if (!Number.isFinite(time)) return undefined;
+    return Math.floor(time / 1000);
+  }
 
-      req.on('error', (e) => {
-        resolve({ retweet: false });
-      });
-
-      req.write(body);
-      req.end();
-    });
+  private getTweetEngagementScore(tweet: any): number {
+    return (
+      Number(tweet?.favorite_count || tweet?.likeCount || 0) +
+      Number(tweet?.retweet_count || tweet?.retweetCount || 0) * 2 +
+      Number(tweet?.reply_count || tweet?.replyCount || 0) +
+      Number(tweet?.view_count || tweet?.viewCount || 0) * 0.01
+    );
   }
 
   async findAllContests(): Promise<any[]> {

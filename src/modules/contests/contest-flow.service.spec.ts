@@ -46,6 +46,7 @@ describe('ContestFlowService review status updates', () => {
       {} as any,
       { logContestWon: jest.fn() } as any,
       { emitProfileUpdate: jest.fn() } as any,
+      { searchTweets: jest.fn(), verifyUserRetweeted: jest.fn() } as any,
     );
 
     return { service, repositories };
