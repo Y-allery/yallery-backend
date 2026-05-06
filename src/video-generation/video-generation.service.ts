@@ -75,14 +75,20 @@ export class VideoGenerationService {
     });
   }
 
-  private async verifyUserHasEnoughCredits(user: UserEntity, aiService: VideoAIEnum) {
-    const totalCost = await this.getCostByService(aiService);
+  private async verifyUserHasEnoughCredits(user: UserEntity, dto: GenerateVideoDto) {
+    const totalCost = await this.getCostByService(
+      dto.ai_service,
+      dto.duration,
+    );
     if (user.points < totalCost) {
       throw new BadRequestException('Not enough credits to generate video');
     }
   }
 
-  async getCostByService(service: VideoAIEnum): Promise<number> {
+  async getCostByService(
+    service: VideoAIEnum,
+    durationSeconds?: number,
+  ): Promise<number> {
     const aiSetting = await this.aiSettingsRepository.findOne({
       where: { aiService: service, isActive: true, type: 'video' },
     });
@@ -91,6 +97,14 @@ export class VideoGenerationService {
       throw new BadRequestException(
         `AI service ${service} not found in ai_settings or is inactive`,
       );
+    }
+
+    const duration = durationSeconds ?? 5;
+    if (
+      service === VideoAIEnum.BYTY_DANCE ||
+      service === VideoAIEnum.KLING_TEXT_TO_VIDEO
+    ) {
+      return Math.ceil(aiSetting.cost * (duration / 5));
     }
 
     return aiSetting.cost;
@@ -151,7 +165,7 @@ export class VideoGenerationService {
   async addVideoTaskToQueue(dto: GenerateVideoDto, userId: number) {
     try {
       const user = await this.userService.findById(userId);
-      await this.verifyUserHasEnoughCredits(user, dto.ai_service);
+      await this.verifyUserHasEnoughCredits(user, dto);
       await this.ensureUserCanParticipateInContest(userId, dto.contest_id ?? null);
 
       const jobOptions = {
@@ -421,8 +435,12 @@ export class VideoGenerationService {
     }
   }
 
-  async updateUserCredits(user: UserEntity, aiService: VideoAIEnum) {
-    const videoCost = await this.getCostByService(aiService);
+  async updateUserCredits(
+    user: UserEntity,
+    aiService: VideoAIEnum,
+    durationSeconds?: number,
+  ) {
+    const videoCost = await this.getCostByService(aiService, durationSeconds);
     user.points -= videoCost;
     await this.userEntity.save(user);
     await this.notificationGateway.emitProfileUpdate(user.id.toString());

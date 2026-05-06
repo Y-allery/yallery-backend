@@ -106,6 +106,7 @@ export class KlingTextToVideoProcessor extends BaseVideoProcessor {
       const videoCost = await this.videoGenerationService.updateUserCredits(
         user,
         dto.ai_service,
+        dto.duration,
       );
 
       try {
@@ -143,4 +144,3 @@ export class KlingTextToVideoProcessor extends BaseVideoProcessor {
     await this.handleCompletedNotification(job);
   }
 }
-

@@ -114,7 +114,11 @@ export class BytyDanceProcessor extends BaseVideoProcessor {
 
       let videoCost: number;
       try {
-        videoCost = await this.videoGenerationService.updateUserCredits(user, dto.ai_service);
+        videoCost = await this.videoGenerationService.updateUserCredits(
+          user,
+          dto.ai_service,
+          dto.duration,
+        );
       } catch (error) {
         console.error(`[BytyDanceProcessor] Failed to update credits for user ${userId}:`, error);
         throw new Error(`Failed to update user credits: ${error.message}`);
