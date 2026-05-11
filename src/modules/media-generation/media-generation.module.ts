@@ -49,6 +49,7 @@ import { MediaGenerationFinalizeService } from 'src/modules/media-generation/app
 import { MediaGenerationGuardsService } from 'src/modules/media-generation/application/guards/media-generation-guards.service';
 import { MediaGenerationPricingService } from 'src/modules/media-generation/application/pricing/media-generation-pricing.service';
 import { MediaPreviewService } from 'src/modules/media-generation/infrastructure/previews/media-preview.service';
+import { PartnershipActivityModule } from 'src/modules/partnership-activity/partnership-activity.module';
 
 @Module({
   imports: [
@@ -74,6 +75,7 @@ import { MediaPreviewService } from 'src/modules/media-generation/infrastructure
     ContestModule,
     NotificationModule,
     UserActivityModule,
+    PartnershipActivityModule,
   ],
   controllers: [MediaGenerationController],
   providers: [

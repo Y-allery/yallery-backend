@@ -18,6 +18,7 @@ import { MediaGenerationExecutionService } from 'src/modules/media-generation/ap
 import { MediaGenerationGuardsService } from 'src/modules/media-generation/application/guards/media-generation-guards.service';
 import { MediaGenerationPricingService } from 'src/modules/media-generation/application/pricing/media-generation-pricing.service';
 import { MediaTagResolverService } from 'src/modules/media-generation/infrastructure/tagging/media-tag-resolver.service';
+import { PartnershipActivityLoggerService } from 'src/modules/partnership-activity/partnership-activity-logger.service';
 
 @Injectable()
 export class MediaGenerationFinalizeService {
@@ -30,6 +31,7 @@ export class MediaGenerationFinalizeService {
     private readonly mediaTagResolverService: MediaTagResolverService,
     private readonly notificationGateway: NotificationGateway,
     private readonly userActivityService: UserActivityService,
+    private readonly partnershipActivityLogger: PartnershipActivityLoggerService,
     @InjectRepository(ContestEntity)
     private readonly contestRepository: Repository<ContestEntity>,
     @InjectRepository(UserEntity)
@@ -70,6 +72,10 @@ export class MediaGenerationFinalizeService {
     const savedPosts = await this.contestFlowService.completeGenerationPosts(
       request.contestSubmissionId,
       posts,
+    );
+    await this.partnershipActivityLogger.logOnceForUser(
+      user.id,
+      'image_generated',
     );
     const primaryPost = savedPosts[0] ?? null;
     await this.userActivityService.logMediaGenerationSpent({
@@ -131,6 +137,10 @@ export class MediaGenerationFinalizeService {
     const savedPosts = await this.contestFlowService.completeGenerationPosts(
       request.contestSubmissionId,
       posts,
+    );
+    await this.partnershipActivityLogger.logOnceForUser(
+      user.id,
+      'image_generated',
     );
     const primaryPost = savedPosts[0] ?? null;
     await this.userActivityService.logMediaGenerationSpent({

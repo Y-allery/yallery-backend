@@ -6,6 +6,20 @@ describe('MediaGenerationFinalizeService', () => {
       completeGenerationPosts: jest.fn(async (_submissionId, posts) => posts),
     };
     const generatedPostFactory = {
+      createPromptImagePost: jest.fn(async (_request, _userId, imageUrl) => ({
+        id: 7,
+        imageUrl,
+        videoUrl: null,
+        previewImageUrl: null,
+        generationParams: { aiService: 'flux2_klein' },
+      })),
+      createEditedImagePost: jest.fn(async (_request, _userId, imageUrl) => ({
+        id: 8,
+        imageUrl,
+        videoUrl: null,
+        previewImageUrl: null,
+        generationParams: { aiService: 'qwen_image_edit_baked' },
+      })),
       createAudioPost: jest.fn(async () => ({
         id: 9,
         imageUrl: null,
@@ -29,6 +43,14 @@ describe('MediaGenerationFinalizeService', () => {
       })),
     };
     const mediaGenerationExecutionService = {
+      generatePromptImages: jest.fn(async () => ({
+        imageUrls: ['https://cdn.test/prompt-image.jpg'],
+        rawOutput: { job: 'prompt-image-ok' },
+      })),
+      editImages: jest.fn(async () => ({
+        imageUrls: ['https://cdn.test/edited-image.jpg'],
+        rawOutput: { job: 'edit-image-ok' },
+      })),
       generateAudio: jest.fn(async () => ({
         videoUrl: 'https://cdn.test/result.mp4',
         previewImageUrl: 'https://cdn.test/eager-preview.jpg',
@@ -72,6 +94,8 @@ describe('MediaGenerationFinalizeService', () => {
       })),
     };
     const mediaGenerationPricingService = {
+      getPromptImageCost: jest.fn(async () => 20),
+      getImageEditCost: jest.fn(async () => 22),
       getAudioCost: jest.fn(async () => 25),
       getVideoCost: jest.fn(async () => 25),
       getMemeCost: jest.fn(async () => 25),
@@ -84,6 +108,9 @@ describe('MediaGenerationFinalizeService', () => {
     };
     const userActivityService = {
       logMediaGenerationSpent: jest.fn(),
+    };
+    const partnershipActivityLogger = {
+      logOnceForUser: jest.fn(),
     };
     const contestRepository = {
       findOne: jest.fn(),
@@ -101,6 +128,7 @@ describe('MediaGenerationFinalizeService', () => {
       mediaTagResolverService as any,
       notificationGateway as any,
       userActivityService as any,
+      partnershipActivityLogger as any,
       contestRepository as any,
       userRepository as any,
     );
@@ -112,9 +140,68 @@ describe('MediaGenerationFinalizeService', () => {
       mediaGenerationExecutionService,
       notificationGateway,
       userActivityService,
+      partnershipActivityLogger,
       userRepository,
     };
   };
+
+  it('logs image_generated after prompt image posts are completed', async () => {
+    const {
+      service,
+      contestFlowService,
+      partnershipActivityLogger,
+      userActivityService,
+    } = createService();
+
+    await service.finalizePromptImageGeneration(
+      {
+        aiService: 'flux2_klein',
+        prompt: 'castle',
+        imageQuantity: 1,
+        orientation: 'vertical',
+      } as any,
+      55,
+    );
+
+    expect(partnershipActivityLogger.logOnceForUser).toHaveBeenCalledWith(
+      55,
+      'image_generated',
+    );
+    expect(
+      contestFlowService.completeGenerationPosts.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      partnershipActivityLogger.logOnceForUser.mock.invocationCallOrder[0],
+    );
+    expect(
+      partnershipActivityLogger.logOnceForUser.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      userActivityService.logMediaGenerationSpent.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('logs image_generated after image edit posts are completed', async () => {
+    const { service, contestFlowService, partnershipActivityLogger } =
+      createService();
+
+    await service.finalizeImageEditGeneration(
+      {
+        aiService: 'qwen_image_edit_baked',
+        prompt: 'edit',
+        imageUrl: 'https://cdn.test/source.jpg',
+      } as any,
+      55,
+    );
+
+    expect(partnershipActivityLogger.logOnceForUser).toHaveBeenCalledWith(
+      55,
+      'image_generated',
+    );
+    expect(
+      contestFlowService.completeGenerationPosts.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      partnershipActivityLogger.logOnceForUser.mock.invocationCallOrder[0],
+    );
+  });
 
   it('deducts points once and publishes audio post through contest flow', async () => {
     const {
@@ -123,6 +210,7 @@ describe('MediaGenerationFinalizeService', () => {
       generatedPostFactory,
       notificationGateway,
       userActivityService,
+      partnershipActivityLogger,
       userRepository,
     } = createService();
 
@@ -161,6 +249,7 @@ describe('MediaGenerationFinalizeService', () => {
         postId: 9,
       }),
     );
+    expect(partnershipActivityLogger.logOnceForUser).not.toHaveBeenCalled();
     expect(result).toMatchObject({
       data: [{ id: 9, videoUrl: 'https://cdn.test/result.mp4' }],
       rawOutput: { job: 'ok' },
@@ -168,7 +257,8 @@ describe('MediaGenerationFinalizeService', () => {
   });
 
   it('uses provider eager preview for text-to-video posts', async () => {
-    const { service, generatedPostFactory } = createService();
+    const { service, generatedPostFactory, partnershipActivityLogger } =
+      createService();
 
     await service.finalizeTextVideoGeneration(
       {
@@ -192,10 +282,12 @@ describe('MediaGenerationFinalizeService', () => {
       'https://cdn.test/text-video-preview.jpg',
       null,
     );
+    expect(partnershipActivityLogger.logOnceForUser).not.toHaveBeenCalled();
   });
 
   it('uses provider eager preview for image-to-video posts', async () => {
-    const { service, generatedPostFactory } = createService();
+    const { service, generatedPostFactory, partnershipActivityLogger } =
+      createService();
 
     await service.finalizeImageVideoGeneration(
       {
@@ -220,6 +312,7 @@ describe('MediaGenerationFinalizeService', () => {
       'https://cdn.test/image-video-preview.jpg',
       null,
     );
+    expect(partnershipActivityLogger.logOnceForUser).not.toHaveBeenCalled();
   });
 
   it('falls back to source image when image-to-video eager preview is missing', async () => {
@@ -256,7 +349,8 @@ describe('MediaGenerationFinalizeService', () => {
   });
 
   it('uses provider eager preview for meme posts', async () => {
-    const { service, generatedPostFactory } = createService();
+    const { service, generatedPostFactory, partnershipActivityLogger } =
+      createService();
 
     await service.finalizeMemeGeneration(
       {
@@ -276,5 +370,6 @@ describe('MediaGenerationFinalizeService', () => {
       'https://cdn.test/meme-preview.jpg',
       { width: 1080, height: 1080, hasAudio: true },
     );
+    expect(partnershipActivityLogger.logOnceForUser).not.toHaveBeenCalled();
   });
 });
