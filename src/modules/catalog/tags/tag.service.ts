@@ -1,16 +1,20 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TagEntity } from './entities/tag.entity';
-import { Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { CreateTagDto } from './dto/create.tag.dto';
 import { UpdateTagDto } from './dto/update.tag.dto';
 import { AssignTagDto } from './dto/assign-tag.dto';
 import { PostEntity } from 'src/modules/posts/entities/post.entity';
 import { UserEntity } from 'src/modules/users/entities/user.entity';
+
+const FALLBACK_TAG_NAME = 'other';
+const FALLBACK_TAG_NAMES = ['other', 'others'];
 
 @Injectable()
 export class TagService {
@@ -23,6 +27,7 @@ export class TagService {
     private readonly userRepository: Repository<UserEntity>,
     @InjectRepository(TagEntity)
     private readonly tagRepository: Repository<TagEntity>,
+    private readonly dataSource: DataSource,
   ) {}
   async findAll(): Promise<any[]> {
     const tags = await this.tagModel
@@ -153,10 +158,71 @@ export class TagService {
   }
 
   async delete(tagId: number): Promise<void> {
-    const deleteResult = await this.tagModel.delete(tagId);
-    if (deleteResult.affected === 0) {
-      throw new NotFoundException('Tag not found');
+    await this.dataSource.transaction(async (manager) => {
+      const tagRepository = manager.getRepository(TagEntity);
+      const tag = await tagRepository.findOneBy({ id: tagId });
+
+      if (!tag) {
+        throw new NotFoundException('Tag not found');
+      }
+
+      const fallbackTag = await this.findOrCreateFallbackTag(manager);
+
+      if (tag.id === fallbackTag.id) {
+        throw new BadRequestException('Cannot delete fallback tag');
+      }
+
+      await manager.query('UPDATE posts SET tagId = ? WHERE tagId = ?', [
+        fallbackTag.id,
+        tagId,
+      ]);
+      await manager.query('UPDATE memes SET tagId = ? WHERE tagId = ?', [
+        fallbackTag.id,
+        tagId,
+      ]);
+      await manager.query('UPDATE contests SET tagId = ? WHERE tagId = ?', [
+        fallbackTag.id,
+        tagId,
+      ]);
+      await manager.query(
+        `INSERT IGNORE INTO users_tags_tags (usersId, tagsId)
+         SELECT usersId, ? FROM users_tags_tags WHERE tagsId = ?`,
+        [fallbackTag.id, tagId],
+      );
+      await manager.query('DELETE FROM users_tags_tags WHERE tagsId = ?', [
+        tagId,
+      ]);
+
+      const deleteResult = await tagRepository.delete(tagId);
+      if (deleteResult.affected === 0) {
+        throw new NotFoundException('Tag not found');
+      }
+    });
+  }
+
+  private async findOrCreateFallbackTag(
+    manager: EntityManager,
+  ): Promise<TagEntity> {
+    const tagRepository = manager.getRepository(TagEntity);
+    const fallbackRows = await manager.query(
+      `SELECT id, name, imageUrl, createdAt, updatedAt
+       FROM tags
+       WHERE LOWER(name) IN (?, ?)
+       ORDER BY CASE WHEN LOWER(name) = ? THEN 0 ELSE 1 END, id ASC
+       LIMIT 1`,
+      [...FALLBACK_TAG_NAMES, FALLBACK_TAG_NAME],
+    );
+
+    if (fallbackRows.length > 0) {
+      return fallbackRows[0] as TagEntity;
     }
+
+    return tagRepository.save(
+      tagRepository.create({
+        name: FALLBACK_TAG_NAME,
+        imageUrl: '',
+      }),
+    );
   }
 
   async checkAndSubscribeToTag(user: UserEntity, tag_id: number) {
