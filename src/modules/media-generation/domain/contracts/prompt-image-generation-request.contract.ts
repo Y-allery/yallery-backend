@@ -1,0 +1,36 @@
+import { ContestTypeEnum } from 'src/modules/contests/types/contest.status.enum';
+import { MediaOrientation } from 'src/modules/media-generation/domain/presets';
+
+export interface PromptImageGenerationRequest {
+  aiService?: string;
+  prompt: string;
+  translatedPrompt?: string;
+  width?: number;
+  height?: number;
+  imageQuantity: number;
+  orientation?: MediaOrientation;
+  contestId?: number | null;
+  contestSubmissionId?: number | null;
+  styleId?: number | null;
+  colorId?: number | null;
+  styleName?: string | null;
+  colorName?: string | null;
+  resolvedPrompt?: string;
+  providerSettings?: {
+    finetuneId?: string;
+    finetuneStrength?: number;
+    loraKey?: string;
+    loraScale?: number;
+    loraUrl?: string;
+    triggerWord?: string;
+    contestType?: ContestTypeEnum;
+  } | null;
+}
+
+export interface ResolvedPromptImageGenerationRequest
+  extends PromptImageGenerationRequest {
+  aiService: string;
+  width: number;
+  height: number;
+  orientation: MediaOrientation;
+}

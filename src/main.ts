@@ -1,17 +1,26 @@
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
+import { AppModule } from './app/app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
 import * as bodyParser from 'body-parser';
 import { IoAdapter } from '@nestjs/platform-socket.io';
-import './sentry/instrument';
+import './core/observability/sentry/instrument';
 import * as session from 'express-session';
 import * as passport from 'passport';
 import { RedisStore } from 'connect-redis';
 import { createClient } from 'redis';
-import { closeBrowser } from './common/puppeteer-browser';
+import * as jwt from 'jsonwebtoken';
 
 let redisClient: ReturnType<typeof createClient>;
+const SWAGGER_AUTH_SCHEME = 'bearer';
+const SWAGGER_DEV_USER_ID = 125;
+
+function createSwaggerDevToken(): string {
+  return jwt.sign(
+    { sub: SWAGGER_DEV_USER_ID },
+    process.env.JWT_SECRET || 'dev',
+  );
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -66,12 +75,29 @@ async function bootstrap() {
       type: 'http',
       scheme: 'bearer',
       bearerFormat: 'JWT',
-    })
-    .addSecurityRequirements('bearer')
+    }, SWAGGER_AUTH_SCHEME)
+    .addSecurityRequirements(SWAGGER_AUTH_SCHEME)
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
+  const swaggerToken = createSwaggerDevToken();
+  SwaggerModule.setup('api', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true,
+      authAction: {
+        [SWAGGER_AUTH_SCHEME]: {
+          name: SWAGGER_AUTH_SCHEME,
+          schema: {
+            type: 'http',
+            in: 'header',
+            scheme: 'bearer',
+            bearerFormat: 'JWT',
+          },
+          value: swaggerToken,
+        },
+      },
+    },
+  });
 
   app.use('/payment/webhook', (req, res, next) => {
     console.log('🔔 ===== WEBHOOK REQUEST RECEIVED =====');
@@ -151,7 +177,6 @@ process.on('uncaughtException', (error) => {
 
   process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully...');
-  await closeBrowser();
   if (redisClient) {
     await redisClient.quit().catch(console.error);
   }
@@ -160,7 +185,6 @@ process.on('uncaughtException', (error) => {
 
   process.on('SIGINT', async () => {
   console.log('SIGINT received, shutting down gracefully...');
-  await closeBrowser();
   if (redisClient) {
     await redisClient.quit().catch(console.error);
   }
