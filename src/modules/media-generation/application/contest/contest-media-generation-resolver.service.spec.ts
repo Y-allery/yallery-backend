@@ -96,4 +96,40 @@ describe('ContestMediaGenerationResolverService', () => {
       loraScale: 0.85,
     });
   });
+
+  it('uses SDXL as the fallback prompt model for standard contests', async () => {
+    const {
+      service,
+      contestRepository,
+      mediaAISettingsRepository,
+      contestFlowMetadataRepository,
+    } = createService();
+    contestRepository.findOne.mockResolvedValue({
+      id: 43,
+      contestType: ContestTypeEnum.DEFAULT,
+      mediaAiSetting: null,
+    });
+    contestFlowMetadataRepository.count.mockResolvedValue(0);
+    mediaAISettingsRepository.findOne.mockResolvedValue({
+      aiService: 'sdxl',
+      capability: 'image_generate',
+      isActive: true,
+    });
+
+    const result = await service.resolvePromptImageRequest({
+      contestId: 43,
+      prompt: 'test',
+      imageQuantity: 1,
+      orientation: 'vertical',
+    });
+
+    expect(mediaAISettingsRepository.findOne).toHaveBeenCalledWith({
+      where: {
+        aiService: 'sdxl',
+        capability: 'image_generate',
+        isActive: true,
+      },
+    });
+    expect(result.aiService).toBe('sdxl');
+  });
 });

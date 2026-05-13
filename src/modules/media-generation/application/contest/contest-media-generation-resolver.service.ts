@@ -21,6 +21,8 @@ import {
 
 @Injectable()
 export class ContestMediaGenerationResolverService {
+  private readonly defaultPromptImageContestAiService = 'sdxl';
+
   constructor(
     @InjectRepository(ContestEntity)
     private readonly contestRepository: Repository<ContestEntity>,
@@ -236,7 +238,7 @@ export class ContestMediaGenerationResolverService {
   private async getDefaultPromptImageContestSetting(): Promise<MediaAISettingsEntity> {
     const preferredSetting = await this.mediaAISettingsRepository.findOne({
       where: {
-        aiService: 'flux2_klein',
+        aiService: this.defaultPromptImageContestAiService,
         capability: 'image_generate',
         isActive: true,
       },
@@ -247,7 +249,7 @@ export class ContestMediaGenerationResolverService {
     }
 
     throw new BadRequestException(
-      'No active flux2_klein prompt-image model is configured for contests.',
+      `No active ${this.defaultPromptImageContestAiService} prompt-image model is configured for contests.`,
     );
   }
 

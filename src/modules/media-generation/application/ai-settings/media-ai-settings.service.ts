@@ -27,6 +27,8 @@ import { MediaGenerationPricingService } from 'src/modules/media-generation/appl
 
 @Injectable()
 export class MediaAISettingsService {
+  private readonly defaultPromptImageAiService = 'sdxl';
+
   private getImageLimitSettings(setting: MediaAISettingsEntity) {
     return {
       minImages: setting.settings?.minImages ?? 1,
@@ -67,7 +69,7 @@ export class MediaAISettingsService {
     );
 
     const defaultSetting = visibleSettings.find(
-      (setting) => setting.aiService === 'flux2_klein',
+      (setting) => setting.aiService === this.defaultPromptImageAiService,
     );
 
     return {

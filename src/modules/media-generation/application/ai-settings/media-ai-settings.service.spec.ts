@@ -31,6 +31,40 @@ describe('MediaAISettingsService', () => {
     );
   };
 
+  it('uses SDXL as the default prompt image model', async () => {
+    const service = createService({
+      mediaSettings: [
+        {
+          aiService: 'flux2_klein',
+          name: 'FLUX.2 Klein',
+          cost: 60,
+          description: 'Fast image generation',
+          settings: {
+            minImages: 1,
+            maxImages: 1,
+          },
+        },
+        {
+          aiService: 'sdxl',
+          name: 'SDXL',
+          cost: 50,
+          description: 'Standard image generation',
+          settings: {
+            minImages: 1,
+            maxImages: 5,
+          },
+        },
+      ],
+    });
+
+    await expect(service.getPromptImageAISettings()).resolves.toMatchObject({
+      defaultSettings: {
+        defaultAI: 'sdxl',
+        defaultOrientations: 'horizontal',
+      },
+    });
+  });
+
   it('returns only SDXL LoRA generation settings for fine-tune prompt images', async () => {
     const service = createService({
       mediaSettings: [
