@@ -51,14 +51,40 @@ import { MediaGenerationPricingService } from 'src/modules/media-generation/appl
 import { MediaPreviewService } from 'src/modules/media-generation/infrastructure/previews/media-preview.service';
 import { PartnershipActivityModule } from 'src/modules/partnership-activity/partnership-activity.module';
 
+const mediaGenerationQueueOptions = {
+  streams: {
+    events: {
+      maxLen: 1000,
+    },
+  },
+};
+
 @Module({
   imports: [
-    BullModule.registerQueue({ name: MEDIA_AUDIO_GENERATION_QUEUE }),
-    BullModule.registerQueue({ name: MEDIA_IMAGE_EDIT_GENERATION_QUEUE }),
-    BullModule.registerQueue({ name: MEDIA_IMAGE_VIDEO_GENERATION_QUEUE }),
-    BullModule.registerQueue({ name: MEDIA_MEME_GENERATION_QUEUE }),
-    BullModule.registerQueue({ name: MEDIA_PROMPT_IMAGE_GENERATION_QUEUE }),
-    BullModule.registerQueue({ name: MEDIA_TEXT_VIDEO_GENERATION_QUEUE }),
+    BullModule.registerQueue({
+      name: MEDIA_AUDIO_GENERATION_QUEUE,
+      ...mediaGenerationQueueOptions,
+    }),
+    BullModule.registerQueue({
+      name: MEDIA_IMAGE_EDIT_GENERATION_QUEUE,
+      ...mediaGenerationQueueOptions,
+    }),
+    BullModule.registerQueue({
+      name: MEDIA_IMAGE_VIDEO_GENERATION_QUEUE,
+      ...mediaGenerationQueueOptions,
+    }),
+    BullModule.registerQueue({
+      name: MEDIA_MEME_GENERATION_QUEUE,
+      ...mediaGenerationQueueOptions,
+    }),
+    BullModule.registerQueue({
+      name: MEDIA_PROMPT_IMAGE_GENERATION_QUEUE,
+      ...mediaGenerationQueueOptions,
+    }),
+    BullModule.registerQueue({
+      name: MEDIA_TEXT_VIDEO_GENERATION_QUEUE,
+      ...mediaGenerationQueueOptions,
+    }),
     TypeOrmModule.forFeature([
       MediaAISettingsEntity,
       ColorEntity,
