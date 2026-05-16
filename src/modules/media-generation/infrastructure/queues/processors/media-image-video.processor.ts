@@ -38,10 +38,13 @@ export class MediaImageVideoProcessor extends BaseMediaProcessor {
       `[MediaImageVideoProcessor] Starting generation | Job: ${job.id} | User: ${userId} | Service: ${request.aiService} | Prompt: ${request.prompt.substring(0, 50)}...`,
     );
 
-    return await this.mediaGenerationFinalizeService.finalizeImageVideoGeneration(
-      request,
-      userId,
-    );
+    const result =
+      await this.mediaGenerationFinalizeService.finalizeImageVideoGeneration(
+        request,
+        userId,
+      );
+
+    return { data: result.data };
   }
 
   @OnWorkerEvent('completed')

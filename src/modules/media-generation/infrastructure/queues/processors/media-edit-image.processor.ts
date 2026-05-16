@@ -38,10 +38,13 @@ export class MediaEditImageProcessor extends BaseMediaProcessor {
       `[MediaEditImageProcessor] Starting edit | Job: ${job.id} | User: ${userId} | Service: ${request.aiService} | Prompt: ${request.prompt.substring(0, 50)}...`,
     );
 
-    return await this.mediaGenerationFinalizeService.finalizeImageEditGeneration(
-      request,
-      userId,
-    );
+    const result =
+      await this.mediaGenerationFinalizeService.finalizeImageEditGeneration(
+        request,
+        userId,
+      );
+
+    return { data: result.data };
   }
 
   @OnWorkerEvent('completed')

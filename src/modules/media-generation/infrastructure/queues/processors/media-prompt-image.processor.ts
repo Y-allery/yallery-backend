@@ -38,10 +38,13 @@ export class MediaPromptImageProcessor extends BaseMediaProcessor {
       `[MediaPromptImageProcessor] Starting generation | Job: ${job.id} | User: ${userId} | Service: ${request.aiService} | Prompt: ${request.prompt.substring(0, 50)}...`,
     );
 
-    return await this.mediaGenerationFinalizeService.finalizePromptImageGeneration(
-      request,
-      userId,
-    );
+    const result =
+      await this.mediaGenerationFinalizeService.finalizePromptImageGeneration(
+        request,
+        userId,
+      );
+
+    return { data: result.data };
   }
 
   @OnWorkerEvent('completed')

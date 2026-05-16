@@ -41,6 +41,11 @@ import { ProviderSettingsModule } from 'src/modules/provider-settings/provider-s
           port: configService.get<number>('REDIS_PORT'),
           password: configService.get<string>('REDIS_PASSWORD'),
         },
+        streams: {
+          events: {
+            maxLen: 1000,
+          },
+        },
       }),
     }),
     BullBoardModule.forRoot({

@@ -60,7 +60,7 @@ export class MediaMemeProcessor extends BaseMediaProcessor {
       MemeNotificationPresenter.generated(meme),
     );
 
-    return result;
+    return { data: result.data };
   }
 
   @OnWorkerEvent('failed')
