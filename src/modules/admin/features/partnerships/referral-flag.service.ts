@@ -5,7 +5,10 @@ import { PartnershipActivityEntity } from 'src/modules/admin/entities/partnershi
 import { PartnerUserLinkEntity } from 'src/modules/admin/entities/partner-user-link.entity';
 import { PartnershipEntity } from 'src/modules/admin/entities/partner.entity';
 import { UserEntity } from 'src/modules/users/entities/user.entity';
-import { TwitterApiIoService } from 'src/integrations/twitter-api-io/twitter-api-io.service';
+import {
+  NormalizedTwitterTweet,
+  TwitterApiIoService,
+} from 'src/integrations/twitter-api-io/twitter-api-io.service';
 
 @Injectable()
 export class ReferralFlagService {
@@ -148,32 +151,17 @@ export class ReferralFlagService {
     partnershipId: number,
     userId: number,
   ): Promise<{ retweet: boolean }> {
-    const searchText = '@y_allery';
     const maxTweetsToCheck = 15;
     const normalizedUserHandle = userHandle.replace(/^@/, '');
-    const query = `from:${normalizedUserHandle} ${searchText}`;
-    let totalTweetsChecked = 0;
-    let found = false;
 
     try {
-      const response = await this.twitterApiIoService.searchTweets(
-        query,
-        'Latest',
-      );
-      const tweets = response?.tweets || [];
-
-      for (const tweet of tweets) {
-        totalTweetsChecked++;
-        if (totalTweetsChecked > maxTweetsToCheck) {
-          break;
-        }
-
-        const tweetText = tweet.full_text || tweet.text || '';
-        if (tweetText.toLowerCase().includes(searchText.toLowerCase())) {
-          found = true;
-          break;
-        }
-      }
+      const found =
+        (await this.checkProfileTimelineForYallery(normalizedUserHandle)) ||
+        (await this.checkLastTweetsForYallery(normalizedUserHandle)) ||
+        (await this.checkSearchFallbackForYallery(
+          normalizedUserHandle,
+          maxTweetsToCheck,
+        ));
 
       if (found) {
         await this.saveRetweetActivity(partnershipId, userId);
@@ -187,6 +175,139 @@ export class ReferralFlagService {
       );
       return { retweet: false };
     }
+  }
+
+  private async checkProfileTimelineForYallery(
+    userHandle: string,
+  ): Promise<boolean> {
+    try {
+      const profile = await this.twitterApiIoService.getUserProfile(userHandle);
+      if (!profile.id) {
+        return false;
+      }
+
+      return this.findYalleryInPagedTweets((cursor) =>
+        this.twitterApiIoService.getUserTimeline(profile.id, {
+          cursor,
+          includeReplies: true,
+          includeParentTweet: false,
+        }),
+      );
+    } catch (error: any) {
+      this.logger.warn(
+        `[checkRetweet] Profile timeline check failed for ${userHandle}: ${error?.message || error}`,
+      );
+      return false;
+    }
+  }
+
+  private async checkLastTweetsForYallery(userHandle: string): Promise<boolean> {
+    try {
+      return this.findYalleryInPagedTweets((cursor) =>
+        this.twitterApiIoService.getUserLastTweets(userHandle, {
+          cursor,
+          includeReplies: true,
+        }),
+      );
+    } catch (error: any) {
+      this.logger.warn(
+        `[checkRetweet] Last tweets check failed for ${userHandle}: ${error?.message || error}`,
+      );
+      return false;
+    }
+  }
+
+  private async checkSearchFallbackForYallery(
+    userHandle: string,
+    maxTweetsToCheck: number,
+  ): Promise<boolean> {
+    const queries = [
+      `from:${userHandle} y_allery`,
+      `from:${userHandle} @y_allery`,
+      `y_allery ${userHandle}`,
+    ];
+
+    for (const query of queries) {
+      const response = await this.twitterApiIoService.searchTweets(
+        query,
+        'Latest',
+      );
+      const tweets = response?.tweets || [];
+
+      if (this.findYalleryMention(tweets.slice(0, maxTweetsToCheck))) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private async findYalleryInPagedTweets(
+    loadPage: (cursor?: string) => Promise<{
+      tweets: NormalizedTwitterTweet[];
+      has_next_page: boolean;
+      next_cursor: string;
+    }>,
+  ): Promise<boolean> {
+    const maxPages = 5;
+    let cursor = '';
+
+    for (let page = 0; page < maxPages; page++) {
+      const response = await loadPage(cursor);
+
+      if (this.findYalleryMention(response.tweets || [])) {
+        return true;
+      }
+
+      if (!response.has_next_page || !response.next_cursor) {
+        break;
+      }
+
+      cursor = response.next_cursor;
+    }
+
+    return false;
+  }
+
+  private findYalleryMention(tweets: NormalizedTwitterTweet[]): boolean {
+    return tweets.some((tweet) =>
+      this.collectTweetTexts(tweet).some((text) =>
+        this.normalizeTwitterText(text).includes('y_allery'),
+      ),
+    );
+  }
+
+  private collectTweetTexts(tweet: NormalizedTwitterTweet): string[] {
+    const quotedTweet = tweet.quoted_tweet;
+    const retweetedTweet = tweet.retweeted_tweet;
+
+    return [
+      tweet.full_text,
+      tweet.text,
+      tweet.url,
+      tweet.author?.userName,
+      quotedTweet?.full_text,
+      quotedTweet?.text,
+      quotedTweet?.url,
+      quotedTweet?.author?.userName,
+      retweetedTweet?.full_text,
+      retweetedTweet?.text,
+      retweetedTweet?.url,
+      retweetedTweet?.author?.userName,
+      ...(tweet.entities?.user_mentions || []).map(
+        (mention: any) => mention?.screen_name,
+      ),
+      ...(quotedTweet?.entities?.user_mentions || []).map(
+        (mention: any) => mention?.screen_name,
+      ),
+      ...(retweetedTweet?.entities?.user_mentions || []).map(
+        (mention: any) => mention?.screen_name,
+      ),
+    ].filter((value): value is string => Boolean(value));
+  }
+
+  private normalizeTwitterText(value: string): string {
+    return value.trim().toLowerCase().replace(/^@/, '');
   }
 
   private async saveRetweetActivity(partnershipId: number, userId: number) {

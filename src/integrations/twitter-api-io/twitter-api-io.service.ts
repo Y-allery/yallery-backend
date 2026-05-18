@@ -43,6 +43,9 @@ export interface NormalizedTwitterTweet {
   quoteCount: number;
   createdAt?: string;
   author?: NormalizedTwitterUser;
+  quoted_tweet?: any;
+  retweeted_tweet?: any;
+  entities?: any;
   raw: any;
 }
 
@@ -98,6 +101,55 @@ export class TwitterApiIoService {
       userName: this.normalizeUsername(username),
     });
     return this.normalizeUser(response?.data || response?.user || response);
+  }
+
+  async getUserTimeline(
+    userId: string,
+    options: {
+      cursor?: string;
+      includeReplies?: boolean;
+      includeParentTweet?: boolean;
+    } = {},
+  ): Promise<{
+    tweets: NormalizedTwitterTweet[];
+    has_next_page: boolean;
+    next_cursor: string;
+    status?: string;
+    message?: string;
+  }> {
+    const response = await this.get('/twitter/user/tweet_timeline', {
+      userId,
+      includeReplies: options.includeReplies ?? true,
+      includeParentTweet: options.includeParentTweet ?? false,
+      ...(options.cursor ? { cursor: options.cursor } : {}),
+    });
+
+    return this.normalizeTweetListResponse(response);
+  }
+
+  async getUserLastTweets(
+    username: string,
+    options: {
+      userId?: string;
+      cursor?: string;
+      includeReplies?: boolean;
+    } = {},
+  ): Promise<{
+    tweets: NormalizedTwitterTweet[];
+    has_next_page: boolean;
+    next_cursor: string;
+    status?: string;
+    message?: string;
+  }> {
+    const response = await this.get('/twitter/user/last_tweets', {
+      ...(options.userId
+        ? { userId: options.userId }
+        : { userName: this.normalizeUsername(username) }),
+      includeReplies: options.includeReplies ?? true,
+      ...(options.cursor ? { cursor: options.cursor } : {}),
+    });
+
+    return this.normalizeTweetListResponse(response);
   }
 
   async getTweetRetweeters(
@@ -286,6 +338,23 @@ export class TwitterApiIoService {
       createdAt: tweet?.createdAt ?? tweet?.created_at,
       author: tweet?.author ? this.normalizeUser(tweet.author) : undefined,
       raw: tweet,
+    };
+  }
+
+  private normalizeTweetListResponse(response: any): {
+    tweets: NormalizedTwitterTweet[];
+    has_next_page: boolean;
+    next_cursor: string;
+    status?: string;
+    message?: string;
+  } {
+    return {
+      ...response,
+      tweets: (response?.tweets || []).map((tweet: any) =>
+        this.normalizeTweet(tweet),
+      ),
+      has_next_page: Boolean(response?.has_next_page),
+      next_cursor: response?.next_cursor || '',
     };
   }
 
