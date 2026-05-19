@@ -33,6 +33,23 @@ describe('RunpodPayloadBuilder', () => {
     ).toThrow('sdxl_lora_generation requires loraUrl');
   });
 
+  it('builds SDXL prompt image payload with higher quality defaults', () => {
+    expect(
+      builder.buildPromptImageInput({
+        aiService: 'sdxl',
+        prompt: 'cinematic portrait',
+        width: 1024,
+        height: 1024,
+        imageQuantity: 2,
+      } as any),
+    ).toMatchObject({
+      prompt: 'cinematic portrait',
+      num_inference_steps: 35,
+      guidance_scale: 7,
+      negative_prompt: expect.stringContaining('low quality'),
+    });
+  });
+
   it('builds meme animation payload preserving source audio', () => {
     expect(
       builder.buildMemeInput({

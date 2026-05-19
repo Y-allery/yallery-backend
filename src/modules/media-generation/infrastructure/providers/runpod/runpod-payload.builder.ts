@@ -28,8 +28,9 @@ export class RunpodPayloadBuilder {
       case 'sdxl':
         return {
           prompt,
-          negative_prompt: '',
-          num_inference_steps: 25,
+          negative_prompt:
+            'low quality, blurry, distorted, deformed, bad anatomy, extra limbs, text artifacts, watermark, logo',
+          num_inference_steps: 35,
           guidance_scale: 7,
           width: request.width,
           height: request.height,
