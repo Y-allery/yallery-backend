@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PostController } from './post.controller';
+import { ImageGenerationCompatController } from './image-generation-compat.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PostEntity } from './entities/post.entity';
 import { TagEntity } from 'src/modules/catalog/tags/entities/tag.entity';
@@ -47,7 +48,7 @@ const postServices = [
     RewardModule,
   ],
   providers: [...postServices],
-  controllers: [PostController],
+  controllers: [PostController, ImageGenerationCompatController],
   exports: [...postServices],
 })
 export class PostModule {}

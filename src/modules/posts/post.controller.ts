@@ -2,7 +2,6 @@ import { NotificationGateway } from 'src/modules/notifications/notification.gate
 import {
   Body,
   Controller,
-  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -96,24 +95,6 @@ export class PostController {
   @ApiResponse(POST_SWAGGER.publishPost.responses.forbidden)
   publishPost(@Param('id') id: number, @Req() req: AuthenticatedRequest) {
     return this.postPublishService.publishPost(id, req.user.id);
-  }
-
-  @Delete(':id')
-  @UseGuards(JwtAuthGuard)
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({
-    summary: 'Delete own post',
-    description:
-      'Permanently deletes a post owned by the caller (published or draft). Related likes, views, reports and activity are removed by database cascade.',
-  })
-  @ApiParam({ name: 'id', required: true, description: 'Post ID' })
-  @ApiResponse({ status: 204, description: 'Post deleted' })
-  @ApiResponse({ status: 404, description: 'Post not found or not owner' })
-  async deletePost(
-    @Param('id', ParseIntPipe) id: number,
-    @Req() req: AuthenticatedRequest,
-  ): Promise<void> {
-    await this.postPublishService.deletePost(id, req.user.id);
   }
 
   @Patch('update-media/:id')
