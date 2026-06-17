@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateStyleDto } from '../dto/create.style.dto';
+import { UpdateStyleDto } from '../dto/update.style.dto';
 import { StyleEntity } from '../entities/style.entity';
 
 @Injectable()
@@ -24,7 +25,7 @@ export class PostStyleService {
     return this.styleRepository.findOne({ where: { id } });
   }
 
-  async updateStyle(id: number, dto: CreateStyleDto): Promise<StyleEntity> {
+  async updateStyle(id: number, dto: UpdateStyleDto): Promise<StyleEntity> {
     const style = await this.styleRepository.preload({
       id,
       ...dto,

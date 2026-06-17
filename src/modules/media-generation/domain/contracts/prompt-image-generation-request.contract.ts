@@ -16,6 +16,9 @@ export interface PromptImageGenerationRequest {
   styleName?: string | null;
   colorName?: string | null;
   resolvedPrompt?: string;
+  resolvedNegativePrompt?: string;
+  resolvedCfg?: number;
+  resolvedSteps?: number;
   providerSettings?: {
     finetuneId?: string;
     finetuneStrength?: number;

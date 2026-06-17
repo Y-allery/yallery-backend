@@ -7,6 +7,9 @@ import { ResolvedPromptImageGenerationRequest } from 'src/modules/media-generati
 import { TextVideoGenerationRequest } from 'src/modules/media-generation/domain/contracts/text-video-generation-request.contract';
 import { getVideoOutputPreset } from 'src/modules/media-generation/domain/presets';
 
+const SDXL_BASELINE_NEGATIVE =
+  'low quality, blurry, distorted, deformed, bad anatomy, extra limbs, text artifacts, watermark, logo';
+
 @Injectable()
 export class RunpodPayloadBuilder {
   buildPromptImageInput(request: ResolvedPromptImageGenerationRequest) {
@@ -14,10 +17,12 @@ export class RunpodPayloadBuilder {
 
     switch (request.aiService) {
       case 'flux2_klein':
+        // Flux2-klein wants natural-language prompts and ignores negatives.
+        // Keep its fast defaults unless the style explicitly recommends otherwise.
         return {
           prompt,
-          num_inference_steps: 4,
-          guidance_scale: 1,
+          num_inference_steps: this.clamp(request.resolvedSteps ?? 4, 1, 12),
+          guidance_scale: this.clamp(request.resolvedCfg ?? 1, 0, 10),
           width: request.width,
           height: request.height,
           num_images: request.imageQuantity,
@@ -28,10 +33,12 @@ export class RunpodPayloadBuilder {
       case 'sdxl':
         return {
           prompt,
-          negative_prompt:
-            'low quality, blurry, distorted, deformed, bad anatomy, extra limbs, text artifacts, watermark, logo',
-          num_inference_steps: 35,
-          guidance_scale: 7,
+          negative_prompt: this.mergeNegatives(
+            SDXL_BASELINE_NEGATIVE,
+            request.resolvedNegativePrompt,
+          ),
+          num_inference_steps: this.clamp(request.resolvedSteps ?? 35, 1, 80),
+          guidance_scale: this.clamp(request.resolvedCfg ?? 7, 0, 20),
           width: request.width,
           height: request.height,
           num_images: request.imageQuantity,
@@ -74,14 +81,16 @@ export class RunpodPayloadBuilder {
   }
 
   buildImageEditInput(request: EditImageGenerationRequest) {
+    // Qwen edit takes an imperative instruction; its CFG knob is `true_cfg_scale`.
     return {
       prompt: request.resolvedPrompt ?? request.prompt,
       image_url: request.imageUrl,
       width: 1024,
       height: 1024,
       reference_max_side: 1024,
-      num_inference_steps: 20,
-      true_cfg_scale: 4,
+      num_inference_steps: this.clamp(request.resolvedSteps ?? 20, 1, 50),
+      true_cfg_scale: this.clamp(request.resolvedCfg ?? 4, 0, 10),
+      negative_prompt: request.resolvedNegativePrompt?.trim() || ' ',
       num_images: 1,
       output_format: 'png',
       return_base64: true,
@@ -142,5 +151,17 @@ export class RunpodPayloadBuilder {
       return_base64: true,
       video_url: request.videoUrl,
     };
+  }
+
+  private clamp(value: number, min: number, max: number): number {
+    if (!Number.isFinite(value)) {
+      return min;
+    }
+    return Math.min(Math.max(value, min), max);
+  }
+
+  private mergeNegatives(baseline: string, extra?: string): string {
+    const trimmed = extra?.trim();
+    return trimmed ? `${baseline}, ${trimmed}` : baseline;
   }
 }
