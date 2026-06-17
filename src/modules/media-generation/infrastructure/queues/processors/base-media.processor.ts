@@ -4,11 +4,13 @@ import {
   MediaGenerationErrorType,
   NotificationGateway,
 } from 'src/modules/notifications/notification.gateway';
+import { MediaGenerationBalanceService } from 'src/modules/media-generation/application/balance/media-generation-balance.service';
 
 export abstract class BaseMediaProcessor extends WorkerHost {
   constructor(
     protected readonly notificationGateway: NotificationGateway,
     private readonly mediaGenerationErrorType: MediaGenerationErrorType,
+    private readonly mediaGenerationBalanceService: MediaGenerationBalanceService,
   ) {
     super();
   }
@@ -43,7 +45,7 @@ export abstract class BaseMediaProcessor extends WorkerHost {
     err: Error,
     messagePrefix: string,
   ) {
-    const { aiService, userId } = job.data;
+    const { aiService, userId, chargeId } = job.data;
     const processorName = this.constructor.name;
 
     const attemptsMade = job.attemptsMade || 0;
@@ -68,6 +70,17 @@ export abstract class BaseMediaProcessor extends WorkerHost {
         );
         return;
       }
+    }
+
+    // Terminal failure: the credits reserved at enqueue time must be returned.
+    // Idempotent — a charge can only be refunded once.
+    try {
+      await this.mediaGenerationBalanceService.refund(chargeId);
+    } catch (refundError) {
+      console.error(
+        `[${processorName}] Failed to refund charge ${chargeId} for job ${job.id}:`,
+        refundError,
+      );
     }
 
     if (!userId) {

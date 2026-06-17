@@ -6,12 +6,14 @@ import { ResolvedPromptImageGenerationRequest } from 'src/modules/media-generati
 import { MEDIA_PROMPT_IMAGE_GENERATION_QUEUE } from 'src/modules/media-generation/infrastructure/queues/constants/media-generation.queue';
 import { BaseMediaProcessor } from './base-media.processor';
 import { MediaGenerationFinalizeService } from 'src/modules/media-generation/application/finalize/media-generation-finalize.service';
+import { MediaGenerationBalanceService } from 'src/modules/media-generation/application/balance/media-generation-balance.service';
 import { ImageNotificationPresenter } from 'src/modules/media-generation/infrastructure/queues/presenters/image-notification.presenter';
 
 type MediaPromptImageJobData = {
   request: ResolvedPromptImageGenerationRequest;
   userId: number;
   aiService: string;
+  chargeId?: string;
 };
 
 @Injectable()
@@ -23,8 +25,9 @@ export class MediaPromptImageProcessor extends BaseMediaProcessor {
   constructor(
     private readonly mediaGenerationFinalizeService: MediaGenerationFinalizeService,
     notificationGateway: NotificationGateway,
+    mediaGenerationBalanceService: MediaGenerationBalanceService,
   ) {
-    super(notificationGateway, 'image');
+    super(notificationGateway, 'image', mediaGenerationBalanceService);
   }
 
   async process(job: Job<MediaPromptImageJobData>) {

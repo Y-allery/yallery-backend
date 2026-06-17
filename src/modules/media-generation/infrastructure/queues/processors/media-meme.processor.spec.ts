@@ -7,9 +7,14 @@ describe('MediaMemeProcessor', () => {
       sendMediaGenerationError: jest.fn(),
     }) as unknown as NotificationGateway;
 
-  it('emits mediaGenerationError with meme type after final failed attempt', async () => {
+  it('emits mediaGenerationError with meme type and refunds after final failed attempt', async () => {
     const notificationGateway = createGateway();
-    const processor = new MediaMemeProcessor({} as any, notificationGateway);
+    const balanceService = { refund: jest.fn() };
+    const processor = new MediaMemeProcessor(
+      {} as any,
+      notificationGateway,
+      balanceService as any,
+    );
 
     await processor.onFailed(
       {
@@ -19,11 +24,13 @@ describe('MediaMemeProcessor', () => {
         data: {
           userId: 77,
           aiService: 'wan22_animate_native',
+          chargeId: 'charge-meme',
         },
       } as any,
       new Error('worker crashed'),
     );
 
+    expect(balanceService.refund).toHaveBeenCalledWith('charge-meme');
     expect(notificationGateway.sendMediaGenerationError).toHaveBeenCalledWith(
       '77',
       {

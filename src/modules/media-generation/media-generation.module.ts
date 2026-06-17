@@ -40,9 +40,11 @@ import { UserActivityModule } from 'src/modules/engagement/user-activity/user-ac
 import { MediaTagResolverService } from 'src/modules/media-generation/infrastructure/tagging/media-tag-resolver.service';
 import { MediaPromptEnhancerService } from 'src/modules/media-generation/application/prompt-enhancement/media-prompt-enhancer.service';
 import { ColorEntity } from 'src/modules/media-generation/persistence/entities/color.entity';
+import { MediaGenerationChargeEntity } from 'src/modules/media-generation/persistence/entities/media-generation-charge.entity';
 import { AIFinetuneEntity } from 'src/modules/admin/entities/ai-finetune.entity';
 import { GeneratedPostFactory } from 'src/modules/media-generation/infrastructure/posts/generated-post.factory';
 import { MediaAISettingsService } from 'src/modules/media-generation/application/ai-settings/media-ai-settings.service';
+import { MediaGenerationBalanceService } from 'src/modules/media-generation/application/balance/media-generation-balance.service';
 import { MediaGenerationEnqueueService } from 'src/modules/media-generation/application/enqueue/media-generation-enqueue.service';
 import { MediaGenerationExecutionService } from 'src/modules/media-generation/application/execution/media-generation-execution.service';
 import { MediaGenerationFinalizeService } from 'src/modules/media-generation/application/finalize/media-generation-finalize.service';
@@ -88,6 +90,7 @@ const mediaGenerationQueueOptions = {
     TypeOrmModule.forFeature([
       MediaAISettingsEntity,
       ColorEntity,
+      MediaGenerationChargeEntity,
       StyleEntity,
       TagEntity,
       UserEntity,
@@ -108,6 +111,7 @@ const mediaGenerationQueueOptions = {
     GeneratedPostFactory,
     ContestMediaGenerationResolverService,
     MediaAISettingsService,
+    MediaGenerationBalanceService,
     MediaGenerationEnqueueService,
     MediaGenerationExecutionService,
     MediaGenerationFinalizeService,

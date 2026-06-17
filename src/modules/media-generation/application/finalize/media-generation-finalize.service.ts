@@ -2,9 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ContestFlowService } from 'src/modules/contests/contest-flow.service';
 import { ContestEntity } from 'src/modules/contests/entity/contest.entity';
-import { NotificationGateway } from 'src/modules/notifications/notification.gateway';
 import { UserActivityService } from 'src/modules/engagement/user-activity/services/user-activity.service';
-import { UserEntity } from 'src/modules/users/entities/user.entity';
 import { Repository } from 'typeorm';
 import { getAudioGenerationPreset } from 'src/modules/media-generation/domain/presets';
 import { AudioGenerationRequest } from 'src/modules/media-generation/domain/contracts/audio-generation-request.contract';
@@ -29,13 +27,10 @@ export class MediaGenerationFinalizeService {
     private readonly mediaGenerationGuardsService: MediaGenerationGuardsService,
     private readonly mediaGenerationPricingService: MediaGenerationPricingService,
     private readonly mediaTagResolverService: MediaTagResolverService,
-    private readonly notificationGateway: NotificationGateway,
     private readonly userActivityService: UserActivityService,
     private readonly partnershipActivityLogger: PartnershipActivityLoggerService,
     @InjectRepository(ContestEntity)
     private readonly contestRepository: Repository<ContestEntity>,
-    @InjectRepository(UserEntity)
-    private readonly userRepository: Repository<UserEntity>,
   ) {}
 
   async finalizePromptImageGeneration(
@@ -50,8 +45,6 @@ export class MediaGenerationFinalizeService {
         request.aiService,
         request.imageQuantity,
       );
-
-    await this.deductUserPoints(user, totalCost);
 
     const publishTo = await this.getContestPublishTo(request.contestId ?? null);
     const resolvedTag = await this.mediaTagResolverService.resolveTagForPrompt(
@@ -116,8 +109,6 @@ export class MediaGenerationFinalizeService {
         request.aiService,
       );
 
-    await this.deductUserPoints(user, totalCost);
-
     const publishTo = await this.getContestPublishTo(request.contestId ?? null);
     const resolvedTag = await this.mediaTagResolverService.resolveTagForPrompt(
       request.translatedPrompt ?? request.prompt,
@@ -178,8 +169,6 @@ export class MediaGenerationFinalizeService {
     const user = await this.mediaGenerationGuardsService.getRequiredUser(userId);
     const totalCost =
       await this.mediaGenerationPricingService.getAudioCost(request.aiService);
-
-    await this.deductUserPoints(user, totalCost);
 
     const publishTo = await this.getContestPublishTo(request.contestId ?? null);
     const audioPreset = getAudioGenerationPreset(request.aiService);
@@ -246,8 +235,6 @@ export class MediaGenerationFinalizeService {
       request.aiService,
       request.duration,
     );
-
-    await this.deductUserPoints(user, totalCost);
 
     const publishTo = await this.getContestPublishTo(request.contestId ?? null);
     const resolvedTag = await this.mediaTagResolverService.resolveTagForPrompt(
@@ -319,8 +306,6 @@ export class MediaGenerationFinalizeService {
       request.aiService,
       request.duration,
     );
-
-    await this.deductUserPoints(user, totalCost);
 
     const publishTo = await this.getContestPublishTo(request.contestId ?? null);
     const resolvedTag = await this.mediaTagResolverService.resolveTagForPrompt(
@@ -398,8 +383,6 @@ export class MediaGenerationFinalizeService {
       meme.referenceVideoDurationSeconds,
     );
 
-    await this.deductUserPoints(user, totalCost);
-
     const publishTo = await this.getContestPublishTo(null);
     const post = await this.generatedPostFactory.createMemePost(
       request,
@@ -438,12 +421,6 @@ export class MediaGenerationFinalizeService {
       ],
       rawOutput: result.rawOutput,
     };
-  }
-
-  private async deductUserPoints(user: UserEntity, totalCost: number) {
-    user.points -= totalCost;
-    await this.userRepository.save(user);
-    await this.notificationGateway.emitProfileUpdate(user.id.toString());
   }
 
   private async getContestPublishTo(contestId: number | null) {

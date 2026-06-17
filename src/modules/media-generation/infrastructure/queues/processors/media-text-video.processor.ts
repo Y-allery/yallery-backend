@@ -5,6 +5,7 @@ import { NotificationGateway } from 'src/modules/notifications/notification.gate
 import { MEDIA_TEXT_VIDEO_GENERATION_QUEUE } from 'src/modules/media-generation/infrastructure/queues/constants/media-generation.queue';
 import { TextVideoGenerationRequest } from 'src/modules/media-generation/domain/contracts/text-video-generation-request.contract';
 import { MediaGenerationFinalizeService } from 'src/modules/media-generation/application/finalize/media-generation-finalize.service';
+import { MediaGenerationBalanceService } from 'src/modules/media-generation/application/balance/media-generation-balance.service';
 import { BaseMediaProcessor } from './base-media.processor';
 import { VideoNotificationPresenter } from 'src/modules/media-generation/infrastructure/queues/presenters/video-notification.presenter';
 
@@ -12,6 +13,7 @@ type MediaTextVideoJobData = {
   request: TextVideoGenerationRequest;
   userId: number;
   aiService: string;
+  chargeId?: string;
 };
 
 @Injectable()
@@ -23,8 +25,9 @@ export class MediaTextVideoProcessor extends BaseMediaProcessor {
   constructor(
     private readonly mediaGenerationFinalizeService: MediaGenerationFinalizeService,
     notificationGateway: NotificationGateway,
+    mediaGenerationBalanceService: MediaGenerationBalanceService,
   ) {
-    super(notificationGateway, 'video');
+    super(notificationGateway, 'video', mediaGenerationBalanceService);
   }
 
   async process(job: Job<MediaTextVideoJobData>) {

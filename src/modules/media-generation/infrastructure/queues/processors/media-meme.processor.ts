@@ -5,6 +5,7 @@ import { NotificationGateway } from 'src/modules/notifications/notification.gate
 import { MEDIA_MEME_GENERATION_QUEUE } from 'src/modules/media-generation/infrastructure/queues/constants/media-generation.queue';
 import { MemeGenerationRequest } from 'src/modules/media-generation/domain/contracts/meme-generation-request.contract';
 import { MediaGenerationFinalizeService } from 'src/modules/media-generation/application/finalize/media-generation-finalize.service';
+import { MediaGenerationBalanceService } from 'src/modules/media-generation/application/balance/media-generation-balance.service';
 import { BaseMediaProcessor } from './base-media.processor';
 import { MemeNotificationPresenter } from 'src/modules/media-generation/infrastructure/queues/presenters/meme-notification.presenter';
 
@@ -12,6 +13,7 @@ type MediaMemeJobData = {
   request: MemeGenerationRequest;
   userId: number;
   aiService: string;
+  chargeId?: string;
 };
 
 @Injectable()
@@ -23,8 +25,9 @@ export class MediaMemeProcessor extends BaseMediaProcessor {
   constructor(
     private readonly mediaGenerationFinalizeService: MediaGenerationFinalizeService,
     notificationGateway: NotificationGateway,
+    mediaGenerationBalanceService: MediaGenerationBalanceService,
   ) {
-    super(notificationGateway, 'meme');
+    super(notificationGateway, 'meme', mediaGenerationBalanceService);
   }
 
   async process(job: Job<MediaMemeJobData>) {

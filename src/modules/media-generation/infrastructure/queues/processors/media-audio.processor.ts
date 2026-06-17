@@ -5,6 +5,7 @@ import { NotificationGateway } from 'src/modules/notifications/notification.gate
 import { AudioGenerationRequest } from 'src/modules/media-generation/domain/contracts/audio-generation-request.contract';
 import { MEDIA_AUDIO_GENERATION_QUEUE } from 'src/modules/media-generation/infrastructure/queues/constants/media-generation.queue';
 import { MediaGenerationFinalizeService } from 'src/modules/media-generation/application/finalize/media-generation-finalize.service';
+import { MediaGenerationBalanceService } from 'src/modules/media-generation/application/balance/media-generation-balance.service';
 import { BaseMediaProcessor } from './base-media.processor';
 import { AudioNotificationPresenter } from 'src/modules/media-generation/infrastructure/queues/presenters/audio-notification.presenter';
 
@@ -12,6 +13,7 @@ type MediaAudioJobData = {
   request: AudioGenerationRequest;
   userId: number;
   aiService: string;
+  chargeId?: string;
 };
 
 @Injectable()
@@ -23,8 +25,9 @@ export class MediaAudioProcessor extends BaseMediaProcessor {
   constructor(
     private readonly mediaGenerationFinalizeService: MediaGenerationFinalizeService,
     notificationGateway: NotificationGateway,
+    mediaGenerationBalanceService: MediaGenerationBalanceService,
   ) {
-    super(notificationGateway, 'audio');
+    super(notificationGateway, 'audio', mediaGenerationBalanceService);
   }
 
   async process(job: Job<MediaAudioJobData>) {

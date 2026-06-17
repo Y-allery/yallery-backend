@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
 import { Queue } from 'bullmq';
@@ -19,6 +20,7 @@ import { TextVideoGenerationRequest } from 'src/modules/media-generation/domain/
 import { ContestMediaGenerationResolverService } from 'src/modules/media-generation/application/contest/contest-media-generation-resolver.service';
 import { MediaPromptEnhancerService } from 'src/modules/media-generation/application/prompt-enhancement/media-prompt-enhancer.service';
 import { MediaGenerationGuardsService } from 'src/modules/media-generation/application/guards/media-generation-guards.service';
+import { MediaGenerationBalanceService } from 'src/modules/media-generation/application/balance/media-generation-balance.service';
 
 @Injectable()
 export class MediaGenerationEnqueueService {
@@ -34,6 +36,7 @@ export class MediaGenerationEnqueueService {
     private readonly contestFlowService: ContestFlowService,
     private readonly mediaPromptEnhancerService: MediaPromptEnhancerService,
     private readonly mediaGenerationGuardsService: MediaGenerationGuardsService,
+    private readonly mediaGenerationBalanceService: MediaGenerationBalanceService,
     @InjectQueue(MEDIA_PROMPT_IMAGE_GENERATION_QUEUE)
     private readonly mediaPromptImageQueue: Queue,
     @InjectQueue(MEDIA_IMAGE_EDIT_GENERATION_QUEUE)
@@ -71,37 +74,51 @@ export class MediaGenerationEnqueueService {
           colorName: promptEnhancement.color?.name ?? null,
         },
       );
-    await this.mediaGenerationGuardsService.assertUserCanGeneratePromptImages(
-      resolvedRequest,
-      userId,
-    );
+    const totalCost =
+      await this.mediaGenerationGuardsService.assertUserCanGeneratePromptImages(
+        resolvedRequest,
+        userId,
+      );
 
-    const submission = await this.contestFlowService.startSubmission({
-      contestId: resolvedRequest.contestId ?? null,
+    const chargeKey = randomUUID();
+    await this.mediaGenerationBalanceService.reserve({
       userId,
-      mediaKind: 'image',
+      amount: totalCost,
+      chargeKey,
       aiService: resolvedRequest.aiService,
-      capability: 'image_generate',
     });
-    const queuedRequest = {
-      ...resolvedRequest,
-      contestSubmissionId: submission?.id ?? null,
-    };
 
+    let submissionId: number | null = null;
     try {
+      const submission = await this.contestFlowService.startSubmission({
+        contestId: resolvedRequest.contestId ?? null,
+        userId,
+        mediaKind: 'image',
+        aiService: resolvedRequest.aiService,
+        capability: 'image_generate',
+      });
+      submissionId = submission?.id ?? null;
+      const queuedRequest = {
+        ...resolvedRequest,
+        contestSubmissionId: submissionId,
+      };
+
       const job = await this.mediaPromptImageQueue.add(
         queuedRequest.aiService,
         {
           request: queuedRequest,
           userId,
           aiService: queuedRequest.aiService,
+          chargeId: chargeKey,
         },
         this.defaultJobOptions,
       );
-      await this.contestFlowService.attachQueueJob(submission?.id, job.id);
+      await this.contestFlowService.attachQueueJob(submissionId, job.id);
+      await this.mediaGenerationBalanceService.attachJob(chargeKey, job.id);
       return job;
     } catch (error) {
-      await this.contestFlowService.markSubmissionFailed(submission?.id);
+      await this.mediaGenerationBalanceService.refund(chargeKey);
+      await this.contestFlowService.markSubmissionFailed(submissionId);
       throw error;
     }
   }
@@ -126,37 +143,51 @@ export class MediaGenerationEnqueueService {
       styleName: promptEnhancement.style?.name ?? null,
       colorName: promptEnhancement.color?.name ?? null,
     };
-    await this.mediaGenerationGuardsService.assertUserCanEditImages(
-      enhancedRequest,
-      userId,
-    );
+    const totalCost =
+      await this.mediaGenerationGuardsService.assertUserCanEditImages(
+        enhancedRequest,
+        userId,
+      );
 
-    const submission = await this.contestFlowService.startSubmission({
-      contestId: enhancedRequest.contestId ?? null,
+    const chargeKey = randomUUID();
+    await this.mediaGenerationBalanceService.reserve({
       userId,
-      mediaKind: 'image',
+      amount: totalCost,
+      chargeKey,
       aiService: enhancedRequest.aiService,
-      capability: 'image_edit',
     });
-    const queuedRequest = {
-      ...enhancedRequest,
-      contestSubmissionId: submission?.id ?? null,
-    };
 
+    let submissionId: number | null = null;
     try {
+      const submission = await this.contestFlowService.startSubmission({
+        contestId: enhancedRequest.contestId ?? null,
+        userId,
+        mediaKind: 'image',
+        aiService: enhancedRequest.aiService,
+        capability: 'image_edit',
+      });
+      submissionId = submission?.id ?? null;
+      const queuedRequest = {
+        ...enhancedRequest,
+        contestSubmissionId: submissionId,
+      };
+
       const job = await this.mediaImageEditQueue.add(
         queuedRequest.aiService,
         {
           request: queuedRequest,
           userId,
           aiService: queuedRequest.aiService,
+          chargeId: chargeKey,
         },
         this.defaultJobOptions,
       );
-      await this.contestFlowService.attachQueueJob(submission?.id, job.id);
+      await this.contestFlowService.attachQueueJob(submissionId, job.id);
+      await this.mediaGenerationBalanceService.attachJob(chargeKey, job.id);
       return job;
     } catch (error) {
-      await this.contestFlowService.markSubmissionFailed(submission?.id);
+      await this.mediaGenerationBalanceService.refund(chargeKey);
+      await this.contestFlowService.markSubmissionFailed(submissionId);
       throw error;
     }
   }
@@ -165,37 +196,51 @@ export class MediaGenerationEnqueueService {
     request: AudioGenerationRequest,
     userId: number,
   ) {
-    await this.mediaGenerationGuardsService.assertUserCanGenerateAudio(
-      request,
-      userId,
-    );
+    const totalCost =
+      await this.mediaGenerationGuardsService.assertUserCanGenerateAudio(
+        request,
+        userId,
+      );
 
-    const submission = await this.contestFlowService.startSubmission({
-      contestId: request.contestId ?? null,
+    const chargeKey = randomUUID();
+    await this.mediaGenerationBalanceService.reserve({
       userId,
-      mediaKind: 'audio',
+      amount: totalCost,
+      chargeKey,
       aiService: request.aiService,
-      capability: 'audio_generate',
     });
-    const queuedRequest = {
-      ...request,
-      contestSubmissionId: submission?.id ?? null,
-    };
 
+    let submissionId: number | null = null;
     try {
+      const submission = await this.contestFlowService.startSubmission({
+        contestId: request.contestId ?? null,
+        userId,
+        mediaKind: 'audio',
+        aiService: request.aiService,
+        capability: 'audio_generate',
+      });
+      submissionId = submission?.id ?? null;
+      const queuedRequest = {
+        ...request,
+        contestSubmissionId: submissionId,
+      };
+
       const job = await this.mediaAudioQueue.add(
         queuedRequest.aiService,
         {
           request: queuedRequest,
           userId,
           aiService: queuedRequest.aiService,
+          chargeId: chargeKey,
         },
         this.defaultJobOptions,
       );
-      await this.contestFlowService.attachQueueJob(submission?.id, job.id);
+      await this.contestFlowService.attachQueueJob(submissionId, job.id);
+      await this.mediaGenerationBalanceService.attachJob(chargeKey, job.id);
       return job;
     } catch (error) {
-      await this.contestFlowService.markSubmissionFailed(submission?.id);
+      await this.mediaGenerationBalanceService.refund(chargeKey);
+      await this.contestFlowService.markSubmissionFailed(submissionId);
       throw error;
     }
   }
@@ -204,37 +249,51 @@ export class MediaGenerationEnqueueService {
     request: TextVideoGenerationRequest,
     userId: number,
   ) {
-    await this.mediaGenerationGuardsService.assertUserCanGenerateVideos(
-      request,
-      userId,
-    );
+    const totalCost =
+      await this.mediaGenerationGuardsService.assertUserCanGenerateVideos(
+        request,
+        userId,
+      );
 
-    const submission = await this.contestFlowService.startSubmission({
-      contestId: request.contestId ?? null,
+    const chargeKey = randomUUID();
+    await this.mediaGenerationBalanceService.reserve({
       userId,
-      mediaKind: 'video',
+      amount: totalCost,
+      chargeKey,
       aiService: request.aiService,
-      capability: 'video_generate',
     });
-    const queuedRequest = {
-      ...request,
-      contestSubmissionId: submission?.id ?? null,
-    };
 
+    let submissionId: number | null = null;
     try {
+      const submission = await this.contestFlowService.startSubmission({
+        contestId: request.contestId ?? null,
+        userId,
+        mediaKind: 'video',
+        aiService: request.aiService,
+        capability: 'video_generate',
+      });
+      submissionId = submission?.id ?? null;
+      const queuedRequest = {
+        ...request,
+        contestSubmissionId: submissionId,
+      };
+
       const job = await this.mediaTextVideoQueue.add(
         queuedRequest.aiService,
         {
           request: queuedRequest,
           userId,
           aiService: queuedRequest.aiService,
+          chargeId: chargeKey,
         },
         this.defaultJobOptions,
       );
-      await this.contestFlowService.attachQueueJob(submission?.id, job.id);
+      await this.contestFlowService.attachQueueJob(submissionId, job.id);
+      await this.mediaGenerationBalanceService.attachJob(chargeKey, job.id);
       return job;
     } catch (error) {
-      await this.contestFlowService.markSubmissionFailed(submission?.id);
+      await this.mediaGenerationBalanceService.refund(chargeKey);
+      await this.contestFlowService.markSubmissionFailed(submissionId);
       throw error;
     }
   }
@@ -243,37 +302,51 @@ export class MediaGenerationEnqueueService {
     request: ImageVideoGenerationRequest,
     userId: number,
   ) {
-    await this.mediaGenerationGuardsService.assertUserCanGenerateVideos(
-      request,
-      userId,
-    );
+    const totalCost =
+      await this.mediaGenerationGuardsService.assertUserCanGenerateVideos(
+        request,
+        userId,
+      );
 
-    const submission = await this.contestFlowService.startSubmission({
-      contestId: request.contestId ?? null,
+    const chargeKey = randomUUID();
+    await this.mediaGenerationBalanceService.reserve({
       userId,
-      mediaKind: 'video',
+      amount: totalCost,
+      chargeKey,
       aiService: request.aiService,
-      capability: 'video_generate',
     });
-    const queuedRequest = {
-      ...request,
-      contestSubmissionId: submission?.id ?? null,
-    };
 
+    let submissionId: number | null = null;
     try {
+      const submission = await this.contestFlowService.startSubmission({
+        contestId: request.contestId ?? null,
+        userId,
+        mediaKind: 'video',
+        aiService: request.aiService,
+        capability: 'video_generate',
+      });
+      submissionId = submission?.id ?? null;
+      const queuedRequest = {
+        ...request,
+        contestSubmissionId: submissionId,
+      };
+
       const job = await this.mediaImageVideoQueue.add(
         queuedRequest.aiService,
         {
           request: queuedRequest,
           userId,
           aiService: queuedRequest.aiService,
+          chargeId: chargeKey,
         },
         this.defaultJobOptions,
       );
-      await this.contestFlowService.attachQueueJob(submission?.id, job.id);
+      await this.contestFlowService.attachQueueJob(submissionId, job.id);
+      await this.mediaGenerationBalanceService.attachJob(chargeKey, job.id);
       return job;
     } catch (error) {
-      await this.contestFlowService.markSubmissionFailed(submission?.id);
+      await this.mediaGenerationBalanceService.refund(chargeKey);
+      await this.contestFlowService.markSubmissionFailed(submissionId);
       throw error;
     }
   }
@@ -290,19 +363,36 @@ export class MediaGenerationEnqueueService {
       videoUrl: meme.referenceVideoUrl,
     };
 
-    await this.mediaGenerationGuardsService.assertUserCanGenerateMemes(
-      enrichedRequest,
-      userId,
-    );
-
-    return await this.mediaMemeQueue.add(
-      enrichedRequest.aiService,
-      {
-        request: enrichedRequest,
+    const totalCost =
+      await this.mediaGenerationGuardsService.assertUserCanGenerateMemes(
+        enrichedRequest,
         userId,
-        aiService: enrichedRequest.aiService,
-      },
-      this.defaultJobOptions,
-    );
+      );
+
+    const chargeKey = randomUUID();
+    await this.mediaGenerationBalanceService.reserve({
+      userId,
+      amount: totalCost,
+      chargeKey,
+      aiService: enrichedRequest.aiService,
+    });
+
+    try {
+      const job = await this.mediaMemeQueue.add(
+        enrichedRequest.aiService,
+        {
+          request: enrichedRequest,
+          userId,
+          aiService: enrichedRequest.aiService,
+          chargeId: chargeKey,
+        },
+        this.defaultJobOptions,
+      );
+      await this.mediaGenerationBalanceService.attachJob(chargeKey, job.id);
+      return job;
+    } catch (error) {
+      await this.mediaGenerationBalanceService.refund(chargeKey);
+      throw error;
+    }
   }
 }

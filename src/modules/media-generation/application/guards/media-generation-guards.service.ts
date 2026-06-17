@@ -28,7 +28,7 @@ export class MediaGenerationGuardsService {
   async assertUserCanGeneratePromptImages(
     request: ResolvedPromptImageGenerationRequest,
     userId: number,
-  ) {
+  ): Promise<number> {
     if (request.contestId) {
       await this.contestMediaGenerationResolverService.assertContestCapability(
         request.contestId,
@@ -61,12 +61,14 @@ export class MediaGenerationGuardsService {
     if (user.points < totalCost) {
       throw new BadRequestException('Not enough credits to generate images');
     }
+
+    return totalCost;
   }
 
   async assertUserCanEditImages(
     request: EditImageGenerationRequest,
     userId: number,
-  ) {
+  ): Promise<number> {
     if (request.contestId) {
       await this.contestMediaGenerationResolverService.assertContestCapability(
         request.contestId,
@@ -93,12 +95,14 @@ export class MediaGenerationGuardsService {
     if (user.points < totalCost) {
       throw new BadRequestException('Not enough credits to edit images');
     }
+
+    return totalCost;
   }
 
   async assertUserCanGenerateAudio(
     request: AudioGenerationRequest,
     userId: number,
-  ) {
+  ): Promise<number> {
     if (request.contestId) {
       await this.contestMediaGenerationResolverService.assertContestCapability(
         request.contestId,
@@ -113,12 +117,14 @@ export class MediaGenerationGuardsService {
     if (user.points < totalCost) {
       throw new BadRequestException('Not enough credits to generate audio');
     }
+
+    return totalCost;
   }
 
   async assertUserCanGenerateVideos(
     request: TextVideoGenerationRequest | ImageVideoGenerationRequest,
     userId: number,
-  ) {
+  ): Promise<number> {
     if (request.contestId) {
       await this.contestMediaGenerationResolverService.assertContestCapability(
         request.contestId,
@@ -135,12 +141,14 @@ export class MediaGenerationGuardsService {
     if (user.points < totalCost) {
       throw new BadRequestException('Not enough credits to generate videos');
     }
+
+    return totalCost;
   }
 
   async assertUserCanGenerateMemes(
     request: MemeGenerationRequest,
     userId: number,
-  ) {
+  ): Promise<number> {
     const meme = await this.getRequiredMeme(request.memeId);
 
     const user = await this.getRequiredUser(userId);
@@ -152,6 +160,8 @@ export class MediaGenerationGuardsService {
     if (user.points < totalCost) {
       throw new BadRequestException('Not enough credits to generate memes');
     }
+
+    return totalCost;
   }
 
   async getRequiredUser(userId: number): Promise<UserEntity> {

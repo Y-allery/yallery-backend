@@ -1,9 +1,13 @@
 import { BaseMediaProcessor } from './base-media.processor';
 import { NotificationGateway } from 'src/modules/notifications/notification.gateway';
+import { MediaGenerationBalanceService } from 'src/modules/media-generation/application/balance/media-generation-balance.service';
 
 class TestMediaProcessor extends BaseMediaProcessor {
-  constructor(notificationGateway: NotificationGateway) {
-    super(notificationGateway, 'image_edit');
+  constructor(
+    notificationGateway: NotificationGateway,
+    balanceService: MediaGenerationBalanceService,
+  ) {
+    super(notificationGateway, 'image_edit', balanceService);
   }
 
   async process() {
@@ -21,9 +25,15 @@ describe('BaseMediaProcessor', () => {
       sendMediaGenerationError: jest.fn(),
     }) as unknown as NotificationGateway;
 
-  it('emits mediaGenerationError after final failed attempt', async () => {
+  const createBalanceService = () =>
+    ({
+      refund: jest.fn(),
+    }) as unknown as MediaGenerationBalanceService;
+
+  it('emits mediaGenerationError and refunds the charge after final failed attempt', async () => {
     const notificationGateway = createGateway();
-    const processor = new TestMediaProcessor(notificationGateway);
+    const balanceService = createBalanceService();
+    const processor = new TestMediaProcessor(notificationGateway, balanceService);
 
     await processor.fail(
       {
@@ -33,11 +43,13 @@ describe('BaseMediaProcessor', () => {
         data: {
           userId: 42,
           aiService: 'qwen_image_edit_baked',
+          chargeId: 'charge-abc',
         },
       },
       new Error('RunPod failed'),
     );
 
+    expect(balanceService.refund).toHaveBeenCalledWith('charge-abc');
     expect(notificationGateway.sendMediaGenerationError).toHaveBeenCalledWith(
       '42',
       {
@@ -49,9 +61,10 @@ describe('BaseMediaProcessor', () => {
     );
   });
 
-  it('does not emit before retry attempts are exhausted', async () => {
+  it('does not emit or refund before retry attempts are exhausted', async () => {
     const notificationGateway = createGateway();
-    const processor = new TestMediaProcessor(notificationGateway);
+    const balanceService = createBalanceService();
+    const processor = new TestMediaProcessor(notificationGateway, balanceService);
 
     await processor.fail(
       {
@@ -61,11 +74,13 @@ describe('BaseMediaProcessor', () => {
         data: {
           userId: 42,
           aiService: 'qwen_image_edit_baked',
+          chargeId: 'charge-abc',
         },
       },
       new Error('temporary failure'),
     );
 
+    expect(balanceService.refund).not.toHaveBeenCalled();
     expect(notificationGateway.sendMediaGenerationError).not.toHaveBeenCalled();
   });
 });

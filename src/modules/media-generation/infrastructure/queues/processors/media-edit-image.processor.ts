@@ -6,12 +6,14 @@ import { EditImageGenerationRequest } from 'src/modules/media-generation/domain/
 import { MEDIA_IMAGE_EDIT_GENERATION_QUEUE } from 'src/modules/media-generation/infrastructure/queues/constants/media-generation.queue';
 import { BaseMediaProcessor } from './base-media.processor';
 import { MediaGenerationFinalizeService } from 'src/modules/media-generation/application/finalize/media-generation-finalize.service';
+import { MediaGenerationBalanceService } from 'src/modules/media-generation/application/balance/media-generation-balance.service';
 import { ImageNotificationPresenter } from 'src/modules/media-generation/infrastructure/queues/presenters/image-notification.presenter';
 
 type MediaEditImageJobData = {
   request: EditImageGenerationRequest;
   userId: number;
   aiService: string;
+  chargeId?: string;
 };
 
 @Injectable()
@@ -23,8 +25,9 @@ export class MediaEditImageProcessor extends BaseMediaProcessor {
   constructor(
     private readonly mediaGenerationFinalizeService: MediaGenerationFinalizeService,
     notificationGateway: NotificationGateway,
+    mediaGenerationBalanceService: MediaGenerationBalanceService,
   ) {
-    super(notificationGateway, 'image_edit');
+    super(notificationGateway, 'image_edit', mediaGenerationBalanceService);
   }
 
   async process(job: Job<MediaEditImageJobData>) {

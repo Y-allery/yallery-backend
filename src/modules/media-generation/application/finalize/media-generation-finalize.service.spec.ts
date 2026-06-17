@@ -103,9 +103,6 @@ describe('MediaGenerationFinalizeService', () => {
     const mediaTagResolverService = {
       resolveTagForPrompt: jest.fn(async () => null),
     };
-    const notificationGateway = {
-      emitProfileUpdate: jest.fn(),
-    };
     const userActivityService = {
       logMediaGenerationSpent: jest.fn(),
     };
@@ -115,9 +112,6 @@ describe('MediaGenerationFinalizeService', () => {
     const contestRepository = {
       findOne: jest.fn(),
     };
-    const userRepository = {
-      save: jest.fn(async (user) => user),
-    };
 
     const service = new MediaGenerationFinalizeService(
       contestFlowService as any,
@@ -126,11 +120,9 @@ describe('MediaGenerationFinalizeService', () => {
       mediaGenerationGuardsService as any,
       mediaGenerationPricingService as any,
       mediaTagResolverService as any,
-      notificationGateway as any,
       userActivityService as any,
       partnershipActivityLogger as any,
       contestRepository as any,
-      userRepository as any,
     );
 
     return {
@@ -138,10 +130,8 @@ describe('MediaGenerationFinalizeService', () => {
       contestFlowService,
       generatedPostFactory,
       mediaGenerationExecutionService,
-      notificationGateway,
       userActivityService,
       partnershipActivityLogger,
-      userRepository,
     };
   };
 
@@ -203,15 +193,13 @@ describe('MediaGenerationFinalizeService', () => {
     );
   });
 
-  it('deducts points once and publishes audio post through contest flow', async () => {
+  it('publishes audio post through contest flow without touching the balance', async () => {
     const {
       service,
       contestFlowService,
       generatedPostFactory,
-      notificationGateway,
       userActivityService,
       partnershipActivityLogger,
-      userRepository,
     } = createService();
 
     const result = await service.finalizeAudioGeneration(
@@ -224,10 +212,6 @@ describe('MediaGenerationFinalizeService', () => {
       55,
     );
 
-    expect(userRepository.save).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 55, points: 75 }),
-    );
-    expect(notificationGateway.emitProfileUpdate).toHaveBeenCalledWith('55');
     expect(contestFlowService.completeGenerationPosts).toHaveBeenCalledWith(
       88,
       [expect.objectContaining({ id: 9 })],
