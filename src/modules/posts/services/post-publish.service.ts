@@ -159,6 +159,24 @@ export class PostPublishService {
     });
   }
 
+  async deletePost(postId: number, userId: number): Promise<void> {
+    const post = await this.postRepository.findOne({
+      where: { id: postId, user: { id: userId } },
+      relations: { user: true },
+      select: { id: true, user: { id: true } },
+    });
+
+    if (!post) {
+      throw new NotFoundException('Post not found or you are not the owner');
+    }
+
+    // Hard delete. Post-referencing foreign keys carry ON DELETE rules
+    // (likes / viewed_posts / reports / user_activities -> CASCADE,
+    // contest_submissions / contests.winnerPostId -> SET NULL,
+    // contest_rewards -> CASCADE), so the database cleans up child rows.
+    await this.postRepository.delete({ id: postId });
+  }
+
   async savePost(
     dto: GeneratedImagePostInput,
     imageUrl: string,
