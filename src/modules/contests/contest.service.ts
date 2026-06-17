@@ -1,4 +1,3 @@
-import { Length } from 'class-validator';
 import {
   BadRequestException,
   Injectable,
@@ -646,12 +645,6 @@ export class ContestService {
     console.log(`📢 Contest "${contest.name}" notifications: ${totalSuccess} success, ${totalErrors} errors, ${totalProcessed} processed`);
   }
 
-  async sendContestStartNotifications(contest: ContestEntity) {
-    const title = 'Join the contest!';
-    const body = `The ${contest.name} contest is now live! Join now for a chance to win points!`;
-    await this.sendContestNotificationsToAllUsers(contest, title, body);
-  }
-
   async setAutomaticContestWinner(contest: ContestEntity) {
     // Starting automatic winner selection for contest "${contest.name}" (ID: ${contest.id})
     if (contest.contestType === ContestTypeEnum.FINE_TUNE) {
@@ -1054,15 +1047,6 @@ export class ContestService {
   }
 
 
-  async getPendingReviewPosts() {
-    const contests = await this.contestRepository.find({
-      where: {
-        status: ContestStatusEnum.PENDING_REVIEW,
-      },
-      relations: ['tag'],
-    });
-    return contests;
-  }
 
   async getTopContestPost({
     contest_id,
@@ -1221,26 +1205,6 @@ export class ContestService {
       Number(tweet?.reply_count || tweet?.replyCount || 0) +
       Number(tweet?.view_count || tweet?.viewCount || 0) * 0.01
     );
-  }
-
-  async findAllContests(): Promise<any[]> {
-    const contests = await this.contestRepository.find({
-      select: ['imageUrl', 'endTime', 'reward', 'status'],
-      relations: ['tag'],
-    });
-
-    const statusOrder = {
-      pending_review: 1,
-      open: 2,
-      closed: 3,
-    };
-
-    contests.sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
-
-    return contests.map((contest) => ({
-      ...contest,
-              endTime: contest.endTime.toISOString().slice(0, 10),
-    }));
   }
 
   async findContestById(id: number): Promise<ContestEntity & Record<string, any>> {
@@ -1467,35 +1431,21 @@ export class ContestService {
       throw new BadRequestException('Contest is already closed');
     }
 
-    if (contest.winner && contest.winner.id === post.user.id) {
-      const updatedContest = await this.setAutomaticContestWinner(contest);
+    // Rejecting the current winner and rejecting any other post both re-run
+    // automatic winner selection identically, so there is no branching here.
+    const updatedContest = await this.setAutomaticContestWinner(contest);
 
-      if (!updatedContest.winner) {
-        updatedContest.status = ContestStatusEnum.CLOSED;
-        updatedContest.isApproved = true;
-        await this.contestRepository.save(updatedContest);
-        return {
-          success: true,
-          message: 'Winner rejected and no new winner found. Contest closed.',
-        };
-      } else {
-        return this.transformContestToPendingReviewResponse(updatedContest);
-      }
-    } else {
-      const updatedContest = await this.setAutomaticContestWinner(contest);
-
-      if (!updatedContest.winner) {
-        updatedContest.status = ContestStatusEnum.CLOSED;
-        updatedContest.isApproved = true;
-        await this.contestRepository.save(updatedContest);
-        return {
-          success: true,
-          message: 'Winner rejected and no new winner found. Contest closed.',
-        };
-      } else {
-        return this.transformContestToPendingReviewResponse(updatedContest);
-      }
+    if (!updatedContest.winner) {
+      updatedContest.status = ContestStatusEnum.CLOSED;
+      updatedContest.isApproved = true;
+      await this.contestRepository.save(updatedContest);
+      return {
+        success: true,
+        message: 'Winner rejected and no new winner found. Contest closed.',
+      };
     }
+
+    return this.transformContestToPendingReviewResponse(updatedContest);
   }
 
   private transformContestToPendingReviewResponse(contest: ContestEntity) {

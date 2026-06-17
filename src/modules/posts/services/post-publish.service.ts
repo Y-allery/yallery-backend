@@ -186,14 +186,12 @@ export class PostPublishService {
     let actualWidth: number | undefined = undefined;
     let actualHeight: number | undefined = undefined;
 
-    try {
-      const dimensions = await this.getImageDimensions(imageUrl);
-      if (dimensions) {
-        actualWidth = Number(dimensions.width);
-        actualHeight = Number(dimensions.height);
-      }
-    } catch (error) {
-      console.warn(`[savePost] Failed to get image dimensions from ${imageUrl}:`, error?.message || error);
+    // getImageDimensions swallows its own errors and returns null, so no
+    // additional try/catch is needed here.
+    const dimensions = await this.getImageDimensions(imageUrl);
+    if (dimensions) {
+      actualWidth = Number(dimensions.width);
+      actualHeight = Number(dimensions.height);
     }
 
     const post = this.postRepository.create({
