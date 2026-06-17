@@ -14,6 +14,7 @@ import { Roles } from 'src/modules/auth/decorators/role.decorator';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt.auth.guard';
 import { RoleGuard } from 'src/modules/auth/guards/role.guard';
 import { CreateStyleDto } from 'src/modules/posts/dto/create.style.dto';
+import { UpdateStyleDto } from 'src/modules/posts/dto/update.style.dto';
 import { CreateTagDto } from 'src/modules/catalog/tags/dto/create.tag.dto';
 import { UpdateTagDto } from 'src/modules/catalog/tags/dto/update.tag.dto';
 import { RoleEnum } from 'src/modules/users/types/role.enum';
@@ -83,9 +84,9 @@ export class AdminCatalogController {
   @ApiResponse({ status: 404, description: 'Style not found.' })
   async updateStyle(
     @Param('id', ParseIntPipe) id: number,
-    @Body() updateTagDto: CreateStyleDto,
+    @Body() updateStyleDto: UpdateStyleDto,
   ) {
-    return this.adminCatalogService.updateStyle(id, updateTagDto);
+    return this.adminCatalogService.updateStyle(id, updateStyleDto);
   }
 
   @Delete('styles/:id')

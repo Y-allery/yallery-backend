@@ -7,6 +7,7 @@ import { StyleEntity } from 'src/modules/posts/entities/style.entity';
 import { Repository } from 'typeorm';
 import { ColorEntity } from 'src/modules/media-generation/persistence/entities/color.entity';
 import { ProviderRuntimeConfigService } from 'src/modules/provider-settings/provider-runtime-config.service';
+import { PromptComposerService } from 'src/modules/media-generation/application/prompt-enhancement/prompt-composer.service';
 
 type MediaPromptEnhancementMode = 'image_generate' | 'image_edit';
 
@@ -15,11 +16,16 @@ interface MediaPromptEnhancementInput {
   styleId?: number | null;
   colorId?: number | null;
   mode: MediaPromptEnhancementMode;
+  /** Target model — lets the composer format the prompt the way that model wants. */
+  aiService?: string | null;
 }
 
 interface MediaPromptEnhancementResult {
   translatedPrompt: string;
   enhancedPrompt: string;
+  negativePrompt: string | null;
+  cfg: number | null;
+  steps: number | null;
   style: StyleEntity | null;
   color: ColorEntity | null;
 }
@@ -34,6 +40,7 @@ export class MediaPromptEnhancerService {
     @InjectRepository(ColorEntity)
     private readonly colorRepository: Repository<ColorEntity>,
     private readonly providerRuntimeConfigService: ProviderRuntimeConfigService,
+    private readonly promptComposerService: PromptComposerService,
   ) {}
 
   async enhancePrompt(
@@ -47,10 +54,7 @@ export class MediaPromptEnhancerService {
 
     const [style, color] = await Promise.all([
       input.styleId
-        ? this.styleRepository.findOne({
-            where: { id: input.styleId },
-            select: { id: true, name: true, slug: true, imageUrl: true },
-          })
+        ? this.styleRepository.findOne({ where: { id: input.styleId } })
         : null,
       input.colorId
         ? this.colorRepository.findOne({
@@ -70,19 +74,47 @@ export class MediaPromptEnhancerService {
 
     const sanitizedPrompt = this.sanitizePrompt(prompt);
     const translatedPrompt = await this.translatePromptToEnglish(sanitizedPrompt);
+
+    // The LLM (or fallback) produces a clean, STYLE-NEUTRAL subject description.
+    // Style, color and negatives are applied deterministically by the composer
+    // so the chosen style always reaches the model in the right format.
+    const { translated, baseDescription } = await this.buildBaseDescription(
+      translatedPrompt,
+      input.mode,
+    );
+
+    const composed = this.promptComposerService.compose({
+      aiService: input.aiService ?? null,
+      baseDescription,
+      style,
+      color,
+      mode: input.mode,
+    });
+
+    return {
+      translatedPrompt: translated,
+      enhancedPrompt: composed.prompt,
+      negativePrompt: composed.negativePrompt,
+      cfg: composed.cfg,
+      steps: composed.steps,
+      style,
+      color,
+    };
+  }
+
+  private async buildBaseDescription(
+    translatedPrompt: string,
+    mode: MediaPromptEnhancementMode,
+  ): Promise<{ translated: string; baseDescription: string }> {
     const openai = await this.createOpenAIClient();
 
     if (!openai) {
       return {
-        translatedPrompt,
-        enhancedPrompt: this.buildFallbackPrompt(
+        translated: translatedPrompt,
+        baseDescription: this.buildFallbackBaseDescription(
           translatedPrompt,
-          style,
-          color,
-          input.mode,
+          mode,
         ),
-        style,
-        color,
       };
     }
 
@@ -91,6 +123,7 @@ export class MediaPromptEnhancerService {
         model: 'gpt-4',
         temperature: 0.4,
         max_tokens: 400,
+        response_format: { type: 'json_object' },
         messages: [
           {
             role: 'system',
@@ -99,8 +132,8 @@ export class MediaPromptEnhancerService {
 Your job:
 1. Detect the prompt language and translate it into natural, fluent English.
 2. Preserve the user's exact intent and subject.
-3. Strongly improve the prompt for high-quality AI image generation.
-4. If a style or color direction is provided, integrate it naturally and explicitly.
+3. Strongly improve the prompt for high-quality AI image generation (composition, detail, lighting, framing).
+4. Do NOT add style directions, art movements, mediums, or color palettes — those are applied separately downstream.
 5. Do not add unrelated subjects or story elements.
 6. For image_edit mode, write instructions for editing an existing image while preserving the main subject's identity, pose, and framing unless the user explicitly asks to change them.
 
@@ -110,10 +143,8 @@ Return strict JSON only in this format:
           {
             role: 'user',
             content: JSON.stringify({
-              mode: input.mode,
+              mode,
               prompt: translatedPrompt,
-              style: style?.name ?? null,
-              color: color?.name ?? null,
             }),
           },
         ],
@@ -125,30 +156,23 @@ Return strict JSON only in this format:
       const enhancedPrompt = parsedContent?.enhanced_prompt?.trim();
 
       if (!aiTranslatedPrompt || !enhancedPrompt) {
-        throw new Error('OpenAI did not return translated_prompt and enhanced_prompt');
+        throw new Error(
+          'OpenAI did not return translated_prompt and enhanced_prompt',
+        );
       }
 
-      return {
-        translatedPrompt: aiTranslatedPrompt,
-        enhancedPrompt,
-        style,
-        color,
-      };
+      return { translated: aiTranslatedPrompt, baseDescription: enhancedPrompt };
     } catch (error: any) {
       this.logger.warn(
-        `Falling back to local prompt enhancement for "${prompt.substring(0, 80)}": ${error?.message || error}`,
+        `Falling back to local prompt enhancement for "${translatedPrompt.substring(0, 80)}": ${error?.message || error}`,
       );
 
       return {
-        translatedPrompt,
-        enhancedPrompt: this.buildFallbackPrompt(
+        translated: translatedPrompt,
+        baseDescription: this.buildFallbackBaseDescription(
           translatedPrompt,
-          style,
-          color,
-          input.mode,
+          mode,
         ),
-        style,
-        color,
       };
     }
   }
@@ -169,24 +193,16 @@ Return strict JSON only in this format:
     return prompt;
   }
 
-  private buildFallbackPrompt(
+  /** Style-neutral subject description; the composer adds style/color/negatives. */
+  private buildFallbackBaseDescription(
     prompt: string,
-    style: StyleEntity | null,
-    color: ColorEntity | null,
     mode: MediaPromptEnhancementMode,
   ): string {
-    const styleInstruction = style
-      ? ` with a clear ${style.name} visual language`
-      : '';
-    const colorInstruction = color
-      ? ` using ${this.describeColorPalette(color.name)}`
-      : '';
-
     if (mode === 'image_edit') {
-      return `Edit the provided image so that it clearly reflects this request: ${prompt}. Keep the main subject recognizable and preserve the original composition unless the request explicitly changes it. The final image should feel polished and coherent${styleInstruction}${colorInstruction}, with natural detail, believable lighting, and clean integration of all requested changes.`;
+      return `Edit the provided image so that it clearly reflects this request: ${prompt}. Keep the main subject recognizable and preserve the original composition unless the request explicitly changes it. The final image should feel polished and coherent, with natural detail, believable lighting, and clean integration of all requested changes.`;
     }
 
-    return `Create a visually striking, highly detailed image of ${prompt}. Use strong composition, polished professional rendering, rich detail, and expressive lighting${styleInstruction}${colorInstruction}. Make the scene feel intentional, visually cohesive, and premium.`;
+    return `Create a visually striking, highly detailed image of ${prompt}. Use strong composition, polished professional rendering, rich detail, and expressive lighting. Make the scene feel intentional, visually cohesive, and premium.`;
   }
 
   private async translatePromptToEnglish(prompt: string): Promise<string> {
@@ -220,21 +236,6 @@ Return strict JSON only in this format:
         `Falling back to original-language prompt for "${prompt.substring(0, 80)}": ${error?.message || error}`,
       );
       return prompt;
-    }
-  }
-
-  private describeColorPalette(colorName: string): string {
-    const normalizedColor = colorName.trim().toLowerCase();
-
-    switch (normalizedColor) {
-      case 'nature':
-        return 'a nature-inspired palette with organic greens, earthy tones, and natural atmospheric color harmony';
-      case 'bright':
-        return 'a bright, vivid palette with vibrant high-energy colors';
-      case 'bw':
-        return 'a black-and-white monochrome palette with rich contrast';
-      default:
-        return `a ${colorName} color palette`;
     }
   }
 

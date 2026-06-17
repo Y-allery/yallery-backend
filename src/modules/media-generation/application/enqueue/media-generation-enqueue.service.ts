@@ -61,6 +61,7 @@ export class MediaGenerationEnqueueService {
         styleId: request.styleId ?? null,
         colorId: request.colorId ?? null,
         mode: 'image_generate',
+        aiService: request.aiService ?? null,
       });
     const resolvedRequest =
       await this.contestMediaGenerationResolverService.resolvePromptImageRequest(
@@ -68,6 +69,9 @@ export class MediaGenerationEnqueueService {
           ...request,
           translatedPrompt: promptEnhancement.translatedPrompt,
           resolvedPrompt: promptEnhancement.enhancedPrompt,
+          resolvedNegativePrompt: promptEnhancement.negativePrompt ?? undefined,
+          resolvedCfg: promptEnhancement.cfg ?? undefined,
+          resolvedSteps: promptEnhancement.steps ?? undefined,
           styleId: promptEnhancement.style?.id ?? request.styleId ?? null,
           colorId: promptEnhancement.color?.id ?? request.colorId ?? null,
           styleName: promptEnhancement.style?.name ?? null,
@@ -133,11 +137,15 @@ export class MediaGenerationEnqueueService {
         styleId: request.styleId ?? null,
         colorId: request.colorId ?? null,
         mode: 'image_edit',
+        aiService: request.aiService,
       });
     const enhancedRequest: EditImageGenerationRequest = {
       ...request,
       translatedPrompt: promptEnhancement.translatedPrompt,
       resolvedPrompt: promptEnhancement.enhancedPrompt,
+      resolvedNegativePrompt: promptEnhancement.negativePrompt ?? undefined,
+      resolvedCfg: promptEnhancement.cfg ?? undefined,
+      resolvedSteps: promptEnhancement.steps ?? undefined,
       styleId: promptEnhancement.style?.id ?? request.styleId ?? null,
       colorId: promptEnhancement.color?.id ?? request.colorId ?? null,
       styleName: promptEnhancement.style?.name ?? null,

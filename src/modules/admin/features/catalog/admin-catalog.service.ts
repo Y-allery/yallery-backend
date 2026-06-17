@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { CreateStyleDto } from 'src/modules/posts/dto/create.style.dto';
+import { UpdateStyleDto } from 'src/modules/posts/dto/update.style.dto';
 import { PostStyleService } from 'src/modules/posts/services/post-style.service';
 import { CreateTagDto } from 'src/modules/catalog/tags/dto/create.tag.dto';
 import { UpdateTagDto } from 'src/modules/catalog/tags/dto/update.tag.dto';
@@ -40,7 +41,7 @@ export class AdminCatalogService {
     return this.postStyleService.findStyleById(id);
   }
 
-  async updateStyle(id: number, dto: CreateStyleDto) {
+  async updateStyle(id: number, dto: UpdateStyleDto) {
     return this.postStyleService.updateStyle(id, dto);
   }
 

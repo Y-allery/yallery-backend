@@ -3,6 +3,9 @@ export interface EditImageGenerationRequest {
   prompt: string;
   translatedPrompt?: string;
   resolvedPrompt?: string;
+  resolvedNegativePrompt?: string;
+  resolvedCfg?: number;
+  resolvedSteps?: number;
   imageUrl: string;
   contestId?: number | null;
   contestSubmissionId?: number | null;
