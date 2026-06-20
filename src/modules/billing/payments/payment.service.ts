@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { UserService } from 'src/modules/users/user.service';
 import { PaymentEntity } from './entities/payment.entity';
+import { UserEntity } from 'src/modules/users/entities/user.entity';
 import { NotificationGateway } from 'src/modules/notifications/notification.gateway';
 import { RewardService } from 'src/modules/billing/rewards/reward.service';
 import { RewardTypeEnum } from 'src/modules/billing/rewards/types/reward-type.enum';
@@ -103,43 +104,68 @@ export class PaymentService {
           }
 
           const isTest = parsedData.is_sandbox === true || parsedData.environment === 'sandbox' || parsedData.test === true;
+
+          // Idempotency key: a stable provider id is REQUIRED. Without one we
+          // cannot dedupe Adapty's at-least-once retries, so we refuse to credit
+          // rather than risk minting points twice. (paymentIntentId is a UNIQUE
+          // column but allows multiple NULLs, so null-id events would bypass
+          // dedup entirely — hence the hard reject here.)
+          const paymentIntentId =
+            parsedData.transaction_id || parsedData.payment_intent_id || null;
+          if (!paymentIntentId) {
+            this.logger.error(
+              `❌ Purchase for user ${profileId} (product ${productId}) has no transaction id — refusing to credit without an idempotency key`,
+            );
+            return;
+          }
+
+          const rawAmount =
+            eventProperties?.price ?? eventProperties?.amount ?? pointsToAdd;
+          const amount = typeof rawAmount === 'number' ? rawAmount : pointsToAdd;
+          const currency = eventProperties?.currency || 'USD';
+
           if (verbose) {
             this.logger.log(`💰 [Adapty webhook] isTest=${isTest} environment=${parsedData.environment ?? null}`);
             this.logger.log(`💰 [Adapty webhook] userBeforePoints=${user.points} pointsToAdd=${pointsToAdd}`);
           }
 
-          user.points += pointsToAdd;
-          await this.userService.updateUser(user);
+          // Idempotency-FIRST + atomic credit in a single transaction: insert the
+          // payment keyed on the unique paymentIntentId BEFORE crediting. A
+          // duplicate delivery hits the unique index (caught below) and we skip
+          // the credit; a mid-transaction crash rolls back the insert so a retry
+          // reprocesses cleanly. Points use an atomic increment (not a
+          // read-modify-write save) so concurrent deliveries can't lose updates.
+          try {
+            await this.paymentRepository.manager.transaction(async (manager) => {
+              await manager.getRepository(PaymentEntity).insert({
+                paymentIntentId,
+                userId: user.id,
+                productId,
+                amount,
+                currency,
+                status: 'completed',
+              });
+
+              await manager
+                .getRepository(UserEntity)
+                .increment({ id: user.id }, 'points', pointsToAdd);
+            });
+          } catch (txError) {
+            if (this.isDuplicatePayment(txError)) {
+              this.logger.warn(
+                `↩️ Duplicate Adapty webhook for transaction ${paymentIntentId} — already processed, skipping`,
+              );
+              return;
+            }
+            throw txError; // genuine failure → controller returns 500 → Adapty retries
+          }
+
           await this.notificationGateway.emitProfileUpdate(user.id.toString());
-          
-          const paymentIntentId = parsedData.transaction_id || parsedData.payment_intent_id || null;
-          const amount = eventProperties?.price || eventProperties?.amount || pointsToAdd;
-          const currency = eventProperties?.currency || 'USD';
 
-          const payment = this.paymentRepository.create({
-            paymentIntentId,
-            userId: user.id,
-            productId,
-            amount: typeof amount === 'number' ? amount : pointsToAdd,
-            currency,
-            status: 'completed',
-          });
-
-          await this.paymentRepository.save(payment);
-          
           this.logger.log(
-            `✅ Added ${pointsToAdd} points to user ${profileId} for product ${productId} and saved payment record (ID: ${payment.id}, Test: ${isTest})`,
+            `✅ Added ${pointsToAdd} points to user ${profileId} for product ${productId} (transaction ${paymentIntentId}, Test: ${isTest})`,
           );
           if (verbose) {
-            this.logger.log(`✅ [Adapty webhook] paymentSaved=${JSON.stringify({
-              id: payment.id,
-              paymentIntentId,
-              userId: user.id,
-              productId,
-              amount: typeof amount === 'number' ? amount : pointsToAdd,
-              currency,
-              status: 'completed',
-            })}`);
             this.logger.log(`📥 [Adapty webhook] ===== END =====`);
           }
           break;
@@ -149,8 +175,19 @@ export class PaymentService {
       }
     } catch (error) {
       this.logger.error('❌ Error processing webhook:', error);
-      this.logger.error('Error stack:', error.stack);
+      this.logger.error('Error stack:', error?.stack);
+      // Do NOT swallow: rethrow so the controller responds 500 and Adapty
+      // retries. This is safe now that crediting is idempotent (duplicate
+      // retries are detected via the payments unique index and skipped).
+      throw error;
     }
+  }
+
+  /** MySQL duplicate-key (ER_DUP_ENTRY / 1062) on payments.paymentIntentId. */
+  private isDuplicatePayment(error: any): boolean {
+    const code = error?.driverError?.code ?? error?.code;
+    const errno = error?.driverError?.errno ?? error?.errno;
+    return code === 'ER_DUP_ENTRY' || errno === 1062;
   }
 
   private async getPointsForProduct(productId: string): Promise<number | null> {
