@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  HttpException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -49,23 +50,14 @@ export class LikeService {
       throw new BadRequestException('You cannot like your own post');
     }
 
-    // Отримуємо значення нагород до транзакції
+    // Reward amounts are fetched before the transaction; the authoritative
+    // duplicate-like and balance checks happen INSIDE it (the pre-transaction
+    // user.points / existingLike reads were racy — concurrent double-taps both
+    // passed them and double-spent).
     const likeSpendPoints = await this.rewardService.getRewardPointsOrDefault(
       RewardTypeEnum.LIKE_SPEND,
       15,
     );
-
-    if (user.points < likeSpendPoints) {
-      throw new BadRequestException('User does not have enough points');
-    }
-
-    const existingLike = await this.likeRepository.findOne({
-      where: { user: { id: userId }, post: { id: createLikeDto.postId } },
-    });
-
-    if (existingLike) {
-      throw new BadRequestException('You have already liked this post');
-    }
     const likeEarnPoints = await this.rewardService.getRewardPointsOrDefault(
       RewardTypeEnum.LIKE_EARN,
       5,
@@ -73,17 +65,34 @@ export class LikeService {
 
     try {
       await this.dataSource.transaction(async (manager) => {
-        await manager
-          .getRepository(LikeEntity)
-          .save(manager.getRepository(LikeEntity).create({ user, post }));
+        // Idempotent like: the UNIQUE(userId, postId) index is the source of
+        // truth, so concurrent requests can't both insert.
+        try {
+          await manager
+            .getRepository(LikeEntity)
+            .save(manager.getRepository(LikeEntity).create({ user, post }));
+        } catch (insertError) {
+          if (this.isDuplicateLike(insertError)) {
+            throw new BadRequestException('You have already liked this post');
+          }
+          throw insertError;
+        }
 
-        await manager
+        // Conditional spend: debits only if the liker still has enough points.
+        // affected === 0 means insufficient balance → abort (rolls back the
+        // like insert), preventing negative balances and double-spend.
+        const spend = await manager
           .getRepository(UserEntity)
-          .decrement(
-            { id: user.id },
-            'points',
-            likeSpendPoints,
-          );
+          .createQueryBuilder()
+          .update(UserEntity)
+          .set({ points: () => `points - ${likeSpendPoints}` })
+          .where('id = :id', { id: user.id })
+          .andWhere('points >= :spend', { spend: likeSpendPoints })
+          .execute();
+
+        if (!spend.affected) {
+          throw new BadRequestException('User does not have enough points');
+        }
 
         await manager
           .getRepository(UserEntity)
@@ -122,7 +131,19 @@ export class LikeService {
       await this.notificationGateway.emitProfileUpdate(post.user.id.toString());
       return 'success';
     } catch (error) {
+      // Preserve intentional HTTP errors (already-liked, insufficient points)
+      // with their original status; wrap anything else as a 400 (prior behavior).
+      if (error instanceof HttpException) {
+        throw error;
+      }
       throw new BadRequestException(error.message);
     }
+  }
+
+  /** MySQL duplicate-key (ER_DUP_ENTRY / 1062) on the likes unique index. */
+  private isDuplicateLike(error: any): boolean {
+    const code = error?.driverError?.code ?? error?.code;
+    const errno = error?.driverError?.errno ?? error?.errno;
+    return code === 'ER_DUP_ENTRY' || errno === 1062;
   }
 }
