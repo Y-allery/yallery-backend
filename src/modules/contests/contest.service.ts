@@ -16,7 +16,6 @@ import {
   ContestStatusEnum,
   ContestTypeEnum,
 } from './types/contest.status.enum';
-import { GetTopPostDto } from 'src/modules/admin/dto/get-top-post.dto';
 import { SetContestWinnerDto } from 'src/modules/admin/dto/set.contest.winner.dto';
 import { NotificationGateway } from 'src/modules/notifications/notification.gateway';
 import { UpdateContestDto } from 'src/modules/contests/dto/update.contest.dto';
@@ -1047,41 +1046,6 @@ export class ContestService {
   }
 
 
-
-  async getTopContestPost({
-    contest_id,
-    page,
-    limit,
-  }: GetTopPostDto): Promise<any> {
-    const offset = (page - 1) * limit;
-    const query = `
-      SELECT 
-          p.id AS postId,
-          p.imageUrl,
-          p.userId,
-          COUNT(l.id) AS likeCount
-      FROM 
-          posts p
-      LEFT JOIN 
-          likes l ON p.id = l.postId
-      WHERE 
-          p.contestId = ? AND
-          p.isPublished = 1
-      GROUP BY 
-          p.id
-      ORDER BY 
-          likeCount DESC
-      LIMIT ?
-      OFFSET ?;
-    `;
-
-    const result = await this.postRepository.query(query, [
-      contest_id,
-      +limit,
-      +offset,
-    ]);
-    return result.length > 0 ? result : null;
-  }
 
   async setContestWinner({ post_id, contest_id }: SetContestWinnerDto) {
     if (await this.contestFlowService.isV2Contest(contest_id)) {

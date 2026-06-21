@@ -118,14 +118,6 @@ export class ContestFlowService {
     );
   }
 
-  async getMetadata(
-    contestId: number,
-  ): Promise<ContestFlowMetadataEntity | null> {
-    return await this.flowMetadataRepository.findOne({
-      where: { contestId },
-    });
-  }
-
   async startSubmission(
     params: StartSubmissionParams,
   ): Promise<ContestSubmissionEntity | null> {
