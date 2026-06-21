@@ -39,7 +39,6 @@ import { MediaAISettingsEntity } from 'src/modules/media-generation/persistence/
 import { UserActivityModule } from 'src/modules/engagement/user-activity/user-activity.module';
 import { MediaTagResolverService } from 'src/modules/media-generation/infrastructure/tagging/media-tag-resolver.service';
 import { MediaPromptEnhancerService } from 'src/modules/media-generation/application/prompt-enhancement/media-prompt-enhancer.service';
-import { PromptComposerService } from 'src/modules/media-generation/application/prompt-enhancement/prompt-composer.service';
 import { ColorEntity } from 'src/modules/media-generation/persistence/entities/color.entity';
 import { MediaGenerationChargeEntity } from 'src/modules/media-generation/persistence/entities/media-generation-charge.entity';
 import { AIFinetuneEntity } from 'src/modules/admin/entities/ai-finetune.entity';
@@ -121,7 +120,6 @@ const mediaGenerationQueueOptions = {
     MediaRouteResolverService,
     MediaTagResolverService,
     MediaPromptEnhancerService,
-    PromptComposerService,
     MediaAudioProcessor,
     MediaEditImageProcessor,
     MediaImageVideoProcessor,

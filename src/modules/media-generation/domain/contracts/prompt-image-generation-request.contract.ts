@@ -1,9 +1,12 @@
 import { ContestTypeEnum } from 'src/modules/contests/types/contest.status.enum';
+import { MediaStyleDescriptor } from 'src/modules/media-generation/domain/contracts/media-style-descriptor.contract';
 import { MediaOrientation } from 'src/modules/media-generation/domain/presets';
 
 export interface PromptImageGenerationRequest {
   aiService?: string;
   prompt: string;
+  /** Structured style for the worker's in-worker upsampler. */
+  style?: MediaStyleDescriptor | null;
   translatedPrompt?: string;
   width?: number;
   height?: number;

@@ -55,27 +55,21 @@ export class MediaGenerationEnqueueService {
     request: PromptImageGenerationRequest,
     userId: number,
   ) {
-    const promptEnhancement =
-      await this.mediaPromptEnhancerService.enhancePrompt({
-        prompt: request.prompt,
-        styleId: request.styleId ?? null,
-        colorId: request.colorId ?? null,
-        mode: 'image_generate',
-        aiService: request.aiService ?? null,
-      });
+    const promptContext = await this.mediaPromptEnhancerService.resolveContext({
+      prompt: request.prompt,
+      styleId: request.styleId ?? null,
+      colorId: request.colorId ?? null,
+    });
     const resolvedRequest =
       await this.contestMediaGenerationResolverService.resolvePromptImageRequest(
         {
           ...request,
-          translatedPrompt: promptEnhancement.translatedPrompt,
-          resolvedPrompt: promptEnhancement.enhancedPrompt,
-          resolvedNegativePrompt: promptEnhancement.negativePrompt ?? undefined,
-          resolvedCfg: promptEnhancement.cfg ?? undefined,
-          resolvedSteps: promptEnhancement.steps ?? undefined,
-          styleId: promptEnhancement.style?.id ?? request.styleId ?? null,
-          colorId: promptEnhancement.color?.id ?? request.colorId ?? null,
-          styleName: promptEnhancement.style?.name ?? null,
-          colorName: promptEnhancement.color?.name ?? null,
+          prompt: promptContext.prompt,
+          style: promptContext.styleDescriptor ?? undefined,
+          styleId: promptContext.style?.id ?? request.styleId ?? null,
+          colorId: promptContext.color?.id ?? request.colorId ?? null,
+          styleName: promptContext.style?.name ?? null,
+          colorName: promptContext.color?.name ?? null,
         },
       );
     const totalCost =
@@ -131,25 +125,19 @@ export class MediaGenerationEnqueueService {
     request: EditImageGenerationRequest,
     userId: number,
   ) {
-    const promptEnhancement =
-      await this.mediaPromptEnhancerService.enhancePrompt({
-        prompt: request.prompt,
-        styleId: request.styleId ?? null,
-        colorId: request.colorId ?? null,
-        mode: 'image_edit',
-        aiService: request.aiService,
-      });
+    const promptContext = await this.mediaPromptEnhancerService.resolveContext({
+      prompt: request.prompt,
+      styleId: request.styleId ?? null,
+      colorId: request.colorId ?? null,
+    });
     const enhancedRequest: EditImageGenerationRequest = {
       ...request,
-      translatedPrompt: promptEnhancement.translatedPrompt,
-      resolvedPrompt: promptEnhancement.enhancedPrompt,
-      resolvedNegativePrompt: promptEnhancement.negativePrompt ?? undefined,
-      resolvedCfg: promptEnhancement.cfg ?? undefined,
-      resolvedSteps: promptEnhancement.steps ?? undefined,
-      styleId: promptEnhancement.style?.id ?? request.styleId ?? null,
-      colorId: promptEnhancement.color?.id ?? request.colorId ?? null,
-      styleName: promptEnhancement.style?.name ?? null,
-      colorName: promptEnhancement.color?.name ?? null,
+      prompt: promptContext.prompt,
+      style: promptContext.styleDescriptor ?? undefined,
+      styleId: promptContext.style?.id ?? request.styleId ?? null,
+      colorId: promptContext.color?.id ?? request.colorId ?? null,
+      styleName: promptContext.style?.name ?? null,
+      colorName: promptContext.color?.name ?? null,
     };
     const totalCost =
       await this.mediaGenerationGuardsService.assertUserCanEditImages(

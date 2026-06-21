@@ -13,16 +13,16 @@ const SDXL_BASELINE_NEGATIVE =
 @Injectable()
 export class RunpodPayloadBuilder {
   buildPromptImageInput(request: ResolvedPromptImageGenerationRequest) {
-    const prompt = request.resolvedPrompt ?? request.prompt;
+    // Raw user prompt + structured style; the worker's in-worker upsampler shapes the final
+    // prompt and owns steps/cfg/negatives per model.
+    const prompt = request.prompt;
+    const style = request.style ?? undefined;
 
     switch (request.aiService) {
       case 'flux2_klein':
-        // Flux2-klein wants natural-language prompts and ignores negatives.
-        // Keep its fast defaults unless the style explicitly recommends otherwise.
         return {
           prompt,
-          num_inference_steps: this.clamp(request.resolvedSteps ?? 4, 1, 12),
-          guidance_scale: this.clamp(request.resolvedCfg ?? 1, 0, 10),
+          style,
           width: request.width,
           height: request.height,
           num_images: request.imageQuantity,
@@ -33,12 +33,7 @@ export class RunpodPayloadBuilder {
       case 'sdxl':
         return {
           prompt,
-          negative_prompt: this.mergeNegatives(
-            SDXL_BASELINE_NEGATIVE,
-            request.resolvedNegativePrompt,
-          ),
-          num_inference_steps: this.clamp(request.resolvedSteps ?? 35, 1, 80),
-          guidance_scale: this.clamp(request.resolvedCfg ?? 7, 0, 20),
+          style,
           width: request.width,
           height: request.height,
           num_images: request.imageQuantity,
@@ -81,16 +76,11 @@ export class RunpodPayloadBuilder {
   }
 
   buildImageEditInput(request: EditImageGenerationRequest) {
-    // Qwen edit takes an imperative instruction; its CFG knob is `true_cfg_scale`.
+    // Raw instruction + style; the Qwen worker's upsampler shapes it and owns steps/cfg/negatives.
     return {
-      prompt: request.resolvedPrompt ?? request.prompt,
+      prompt: request.prompt,
+      style: request.style ?? undefined,
       image_url: request.imageUrl,
-      width: 1024,
-      height: 1024,
-      reference_max_side: 1024,
-      num_inference_steps: this.clamp(request.resolvedSteps ?? 20, 1, 50),
-      true_cfg_scale: this.clamp(request.resolvedCfg ?? 4, 0, 10),
-      negative_prompt: request.resolvedNegativePrompt?.trim() || ' ',
       num_images: 1,
       output_format: 'png',
       return_base64: true,
