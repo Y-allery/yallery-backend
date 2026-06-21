@@ -16,7 +16,6 @@ import { NotificationGateway } from 'src/modules/notifications/notification.gate
 import { RewardService } from 'src/modules/billing/rewards/reward.service';
 import { RewardTypeEnum } from 'src/modules/billing/rewards/types/reward-type.enum';
 import { UserEntity } from 'src/modules/users/entities/user.entity';
-import { GeneratedImagePostInput } from '../contracts/generated-image-post-input.contract';
 import { PostEntity } from '../entities/post.entity';
 
 @Injectable()
@@ -175,45 +174,6 @@ export class PostPublishService {
     // contest_submissions / contests.winnerPostId -> SET NULL,
     // contest_rewards -> CASCADE), so the database cleans up child rows.
     await this.postRepository.delete({ id: postId });
-  }
-
-  async savePost(
-    dto: GeneratedImagePostInput,
-    imageUrl: string,
-    userId: number,
-    contestId: number | null,
-  ) {
-    let actualWidth: number | undefined = undefined;
-    let actualHeight: number | undefined = undefined;
-
-    // getImageDimensions swallows its own errors and returns null, so no
-    // additional try/catch is needed here.
-    const dimensions = await this.getImageDimensions(imageUrl);
-    if (dimensions) {
-      actualWidth = Number(dimensions.width);
-      actualHeight = Number(dimensions.height);
-    }
-
-    const post = this.postRepository.create({
-      user: { id: userId },
-      imageUrl,
-      tag: null,
-      contest: contestId ? { id: contestId } : null,
-      isPublished: false,
-      isSaved: true,
-      generationParams: {
-        prompt: dto.prompt,
-        aiService: dto.ai_service,
-        orientation: dto.orientation,
-        styleId: dto.style_id || undefined,
-        colorId: dto.color_id || undefined,
-        width: actualWidth,
-        height: actualHeight,
-        negativePrompt: undefined,
-      },
-    });
-
-    return this.postRepository.save(post);
   }
 
   async share(

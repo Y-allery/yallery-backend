@@ -51,7 +51,6 @@ import { MediaGenerationExecutionService } from 'src/modules/media-generation/ap
 import { MediaGenerationFinalizeService } from 'src/modules/media-generation/application/finalize/media-generation-finalize.service';
 import { MediaGenerationGuardsService } from 'src/modules/media-generation/application/guards/media-generation-guards.service';
 import { MediaGenerationPricingService } from 'src/modules/media-generation/application/pricing/media-generation-pricing.service';
-import { MediaPreviewService } from 'src/modules/media-generation/infrastructure/previews/media-preview.service';
 import { PartnershipActivityModule } from 'src/modules/partnership-activity/partnership-activity.module';
 
 const mediaGenerationQueueOptions = {
@@ -118,7 +117,6 @@ const mediaGenerationQueueOptions = {
     MediaGenerationFinalizeService,
     MediaGenerationGuardsService,
     MediaGenerationPricingService,
-    MediaPreviewService,
     MediaProviderRegistryService,
     MediaRouteResolverService,
     MediaTagResolverService,

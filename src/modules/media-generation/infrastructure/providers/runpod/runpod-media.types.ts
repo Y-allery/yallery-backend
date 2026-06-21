@@ -14,5 +14,3 @@ export interface RunpodJobResponse {
   delayTime?: number;
   executionTime?: number;
 }
-
-export type RunpodOutputType = 'image' | 'video';
