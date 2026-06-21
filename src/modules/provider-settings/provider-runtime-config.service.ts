@@ -142,16 +142,6 @@ export class ProviderRuntimeConfigService {
     return resolved.value;
   }
 
-  async getRequiredString(key: string): Promise<string> {
-    const value = await this.getString(key);
-
-    if (!value) {
-      throw new Error(`${key} is not configured`);
-    }
-
-    return value;
-  }
-
   async getNumber(key: string, fallback?: number): Promise<number | undefined> {
     const value = await this.getString(key);
 
