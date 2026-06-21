@@ -1027,46 +1027,4 @@ export class AuthService {
     await this.notificationGateway.emitProfileUpdate(userId);
     return user;
   }
-
-  async loginWithTwitter(profile: any) {
-    const email =
-      profile.emails?.[0]?.value || `twitter_user_${profile.id}@no-email.com`;
-
-    let user = await this.userRepository.findOne({ where: { email } });
-
-    if (!user) {
-      const registrationBonus = await this.rewardService.getRewardPointsOrDefault(
-        RewardTypeEnum.REGISTRATION_BONUS,
-        3000,
-      );
-      user = this.userRepository.create({
-        name: profile.displayName,
-        nickname: profile.username,
-        email: email,
-        telegramId: null,
-        points: registrationBonus,
-      });
-
-      await this.userRepository.save(user);
-
-      // Відмічаємо що користувач може клеймити DAILY_LOGIN нагороду (після реєстрації це перший логін)
-      try {
-        await this.rewardService.markRewardEligible(user.id, RewardTypeEnum.DAILY_LOGIN);
-      } catch (error) {
-        console.warn('[loginWithTwitter] Failed to mark DAILY_LOGIN eligible for new user:', error);
-      }
-    } else {
-      // Відмічаємо що користувач може клеймити DAILY_LOGIN нагороду
-      try {
-        await this.rewardService.markRewardEligible(user.id, RewardTypeEnum.DAILY_LOGIN);
-      } catch (error) {
-        console.warn('[loginWithTwitter] Failed to mark DAILY_LOGIN eligible:', error);
-      }
-    }
-
-    const accessToken = await this.generateAccessToken(user);
-    const refreshToken = await this.generateRefreshToken(user);
-
-    return { accessToken, refreshToken };
-  }
 }
