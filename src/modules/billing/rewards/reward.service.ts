@@ -378,37 +378,6 @@ export class RewardService {
   }
 
   /**
-   * Check if reward is eligible for claim today.
-   */
-  async isRewardEligible(
-    userId: number,
-    rewardType: RewardTypeEnum,
-  ): Promise<boolean> {
-    if (!this.claimableRewardTypes.includes(rewardType)) {
-      return false;
-    }
-
-    // One-time rewards: eligibility is not day-bound
-    const userReward = this.oneTimeRewardTypes.includes(rewardType)
-      ? await this.userRewardRepository.findOne({
-          where: { userId, rewardType },
-        })
-      : await this.userRewardRepository.findOne({
-          where: {
-            userId,
-            rewardType,
-            eligibleDate: (() => {
-              const today = new Date();
-              today.setHours(0, 0, 0, 0);
-              return today;
-            })(),
-          },
-        });
-
-    return !!userReward && !userReward.claimedDate;
-  }
-
-  /**
    * Клеймити нагороду
    */
   async claimReward(
@@ -509,29 +478,4 @@ export class RewardService {
     };
   }
 
-  /**
-   * Перевірити чи клеймована нагорода сьогодні
-   */
-  async hasClaimedRewardToday(
-    userId: number,
-    rewardType: RewardTypeEnum,
-  ): Promise<boolean> {
-    const userReward = this.oneTimeRewardTypes.includes(rewardType)
-      ? await this.userRewardRepository.findOne({
-          where: { userId, rewardType },
-        })
-      : await this.userRewardRepository.findOne({
-          where: {
-            userId,
-            rewardType,
-            eligibleDate: (() => {
-              const today = new Date();
-              today.setHours(0, 0, 0, 0);
-              return today;
-            })(),
-          },
-        });
-
-    return !!userReward?.claimedDate;
-  }
 }

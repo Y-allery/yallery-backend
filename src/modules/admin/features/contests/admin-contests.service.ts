@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { CreateContestDto } from 'src/modules/admin/dto/create-contest.dto';
 import { ForceStartContestDto } from 'src/modules/admin/dto/force-start-contest.dto';
-import { GetTopPostDto } from 'src/modules/admin/dto/get-top-post.dto';
 import { SetContestWinnerDto } from 'src/modules/admin/dto/set.contest.winner.dto';
 import { ContestService } from 'src/modules/contests/contest.service';
 import { ContestStartNotificationQueueService } from 'src/modules/contests/notifications/contest-start-notification-queue.service';
@@ -35,10 +34,6 @@ export class AdminContestsService {
 
   async getPostsByContestSortedByLikes() {
     return this.contestService.getTopPostForEachContest();
-  }
-
-  async getTopContestPost(data: GetTopPostDto) {
-    return this.contestService.getTopContestPost(data);
   }
 
   async setContestWinner(data: SetContestWinnerDto) {

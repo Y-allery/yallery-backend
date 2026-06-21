@@ -186,11 +186,6 @@ export class UploadService {
       : null;
   }
 
-  async uploadVideoByUrl(videoUrl: string): Promise<string> {
-    const asset = await this.uploadVideoAssetByUrl(videoUrl);
-    return asset.videoUrl;
-  }
-
   async uploadByUrl(imageUrl: string): Promise<string> {
     return new Promise((resolve, reject) => {
       cloudinary.uploader.upload(

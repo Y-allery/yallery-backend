@@ -738,10 +738,6 @@ export class UserService {
     return await this.partnerShipActivityRepository.save(activity);
   }
 
-  async updateUserLastUpdated(user_id: string) {
-    await this.userModel.update(user_id, { updatedAt: new Date() });
-  }
-
   async incrementUserPoints(userId: number, points: number): Promise<void> {
     await this.userModel.increment({ id: userId }, 'points', points);
   }

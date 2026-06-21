@@ -8,8 +8,6 @@ import { UserEntity } from 'src/modules/users/entities/user.entity';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtStrategy } from './strategies/jwt.auth.strategy';
 import { MailModule } from 'src/integrations/mail/mail.module';
-import { GoogleStrategy } from './strategies/google.auth.strategy';
-import { AppleStrategy } from './strategies/apple.auth.strategy';
 import { NotificationPreferenceEntity } from 'src/modules/notifications/entity/notification.preferences.entity';
 import { PartnershipEntity } from 'src/modules/admin/entities/partner.entity';
 import { PartnerUserLinkEntity } from 'src/modules/admin/entities/partner-user-link.entity';
@@ -49,12 +47,6 @@ import { RewardModule } from 'src/modules/billing/rewards/reward.module';
     RewardModule,
   ],
   controllers: [AuthController],
-  providers: [
-    AuthService,
-    JwtStrategy,
-    GoogleStrategy,
-    AppleStrategy,
-    TwitterStrategy,
-  ],
+  providers: [AuthService, JwtStrategy, TwitterStrategy],
 })
 export class AuthModule {}

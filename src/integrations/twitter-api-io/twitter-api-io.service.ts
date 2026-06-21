@@ -177,60 +177,6 @@ export class TwitterApiIoService {
     };
   }
 
-  async getFollowers(
-    username: string,
-    cursor?: string,
-    pageSize = this.pageSize,
-  ): Promise<{
-    followers: NormalizedTwitterUser[];
-    has_next_page: boolean;
-    next_cursor: string;
-    status?: string;
-    message?: string;
-  }> {
-    const response = await this.get('/twitter/user/followers', {
-      userName: this.normalizeUsername(username),
-      pageSize: this.clampPageSize(pageSize),
-      ...(cursor ? { cursor } : {}),
-    });
-
-    return {
-      ...response,
-      followers: (response?.followers || []).map((user: any) =>
-        this.normalizeUser(user),
-      ),
-      has_next_page: Boolean(response?.has_next_page),
-      next_cursor: response?.next_cursor || '',
-    };
-  }
-
-  async getFollowings(
-    username: string,
-    cursor?: string,
-    pageSize = this.pageSize,
-  ): Promise<{
-    followings: NormalizedTwitterUser[];
-    has_next_page: boolean;
-    next_cursor: string;
-    status?: string;
-    message?: string;
-  }> {
-    const response = await this.get('/twitter/user/followings', {
-      userName: this.normalizeUsername(username),
-      pageSize: this.clampPageSize(pageSize),
-      ...(cursor ? { cursor } : {}),
-    });
-
-    return {
-      ...response,
-      followings: (response?.followings || response?.users || []).map(
-        (user: any) => this.normalizeUser(user),
-      ),
-      has_next_page: Boolean(response?.has_next_page),
-      next_cursor: response?.next_cursor || '',
-    };
-  }
-
   async verifyUserRetweeted(
     tweetId: string,
     username: string,

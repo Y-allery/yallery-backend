@@ -148,17 +148,6 @@ export class UserActivityQueryService {
     return Number(result.affected ?? 0);
   }
 
-  async markAllAsRead(userId: number) {
-    return await this.markFeedAsRead(userId);
-  }
-
-  async markContestActivitiesAsRead(userId: number) {
-    return await this.markContestActivitiesAsReadByType(
-      userId,
-      ContestTypeEnum.DEFAULT,
-    );
-  }
-
   async markContestActivitiesAsReadByType(
     userId: number,
     contestType: ContestTypeEnum,
@@ -213,22 +202,4 @@ export class UserActivityQueryService {
       .getCount();
   }
 
-  async countUnread(userId: number) {
-    return await this.userActivityRepository.count({
-      where: {
-        user: { id: userId },
-        isRead: false,
-      },
-    });
-  }
-
-  async countUnreadByCategory(userId: number, category: UserActivityCategory) {
-    return await this.userActivityRepository.count({
-      where: {
-        user: { id: userId },
-        isRead: false,
-        category,
-      },
-    });
-  }
 }

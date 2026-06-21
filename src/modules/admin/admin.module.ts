@@ -27,10 +27,8 @@ import { AdminModerationService } from './features/moderation/admin-moderation.s
 import { AdminPartnershipService } from './features/partnerships/admin-partnership.service';
 import { AdminPartnershipsController } from './features/partnerships/admin-partnerships.controller';
 import { BranchLinkService } from './features/partnerships/branch-link.service';
-import { CsvExportService } from './features/partnerships/csv-export.service';
 import { PartnerController } from './features/partnerships/partner-referral.controller';
 import { ReferralFlagService } from './features/partnerships/referral-flag.service';
-import { TwitterApiIoExportService } from './features/partnerships/twitter-score-export.service';
 import { ContestModule } from 'src/modules/contests/contest.module';
 import { UserModule } from 'src/modules/users/user.module';
 import { PostModule } from 'src/modules/posts/post.module';
@@ -92,9 +90,7 @@ import { TwitterApiIoModule } from 'src/integrations/twitter-api-io/twitter-api-
     AdminCatalogService,
     AdminPartnershipService,
     BranchLinkService,
-    CsvExportService,
     ReferralFlagService,
-    TwitterApiIoExportService,
     AdminMetricsService,
     MetricsSnapshotBuilder,
     AIUsageMetricsCollector,
