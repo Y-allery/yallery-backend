@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, In } from 'typeorm';
 import { RewardEntity } from './entities/reward.entity';
 import { UserRewardEntity } from './entities/user-reward.entity';
+import { UserEntity } from 'src/modules/users/entities/user.entity';
 import { RewardTypeEnum } from './types/reward-type.enum';
 import { UpdateRewardDto } from './dto/update-reward.dto';
 import { UserService } from 'src/modules/users/user.service';
@@ -458,15 +459,48 @@ export class RewardService {
     // Load points
     const points = await this.getRewardPoints(rewardType);
 
-    // Add points
-    await this.userService.incrementUserPoints(userId, points);
-    await this.notificationGateway.emitProfileUpdate(userId.toString());
-
     const claimedDate = new Date();
     claimedDate.setHours(0, 0, 0, 0);
-    userReward.claimedDate = claimedDate;
-    userReward.pointsAwarded = points;
-    await this.userRewardRepository.save(userReward);
+
+    // Atomically claim the reward and credit points in one transaction. The
+    // conditional UPDATE (claimedDate IS NULL) is the gate: only the first of
+    // two concurrent claims flips it, so the reward is credited exactly once
+    // per eligible day. The pre-read claimedDate check above is just a
+    // fast-fail. Crediting inside the same tx means a crash can't leave the
+    // reward marked claimed but unpaid.
+    const claimed = await this.userRewardRepository.manager.transaction(
+      async (manager) => {
+        const claim = await manager
+          .getRepository(UserRewardEntity)
+          .createQueryBuilder()
+          .update(UserRewardEntity)
+          .set({ claimedDate, pointsAwarded: points })
+          .where('id = :id', { id: userReward.id })
+          .andWhere('claimedDate IS NULL')
+          .execute();
+
+        if (!claim.affected) {
+          return false;
+        }
+
+        await manager
+          .getRepository(UserEntity)
+          .increment({ id: userId }, 'points', points);
+        return true;
+      },
+    );
+
+    if (!claimed) {
+      return {
+        success: false,
+        message: this.oneTimeRewardTypes.includes(rewardType)
+          ? `Reward ${rewardType} has already been claimed.`
+          : `Reward ${rewardType} has already been claimed today.`,
+        pointsAwarded: 0,
+      };
+    }
+
+    await this.notificationGateway.emitProfileUpdate(userId.toString());
 
     return {
       success: true,

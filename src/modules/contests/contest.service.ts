@@ -1142,13 +1142,45 @@ export class ContestService {
       }
     }
 
-    contest.postWinner = post;
-    contest.winner = post.user;
-    contest.status = ContestStatusEnum.CLOSED;
-    contest.isApproved = true;
-    await this.contestRepository.save(contest);
-    post.user.points += contest.reward;
-    await this.userRepository.save(post.user);
+    // Atomically claim the win + pay the prize in one transaction. The state
+    // transition itself is the idempotency gate: only the request that flips a
+    // still-PENDING_REVIEW / not-yet-approved contest to CLOSED pays out, so two
+    // concurrent admin requests (or a retry) can't double-pay. Prize is credited
+    // via atomic increment instead of read-modify-write save. (Mirrors the V2
+    // approveCandidate path's transactional, single-payout guarantee.)
+    const claimed = await this.contestRepository.manager.transaction(
+      async (manager) => {
+        const claim = await manager
+          .getRepository(ContestEntity)
+          .createQueryBuilder()
+          .update(ContestEntity)
+          .set({
+            postWinner: { id: post.id },
+            winner: { id: post.user.id },
+            status: ContestStatusEnum.CLOSED,
+            isApproved: true,
+          })
+          .where('id = :cid', { cid: contest.id })
+          .andWhere('status = :pending', {
+            pending: ContestStatusEnum.PENDING_REVIEW,
+          })
+          .andWhere('isApproved = :approved', { approved: false })
+          .execute();
+
+        if (!claim.affected) {
+          return false;
+        }
+
+        await manager
+          .getRepository(UserEntity)
+          .increment({ id: post.user.id }, 'points', contest.reward);
+        return true;
+      },
+    );
+
+    if (!claimed) {
+      throw new BadRequestException('Post already has a winner');
+    }
 
     await this.userActivityService.logContestWon({
       userId: post.user.id,

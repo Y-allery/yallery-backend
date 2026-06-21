@@ -224,7 +224,7 @@ export class PostPublishService {
       5,
     );
     const now = new Date();
-    const startOfToday = new Date(now.setHours(0, 0, 0, 0));
+    const startOfToday = new Date(new Date().setHours(0, 0, 0, 0));
 
     const user = await this.userRepository.findOne({ where: { id: userId } });
 
@@ -239,11 +239,33 @@ export class PostPublishService {
       };
     }
 
-    user.lastShareRewardAt = now;
-    user.points += dailyPoints;
-    await this.userRepository.save(user);
+    // The check above is a fast-fail; this single conditional UPDATE is the
+    // authoritative once-per-day gate. Only the request that flips
+    // lastShareRewardAt past today's start awards points (atomic increment),
+    // so two concurrent same-day shares can't both pay out, and there is no
+    // full-entity save to clobber concurrent point changes.
+    const award = await this.userRepository
+      .createQueryBuilder()
+      .update(UserEntity)
+      .set({
+        points: () => `points + ${dailyPoints}`,
+        lastShareRewardAt: now,
+      })
+      .where('id = :id', { id: userId })
+      .andWhere(
+        '(lastShareRewardAt IS NULL OR lastShareRewardAt < :startOfToday)',
+        { startOfToday },
+      )
+      .execute();
 
-    await this.notificationGateway.emitProfileUpdate(user.id.toString());
+    if (!award.affected) {
+      return {
+        message: 'You have already received points for sharing today.',
+        pointsAwarded: 0,
+      };
+    }
+
+    await this.notificationGateway.emitProfileUpdate(userId.toString());
     return {
       message: 'Points awarded successfully for sharing.',
       pointsAwarded: dailyPoints,
