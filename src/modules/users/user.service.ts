@@ -325,26 +325,33 @@ export class UserService {
     );
 
     const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
+    // NOTE: eligibility keys off updatedAt, which bumps on ANY row write — not
+    // just a real login — so the cohort is broader than "users who logged in
+    // today". Tightening that to a real last-login signal is a separate product
+    // decision and is intentionally left unchanged here.
     const usersToUpdate = await this.userModel
       .createQueryBuilder('user')
-      .select(['user.id', 'user.points'])
+      .select(['user.id'])
       .where('user.updatedAt >= :todayStart', { todayStart })
       .getMany();
 
-    await Promise.all(
-      usersToUpdate.map(async (user) => {
-        await this.userModel
-          .createQueryBuilder()
-          .update(UserEntity)
-          .set({ points: user.points + dailyReward })
-          .where('id = :id', { id: user.id })
-          .execute();
+    const userIds = usersToUpdate.map((user) => user.id);
+    if (userIds.length === 0) {
+      return;
+    }
 
-        await this.sendPushNotificationIfEnabled(
-          user.id,
+    // Atomic increment (points = points + reward) in a single UPDATE so a
+    // concurrent points change between the SELECT and the write isn't clobbered
+    // — the previous per-user absolute SET used a stale snapshot.
+    await this.userModel.increment({ id: In(userIds) }, 'points', dailyReward);
+
+    await Promise.all(
+      userIds.map((id) =>
+        this.sendPushNotificationIfEnabled(
+          id,
           UserNotificationTypeEnum.DAILY_REWARD,
-        );
-      }),
+        ),
+      ),
     );
   }
 
