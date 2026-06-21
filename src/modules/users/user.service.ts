@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { UserEntity } from './entities/user.entity';
-import { DataSource, In, Repository } from 'typeorm';
+import { DataSource, In, IsNull, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { TagEntity } from 'src/modules/catalog/tags/entities/tag.entity';
 import { NotificationGateway } from 'src/modules/notifications/notification.gateway';
@@ -117,13 +117,28 @@ export class UserService {
     const user = await this.findById(userId);
     if (!user) throw new NotFoundException('User not found');
 
-    const rewardPoints = await this.rewardService.getRewardPointsOrDefault(
-      RewardTypeEnum.REGISTRATION_BONUS,
-      3000,
+    // The one-time REGISTRATION_BONUS must be granted only the FIRST time a
+    // Twitter username is linked. This conditional UPDATE atomically claims the
+    // "first link": only the request that flips a NULL username to a value
+    // passes the WHERE, so concurrent or repeated calls cannot farm the bonus.
+    // (twitterUsername is only ever written here and the DTO forbids empty
+    // strings, so an unlinked user is always NULL.)
+    const firstLink = await this.userModel.update(
+      { id: userId, twitterUsername: IsNull() },
+      { twitterUsername },
     );
-    user.points = (user.points || 0) + rewardPoints;
-    user.twitterUsername = twitterUsername;
-    await this.userModel.save(user);
+
+    if (firstLink.affected && firstLink.affected > 0) {
+      const rewardPoints = await this.rewardService.getRewardPointsOrDefault(
+        RewardTypeEnum.REGISTRATION_BONUS,
+        3000,
+      );
+      await this.incrementUserPoints(userId, rewardPoints);
+    } else {
+      // Username was already linked: update it without re-granting the bonus.
+      await this.userModel.update({ id: userId }, { twitterUsername });
+    }
+
     await this.notificationGateway.emitProfileUpdate(userId.toString());
     return { message: 'Twitter username updated successfully' };
   }
