@@ -1,5 +1,6 @@
 import { BadGatewayException } from '@nestjs/common';
 import axios from 'axios';
+import * as sharp from 'sharp';
 import { UploadService } from 'src/modules/uploads/upload.service';
 import { ProviderRuntimeConfigService } from 'src/modules/provider-settings/provider-runtime-config.service';
 import { RunpodEndpointResolver } from './runpod-endpoint.resolver';
@@ -171,18 +172,26 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
     expect(result.hasAudio).toBeNull();
   });
 
-  it('returns uploaded preview image URL for image video output', async () => {
+  it('derives portrait video orientation from the source image, ignoring the request orientation', async () => {
     const { provider, uploadService } = createProvider();
+    // A real portrait image (height > width); the request says horizontal but the image wins.
+    const portrait = await sharp({
+      create: {
+        width: 64,
+        height: 128,
+        channels: 3,
+        background: { r: 10, g: 20, b: 30 },
+      },
+    })
+      .png()
+      .toBuffer();
 
-    // i2v first downloads the source image, then submits the run.
-    mockedAxios.get.mockResolvedValueOnce({ data: Buffer.from('imgbytes') });
+    mockedAxios.get.mockResolvedValueOnce({ data: portrait });
     mockedAxios.post.mockResolvedValueOnce({
       data: {
         id: 'job-1',
         status: 'COMPLETED',
-        output: {
-          videos: [{ base64: 'CCCC', mime_type: 'video/mp4' }],
-        },
+        output: { videos: [{ base64: 'CCCC', mime_type: 'video/mp4' }] },
       },
     });
 
@@ -190,7 +199,7 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
       aiService: 'p_video_image',
       prompt: 'animate this',
       imageUrl: 'https://cdn.test/source.png',
-      orientation: 'vertical',
+      orientation: 'horizontal',
       duration: 5,
     });
 
@@ -202,7 +211,7 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
       'https://api.runpod.ai/v2/test-p-video-endpoint/run',
       {
         input: expect.objectContaining({
-          image_b64: Buffer.from('imgbytes').toString('base64'),
+          image_b64: expect.any(String),
           width: 704,
           height: 1280,
           frames: 121,
@@ -216,9 +225,46 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
     expect(result.previewImageUrl).toBe(
       'https://cdn.test/generated-preview.jpg',
     );
-    expect(result.width).toBe(1920);
-    expect(result.height).toBe(1080);
     expect(result.hasAudio).toBe(true);
+  });
+
+  it('derives landscape video orientation from a landscape source image', async () => {
+    const { provider } = createProvider();
+    const landscape = await sharp({
+      create: {
+        width: 128,
+        height: 64,
+        channels: 3,
+        background: { r: 30, g: 20, b: 10 },
+      },
+    })
+      .png()
+      .toBuffer();
+
+    mockedAxios.get.mockResolvedValueOnce({ data: landscape });
+    mockedAxios.post.mockResolvedValueOnce({
+      data: {
+        id: 'job-2',
+        status: 'COMPLETED',
+        output: { videos: [{ base64: 'DDDD', mime_type: 'video/mp4' }] },
+      },
+    });
+
+    await provider.generateImageVideos({
+      aiService: 'p_video_image',
+      prompt: 'animate this',
+      imageUrl: 'https://cdn.test/wide.png',
+      orientation: 'vertical',
+      duration: 5,
+    });
+
+    expect(mockedAxios.post).toHaveBeenCalledWith(
+      'https://api.runpod.ai/v2/test-p-video-endpoint/run',
+      {
+        input: expect.objectContaining({ width: 1280, height: 704 }),
+      },
+      expect.any(Object),
+    );
   });
 
   it('returns uploaded preview image URL for meme output', async () => {

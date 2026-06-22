@@ -142,16 +142,16 @@ export class RunpodMediaClient {
   }
 
   /**
-   * Download a remote asset (e.g. a Cloudinary image URL) and return it as bare base64.
-   * Used to inline image-to-video inputs that workers expect as `image_b64`.
+   * Download a remote asset (e.g. a Cloudinary image URL) as raw bytes. Callers normalise and
+   * encode it (e.g. EXIF-orient + base64) before inlining as an `image_b64` worker input.
    */
-  async fetchBinaryAsBase64(url: string): Promise<string> {
+  async fetchBinary(url: string): Promise<Buffer> {
     const response = await axios.get<ArrayBuffer>(url, {
       responseType: 'arraybuffer',
       timeout: await this.getRequestTimeoutMs(),
     });
 
-    return Buffer.from(response.data).toString('base64');
+    return Buffer.from(response.data);
   }
 
   private async getApiBaseUrl(): Promise<string> {

@@ -16,7 +16,11 @@ import { TextVideoGenerationRequest } from 'src/modules/media-generation/domain/
 import { VideoGenerationResult } from 'src/modules/media-generation/domain/contracts/video-generation-result.contract';
 import { MediaCapability } from 'src/modules/media-generation/domain/enums/media-capability.enum';
 import { MediaProvider } from 'src/modules/media-generation/domain/enums/media-provider.enum';
-import { getVideoOutputPreset } from 'src/modules/media-generation/domain/presets';
+import * as sharp from 'sharp';
+import {
+  getVideoOutputPreset,
+  MediaOrientation,
+} from 'src/modules/media-generation/domain/presets';
 import { RunpodEndpointResolver } from './runpod-endpoint.resolver';
 import { RunpodMediaClient } from './runpod-media.client';
 import { RunpodJobResponse } from './runpod-media.types';
@@ -188,11 +192,20 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
       request.aiService,
       'imageVideo',
     );
-    // i2v inlines the source image as bare base64 (`image_b64`) for the LTX worker.
-    const imageBase64 = await this.client.fetchBinaryAsBase64(request.imageUrl);
+    // i2v inlines the source image as bare base64 (`image_b64`); the video orientation is
+    // derived from the (EXIF-normalised) image itself, since the app sends no real orientation.
+    const { imageBase64, orientation } = await this.prepareImageVideoSource(
+      request.imageUrl,
+    );
+    const videoRequest: ImageVideoGenerationRequest = { ...request, orientation };
     const initialJob = await this.client.submitJob(
       endpointId,
-      { input: this.payloadBuilder.buildImageVideoInput(request, imageBase64) },
+      {
+        input: this.payloadBuilder.buildImageVideoInput(
+          videoRequest,
+          imageBase64,
+        ),
+      },
       apiKeyConfigKey,
     );
     const completedJob = await this.waitForVideo(
@@ -211,10 +224,32 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
     return {
       videoUrl: uploadedVideoAsset.videoUrl,
       previewImageUrl: uploadedVideoAsset.previewImageUrl,
-      ...this.resolvePresetBackedVideoDimensions(request, uploadedVideoAsset),
+      ...this.resolvePresetBackedVideoDimensions(
+        videoRequest,
+        uploadedVideoAsset,
+      ),
       hasAudio: uploadedVideoAsset.hasAudio,
       rawOutput: completedJob.output,
     };
+  }
+
+  /**
+   * Download the i2v source image, normalise EXIF rotation (so the worker gets upright pixels),
+   * bound its size for payload sanity, and derive the video orientation from the real
+   * post-rotation aspect ratio — a portrait photo must yield a portrait clip.
+   */
+  private async prepareImageVideoSource(
+    imageUrl: string,
+  ): Promise<{ imageBase64: string; orientation: MediaOrientation }> {
+    const buffer = await this.client.fetchBinary(imageUrl);
+    const { data, info } = await sharp(buffer)
+      .rotate()
+      .resize(1536, 1536, { fit: 'inside', withoutEnlargement: true })
+      .toBuffer({ resolveWithObject: true });
+    const orientation: MediaOrientation =
+      info.height > info.width ? 'vertical' : 'horizontal';
+
+    return { imageBase64: data.toString('base64'), orientation };
   }
 
   async generateMemes(
