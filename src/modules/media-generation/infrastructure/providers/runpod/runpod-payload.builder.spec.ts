@@ -33,7 +33,7 @@ describe('RunpodPayloadBuilder', () => {
     ).toThrow('sdxl_lora_generation requires loraUrl');
   });
 
-  it('builds SDXL prompt image payload with higher quality defaults', () => {
+  it('builds SDXL prompt image payload with raw prompt + style (worker owns steps/cfg)', () => {
     expect(
       builder.buildPromptImageInput({
         aiService: 'sdxl',
@@ -42,11 +42,67 @@ describe('RunpodPayloadBuilder', () => {
         height: 1024,
         imageQuantity: 2,
       } as any),
-    ).toMatchObject({
+    ).toEqual({
       prompt: 'cinematic portrait',
-      num_inference_steps: 35,
-      guidance_scale: 7,
-      negative_prompt: expect.stringContaining('low quality'),
+      style: undefined,
+      width: 1024,
+      height: 1024,
+      num_images: 2,
+      output_format: 'png',
+      return_base64: true,
+      return_data_uri: true,
+    });
+  });
+
+  it('builds LTX text-to-video payload (720 horizontal, 5s, audio on)', () => {
+    expect(
+      builder.buildTextVideoInput({
+        aiService: 'p_video_text',
+        prompt: 'a red dragon over snowy mountains',
+        orientation: 'horizontal',
+        duration: 5,
+      }),
+    ).toEqual({
+      prompt: 'a red dragon over snowy mountains',
+      width: 1280,
+      height: 704,
+      frames: 121,
+      fps: 24,
+      audio: true,
+      tier: 'quality',
+      seed: 0,
+    });
+  });
+
+  it('maps vertical orientation and 10s duration to LTX dims/frames', () => {
+    expect(
+      builder.buildTextVideoInput({
+        aiService: 'p_video_text',
+        prompt: 'ocean waves at sunset',
+        orientation: 'vertical',
+        duration: 10,
+      }),
+    ).toMatchObject({ width: 704, height: 1280, frames: 240 });
+  });
+
+  it('builds LTX image-to-video payload with bare base64 (i2v)', () => {
+    expect(
+      builder.buildImageVideoInput(
+        {
+          aiService: 'p_video_image',
+          prompt: 'animate this',
+          imageUrl: 'https://cdn.test/source.png',
+          orientation: 'horizontal',
+          duration: 5,
+        },
+        'QkFTRTY0',
+      ),
+    ).toMatchObject({
+      prompt: 'animate this',
+      width: 1280,
+      height: 704,
+      frames: 121,
+      image_b64: 'QkFTRTY0',
     });
   });
 

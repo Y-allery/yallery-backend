@@ -95,6 +95,11 @@ export class RunpodOutputExtractor {
         collect(record.output);
         collect(record.data);
 
+        // LTX worker returns the finished clip as a bare base64 mp4 under `video_b64`.
+        if (typeof record.video_b64 === 'string') {
+          collect(`data:video/mp4;base64,${record.video_b64}`);
+        }
+
         if (typeof record.base64 === 'string') {
           const format =
             typeof record.format === 'string' &&

@@ -148,14 +148,21 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
   ): Promise<VideoGenerationResult> {
     const endpointId =
       await this.endpoints.getEndpointIdForTextVideoRequest(request);
-    const initialJob = await this.client.submitJob(endpointId, {
-      input: this.payloadBuilder.buildTextVideoInput(request),
-    });
+    const apiKeyConfigKey = this.endpoints.getApiKeyConfigKey(
+      request.aiService,
+      'textVideo',
+    );
+    const initialJob = await this.client.submitJob(
+      endpointId,
+      { input: this.payloadBuilder.buildTextVideoInput(request) },
+      apiKeyConfigKey,
+    );
     const completedJob = await this.waitForVideo(
       endpointId,
       initialJob,
       request.aiService,
       'textVideo',
+      apiKeyConfigKey,
     );
     const providerVideoSource = this.extractor.extractVideoSource(
       completedJob.output,
@@ -177,14 +184,23 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
   ): Promise<VideoGenerationResult> {
     const endpointId =
       await this.endpoints.getEndpointIdForImageVideoRequest(request);
-    const initialJob = await this.client.submitJob(endpointId, {
-      input: this.payloadBuilder.buildImageVideoInput(request),
-    });
+    const apiKeyConfigKey = this.endpoints.getApiKeyConfigKey(
+      request.aiService,
+      'imageVideo',
+    );
+    // i2v inlines the source image as bare base64 (`image_b64`) for the LTX worker.
+    const imageBase64 = await this.client.fetchBinaryAsBase64(request.imageUrl);
+    const initialJob = await this.client.submitJob(
+      endpointId,
+      { input: this.payloadBuilder.buildImageVideoInput(request, imageBase64) },
+      apiKeyConfigKey,
+    );
     const completedJob = await this.waitForVideo(
       endpointId,
       initialJob,
       request.aiService,
       'imageVideo',
+      apiKeyConfigKey,
     );
     const providerVideoSource = this.extractor.extractVideoSource(
       completedJob.output,
@@ -235,12 +251,14 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
     initialJob: RunpodJobResponse,
     aiService: string,
     routeType: 'audio' | 'textVideo' | 'imageVideo' | 'meme',
+    apiKeyConfigKey?: string,
   ) {
     return await this.client.waitForCompletion(
       endpointId,
       initialJob,
       this.extractor.hasExtractableVideoSource.bind(this.extractor),
       await this.timeoutPolicy.getStatusTimeoutMs(aiService, routeType),
+      apiKeyConfigKey,
     );
   }
 

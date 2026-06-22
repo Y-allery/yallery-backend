@@ -16,10 +16,11 @@ export class RunpodMediaClient {
   async submitJob(
     endpointId: string,
     payload: { input: Record<string, unknown> },
+    apiKeyConfigKey?: string,
   ): Promise<RunpodJobResponse> {
     const [apiBaseUrl, headers, timeout] = await Promise.all([
       this.getApiBaseUrl(),
-      this.getHeaders(),
+      this.getHeaders(apiKeyConfigKey),
       this.getRequestTimeoutMs(),
     ]);
     const response = await axios.post<RunpodJobResponse>(
@@ -37,10 +38,11 @@ export class RunpodMediaClient {
   async submitSyncJob(
     endpointId: string,
     input: Record<string, unknown>,
+    apiKeyConfigKey?: string,
   ): Promise<RunpodJobResponse> {
     const [apiBaseUrl, headers, timeout] = await Promise.all([
       this.getApiBaseUrl(),
-      this.getHeaders(),
+      this.getHeaders(apiKeyConfigKey),
       this.getSyncRequestTimeoutMs(),
     ]);
     const response = await axios.post<RunpodJobResponse>(
@@ -62,6 +64,7 @@ export class RunpodMediaClient {
     initialJob: RunpodJobResponse,
     hasExtractableOutput: (output: unknown) => boolean,
     statusTimeoutMs: number,
+    apiKeyConfigKey?: string,
   ): Promise<RunpodJobResponse> {
     let currentJob = initialJob;
     const startedAt = Date.now();
@@ -84,7 +87,11 @@ export class RunpodMediaClient {
         }
 
         await this.sleep(await this.getCompletedOutputRetryDelayMs());
-        currentJob = await this.fetchJobStatus(endpointId, currentJob.id);
+        currentJob = await this.fetchJobStatus(
+          endpointId,
+          currentJob.id,
+          apiKeyConfigKey,
+        );
         continue;
       }
 
@@ -112,10 +119,11 @@ export class RunpodMediaClient {
   async fetchJobStatus(
     endpointId: string,
     jobId: string,
+    apiKeyConfigKey?: string,
   ): Promise<RunpodJobResponse> {
     const [apiBaseUrl, headers, timeout] = await Promise.all([
       this.getApiBaseUrl(),
-      this.getHeaders(),
+      this.getHeaders(apiKeyConfigKey),
       this.getRequestTimeoutMs(),
     ]);
     const response = await axios.get<RunpodJobResponse>(
@@ -129,6 +137,19 @@ export class RunpodMediaClient {
     return response.data;
   }
 
+  /**
+   * Download a remote asset (e.g. a Cloudinary image URL) and return it as bare base64.
+   * Used to inline image-to-video inputs that workers expect as `image_b64`.
+   */
+  async fetchBinaryAsBase64(url: string): Promise<string> {
+    const response = await axios.get<ArrayBuffer>(url, {
+      responseType: 'arraybuffer',
+      timeout: await this.getRequestTimeoutMs(),
+    });
+
+    return Buffer.from(response.data).toString('base64');
+  }
+
   private async getApiBaseUrl(): Promise<string> {
     return (
       (await this.providerRuntimeConfigService.getString('RUNPOD_API_BASE_URL')) ||
@@ -136,9 +157,9 @@ export class RunpodMediaClient {
     );
   }
 
-  private async getHeaders() {
+  private async getHeaders(apiKeyConfigKey: string = 'RUNPOD_API_KEY') {
     return {
-      Authorization: `Bearer ${await this.getRequiredConfig('RUNPOD_API_KEY')}`,
+      Authorization: `Bearer ${await this.getRequiredConfig(apiKeyConfigKey)}`,
       'Content-Type': 'application/json',
     };
   }

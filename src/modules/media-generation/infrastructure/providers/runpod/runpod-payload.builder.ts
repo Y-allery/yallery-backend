@@ -5,10 +5,18 @@ import { ImageVideoGenerationRequest } from 'src/modules/media-generation/domain
 import { MemeGenerationRequest } from 'src/modules/media-generation/domain/contracts/meme-generation-request.contract';
 import { ResolvedPromptImageGenerationRequest } from 'src/modules/media-generation/domain/contracts/prompt-image-generation-request.contract';
 import { TextVideoGenerationRequest } from 'src/modules/media-generation/domain/contracts/text-video-generation-request.contract';
-import { getVideoOutputPreset } from 'src/modules/media-generation/domain/presets';
+import { MediaOrientation } from 'src/modules/media-generation/domain/presets';
 
-const SDXL_BASELINE_NEGATIVE =
-  'low quality, blurry, distorted, deformed, bad anatomy, extra limbs, text artifacts, watermark, logo';
+// LTX video worker (2nd RunPod account). Dimensions must be multiples of 32; the 720 tier is
+// the default product resolution. Frames snap to the worker's validated tiers @ 24fps.
+const LTX_FPS = 24;
+const LTX_DIMENSIONS_720: Record<
+  MediaOrientation,
+  { width: number; height: number }
+> = {
+  horizontal: { width: 1280, height: 704 },
+  vertical: { width: 704, height: 1280 },
+};
 
 @Injectable()
 export class RunpodPayloadBuilder {
@@ -101,29 +109,30 @@ export class RunpodPayloadBuilder {
   }
 
   buildTextVideoInput(request: TextVideoGenerationRequest) {
-    const { size, aspectRatio } = getVideoOutputPreset(
-      request.aiService,
-      request.orientation,
-    );
+    // LTX worker owns the prompt upsampler (enhance defaults on). The backend only maps
+    // orientation -> 32-multiple dimensions and duration -> validated frame tier.
+    const { width, height } = this.resolveLtxDimensions(request.orientation);
 
     return {
       prompt: request.prompt,
-      duration: request.duration,
-      size,
-      fps: 24,
-      aspect_ratio: aspectRatio,
-      draft: false,
-      save_audio: true,
-      prompt_upsampling: true,
-      enable_safety_checker: true,
+      width,
+      height,
+      frames: this.framesForDuration(request.duration),
+      fps: LTX_FPS,
+      audio: true,
+      tier: 'quality',
       seed: 0,
     };
   }
 
-  buildImageVideoInput(request: ImageVideoGenerationRequest) {
+  buildImageVideoInput(
+    request: ImageVideoGenerationRequest,
+    imageBase64: string,
+  ) {
+    // image_b64 must be bare base64 (no data: prefix); presence flips the worker to i2v.
     return {
       ...this.buildTextVideoInput(request),
-      image: request.imageUrl,
+      image_b64: imageBase64,
     };
   }
 
@@ -143,15 +152,15 @@ export class RunpodPayloadBuilder {
     };
   }
 
-  private clamp(value: number, min: number, max: number): number {
-    if (!Number.isFinite(value)) {
-      return min;
-    }
-    return Math.min(Math.max(value, min), max);
+  private resolveLtxDimensions(orientation: MediaOrientation): {
+    width: number;
+    height: number;
+  } {
+    return LTX_DIMENSIONS_720[orientation] ?? LTX_DIMENSIONS_720.horizontal;
   }
 
-  private mergeNegatives(baseline: string, extra?: string): string {
-    const trimmed = extra?.trim();
-    return trimmed ? `${baseline}, ${trimmed}` : baseline;
+  private framesForDuration(duration: number): number {
+    // LTX validated tiers @24fps: ~5s -> 121 frames, ~10s -> 240. Snap to the nearest tier.
+    return duration >= 8 ? 240 : 121;
   }
 }

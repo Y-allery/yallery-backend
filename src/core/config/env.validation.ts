@@ -147,6 +147,10 @@ export class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
+  RUNPOD_VIDEO_API_KEY?: string;
+
+  @IsOptional()
+  @IsString()
   RUNPOD_FLUX2_KLEIN_ENDPOINT_ID?: string;
 
   @IsOptional()

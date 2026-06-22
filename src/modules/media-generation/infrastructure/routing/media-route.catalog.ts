@@ -26,6 +26,11 @@ export interface MediaRouteCatalogEntry {
   dispatch: MediaDispatch;
   queueName: string;
   endpointConfigKey: string;
+  /**
+   * Config key for an alternate RunPod API key (e.g. a second account that hosts the
+   * video endpoint). Falls back to RUNPOD_API_KEY when omitted.
+   */
+  apiKeyConfigKey?: string;
   enabledConfigKey?: string;
   statusTimeoutConfigKey?: string;
   statusTimeoutLabel?: string;
@@ -104,6 +109,7 @@ export const RUNPOD_MEDIA_ROUTE_CATALOG: MediaRouteCatalogEntry[] = [
     dispatch: MediaDispatch.BULLMQ_QUEUE,
     queueName: MEDIA_TEXT_VIDEO_GENERATION_QUEUE,
     endpointConfigKey: 'RUNPOD_P_VIDEO_ENDPOINT_ID',
+    apiKeyConfigKey: 'RUNPOD_VIDEO_API_KEY',
     enabledConfigKey: 'RUNPOD_P_VIDEO_ENABLED',
     statusTimeoutConfigKey: 'RUNPOD_P_VIDEO_TEXT_STATUS_TIMEOUT_MS',
     statusTimeoutLabel: 'P-Video Text Status Timeout',
@@ -117,6 +123,7 @@ export const RUNPOD_MEDIA_ROUTE_CATALOG: MediaRouteCatalogEntry[] = [
     dispatch: MediaDispatch.BULLMQ_QUEUE,
     queueName: MEDIA_IMAGE_VIDEO_GENERATION_QUEUE,
     endpointConfigKey: 'RUNPOD_P_VIDEO_ENDPOINT_ID',
+    apiKeyConfigKey: 'RUNPOD_VIDEO_API_KEY',
     enabledConfigKey: 'RUNPOD_P_VIDEO_ENABLED',
     statusTimeoutConfigKey: 'RUNPOD_P_VIDEO_IMAGE_STATUS_TIMEOUT_MS',
     statusTimeoutLabel: 'P-Video Image Status Timeout',

@@ -53,6 +53,17 @@ export class RunpodEndpointResolver {
     return this.getRequiredEndpointId(request.aiService, 'meme');
   }
 
+  /**
+   * Config key for the RunPod API key this route should authenticate with, or undefined to
+   * fall back to the default RUNPOD_API_KEY. Lets the video route target a second account.
+   */
+  getApiKeyConfigKey(
+    aiService: string,
+    routeType: MediaRouteType,
+  ): string | undefined {
+    return getRunpodMediaRoute(aiService, routeType)?.apiKeyConfigKey;
+  }
+
   private async getRequiredEndpointId(
     aiService: string,
     routeType: MediaRouteType,

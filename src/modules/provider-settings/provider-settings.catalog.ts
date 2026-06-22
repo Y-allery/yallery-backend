@@ -73,6 +73,17 @@ export const PROVIDER_SETTING_DEFINITIONS: ProviderSettingDefinition[] = [
     validationKind: 'none',
   },
   {
+    key: 'RUNPOD_VIDEO_API_KEY',
+    provider: 'runpod',
+    group: 'runpod_core',
+    label: 'RunPod Video API Key (2nd account)',
+    description:
+      'API key for the second RunPod account that hosts the LTX video endpoint. Required for video routes; the main RUNPOD_API_KEY does not authenticate against that account.',
+    type: 'secret',
+    isSecret: true,
+    validationKind: 'none',
+  },
+  {
     key: 'RUNPOD_API_BASE_URL',
     provider: 'runpod',
     group: 'runpod_core',

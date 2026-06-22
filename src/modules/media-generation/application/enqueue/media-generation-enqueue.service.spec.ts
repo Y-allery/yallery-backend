@@ -11,11 +11,11 @@ describe('MediaGenerationEnqueueService', () => {
       markSubmissionFailed: jest.fn(),
     };
     const mediaPromptEnhancerService = {
-      enhancePrompt: jest.fn(async () => ({
-        translatedPrompt: 'translated prompt',
-        enhancedPrompt: 'enhanced prompt',
+      resolveContext: jest.fn(async () => ({
+        prompt: 'enhanced prompt',
         style: null,
         color: null,
+        styleDescriptor: null,
       })),
     };
     const mediaGenerationGuardsService = {
@@ -78,7 +78,7 @@ describe('MediaGenerationEnqueueService', () => {
         aiService: 'sdxl',
         chargeId: expect.any(String),
         request: expect.objectContaining({
-          resolvedPrompt: 'enhanced prompt',
+          prompt: 'enhanced prompt',
           contestSubmissionId: 77,
         }),
       }),

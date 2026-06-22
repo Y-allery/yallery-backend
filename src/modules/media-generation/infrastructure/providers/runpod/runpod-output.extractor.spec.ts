@@ -30,6 +30,12 @@ describe('RunpodOutputExtractor', () => {
     ).toBe('data:video/mp4;base64,CCCC');
   });
 
+  it('extracts the LTX worker video_b64 output field', () => {
+    expect(
+      extractor.extractVideoSource({ output: { video_b64: 'EEEE' } }),
+    ).toBe('data:video/mp4;base64,EEEE');
+  });
+
   it('throws cleanly when output is missing', () => {
     expect(() => extractor.extractVideoSource({})).toThrow(
       BadGatewayException,

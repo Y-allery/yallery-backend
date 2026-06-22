@@ -17,6 +17,7 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
   const createProvider = () => {
     const values: Record<string, string> = {
       RUNPOD_API_KEY: 'test-runpod-key',
+      RUNPOD_VIDEO_API_KEY: 'test-runpod-video-key',
       RUNPOD_MMAUDIO_ENDPOINT_ID: 'test-mmaudio-endpoint',
       RUNPOD_P_VIDEO_ENDPOINT_ID: 'test-p-video-endpoint',
       RUNPOD_WAN22_ANIMATE_MEME_ENDPOINT_ID: 'test-wan-endpoint',
@@ -173,6 +174,8 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
   it('returns uploaded preview image URL for image video output', async () => {
     const { provider, uploadService } = createProvider();
 
+    // i2v first downloads the source image, then submits the run.
+    mockedAxios.get.mockResolvedValueOnce({ data: Buffer.from('imgbytes') });
     mockedAxios.post.mockResolvedValueOnce({
       data: {
         id: 'job-1',
@@ -191,6 +194,22 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
       duration: 5,
     });
 
+    expect(mockedAxios.get).toHaveBeenCalledWith(
+      'https://cdn.test/source.png',
+      expect.objectContaining({ responseType: 'arraybuffer' }),
+    );
+    expect(mockedAxios.post).toHaveBeenCalledWith(
+      'https://api.runpod.ai/v2/test-p-video-endpoint/run',
+      {
+        input: expect.objectContaining({
+          image_b64: Buffer.from('imgbytes').toString('base64'),
+          width: 704,
+          height: 1280,
+          frames: 121,
+        }),
+      },
+      expect.any(Object),
+    );
     expect(uploadService.uploadVideoAssetByUrl).toHaveBeenCalledWith(
       'data:video/mp4;base64,CCCC',
     );
