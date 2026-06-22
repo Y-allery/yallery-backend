@@ -112,7 +112,11 @@ export class RunpodMediaClient {
       }
 
       await this.sleep(await this.getPollIntervalMs());
-      currentJob = await this.fetchJobStatus(endpointId, currentJob.id);
+      currentJob = await this.fetchJobStatus(
+        endpointId,
+        currentJob.id,
+        apiKeyConfigKey,
+      );
     }
   }
 
