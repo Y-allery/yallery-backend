@@ -30,7 +30,10 @@ const { S3Client, PutObjectCommand, HeadObjectCommand } = require(path.join(
   'node_modules/@aws-sdk/client-s3',
 ));
 const mysql = require(path.join(ROOT, 'node_modules/mysql2/promise'));
-const axios = require(path.join(ROOT, 'node_modules/axios'));
+// axios v1 ships as a CJS module whose callable instance lives on `.default`
+// under this Node/require setup; unwrap it so axios.get/.head resolve.
+const axiosLib = require(path.join(ROOT, 'node_modules/axios'));
+const axios = axiosLib.default || axiosLib;
 
 const CLOUD_NAME = env.CLOUDINARY_CLOUD_NAME;
 const SPACES = {
