@@ -208,9 +208,15 @@ async function dbConnection() {
   });
 }
 
+// json columns are auto-parsed to JS objects by mysql2; read them as text so the
+// URL rewrite sees the raw JSON (MySQL stores forward slashes unescaped).
+function readExpr(column, type) {
+  return type === 'json' ? `CAST(\`${column}\` AS CHAR)` : `\`${column}\``;
+}
+
 async function findUrlColumns(conn) {
   const [cols] = await conn.query(
-    `SELECT c.TABLE_NAME t, c.COLUMN_NAME col,
+    `SELECT c.TABLE_NAME t, c.COLUMN_NAME col, c.DATA_TYPE dtype,
             (SELECT k.COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE k
              WHERE k.TABLE_SCHEMA = c.TABLE_SCHEMA AND k.TABLE_NAME = c.TABLE_NAME
                AND k.CONSTRAINT_NAME = 'PRIMARY' LIMIT 1) pk
@@ -219,21 +225,21 @@ async function findUrlColumns(conn) {
     [env.DATABASE_NAME],
   );
   const targets = [];
-  for (const { t, col, pk } of cols) {
+  for (const { t, col, dtype, pk } of cols) {
     if (!pk) continue;
     const [[{ n }]] = await conn.query(
       `SELECT COUNT(*) n FROM \`${t}\` WHERE \`${col}\` LIKE '%res.cloudinary.com%'`,
     );
-    if (n > 0) targets.push({ table: t, column: col, pk, rows: n });
+    if (n > 0) targets.push({ table: t, column: col, pk, type: dtype, rows: n });
   }
   return targets;
 }
 
 async function verifySampleUrls(conn, targets, sampleSize = 10) {
   const samples = [];
-  for (const { table, column } of targets.slice(0, 6)) {
+  for (const { table, column, type } of targets.slice(0, 8)) {
     const [rows] = await conn.query(
-      `SELECT \`${column}\` v FROM \`${table}\` WHERE \`${column}\` LIKE '%res.cloudinary.com%' LIMIT 3`,
+      `SELECT ${readExpr(column, type)} v FROM \`${table}\` WHERE \`${column}\` LIKE '%res.cloudinary.com%' LIMIT 3`,
     );
     for (const { v } of rows) {
       const rewritten = rewriteUrls(String(v));
@@ -265,9 +271,9 @@ async function rewriteDb(dryRun) {
   targets.forEach(({ table, column, rows }) => console.log(`  ${table}.${column}: ${rows} rows`));
 
   if (dryRun) {
-    for (const { table, column } of targets.slice(0, 4)) {
+    for (const { table, column, type } of targets.slice(0, 4)) {
       const [rows] = await conn.query(
-        `SELECT \`${column}\` v FROM \`${table}\` WHERE \`${column}\` LIKE '%res.cloudinary.com%' LIMIT 2`,
+        `SELECT ${readExpr(column, type)} v FROM \`${table}\` WHERE \`${column}\` LIKE '%res.cloudinary.com%' LIMIT 2`,
       );
       rows.forEach(({ v }) => {
         const before = String(v).slice(0, 130);
@@ -291,9 +297,9 @@ async function rewriteDb(dryRun) {
   const rollbackFile = path.join(__dirname, `url-rewrite-rollback-${Date.now()}.jsonl`);
   const rollback = fs.createWriteStream(rollbackFile);
   let updated = 0;
-  for (const { table, column, pk } of targets) {
+  for (const { table, column, pk, type } of targets) {
     const [rows] = await conn.query(
-      `SELECT \`${pk}\` pk, \`${column}\` v FROM \`${table}\` WHERE \`${column}\` LIKE '%res.cloudinary.com%'`,
+      `SELECT \`${pk}\` pk, ${readExpr(column, type)} v FROM \`${table}\` WHERE \`${column}\` LIKE '%res.cloudinary.com%'`,
     );
     for (const row of rows) {
       const oldValue = String(row.v);
