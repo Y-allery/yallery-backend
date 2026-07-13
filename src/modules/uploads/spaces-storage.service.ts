@@ -1,0 +1,271 @@
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import axios from 'axios';
+import { spawn } from 'child_process';
+import { randomUUID } from 'crypto';
+import * as fs from 'fs/promises';
+import * as os from 'os';
+import * as path from 'path';
+import { UploadedVideoAsset } from './upload.types';
+
+const IMAGE_FOLDER = 'octoai_images';
+const VIDEO_FOLDER = 'octoai_videos';
+const CACHE_CONTROL = 'public, max-age=31536000, immutable';
+
+const EXTENSION_BY_MIME: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+  'video/mp4': 'mp4',
+  'video/webm': 'webm',
+  'video/quicktime': 'mov',
+};
+
+interface FetchedMedia {
+  buffer: Buffer;
+  contentType: string;
+}
+
+@Injectable()
+export class SpacesStorageService {
+  private client: S3Client | null = null;
+
+  constructor(private readonly configService: ConfigService) {}
+
+  isConfigured(): boolean {
+    return Boolean(
+      this.configService.get<string>('SPACES_REGION') &&
+        this.configService.get<string>('SPACES_BUCKET') &&
+        this.configService.get<string>('SPACES_ACCESS_KEY') &&
+        this.configService.get<string>('SPACES_SECRET_KEY'),
+    );
+  }
+
+  async uploadBuffer(
+    buffer: Buffer,
+    contentType: string,
+    folder: string = IMAGE_FOLDER,
+  ): Promise<string> {
+    const extension = EXTENSION_BY_MIME[contentType] ?? 'bin';
+    const key = `${folder}/${randomUUID()}.${extension}`;
+    await this.putObject(key, buffer, contentType);
+    return this.publicUrl(key);
+  }
+
+  async uploadImageFromSource(source: string): Promise<string> {
+    const media = await this.fetchMedia(source, 'image/jpeg');
+    return this.uploadBuffer(media.buffer, media.contentType, IMAGE_FOLDER);
+  }
+
+  async uploadVideoAssetFromSource(source: string): Promise<UploadedVideoAsset> {
+    const media = await this.fetchMedia(source, 'video/mp4');
+    const contentType = media.contentType.startsWith('video/')
+      ? media.contentType
+      : 'video/mp4';
+    const extension = EXTENSION_BY_MIME[contentType] ?? 'mp4';
+
+    const assetId = randomUUID();
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'media-upload-'));
+    const videoPath = path.join(tempDir, `source.${extension}`);
+    const previewPath = path.join(tempDir, 'preview.jpg');
+
+    try {
+      await fs.writeFile(videoPath, media.buffer);
+
+      const metadata = await this.probeVideo(videoPath);
+      const previewBuffer = await this.extractPreviewFrame(
+        videoPath,
+        previewPath,
+      );
+
+      const videoKey = `${VIDEO_FOLDER}/${assetId}.${extension}`;
+      await this.putObject(videoKey, media.buffer, contentType);
+
+      let previewImageUrl: string | null = null;
+      if (previewBuffer) {
+        const previewKey = `${VIDEO_FOLDER}/${assetId}_preview.jpg`;
+        await this.putObject(previewKey, previewBuffer, 'image/jpeg');
+        previewImageUrl = this.publicUrl(previewKey);
+      } else {
+        console.warn(
+          `[SpacesStorageService] Preview frame extraction failed for ${videoKey}`,
+        );
+      }
+
+      return {
+        videoUrl: this.publicUrl(videoKey),
+        previewImageUrl,
+        width: metadata.width,
+        height: metadata.height,
+        hasAudio: metadata.hasAudio,
+      };
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+  }
+
+  private async putObject(
+    key: string,
+    body: Buffer,
+    contentType: string,
+  ): Promise<void> {
+    await this.getClient().send(
+      new PutObjectCommand({
+        Bucket: this.configService.get<string>('SPACES_BUCKET'),
+        Key: key,
+        Body: body,
+        ContentType: contentType,
+        ACL: 'public-read',
+        CacheControl: CACHE_CONTROL,
+      }),
+    );
+  }
+
+  private getClient(): S3Client {
+    if (!this.isConfigured()) {
+      throw new Error(
+        'Spaces storage is not configured (SPACES_REGION/BUCKET/ACCESS_KEY/SECRET_KEY)',
+      );
+    }
+    if (!this.client) {
+      const region = this.configService.get<string>('SPACES_REGION');
+      this.client = new S3Client({
+        region: 'us-east-1',
+        endpoint: `https://${region}.digitaloceanspaces.com`,
+        credentials: {
+          accessKeyId: this.configService.get<string>('SPACES_ACCESS_KEY'),
+          secretAccessKey: this.configService.get<string>('SPACES_SECRET_KEY'),
+        },
+      });
+    }
+    return this.client;
+  }
+
+  private publicUrl(key: string): string {
+    const cdnBaseUrl = this.configService.get<string>('SPACES_CDN_BASE_URL');
+    if (cdnBaseUrl) {
+      return `${cdnBaseUrl.replace(/\/+$/, '')}/${key}`;
+    }
+    const bucket = this.configService.get<string>('SPACES_BUCKET');
+    const region = this.configService.get<string>('SPACES_REGION');
+    return `https://${bucket}.${region}.cdn.digitaloceanspaces.com/${key}`;
+  }
+
+  /** Sources come from RunPod workers as either http(s) URLs or data: URIs (e.g. LTX returns base64 mp4). */
+  private async fetchMedia(
+    source: string,
+    fallbackContentType: string,
+  ): Promise<FetchedMedia> {
+    const dataUriMatch = source.match(/^data:([^;,]+)?(;base64)?,/);
+    if (dataUriMatch) {
+      const contentType = dataUriMatch[1] || fallbackContentType;
+      const payload = source.slice(dataUriMatch[0].length);
+      const buffer = dataUriMatch[2]
+        ? Buffer.from(payload, 'base64')
+        : Buffer.from(decodeURIComponent(payload), 'utf8');
+      return { buffer, contentType };
+    }
+
+    const response = await axios.get<ArrayBuffer>(source, {
+      responseType: 'arraybuffer',
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+    });
+    const headerContentType = String(
+      response.headers?.['content-type'] ?? '',
+    ).split(';')[0];
+    return {
+      buffer: Buffer.from(response.data),
+      contentType: headerContentType || fallbackContentType,
+    };
+  }
+
+  private async probeVideo(filePath: string): Promise<{
+    width: number | null;
+    height: number | null;
+    hasAudio: boolean | null;
+  }> {
+    try {
+      const stdout = await this.runProcess('ffprobe', [
+        '-v',
+        'error',
+        '-print_format',
+        'json',
+        '-show_streams',
+        filePath,
+      ]);
+      const parsed = JSON.parse(stdout) as {
+        streams?: Array<{
+          codec_type?: string;
+          width?: number;
+          height?: number;
+        }>;
+      };
+      const streams = parsed.streams ?? [];
+      const videoStream = streams.find((s) => s.codec_type === 'video');
+      const width = Number(videoStream?.width);
+      const height = Number(videoStream?.height);
+      return {
+        width: Number.isFinite(width) && width > 0 ? width : null,
+        height: Number.isFinite(height) && height > 0 ? height : null,
+        hasAudio: streams.some((s) => s.codec_type === 'audio'),
+      };
+    } catch (error) {
+      console.warn(
+        `[SpacesStorageService] ffprobe failed for ${filePath}: ${
+          (error as Error).message
+        }`,
+      );
+      return { width: null, height: null, hasAudio: null };
+    }
+  }
+
+  private async extractPreviewFrame(
+    videoPath: string,
+    previewPath: string,
+  ): Promise<Buffer | null> {
+    try {
+      await this.runProcess('ffmpeg', [
+        '-y',
+        '-i',
+        videoPath,
+        '-frames:v',
+        '1',
+        '-q:v',
+        '2',
+        previewPath,
+      ]);
+      return await fs.readFile(previewPath);
+    } catch (error) {
+      console.warn(
+        `[SpacesStorageService] ffmpeg preview extraction failed: ${
+          (error as Error).message
+        }`,
+      );
+      return null;
+    }
+  }
+
+  private runProcess(command: string, args: string[]): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const child = spawn(command, args);
+      let stdout = '';
+      let stderr = '';
+      child.stdout.on('data', (chunk) => (stdout += chunk));
+      child.stderr.on('data', (chunk) => (stderr += chunk));
+      child.on('error', reject);
+      child.on('close', (code) => {
+        if (code === 0) {
+          resolve(stdout);
+        } else {
+          reject(
+            new Error(`${command} exited with code ${code}: ${stderr.slice(0, 500)}`),
+          );
+        }
+      });
+    });
+  }
+}

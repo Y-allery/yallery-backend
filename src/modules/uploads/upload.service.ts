@@ -3,18 +3,19 @@ import { ConfigService } from '@nestjs/config';
 import { v2 as cloudinary } from 'cloudinary';
 import * as path from 'path';
 import { Worker } from 'worker_threads';
+import { SpacesStorageService } from './spaces-storage.service';
+import { UploadedVideoAsset } from './upload.types';
 
-export interface UploadedVideoAsset {
-  videoUrl: string;
-  previewImageUrl: string | null;
-  width: number | null;
-  height: number | null;
-  hasAudio: boolean | null;
-}
+export { UploadedVideoAsset } from './upload.types';
+
+type MediaStorageDriver = 'cloudinary' | 'spaces';
 
 @Injectable()
 export class UploadService {
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly spacesStorage: SpacesStorageService,
+  ) {
     cloudinary.config({
       cloud_name: this.configService.get('CLOUDINARY_CLOUD_NAME'),
       api_key: this.configService.get('CLOUDINARY_API_KEY'),
@@ -22,10 +23,25 @@ export class UploadService {
     });
   }
 
+  /**
+   * Generated-media storage backend. Defaults to cloudinary so the switch to
+   * Spaces is an .env flip (MEDIA_STORAGE_DRIVER=spaces) with instant rollback.
+   * Mobile direct uploads (signed params below) stay on Cloudinary regardless.
+   */
+  private getStorageDriver(): MediaStorageDriver {
+    const driver = this.configService.get<string>('MEDIA_STORAGE_DRIVER');
+    return driver === 'spaces' && this.spacesStorage.isConfigured()
+      ? 'spaces'
+      : 'cloudinary';
+  }
+
   async uploadByBuffer(
     buffer: Buffer,
     mimetype: string = 'image/jpeg',
   ): Promise<string> {
+    if (this.getStorageDriver() === 'spaces') {
+      return this.spacesStorage.uploadBuffer(buffer, mimetype);
+    }
     return new Promise((resolve, reject) => {
       const workerPath = path.resolve(__dirname, 'image-worker.js');
       const worker = new Worker(workerPath);
@@ -104,6 +120,9 @@ export class UploadService {
   }
 
   async uploadVideoAssetByUrl(videoUrl: string): Promise<UploadedVideoAsset> {
+    if (this.getStorageDriver() === 'spaces') {
+      return this.spacesStorage.uploadVideoAssetFromSource(videoUrl);
+    }
     return new Promise((resolve, reject) => {
       cloudinary.uploader.upload(
         videoUrl,
@@ -187,6 +206,9 @@ export class UploadService {
   }
 
   async uploadByUrl(imageUrl: string): Promise<string> {
+    if (this.getStorageDriver() === 'spaces') {
+      return this.spacesStorage.uploadImageFromSource(imageUrl);
+    }
     return new Promise((resolve, reject) => {
       cloudinary.uploader.upload(
         imageUrl,

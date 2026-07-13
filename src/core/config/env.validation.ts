@@ -87,6 +87,31 @@ export class EnvironmentVariables {
   @IsString()
   CLOUDINARY_VIDEO_FOLDER?: string;
 
+  // Generated-media storage (DO Spaces). Driver defaults to cloudinary when unset.
+  @IsOptional()
+  @IsString()
+  MEDIA_STORAGE_DRIVER?: string;
+
+  @IsOptional()
+  @IsString()
+  SPACES_REGION?: string;
+
+  @IsOptional()
+  @IsString()
+  SPACES_BUCKET?: string;
+
+  @IsOptional()
+  @IsString()
+  SPACES_ACCESS_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  SPACES_SECRET_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  SPACES_CDN_BASE_URL?: string;
+
   // OpenAI
   @IsString()
   OPENAI_API_KEY: string;

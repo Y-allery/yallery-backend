@@ -1,5 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { v2 as cloudinary } from 'cloudinary';
+import { SpacesStorageService } from './spaces-storage.service';
 import { UploadService } from './upload.service';
 
 jest.mock('cloudinary', () => ({
@@ -14,20 +15,37 @@ jest.mock('cloudinary', () => ({
   },
 }));
 
+const createSpacesStorageMock = (configured: boolean) =>
+  ({
+    isConfigured: jest.fn(() => configured),
+    uploadBuffer: jest.fn(async () => 'https://cdn.spaces/buffer.jpg'),
+    uploadImageFromSource: jest.fn(async () => 'https://cdn.spaces/image.jpg'),
+    uploadVideoAssetFromSource: jest.fn(async () => ({
+      videoUrl: 'https://cdn.spaces/video.mp4',
+      previewImageUrl: 'https://cdn.spaces/video_preview.jpg',
+      width: 720,
+      height: 1280,
+      hasAudio: true,
+    })),
+  } as unknown as jest.Mocked<SpacesStorageService>);
+
 describe('UploadService video assets', () => {
   const mockedUpload = cloudinary.uploader.upload as jest.Mock;
 
   const createService = () =>
-    new UploadService({
-      get: jest.fn((key: string) => {
-        const values: Record<string, string> = {
-          CLOUDINARY_CLOUD_NAME: 'test-cloud',
-          CLOUDINARY_API_KEY: 'test-key',
-          CLOUDINARY_API_SECRET: 'test-secret',
-        };
-        return values[key];
-      }),
-    } as unknown as ConfigService);
+    new UploadService(
+      {
+        get: jest.fn((key: string) => {
+          const values: Record<string, string> = {
+            CLOUDINARY_CLOUD_NAME: 'test-cloud',
+            CLOUDINARY_API_KEY: 'test-key',
+            CLOUDINARY_API_SECRET: 'test-secret',
+          };
+          return values[key];
+        }),
+      } as unknown as ConfigService,
+      createSpacesStorageMock(false),
+    );
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -94,5 +112,114 @@ describe('UploadService video assets', () => {
 
     expect(warnSpy).toHaveBeenCalled();
     warnSpy.mockRestore();
+  });
+});
+
+describe('UploadService storage driver routing', () => {
+  const mockedUpload = cloudinary.uploader.upload as jest.Mock;
+
+  const createService = ({
+    driver,
+    spacesConfigured,
+  }: {
+    driver?: string;
+    spacesConfigured: boolean;
+  }) => {
+    const configService = {
+      get: jest.fn((key: string) => {
+        const values: Record<string, string | undefined> = {
+          MEDIA_STORAGE_DRIVER: driver,
+          CLOUDINARY_CLOUD_NAME: 'test-cloud',
+          CLOUDINARY_API_KEY: 'test-key',
+          CLOUDINARY_API_SECRET: 'test-secret',
+        };
+        return values[key];
+      }),
+    } as unknown as ConfigService;
+    const spacesStorage = createSpacesStorageMock(spacesConfigured);
+
+    return { service: new UploadService(configService, spacesStorage), spacesStorage };
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('routes uploadByUrl to Spaces when driver=spaces and configured', async () => {
+    const { service, spacesStorage } = createService({
+      driver: 'spaces',
+      spacesConfigured: true,
+    });
+
+    await expect(service.uploadByUrl('https://runpod/out.png')).resolves.toBe(
+      'https://cdn.spaces/image.jpg',
+    );
+    expect(spacesStorage.uploadImageFromSource).toHaveBeenCalledWith(
+      'https://runpod/out.png',
+    );
+    expect(mockedUpload).not.toHaveBeenCalled();
+  });
+
+  it('routes uploadVideoAssetByUrl to Spaces when driver=spaces and configured', async () => {
+    const { service, spacesStorage } = createService({
+      driver: 'spaces',
+      spacesConfigured: true,
+    });
+
+    await expect(
+      service.uploadVideoAssetByUrl('https://runpod/out.mp4'),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        videoUrl: 'https://cdn.spaces/video.mp4',
+        previewImageUrl: 'https://cdn.spaces/video_preview.jpg',
+      }),
+    );
+    expect(spacesStorage.uploadVideoAssetFromSource).toHaveBeenCalledWith(
+      'https://runpod/out.mp4',
+    );
+    expect(mockedUpload).not.toHaveBeenCalled();
+  });
+
+  it('routes uploadByBuffer to Spaces when driver=spaces and configured', async () => {
+    const { service, spacesStorage } = createService({
+      driver: 'spaces',
+      spacesConfigured: true,
+    });
+
+    const buffer = Buffer.from('img');
+    await expect(service.uploadByBuffer(buffer, 'image/png')).resolves.toBe(
+      'https://cdn.spaces/buffer.jpg',
+    );
+    expect(spacesStorage.uploadBuffer).toHaveBeenCalledWith(buffer, 'image/png');
+  });
+
+  it('falls back to Cloudinary when driver=spaces but Spaces env is missing', async () => {
+    mockedUpload.mockImplementation((_url, _options, callback) => {
+      callback(null, { secure_url: 'https://res.cloudinary.com/mock.jpg' });
+    });
+    const { service, spacesStorage } = createService({
+      driver: 'spaces',
+      spacesConfigured: false,
+    });
+
+    await expect(service.uploadByUrl('https://runpod/out.png')).resolves.toBe(
+      'https://res.cloudinary.com/mock.jpg',
+    );
+    expect(spacesStorage.uploadImageFromSource).not.toHaveBeenCalled();
+  });
+
+  it('stays on Cloudinary when driver is unset', async () => {
+    mockedUpload.mockImplementation((_url, _options, callback) => {
+      callback(null, { secure_url: 'https://res.cloudinary.com/mock.jpg' });
+    });
+    const { service, spacesStorage } = createService({
+      driver: undefined,
+      spacesConfigured: true,
+    });
+
+    await expect(service.uploadByUrl('https://runpod/out.png')).resolves.toBe(
+      'https://res.cloudinary.com/mock.jpg',
+    );
+    expect(spacesStorage.uploadImageFromSource).not.toHaveBeenCalled();
   });
 });
