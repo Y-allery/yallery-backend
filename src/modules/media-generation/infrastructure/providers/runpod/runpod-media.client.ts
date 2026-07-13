@@ -35,30 +35,6 @@ export class RunpodMediaClient {
     return response.data;
   }
 
-  async submitSyncJob(
-    endpointId: string,
-    input: Record<string, unknown>,
-    apiKeyConfigKey?: string,
-  ): Promise<RunpodJobResponse> {
-    const [apiBaseUrl, headers, timeout] = await Promise.all([
-      this.getApiBaseUrl(),
-      this.getHeaders(apiKeyConfigKey),
-      this.getSyncRequestTimeoutMs(),
-    ]);
-    const response = await axios.post<RunpodJobResponse>(
-      `${apiBaseUrl}/${endpointId}/runsync`,
-      {
-        input,
-      },
-      {
-        headers,
-        timeout,
-      },
-    );
-
-    return response.data;
-  }
-
   async waitForCompletion(
     endpointId: string,
     initialJob: RunpodJobResponse,
@@ -191,14 +167,6 @@ export class RunpodMediaClient {
       (await this.providerRuntimeConfigService.getNumber(
         'RUNPOD_REQUEST_TIMEOUT_MS',
       )) ?? 30000
-    );
-  }
-
-  private async getSyncRequestTimeoutMs(): Promise<number> {
-    return (
-      (await this.providerRuntimeConfigService.getNumber(
-        'RUNPOD_SYNC_REQUEST_TIMEOUT_MS',
-      )) ?? 1800000
     );
   }
 

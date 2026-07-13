@@ -36,7 +36,7 @@ the specific application service they need.
 
 - `RunpodEndpointResolver`: maps active `aiService` names to required endpoint env vars.
 - `RunpodPayloadBuilder`: builds provider payloads for prompt image, LoRA image, edit, audio, video, and meme.
-- `RunpodMediaClient`: owns `/run`, `/runsync`, `/status`, polling, timeouts, and RunPod headers.
+- `RunpodMediaClient`: owns `/run`, `/status`, polling, timeouts, and RunPod headers.
 - `RunpodOutputExtractor`: extracts URL, data URI, and base64 image/video outputs.
 - `RunpodOpenEndpointMediaProvider`: thin adapter that coordinates those helpers and uploads provider output to Cloudinary.
 - `UploadService.uploadVideoAssetByUrl`: uploads videos with a signed eager JPG preview and returns both `videoUrl` and `previewImageUrl`.

@@ -22,7 +22,9 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
       RUNPOD_MMAUDIO_ENDPOINT_ID: 'test-mmaudio-endpoint',
       RUNPOD_P_VIDEO_ENDPOINT_ID: 'test-p-video-endpoint',
       RUNPOD_WAN22_ANIMATE_MEME_ENDPOINT_ID: 'test-wan-endpoint',
+      RUNPOD_QWEN_IMAGE_EDIT_BAKED_ENDPOINT_ID: 'test-qwen-endpoint',
       RUNPOD_COMPLETED_OUTPUT_RETRY_COUNT: '0',
+      RUNPOD_POLL_INTERVAL_MS: '0',
     };
     const providerRuntimeConfigService = {
       getString: jest.fn(async (key: string) => values[key] ?? null),
@@ -32,6 +34,7 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
     } as unknown as ProviderRuntimeConfigService;
 
     const uploadService = {
+      uploadByUrl: jest.fn(async () => 'https://cdn.test/edited.png'),
       uploadVideoAssetByUrl: jest.fn(async () => ({
         videoUrl: 'https://cdn.test/generated.mp4',
         previewImageUrl: 'https://cdn.test/generated-preview.jpg',
@@ -296,6 +299,59 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
     expect(result.width).toBe(1920);
     expect(result.height).toBe(1080);
     expect(result.hasAudio).toBe(true);
+  });
+
+  it('submits image edits through async /run (not /runsync) and polls through a cold start', async () => {
+    const { provider, uploadService } = createProvider();
+
+    // Cold start: submit returns IN_QUEUE with no output, then a status poll returns the image.
+    mockedAxios.post.mockResolvedValueOnce({
+      data: { id: 'edit-job-1', status: 'IN_QUEUE' },
+    });
+    mockedAxios.get.mockResolvedValueOnce({
+      data: {
+        id: 'edit-job-1',
+        status: 'COMPLETED',
+        output: { images: [{ url: 'https://runpod.test/edited.png' }] },
+      },
+    });
+
+    const result = await provider.editImages({
+      aiService: 'qwen_image_edit_baked',
+      prompt: 'make it snow',
+      imageUrl: 'https://cdn.test/source.png',
+    });
+
+    expect(mockedAxios.post).toHaveBeenCalledWith(
+      'https://api.runpod.ai/v2/test-qwen-endpoint/run',
+      { input: expect.objectContaining({ image_url: 'https://cdn.test/source.png' }) },
+      expect.any(Object),
+    );
+    // Must have polled /status rather than trusting the first non-terminal response.
+    expect(mockedAxios.get).toHaveBeenCalledWith(
+      'https://api.runpod.ai/v2/test-qwen-endpoint/status/edit-job-1',
+      expect.any(Object),
+    );
+    expect(uploadService.uploadByUrl).toHaveBeenCalledWith(
+      'https://runpod.test/edited.png',
+    );
+    expect(result.imageUrls).toEqual(['https://cdn.test/edited.png']);
+  });
+
+  it('fails cleanly when an image edit completes without image output', async () => {
+    const { provider } = createProvider();
+
+    mockedAxios.post.mockResolvedValueOnce({
+      data: { id: 'edit-job-2', status: 'COMPLETED', output: {} },
+    });
+
+    await expect(
+      provider.editImages({
+        aiService: 'qwen_image_edit_baked',
+        prompt: 'make it snow',
+        imageUrl: 'https://cdn.test/source.png',
+      }),
+    ).rejects.toBeInstanceOf(BadGatewayException);
   });
 
   it('fails cleanly when RunPod completes without video output', async () => {

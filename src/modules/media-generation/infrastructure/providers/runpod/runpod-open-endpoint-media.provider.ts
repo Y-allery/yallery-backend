@@ -87,9 +87,17 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
     const endpointId = await this.endpoints.getEndpointIdForImageEditRequest(
       request,
     );
-    const completedJob = await this.client.submitSyncJob(
+    // Async /run + polling (not /runsync): RunPod caps runsync at ~90s and returns a
+    // non-terminal status with no output, which loses every edit that hits a cold start
+    // on an endpoint that scales to zero. Polling tolerates cold starts like the other routes.
+    const initialJob = await this.client.submitJob(endpointId, {
+      input: this.payloadBuilder.buildImageEditInput(request),
+    });
+    const completedJob = await this.client.waitForCompletion(
       endpointId,
-      this.payloadBuilder.buildImageEditInput(request),
+      initialJob,
+      this.extractor.hasExtractableImageSource.bind(this.extractor),
+      await this.timeoutPolicy.getStatusTimeoutMs(request.aiService, 'imageEdit'),
     );
     const providerImageSources = this.extractor.extractImageSources(
       completedJob.output,

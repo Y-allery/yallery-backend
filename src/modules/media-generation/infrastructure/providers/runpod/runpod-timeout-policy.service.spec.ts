@@ -1,8 +1,5 @@
 import { ProviderRuntimeConfigService } from 'src/modules/provider-settings/provider-runtime-config.service';
-import {
-  RUNPOD_MEDIA_ROUTE_CATALOG,
-  MediaRouteCatalogEntry,
-} from 'src/modules/media-generation/infrastructure/routing/media-route.catalog';
+import { RUNPOD_MEDIA_ROUTE_CATALOG } from 'src/modules/media-generation/infrastructure/routing/media-route.catalog';
 import { RunpodTimeoutPolicyService } from './runpod-timeout-policy.service';
 
 describe('RunpodTimeoutPolicyService', () => {
@@ -17,14 +14,10 @@ describe('RunpodTimeoutPolicyService', () => {
     };
   };
 
-  const asyncRoutes = RUNPOD_MEDIA_ROUTE_CATALOG.filter(
-    (route) => route.routeType !== 'imageEdit',
-  );
+  it('declares explicit timeout settings for every RunPod route (all are async/polled)', () => {
+    expect(RUNPOD_MEDIA_ROUTE_CATALOG).toHaveLength(8);
 
-  it('declares explicit timeout settings for every async RunPod route', () => {
-    expect(asyncRoutes).toHaveLength(7);
-
-    for (const route of asyncRoutes) {
+    for (const route of RUNPOD_MEDIA_ROUTE_CATALOG) {
       expect(route.statusTimeoutConfigKey).toBeTruthy();
       expect(route.defaultStatusTimeoutMs).toBeGreaterThan(0);
     }
@@ -61,18 +54,24 @@ describe('RunpodTimeoutPolicyService', () => {
     );
   });
 
-  it('does not define an async status timeout for Qwen runsync', async () => {
+  it('resolves the image-edit status timeout (async /run + polling)', async () => {
     const { service } = createService();
-    const qwenRoute = RUNPOD_MEDIA_ROUTE_CATALOG.find(
-      (route): route is MediaRouteCatalogEntry =>
-        route.aiService === 'qwen_image_edit_baked',
-    );
 
-    expect(qwenRoute?.statusTimeoutConfigKey).toBeUndefined();
     await expect(
       service.getStatusTimeoutMs('qwen_image_edit_baked', 'imageEdit'),
-    ).rejects.toThrow(
-      'RunPod status timeout is not configured for qwen_image_edit_baked',
+    ).resolves.toBe(1200000);
+  });
+
+  it('honors a DB/env override for the image-edit timeout key', async () => {
+    const { service, providerRuntimeConfigService } = createService({
+      RUNPOD_QWEN_IMAGE_EDIT_BAKED_STATUS_TIMEOUT_MS: 654321,
+    });
+
+    await expect(
+      service.getStatusTimeoutMs('qwen_image_edit_baked', 'imageEdit'),
+    ).resolves.toBe(654321);
+    expect(providerRuntimeConfigService.getNumber).toHaveBeenCalledWith(
+      'RUNPOD_QWEN_IMAGE_EDIT_BAKED_STATUS_TIMEOUT_MS',
     );
   });
 });

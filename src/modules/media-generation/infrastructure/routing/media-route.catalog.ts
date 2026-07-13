@@ -87,6 +87,9 @@ export const RUNPOD_MEDIA_ROUTE_CATALOG: MediaRouteCatalogEntry[] = [
     queueName: MEDIA_IMAGE_EDIT_GENERATION_QUEUE,
     endpointConfigKey: 'RUNPOD_QWEN_IMAGE_EDIT_BAKED_ENDPOINT_ID',
     enabledConfigKey: 'RUNPOD_QWEN_IMAGE_EDIT_BAKED_ENABLED',
+    statusTimeoutConfigKey: 'RUNPOD_QWEN_IMAGE_EDIT_BAKED_STATUS_TIMEOUT_MS',
+    statusTimeoutLabel: 'Qwen Image Edit Status Timeout',
+    defaultStatusTimeoutMs: 1200000,
   },
   {
     routeType: 'audio',
