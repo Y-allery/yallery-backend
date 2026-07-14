@@ -179,8 +179,12 @@ export class MediaProxyService {
       if (!videoKey) {
         throw new NotFoundException(`No source video for poster ${posterKey}`);
       }
-      const video = await this.spacesStorage.getObjectBuffer(videoKey);
-      const frame = await this.extractPosterFrame(video, videoKey);
+      // Serialized like transcodes — parallel poster storms (e.g. the warm-up
+      // script) must not stack concurrent downloads + ffmpeg on the droplet.
+      const frame = await this.enqueueTranscode(async () => {
+        const video = await this.spacesStorage.getObjectBuffer(videoKey);
+        return this.extractPosterFrame(video, videoKey);
+      });
       await this.spacesStorage.putPublicObject(derivedKey, frame, 'image/jpeg');
     });
     return derivedKey;

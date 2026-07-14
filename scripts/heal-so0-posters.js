@@ -23,7 +23,9 @@ const mysql = require(path.join(ROOT, 'node_modules/mysql2/promise'));
 const axiosLib = require(path.join(ROOT, 'node_modules/axios'));
 const axios = axiosLib.default || axiosLib;
 
-const CONCURRENCY = 4;
+// Poster generation is serialized on the backend anyway; low concurrency
+// keeps the API responsive and avoids piling up long-held connections.
+const CONCURRENCY = 2;
 
 const SOURCES = [
   ['posts', 'previewImageUrl'],
@@ -51,38 +53,62 @@ const SOURCES = [
   }
   await conn.end();
 
-  const queue = [...urls];
-  console.log(`Healing ${queue.length} posters...`);
-  let ok = 0;
-  const failures = [];
+  async function healAll(list) {
+    const queue = [...list];
+    let ok = 0;
+    const failures = [];
 
-  async function worker() {
-    while (queue.length) {
-      const url = queue.shift();
-      try {
-        // GET (not HEAD) and follow the redirect so the CDN object is warmed too.
-        const res = await axios.get(url, {
-          timeout: 120000,
-          maxRedirects: 5,
-          responseType: 'arraybuffer',
-          validateStatus: () => true,
-        });
-        if (res.status === 200) {
-          ok++;
-        } else {
-          failures.push({ url, status: res.status });
+    async function worker() {
+      while (queue.length) {
+        const url = queue.shift();
+        try {
+          // GET (not HEAD) and follow the redirect so the CDN object is warmed too.
+          const res = await axios.get(url, {
+            timeout: 180000,
+            maxRedirects: 5,
+            responseType: 'arraybuffer',
+            validateStatus: () => true,
+          });
+          if (res.status === 200) {
+            ok++;
+          } else {
+            failures.push({ url, status: res.status });
+            // A 5xx usually means the backend is restarting — back off.
+            if (res.status >= 500) {
+              await new Promise((r) => setTimeout(r, 15000));
+            }
+          }
+        } catch (e) {
+          failures.push({ url, status: e.message });
         }
-      } catch (e) {
-        failures.push({ url, status: e.message });
-      }
-      if ((ok + failures.length) % 20 === 0) {
-        console.log(`  progress: ${ok} ok, ${failures.length} failed, ${queue.length} left`);
+        if ((ok + failures.length) % 20 === 0) {
+          console.log(
+            `  progress: ${ok} ok, ${failures.length} failed, ${queue.length} left`,
+          );
+        }
       }
     }
+
+    await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+    return { ok, failures };
   }
 
-  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
-  console.log(`DONE: ${ok} healed, ${failures.length} failed`);
+  console.log(`Healing ${urls.size} posters...`);
+  const first = await healAll(urls);
+  let failures = first.failures;
+  let healed = first.ok;
+
+  if (failures.length) {
+    console.log(
+      `Retrying ${failures.length} failures after a 30s cool-down...`,
+    );
+    await new Promise((r) => setTimeout(r, 30000));
+    const second = await healAll(failures.map((f) => f.url));
+    healed += second.ok;
+    failures = second.failures;
+  }
+
+  console.log(`DONE: ${healed} healed, ${failures.length} failed`);
   failures.slice(0, 20).forEach((f) => console.log(`  ${f.status} ${f.url}`));
   process.exit(failures.length ? 1 : 0);
 })().catch((e) => {
