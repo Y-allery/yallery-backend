@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  HeadObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import axios from 'axios';
 import { spawn } from 'child_process';
 import { randomUUID } from 'crypto';
@@ -52,7 +56,7 @@ export class SpacesStorageService {
     const extension = EXTENSION_BY_MIME[contentType] ?? 'bin';
     const key = `${folder}/${randomUUID()}.${extension}`;
     await this.putObject(key, buffer, contentType);
-    return this.publicUrl(key);
+    return this.publicMediaUrl(key, 'image');
   }
 
   async uploadImageFromSource(source: string): Promise<string> {
@@ -60,7 +64,9 @@ export class SpacesStorageService {
     return this.uploadBuffer(media.buffer, media.contentType, IMAGE_FOLDER);
   }
 
-  async uploadVideoAssetFromSource(source: string): Promise<UploadedVideoAsset> {
+  async uploadVideoAssetFromSource(
+    source: string,
+  ): Promise<UploadedVideoAsset> {
     const media = await this.fetchMedia(source, 'video/mp4');
     const contentType = media.contentType.startsWith('video/')
       ? media.contentType
@@ -88,7 +94,7 @@ export class SpacesStorageService {
       if (previewBuffer) {
         const previewKey = `${VIDEO_FOLDER}/${assetId}_preview.jpg`;
         await this.putObject(previewKey, previewBuffer, 'image/jpeg');
-        previewImageUrl = this.publicUrl(previewKey);
+        previewImageUrl = this.publicMediaUrl(previewKey, 'image');
       } else {
         console.warn(
           `[SpacesStorageService] Preview frame extraction failed for ${videoKey}`,
@@ -96,15 +102,55 @@ export class SpacesStorageService {
       }
 
       return {
-        videoUrl: this.publicUrl(videoKey),
+        videoUrl: this.publicMediaUrl(videoKey, 'video'),
         previewImageUrl,
         width: metadata.width,
         height: metadata.height,
         hasAudio: metadata.hasAudio,
       };
     } finally {
-      await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+      await fs
+        .rm(tempDir, { recursive: true, force: true })
+        .catch(() => undefined);
     }
+  }
+
+  /** Uploads a public, immutable-cached object (also used by the media proxy for derived variants). */
+  async putPublicObject(
+    key: string,
+    body: Buffer,
+    contentType: string,
+  ): Promise<void> {
+    await this.putObject(key, body, contentType);
+  }
+
+  /** True when an object exists in the bucket. */
+  async objectExists(key: string): Promise<boolean> {
+    try {
+      await this.getClient().send(
+        new HeadObjectCommand({
+          Bucket: this.configService.get<string>('SPACES_BUCKET'),
+          Key: key,
+        }),
+      );
+      return true;
+    } catch (error) {
+      const status = (error as { $metadata?: { httpStatusCode?: number } })
+        .$metadata?.httpStatusCode;
+      if (status === 404 || (error as Error).name === 'NotFound') return false;
+      throw error;
+    }
+  }
+
+  /** Downloads an object's bytes via the CDN edge. */
+  async getObjectBuffer(key: string): Promise<Buffer> {
+    const response = await axios.get<ArrayBuffer>(this.cdnUrl(key), {
+      responseType: 'arraybuffer',
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+      timeout: 120000,
+    });
+    return Buffer.from(response.data);
   }
 
   private async putObject(
@@ -144,7 +190,8 @@ export class SpacesStorageService {
     return this.client;
   }
 
-  private publicUrl(key: string): string {
+  /** Direct CDN URL of an object (what the media proxy redirects to). */
+  cdnUrl(key: string): string {
     const cdnBaseUrl = this.configService.get<string>('SPACES_CDN_BASE_URL');
     if (cdnBaseUrl) {
       return `${cdnBaseUrl.replace(/\/+$/, '')}/${key}`;
@@ -152,6 +199,23 @@ export class SpacesStorageService {
     const bucket = this.configService.get<string>('SPACES_BUCKET');
     const region = this.configService.get<string>('SPACES_REGION');
     return `https://${bucket}.${region}.cdn.digitaloceanspaces.com/${key}`;
+  }
+
+  /**
+   * URL stored in the DB / returned to clients. When
+   * MEDIA_PROXY_PUBLIC_BASE_URL is set it takes the Cloudinary-compatible
+   * /media/{image|video}/upload/<key> shape, so the mobile app's named
+   * transformations (t_.../ insertion after the upload marker) keep working;
+   * otherwise falls back to the raw CDN URL.
+   */
+  publicMediaUrl(key: string, resourceType: 'image' | 'video'): string {
+    const proxyBaseUrl = this.configService.get<string>(
+      'MEDIA_PROXY_PUBLIC_BASE_URL',
+    );
+    if (proxyBaseUrl) {
+      return `${proxyBaseUrl.replace(/\/+$/, '')}/media/${resourceType}/upload/${key}`;
+    }
+    return this.cdnUrl(key);
   }
 
   /** Sources come from RunPod workers as either http(s) URLs or data: URIs (e.g. LTX returns base64 mp4). */
@@ -262,7 +326,9 @@ export class SpacesStorageService {
           resolve(stdout);
         } else {
           reject(
-            new Error(`${command} exited with code ${code}: ${stderr.slice(0, 500)}`),
+            new Error(
+              `${command} exited with code ${code}: ${stderr.slice(0, 500)}`,
+            ),
           );
         }
       });

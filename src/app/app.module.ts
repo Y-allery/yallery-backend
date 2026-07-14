@@ -27,6 +27,7 @@ import { RewardModule } from 'src/modules/billing/rewards/reward.module';
 import { MemeModule } from 'src/modules/memes/meme.module';
 import { UserActivityModule } from 'src/modules/engagement/user-activity/user-activity.module';
 import { MediaGenerationModule } from 'src/modules/media-generation/media-generation.module';
+import { MediaProxyModule } from 'src/modules/media-proxy/media-proxy.module';
 import { ProviderSettingsModule } from 'src/modules/provider-settings/provider-settings.module';
 
 @Module({
@@ -85,6 +86,7 @@ import { ProviderSettingsModule } from 'src/modules/provider-settings/provider-s
     UserActivityModule,
     ProviderSettingsModule,
     MediaGenerationModule,
+    MediaProxyModule,
   ],
   providers: [
     {

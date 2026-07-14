@@ -8,6 +8,6 @@ import { ConfigModule } from '@nestjs/config';
   imports: [ConfigModule],
   providers: [UploadService, SpacesStorageService],
   controllers: [UploadController],
-  exports: [UploadService],
+  exports: [UploadService, SpacesStorageService],
 })
 export class UploadModule {}
