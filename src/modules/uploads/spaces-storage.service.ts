@@ -28,6 +28,13 @@ const EXTENSION_BY_MIME: Record<string, string> = {
   'video/quicktime': 'mov',
 };
 
+const VIDEO_MIME_BY_EXTENSION: Record<string, string> = {
+  mp4: 'video/mp4',
+  m4v: 'video/mp4',
+  mov: 'video/quicktime',
+  webm: 'video/webm',
+};
+
 interface FetchedMedia {
   buffer: Buffer;
   contentType: string;
@@ -62,6 +69,33 @@ export class SpacesStorageService {
   async uploadImageFromSource(source: string): Promise<string> {
     const media = await this.fetchMedia(source, 'image/jpeg');
     return this.uploadBuffer(media.buffer, media.contentType, IMAGE_FOLDER);
+  }
+
+  /**
+   * Stores a browser-uploaded video as-is (no preview/probe — the media proxy
+   * derives posters on demand via so_0). Falls back to the original filename's
+   * extension because browsers report some .mov/.mp4 files as octet-stream.
+   */
+  async uploadVideoBuffer(
+    buffer: Buffer,
+    contentType: string,
+    originalName?: string,
+  ): Promise<string> {
+    const isVideoMime = Boolean(contentType?.startsWith('video/'));
+    const extensionFromName = originalName
+      ?.match(/\.([a-z0-9]{2,5})$/i)?.[1]
+      ?.toLowerCase();
+    const extension =
+      (isVideoMime ? EXTENSION_BY_MIME[contentType] : undefined) ??
+      (extensionFromName && VIDEO_MIME_BY_EXTENSION[extensionFromName]
+        ? extensionFromName
+        : 'mp4');
+    const effectiveContentType = isVideoMime
+      ? contentType
+      : VIDEO_MIME_BY_EXTENSION[extension];
+    const key = `${VIDEO_FOLDER}/${randomUUID()}.${extension}`;
+    await this.putObject(key, buffer, effectiveContentType);
+    return this.publicMediaUrl(key, 'video');
   }
 
   async uploadVideoAssetFromSource(

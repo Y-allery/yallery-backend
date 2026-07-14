@@ -26,7 +26,6 @@ export class UploadService {
   /**
    * Generated-media storage backend. Defaults to cloudinary so the switch to
    * Spaces is an .env flip (MEDIA_STORAGE_DRIVER=spaces) with instant rollback.
-   * Mobile direct uploads (signed params below) stay on Cloudinary regardless.
    */
   private getStorageDriver(): MediaStorageDriver {
     const driver = this.configService.get<string>('MEDIA_STORAGE_DRIVER');
@@ -86,37 +85,22 @@ export class UploadService {
     });
   }
 
-  createSignedImageUploadParams(
-    folder = 'octoai_images',
-  ): {
-    cloudName: string;
-    apiKey: string;
-    folder: string;
-    timestamp: number;
-    signature: string;
-  } {
-    const cloudName = this.configService.get<string>('CLOUDINARY_CLOUD_NAME');
-    const apiKey = this.configService.get<string>('CLOUDINARY_API_KEY');
-    const apiSecret = this.configService.get<string>('CLOUDINARY_API_SECRET');
-
-    if (!cloudName || !apiKey || !apiSecret) {
-      throw new Error('Cloudinary configuration is missing');
+  /**
+   * Admin browser uploads (meme reference videos). Always stored to Spaces —
+   * the point of the endpoint is to stop minting new Cloudinary URLs — so it
+   * ignores MEDIA_STORAGE_DRIVER and fails when Spaces is unconfigured.
+   */
+  async uploadVideoByBuffer(
+    buffer: Buffer,
+    mimetype: string,
+    originalName?: string,
+  ): Promise<string> {
+    if (!this.spacesStorage.isConfigured()) {
+      throw new Error(
+        'Spaces storage is not configured (SPACES_REGION/BUCKET/ACCESS_KEY/SECRET_KEY)',
+      );
     }
-
-    const timestamp = Math.floor(Date.now() / 1000);
-    const paramsToSign = { folder, timestamp };
-    const signature = cloudinary.utils.api_sign_request(
-      paramsToSign,
-      apiSecret,
-    );
-
-    return {
-      cloudName,
-      apiKey,
-      folder,
-      timestamp,
-      signature,
-    };
+    return this.spacesStorage.uploadVideoBuffer(buffer, mimetype, originalName);
   }
 
   async uploadVideoAssetByUrl(videoUrl: string): Promise<UploadedVideoAsset> {

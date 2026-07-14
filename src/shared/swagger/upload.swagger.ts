@@ -16,5 +16,23 @@ export const UPLOAD_SWAGGER = {
       badRequest: { status: 400, description: 'No file provided or invalid file type' },
       internalError: { status: 500, description: 'Failed to upload image' }
     }
+  },
+  uploadVideo: {
+    summary: 'Upload video',
+    description: `Upload a video file (MP4, MOV, WebM) to Spaces storage. Returns a public media-proxy URL for the uploaded video.`,
+    responses: {
+      success: {
+        status: 200,
+        description: 'Video uploaded successfully',
+        schema: {
+          type: 'object',
+          properties: {
+            videoUrl: { type: 'string', example: 'https://api.example.com/media/video/upload/octoai_videos/video.mp4' }
+          }
+        }
+      },
+      badRequest: { status: 400, description: 'No file provided or invalid file type' },
+      internalError: { status: 500, description: 'Failed to upload video' }
+    }
   }
 };

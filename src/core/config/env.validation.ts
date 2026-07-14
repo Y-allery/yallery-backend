@@ -77,16 +77,6 @@ export class EnvironmentVariables {
   @IsString()
   CLOUDINARY_API_SECRET: string;
 
-  /** Optional: unsigned upload preset for direct video upload from client (avoids 413 via nginx) */
-  @IsOptional()
-  @IsString()
-  CLOUDINARY_VIDEO_UPLOAD_PRESET?: string;
-
-  /** Optional: Cloudinary folder for direct video uploads (e.g. meme_reference_videos) */
-  @IsOptional()
-  @IsString()
-  CLOUDINARY_VIDEO_FOLDER?: string;
-
   // Generated-media storage (DO Spaces). Driver defaults to cloudinary when unset.
   @IsOptional()
   @IsString()

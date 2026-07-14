@@ -9,9 +9,6 @@ jest.mock('cloudinary', () => ({
     uploader: {
       upload: jest.fn(),
     },
-    utils: {
-      api_sign_request: jest.fn(),
-    },
   },
 }));
 
@@ -19,6 +16,9 @@ const createSpacesStorageMock = (configured: boolean) =>
   ({
     isConfigured: jest.fn(() => configured),
     uploadBuffer: jest.fn(async () => 'https://cdn.spaces/buffer.jpg'),
+    uploadVideoBuffer: jest.fn(
+      async () => 'https://cdn.spaces/media/video/upload/octoai_videos/x.mp4',
+    ),
     uploadImageFromSource: jest.fn(async () => 'https://cdn.spaces/image.jpg'),
     uploadVideoAssetFromSource: jest.fn(async () => ({
       videoUrl: 'https://cdn.spaces/video.mp4',
@@ -206,6 +206,36 @@ describe('UploadService storage driver routing', () => {
       'https://res.cloudinary.com/mock.jpg',
     );
     expect(spacesStorage.uploadImageFromSource).not.toHaveBeenCalled();
+  });
+
+  it('uploads admin video buffers to Spaces regardless of driver', async () => {
+    const { service, spacesStorage } = createService({
+      driver: undefined,
+      spacesConfigured: true,
+    });
+
+    const buffer = Buffer.from('vid');
+    await expect(
+      service.uploadVideoByBuffer(buffer, 'video/mp4', 'clip.mp4'),
+    ).resolves.toBe('https://cdn.spaces/media/video/upload/octoai_videos/x.mp4');
+    expect(spacesStorage.uploadVideoBuffer).toHaveBeenCalledWith(
+      buffer,
+      'video/mp4',
+      'clip.mp4',
+    );
+    expect(mockedUpload).not.toHaveBeenCalled();
+  });
+
+  it('rejects admin video buffers when Spaces is not configured', async () => {
+    const { service, spacesStorage } = createService({
+      driver: 'spaces',
+      spacesConfigured: false,
+    });
+
+    await expect(
+      service.uploadVideoByBuffer(Buffer.from('vid'), 'video/mp4'),
+    ).rejects.toThrow('Spaces storage is not configured');
+    expect(spacesStorage.uploadVideoBuffer).not.toHaveBeenCalled();
   });
 
   it('stays on Cloudinary when driver is unset', async () => {
