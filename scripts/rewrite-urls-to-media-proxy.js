@@ -60,6 +60,7 @@ const MODE = process.argv.includes('--rewrite-db')
 const SKIP_VERIFY = process.argv.includes('--skip-verify');
 
 const VIDEO_EXTENSIONS = /\.(mp4|webm|mov)(?=$|[?#"'\s\\])/i;
+const MEDIA_EXTENSIONS = /\.(jpe?g|png|webp|gif|mp4|webm|mov|mp3|wav)(?=$|[?#"'\s\\])/i;
 const POSTER_SEGMENT = /^so_[\dp.]+\//;
 
 function escapeRegExp(value) {
@@ -70,6 +71,13 @@ function escapeRegExp(value) {
 function resourceTypeFor(bucketPath) {
   if (POSTER_SEGMENT.test(bucketPath)) return 'video';
   return VIDEO_EXTENSIONS.test(bucketPath) ? 'video' : 'image';
+}
+
+/** Only displayable media goes through the proxy; other assets (LoRA
+ *  .safetensors, archives, json) keep their direct CDN URL — no transform
+ *  applies to them and workers shouldn't pay an extra redirect hop. */
+function isProxyableMedia(bucketPath) {
+  return POSTER_SEGMENT.test(bucketPath) || MEDIA_EXTENSIONS.test(bucketPath);
 }
 
 function proxyUrl(resourceType, bucketPath) {
@@ -91,8 +99,10 @@ function rewriteUrls(value) {
       `${escapeRegExp(base)}/([^"'\\s\\\\?]+)`,
       'g',
     );
-    result = result.replace(pattern, (_m, bucketPath) =>
-      proxyUrl(resourceTypeFor(bucketPath), bucketPath),
+    result = result.replace(pattern, (match, bucketPath) =>
+      isProxyableMedia(bucketPath)
+        ? proxyUrl(resourceTypeFor(bucketPath), bucketPath)
+        : match,
     );
   }
 
@@ -124,6 +134,9 @@ function rewriteUrls(value) {
         }
       }
       const bucketPath = [...kept, ...segments.slice(index)].join('/');
+      if (!isProxyableMedia(bucketPath)) {
+        return `${CDN_BASE}/${bucketPath}`;
+      }
       return proxyUrl(resourceType, bucketPath);
     });
   }
