@@ -57,7 +57,7 @@ describe('MediaGenerationEnqueueService', () => {
     const { service, contestFlowService, mediaGenerationBalanceService } =
       createService(queueAdd);
 
-    await service.enqueuePromptImageGeneration(
+    const job = await service.enqueuePromptImageGeneration(
       {
         aiService: 'sdxl',
         prompt: 'hello',
@@ -67,6 +67,8 @@ describe('MediaGenerationEnqueueService', () => {
       } as any,
       55,
     );
+
+    expect(job).toEqual({ id: 'job-1' });
 
     expect(mediaGenerationBalanceService.reserve).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 55, amount: 10, aiService: 'sdxl' }),
@@ -82,7 +84,11 @@ describe('MediaGenerationEnqueueService', () => {
           contestSubmissionId: 77,
         }),
       }),
-      expect.any(Object),
+      expect.objectContaining({
+        jobId: expect.stringMatching(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+        ),
+      }),
     );
     expect(contestFlowService.attachQueueJob).toHaveBeenCalledWith(77, 'job-1');
     expect(mediaGenerationBalanceService.attachJob).toHaveBeenCalledWith(

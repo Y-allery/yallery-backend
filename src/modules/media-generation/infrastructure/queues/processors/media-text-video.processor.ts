@@ -63,6 +63,8 @@ export class MediaTextVideoProcessor extends BaseMediaProcessor {
     await this.notificationGateway.sendVideoNotification(
       userId.toString(),
       VideoNotificationPresenter.generated(video),
+      undefined,
+      String(job.id),
     );
   }
 }

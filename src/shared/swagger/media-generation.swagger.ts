@@ -574,6 +574,12 @@ This endpoint is the new provider-facing abstraction for media generation. It re
               type: 'string',
               example: 'Image generation task has been added to the queue.',
             },
+            taskId: {
+              type: 'string',
+              description:
+                'Queue task identifier. The same taskId is included in the websocket completion event (`imageGenerated`) and in `mediaGenerationError`.',
+              example: '3f2b6d1c-8a4e-4c1d-9f6b-2f1a7e5c9d10',
+            },
           },
         },
       },
@@ -624,6 +630,12 @@ This endpoint is the new provider-facing abstraction for media generation. It re
               type: 'string',
               example: 'Image editing task has been added to the queue.',
             },
+            taskId: {
+              type: 'string',
+              description:
+                'Queue task identifier. The same taskId is included in the websocket completion event (`imageEdited`) and in `mediaGenerationError`.',
+              example: '3f2b6d1c-8a4e-4c1d-9f6b-2f1a7e5c9d10',
+            },
           },
         },
       },
@@ -672,6 +684,12 @@ This endpoint is the new provider-facing abstraction for media generation. It re
             message: {
               type: 'string',
               example: 'Audio generation task has been added to the queue.',
+            },
+            taskId: {
+              type: 'string',
+              description:
+                'Queue task identifier. The same taskId is included in the websocket completion event (`audioGenerated`) and in `mediaGenerationError`.',
+              example: '3f2b6d1c-8a4e-4c1d-9f6b-2f1a7e5c9d10',
             },
           },
         },
@@ -722,6 +740,12 @@ This endpoint is the new provider-facing abstraction for media generation. It re
             message: {
               type: 'string',
               example: 'Video generation task has been added to the queue.',
+            },
+            taskId: {
+              type: 'string',
+              description:
+                'Queue task identifier. The same taskId is included in the websocket completion event (`videoGenerated`) and in `mediaGenerationError`.',
+              example: '3f2b6d1c-8a4e-4c1d-9f6b-2f1a7e5c9d10',
             },
           },
         },
@@ -774,6 +798,12 @@ This endpoint is the new provider-facing abstraction for media generation. It re
               type: 'string',
               example: 'Video generation task has been added to the queue.',
             },
+            taskId: {
+              type: 'string',
+              description:
+                'Queue task identifier. The same taskId is included in the websocket completion event (`videoGenerated`) and in `mediaGenerationError`.',
+              example: '3f2b6d1c-8a4e-4c1d-9f6b-2f1a7e5c9d10',
+            },
           },
         },
       },
@@ -823,6 +853,12 @@ This endpoint is the new provider-facing abstraction for media generation. It re
             message: {
               type: 'string',
               example: 'Meme generation task has been added to the queue.',
+            },
+            taskId: {
+              type: 'string',
+              description:
+                'Queue task identifier. The same taskId is included in the websocket completion event (`memeGenerated`), in `memeGenerationProgress` (as jobId) and in `mediaGenerationError`.',
+              example: '3f2b6d1c-8a4e-4c1d-9f6b-2f1a7e5c9d10',
             },
           },
         },

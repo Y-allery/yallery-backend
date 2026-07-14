@@ -135,7 +135,7 @@ export class MediaGenerationController {
     @Body() dto: GeneratePromptImageDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    await this.mediaGenerationEnqueueService.enqueuePromptImageGeneration(
+    const job = await this.mediaGenerationEnqueueService.enqueuePromptImageGeneration(
       {
         aiService: dto.ai_service,
         prompt: dto.prompt,
@@ -150,6 +150,7 @@ export class MediaGenerationController {
 
     return {
       message: 'Image generation task has been added to the queue.',
+      taskId: String(job.id),
     };
   }
 
@@ -171,7 +172,7 @@ export class MediaGenerationController {
     @Body() dto: GenerateEditImageDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    await this.mediaGenerationEnqueueService.enqueueImageEditGeneration(
+    const job = await this.mediaGenerationEnqueueService.enqueueImageEditGeneration(
       {
         aiService: dto.ai_service,
         prompt: dto.prompt,
@@ -185,6 +186,7 @@ export class MediaGenerationController {
 
     return {
       message: 'Image editing task has been added to the queue.',
+      taskId: String(job.id),
     };
   }
 
@@ -202,7 +204,7 @@ export class MediaGenerationController {
     @Body() dto: GenerateAudioDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    await this.mediaGenerationEnqueueService.enqueueAudioGeneration(
+    const job = await this.mediaGenerationEnqueueService.enqueueAudioGeneration(
       {
         aiService: dto.ai_service,
         prompt: dto.prompt,
@@ -214,6 +216,7 @@ export class MediaGenerationController {
 
     return {
       message: 'Audio generation task has been added to the queue.',
+      taskId: String(job.id),
     };
   }
 
@@ -249,7 +252,7 @@ export class MediaGenerationController {
       throw new BadRequestException(error.message);
     }
 
-    await this.mediaGenerationEnqueueService.enqueueTextVideoGeneration(
+    const job = await this.mediaGenerationEnqueueService.enqueueTextVideoGeneration(
       {
         aiService: dto.ai_service,
         prompt: dto.prompt,
@@ -262,6 +265,7 @@ export class MediaGenerationController {
 
     return {
       message: 'Video generation task has been added to the queue.',
+      taskId: String(job.id),
     };
   }
 
@@ -297,7 +301,7 @@ export class MediaGenerationController {
       throw new BadRequestException(error.message);
     }
 
-    await this.mediaGenerationEnqueueService.enqueueImageVideoGeneration(
+    const job = await this.mediaGenerationEnqueueService.enqueueImageVideoGeneration(
       {
         aiService: dto.ai_service,
         prompt: dto.prompt,
@@ -311,6 +315,7 @@ export class MediaGenerationController {
 
     return {
       message: 'Video generation task has been added to the queue.',
+      taskId: String(job.id),
     };
   }
 
@@ -328,7 +333,7 @@ export class MediaGenerationController {
     @Body() dto: GenerateMemeDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    await this.mediaGenerationEnqueueService.enqueueMemeGeneration(
+    const job = await this.mediaGenerationEnqueueService.enqueueMemeGeneration(
       {
         aiService: dto.ai_service,
         memeId: dto.meme_id,
@@ -342,6 +347,7 @@ export class MediaGenerationController {
 
     return {
       message: 'Meme generation task has been added to the queue.',
+      taskId: String(job.id),
     };
   }
 

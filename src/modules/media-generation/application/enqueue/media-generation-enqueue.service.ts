@@ -78,6 +78,7 @@ export class MediaGenerationEnqueueService {
         userId,
       );
 
+    const taskId = randomUUID();
     const chargeKey = randomUUID();
     await this.mediaGenerationBalanceService.reserve({
       userId,
@@ -109,7 +110,7 @@ export class MediaGenerationEnqueueService {
           aiService: queuedRequest.aiService,
           chargeId: chargeKey,
         },
-        this.defaultJobOptions,
+        { ...this.defaultJobOptions, jobId: taskId },
       );
       await this.contestFlowService.attachQueueJob(submissionId, job.id);
       await this.mediaGenerationBalanceService.attachJob(chargeKey, job.id);
@@ -145,6 +146,7 @@ export class MediaGenerationEnqueueService {
         userId,
       );
 
+    const taskId = randomUUID();
     const chargeKey = randomUUID();
     await this.mediaGenerationBalanceService.reserve({
       userId,
@@ -176,7 +178,7 @@ export class MediaGenerationEnqueueService {
           aiService: queuedRequest.aiService,
           chargeId: chargeKey,
         },
-        this.defaultJobOptions,
+        { ...this.defaultJobOptions, jobId: taskId },
       );
       await this.contestFlowService.attachQueueJob(submissionId, job.id);
       await this.mediaGenerationBalanceService.attachJob(chargeKey, job.id);
@@ -198,6 +200,7 @@ export class MediaGenerationEnqueueService {
         userId,
       );
 
+    const taskId = randomUUID();
     const chargeKey = randomUUID();
     await this.mediaGenerationBalanceService.reserve({
       userId,
@@ -229,7 +232,7 @@ export class MediaGenerationEnqueueService {
           aiService: queuedRequest.aiService,
           chargeId: chargeKey,
         },
-        this.defaultJobOptions,
+        { ...this.defaultJobOptions, jobId: taskId },
       );
       await this.contestFlowService.attachQueueJob(submissionId, job.id);
       await this.mediaGenerationBalanceService.attachJob(chargeKey, job.id);
@@ -251,6 +254,7 @@ export class MediaGenerationEnqueueService {
         userId,
       );
 
+    const taskId = randomUUID();
     const chargeKey = randomUUID();
     await this.mediaGenerationBalanceService.reserve({
       userId,
@@ -282,7 +286,7 @@ export class MediaGenerationEnqueueService {
           aiService: queuedRequest.aiService,
           chargeId: chargeKey,
         },
-        this.defaultJobOptions,
+        { ...this.defaultJobOptions, jobId: taskId },
       );
       await this.contestFlowService.attachQueueJob(submissionId, job.id);
       await this.mediaGenerationBalanceService.attachJob(chargeKey, job.id);
@@ -304,6 +308,7 @@ export class MediaGenerationEnqueueService {
         userId,
       );
 
+    const taskId = randomUUID();
     const chargeKey = randomUUID();
     await this.mediaGenerationBalanceService.reserve({
       userId,
@@ -335,7 +340,7 @@ export class MediaGenerationEnqueueService {
           aiService: queuedRequest.aiService,
           chargeId: chargeKey,
         },
-        this.defaultJobOptions,
+        { ...this.defaultJobOptions, jobId: taskId },
       );
       await this.contestFlowService.attachQueueJob(submissionId, job.id);
       await this.mediaGenerationBalanceService.attachJob(chargeKey, job.id);
@@ -365,6 +370,7 @@ export class MediaGenerationEnqueueService {
         userId,
       );
 
+    const taskId = randomUUID();
     const chargeKey = randomUUID();
     await this.mediaGenerationBalanceService.reserve({
       userId,
@@ -382,7 +388,7 @@ export class MediaGenerationEnqueueService {
           aiService: enrichedRequest.aiService,
           chargeId: chargeKey,
         },
-        this.defaultJobOptions,
+        { ...this.defaultJobOptions, jobId: taskId },
       );
       await this.mediaGenerationBalanceService.attachJob(chargeKey, job.id);
       return job;

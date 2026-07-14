@@ -101,6 +101,7 @@ export abstract class BaseMediaProcessor extends WorkerHost {
           type: this.mediaGenerationErrorType,
           message,
           jobId: job.id?.toString(),
+          taskId: job.id?.toString(),
           aiService,
         },
       );

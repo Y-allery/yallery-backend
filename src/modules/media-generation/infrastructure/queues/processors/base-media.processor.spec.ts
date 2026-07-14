@@ -56,6 +56,7 @@ describe('BaseMediaProcessor', () => {
         type: 'image_edit',
         message: 'Generation failed: RunPod failed',
         jobId: 'job-123',
+        taskId: 'job-123',
         aiService: 'qwen_image_edit_baked',
       },
     );

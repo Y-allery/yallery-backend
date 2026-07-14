@@ -61,6 +61,7 @@ export class MediaMemeProcessor extends BaseMediaProcessor {
     await this.notificationGateway.sendMemeGenerated(
       userId.toString(),
       MemeNotificationPresenter.generated(meme),
+      String(job.id),
     );
 
     return { data: result.data };

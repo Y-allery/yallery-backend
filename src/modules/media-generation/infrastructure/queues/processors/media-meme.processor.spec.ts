@@ -37,6 +37,7 @@ describe('MediaMemeProcessor', () => {
         type: 'meme',
         message: 'Generation failed: worker crashed',
         jobId: 'meme-job-1',
+        taskId: 'meme-job-1',
         aiService: 'wan22_animate_native',
       },
     );

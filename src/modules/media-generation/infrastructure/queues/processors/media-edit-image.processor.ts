@@ -65,6 +65,7 @@ export class MediaEditImageProcessor extends BaseMediaProcessor {
     await this.notificationGateway.sendImageEditNotification(
       userId.toString(),
       ImageNotificationPresenter.editedImages(data),
+      String(job.id),
     );
   }
 }

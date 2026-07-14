@@ -63,6 +63,8 @@ export class MediaAudioProcessor extends BaseMediaProcessor {
     await this.notificationGateway.sendAudioNotification(
       userId.toString(),
       AudioNotificationPresenter.generated(audio),
+      undefined,
+      String(job.id),
     );
   }
 

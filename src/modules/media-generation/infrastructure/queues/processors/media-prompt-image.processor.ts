@@ -65,6 +65,9 @@ export class MediaPromptImageProcessor extends BaseMediaProcessor {
     await this.notificationGateway.sendImageArrayNotification(
       userId.toString(),
       ImageNotificationPresenter.promptImages(data),
+      undefined,
+      undefined,
+      String(job.id),
     );
   }
 }

@@ -44,6 +44,7 @@ export class NotificationGateway {
     images: any,
     activity_type?: string,
     isEdit?: boolean,
+    taskId?: string,
   ) {
     if (this.isUserConnected(to_user_id)) {
       if (Array.isArray(images)) {
@@ -55,6 +56,9 @@ export class NotificationGateway {
         }
         if (typeof isEdit === 'boolean') {
           payload.isEdit = isEdit;
+        }
+        if (taskId) {
+          payload.taskId = taskId;
         }
         this.server.to(to_user_id).emit('imageGenerated', payload);
       } else if (images?.data && Array.isArray(images.data)) {
@@ -72,6 +76,9 @@ export class NotificationGateway {
         }
         if (typeof isEdit === 'boolean') {
           payload.isEdit = isEdit;
+        }
+        if (taskId) {
+          payload.taskId = taskId;
         }
         this.server.to(to_user_id).emit('imageGenerated', payload);
       } else {
@@ -99,6 +106,7 @@ export class NotificationGateway {
   async sendImageEditNotification(
     to_user_id: string,
     images: any,
+    taskId?: string,
   ) {
     if (this.isUserConnected(to_user_id)) {
       if (!images?.data || !Array.isArray(images.data) || images.data.length === 0) {
@@ -106,11 +114,15 @@ export class NotificationGateway {
         return;
       }
 
-      this.server.to(to_user_id).emit('imageEdited', {
+      const payload: Record<string, unknown> = {
         images: {
           data: images.data,
         },
-      });
+      };
+      if (taskId) {
+        payload.taskId = taskId;
+      }
+      this.server.to(to_user_id).emit('imageEdited', payload);
       return;
     }
 
@@ -142,6 +154,7 @@ export class NotificationGateway {
       publishTo?: { postToTwitter: boolean; postToInstagram: boolean };
     },
     activity_type?: string,
+    taskId?: string,
   ) {
     const generationParams =
       video.generationParams ?? video.generation_params ?? null;
@@ -167,6 +180,9 @@ export class NotificationGateway {
       if (activity_type) {
         payload.activity_type = activity_type;
       }
+      if (taskId) {
+        payload.taskId = taskId;
+      }
       this.server.to(to_user_id).emit('videoGenerated', payload);
     } else {
       await this.postRepository.update(
@@ -188,6 +204,7 @@ export class NotificationGateway {
       publishTo?: { postToTwitter: boolean; postToInstagram: boolean };
     },
     activity_type?: string,
+    taskId?: string,
   ) {
     const generationParams =
       video.generationParams ?? video.generation_params ?? null;
@@ -213,6 +230,9 @@ export class NotificationGateway {
       if (activity_type) {
         payload.activity_type = activity_type;
       }
+      if (taskId) {
+        payload.taskId = taskId;
+      }
       this.server.to(to_user_id).emit('audioGenerated', payload);
     } else {
       await this.postRepository.update(
@@ -228,6 +248,7 @@ export class NotificationGateway {
       type: MediaGenerationErrorType;
       message: string;
       jobId?: string;
+      taskId?: string;
       aiService?: string;
     },
   ) {
@@ -252,11 +273,16 @@ export class NotificationGateway {
       generationParams: Record<string, unknown>;
       publishTo?: { postToTwitter: boolean; postToInstagram: boolean };
     },
+    taskId?: string,
   ) {
     if (this.isUserConnected(toUserId)) {
-      this.server.to(toUserId).emit('memeGenerated', {
+      const event: Record<string, unknown> = {
         memes: { data: [payload] },
-      });
+      };
+      if (taskId) {
+        event.taskId = taskId;
+      }
+      this.server.to(toUserId).emit('memeGenerated', event);
       return;
     }
 

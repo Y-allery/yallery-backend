@@ -110,9 +110,12 @@ Nest is [MIT licensed](LICENSE).
 
 ```json
 {
-  "message": "Image editing task has been added to the queue."
+  "message": "Image editing task has been added to the queue.",
+  "taskId": "3f2b6d1c-8a4e-4c1d-9f6b-2f1a7e5c9d10"
 }
 ```
+
+`taskId` повертається кожним генераційним ендпоінтом (`/media-generation/image/prompt`, `/media-generation/image/edit`, `/media-generation/audio/generate`, `/media-generation/video/text`, `/media-generation/video/image`, `/media-generation/meme/generate`) одразу після постановки задачі в чергу. Той самий `taskId` приходить у websocket-подіях завершення (`imageGenerated`, `imageEdited`, `videoGenerated`, `audioGenerated`, `memeGenerated` — поле верхнього рівня `taskId`) та в події помилки `mediaGenerationError` (поля `taskId` і `jobId`), тож фронт може зіставити відповідь HTTP з результатом генерації.
 
 #### Features
 
