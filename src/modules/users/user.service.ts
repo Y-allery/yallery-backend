@@ -545,6 +545,11 @@ export class UserService {
     };
   }
 
+  async updateLanguage(userId: number, language: string) {
+    await this.userModel.update({ id: userId }, { language });
+    return { success: true, language };
+  }
+
   async updateNickname(userId: number, nickname: string) {
     const user = await this.findById(userId);
     if (!user) {

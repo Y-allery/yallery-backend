@@ -1,3 +1,4 @@
+import { TranslationsModule } from 'src/modules/translations/translations.module';
 import { BullModule } from '@nestjs/bullmq';
 import { Module, forwardRef } from '@nestjs/common';
 import { ContestService } from './contest.service';
@@ -30,6 +31,7 @@ import { TwitterApiIoModule } from 'src/integrations/twitter-api-io/twitter-api-
 
 @Module({
   imports: [
+    TranslationsModule,
     BullModule.registerQueue({ name: CONTEST_START_NOTIFICATIONS_QUEUE }),
     TypeOrmModule.forFeature([
       ContestEntity,

@@ -8,6 +8,7 @@ import { GetAllRewardsResponseDto } from './dto/get-all-rewards.dto';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt.auth.guard';
 import { RoleGuard } from 'src/modules/auth/guards/role.guard';
 import { Roles } from 'src/modules/auth/decorators/role.decorator';
+import { ContentTranslationQueue } from 'src/modules/translations/content-translation.queue';
 import { RoleEnum } from 'src/modules/users/types/role.enum';
 import { AuthenticatedRequest } from 'src/modules/auth/types/auth.user.interface';
 
@@ -24,7 +25,10 @@ const CLAIMABLE_REWARD_TYPES: RewardTypeEnum[] = [
 @ApiTags('Rewards')
 @UseGuards(JwtAuthGuard, RoleGuard)
 export class RewardController {
-  constructor(private readonly rewardService: RewardService) {}
+  constructor(
+    private readonly rewardService: RewardService,
+    private readonly contentTranslationQueue: ContentTranslationQueue,
+  ) {}
 
   @Get('available')
   @ApiOperation({ 
@@ -93,6 +97,10 @@ export class RewardController {
     @Param('rewardType') rewardType: RewardTypeEnum,
     @Body() updateDto: UpdateRewardDto,
   ) {
-    return this.rewardService.updateReward(rewardType, updateDto);
+    const reward = await this.rewardService.updateReward(rewardType, updateDto);
+    if (reward?.id) {
+      await this.contentTranslationQueue.enqueue('reward', reward.id);
+    }
+    return reward;
   }
 }

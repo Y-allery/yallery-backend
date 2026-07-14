@@ -91,6 +91,10 @@ export class UserEntity extends TimeStampEntity {
   @Column({ nullable: true, unique: false })
   twitterUsername: string;
 
+  /** Preferred app locale (easy_localization code); used for localized pushes. */
+  @Column({ type: 'varchar', length: 8, nullable: true })
+  language: string | null;
+
   @OneToMany(() => ViewedPostEntity, (viewedPost) => viewedPost.user, {
     onDelete: 'CASCADE',
   })

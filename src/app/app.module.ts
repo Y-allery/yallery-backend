@@ -29,6 +29,7 @@ import { UserActivityModule } from 'src/modules/engagement/user-activity/user-ac
 import { MediaGenerationModule } from 'src/modules/media-generation/media-generation.module';
 import { MediaProxyModule } from 'src/modules/media-proxy/media-proxy.module';
 import { ProviderSettingsModule } from 'src/modules/provider-settings/provider-settings.module';
+import { TranslationsModule } from 'src/modules/translations/translations.module';
 
 @Module({
   imports: [
@@ -87,6 +88,7 @@ import { ProviderSettingsModule } from 'src/modules/provider-settings/provider-s
     ProviderSettingsModule,
     MediaGenerationModule,
     MediaProxyModule,
+    TranslationsModule,
   ],
   providers: [
     {

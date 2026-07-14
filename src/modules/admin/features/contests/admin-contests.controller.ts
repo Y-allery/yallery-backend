@@ -20,6 +20,7 @@ import { RoleEnum } from 'src/modules/users/types/role.enum';
 import { CreateContestDto } from 'src/modules/admin/dto/create-contest.dto';
 import { ForceStartContestDto } from 'src/modules/admin/dto/force-start-contest.dto';
 import { SetContestWinnerDto } from 'src/modules/admin/dto/set.contest.winner.dto';
+import { ContentTranslationQueue } from 'src/modules/translations/content-translation.queue';
 import { AdminContestsService } from './admin-contests.service';
 
 @Controller('admin')
@@ -27,11 +28,18 @@ import { AdminContestsService } from './admin-contests.service';
 @UseGuards(JwtAuthGuard, RoleGuard)
 @Roles(RoleEnum.ADMIN)
 export class AdminContestsController {
-  constructor(private readonly adminContestsService: AdminContestsService) {}
+  constructor(
+    private readonly adminContestsService: AdminContestsService,
+    private readonly contentTranslationQueue: ContentTranslationQueue,
+  ) {}
 
   @Post('create-contest')
   async createContest(@Body() dto: CreateContestDto) {
-    return this.adminContestsService.createAdminContest(dto);
+    const contest = await this.adminContestsService.createAdminContest(dto);
+    if (contest?.contestId) {
+      await this.contentTranslationQueue.enqueue('contest', contest.contestId);
+    }
+    return contest;
   }
 
   @Get('contests')
@@ -60,7 +68,12 @@ export class AdminContestsController {
     @Param('id', ParseIntPipe) id: number,
     @Body() updateContestDto: UpdateContestDto,
   ) {
-    return this.adminContestsService.updateContest(id, updateContestDto);
+    const contest = await this.adminContestsService.updateContest(
+      id,
+      updateContestDto,
+    );
+    await this.contentTranslationQueue.enqueue('contest', id);
+    return contest;
   }
 
   @Delete('contests/:id')

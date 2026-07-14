@@ -18,6 +18,7 @@ import { UpdateStyleDto } from 'src/modules/posts/dto/update.style.dto';
 import { CreateTagDto } from 'src/modules/catalog/tags/dto/create.tag.dto';
 import { UpdateTagDto } from 'src/modules/catalog/tags/dto/update.tag.dto';
 import { RoleEnum } from 'src/modules/users/types/role.enum';
+import { ContentTranslationQueue } from 'src/modules/translations/content-translation.queue';
 import { AdminCatalogService } from './admin-catalog.service';
 
 @Controller('admin')
@@ -25,7 +26,10 @@ import { AdminCatalogService } from './admin-catalog.service';
 @UseGuards(JwtAuthGuard, RoleGuard)
 @Roles(RoleEnum.ADMIN)
 export class AdminCatalogController {
-  constructor(private readonly adminCatalogService: AdminCatalogService) {}
+  constructor(
+    private readonly adminCatalogService: AdminCatalogService,
+    private readonly contentTranslationQueue: ContentTranslationQueue,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Retrieve all tags' })
@@ -37,7 +41,9 @@ export class AdminCatalogController {
   @Post('tags')
   @ApiOperation({ summary: 'Create tag' })
   async createTag(@Body() createTagDto: CreateTagDto) {
-    return this.adminCatalogService.createTag(createTagDto);
+    const tag = await this.adminCatalogService.createTag(createTagDto);
+    if (tag?.id) await this.contentTranslationQueue.enqueue('tag', tag.id);
+    return tag;
   }
 
   @Put('tags/:id')
@@ -46,7 +52,9 @@ export class AdminCatalogController {
     @Param('id', ParseIntPipe) id: number,
     @Body() updateTagDto: UpdateTagDto,
   ) {
-    return this.adminCatalogService.updateTag(id, updateTagDto);
+    const tag = await this.adminCatalogService.updateTag(id, updateTagDto);
+    await this.contentTranslationQueue.enqueue('tag', id);
+    return tag;
   }
 
   @Delete('tags/:id')
@@ -60,7 +68,9 @@ export class AdminCatalogController {
   @ApiResponse({ status: 201, description: 'Style created successfully.' })
   @ApiResponse({ status: 400, description: 'Bad Request.' })
   async createStyle(@Body() createStyleDto: CreateStyleDto) {
-    return this.adminCatalogService.createStyle(createStyleDto);
+    const style = await this.adminCatalogService.createStyle(createStyleDto);
+    if (style?.id) await this.contentTranslationQueue.enqueue('style', style.id);
+    return style;
   }
 
   @Get('styles')
@@ -86,7 +96,9 @@ export class AdminCatalogController {
     @Param('id', ParseIntPipe) id: number,
     @Body() updateStyleDto: UpdateStyleDto,
   ) {
-    return this.adminCatalogService.updateStyle(id, updateStyleDto);
+    const style = await this.adminCatalogService.updateStyle(id, updateStyleDto);
+    await this.contentTranslationQueue.enqueue('style', id);
+    return style;
   }
 
   @Delete('styles/:id')

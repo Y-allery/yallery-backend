@@ -118,8 +118,13 @@ export class MediaTagResolverService {
       .map((tag) => `ID: ${tag.id}, Name: ${tag.name}`)
       .join('\n');
 
+    const model =
+      (await this.providerRuntimeConfigService.getString(
+        'OPENAI_TAGGING_MODEL',
+      )) || 'gpt-4o-mini';
+
     const response = await openai.chat.completions.create({
-      model: 'gpt-4',
+      model,
       temperature: 0,
       max_tokens: 100,
       messages: [

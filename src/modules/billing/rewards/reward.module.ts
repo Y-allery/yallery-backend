@@ -1,3 +1,4 @@
+import { TranslationsModule } from 'src/modules/translations/translations.module';
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { RewardEntity } from './entities/reward.entity';
@@ -9,6 +10,7 @@ import { NotificationModule } from 'src/modules/notifications/notification.modul
 
 @Module({
   imports: [
+    TranslationsModule,
     TypeOrmModule.forFeature([RewardEntity, UserRewardEntity]),
     forwardRef(() => UserModule),
     NotificationModule,

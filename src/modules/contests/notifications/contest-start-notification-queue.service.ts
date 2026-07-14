@@ -8,6 +8,12 @@ import { UserActivityEntity } from 'src/modules/engagement/user-activity/entitie
 import { UserActivityService } from 'src/modules/engagement/user-activity/services/user-activity.service';
 import { USER_ACTIVITY_TYPES } from 'src/modules/engagement/user-activity/types/user-activity.constants';
 import { NotificationGateway } from 'src/modules/notifications/notification.gateway';
+import { ContentTranslationService } from 'src/modules/translations/content-translation.service';
+import {
+  SupportedLocale,
+  isSupportedLocale,
+} from 'src/modules/translations/translation.catalog';
+import { CONTEST_START_PUSH_TEMPLATES } from './contest-start-push.templates';
 import { DeviceTokenEntity } from 'src/modules/users/entities/device-token.entity';
 import { UserEntity } from 'src/modules/users/entities/user.entity';
 import { ContestEntity } from '../entity/contest.entity';
@@ -35,7 +41,30 @@ export class ContestStartNotificationQueueService {
     private readonly userActivityService: UserActivityService,
     private readonly firebaseService: FirebaseService,
     private readonly notificationGateway: NotificationGateway,
+    private readonly contentTranslationService: ContentTranslationService,
   ) {}
+
+  /** Push copy in the user's language with the translated contest name. */
+  private async buildLocalizedPush(
+    contestId: number,
+    contestName: string,
+    userLanguage: string | null | undefined,
+  ): Promise<{ title: string; body: string }> {
+    const locale: SupportedLocale =
+      userLanguage && isSupportedLocale(userLanguage) ? userLanguage : 'en';
+    const template = CONTEST_START_PUSH_TEMPLATES[locale];
+    const { name } = await this.contentTranslationService.resolve(
+      'contest',
+      contestId,
+      locale,
+      { id: contestId, name: contestName },
+      ['name'],
+    );
+    return {
+      title: template.title,
+      body: template.body.replace('{name}', name),
+    };
+  }
 
   async enqueueContestStarted(contest: ContestEntity) {
     const title = 'Join the contest!';
@@ -124,7 +153,12 @@ export class ContestStartNotificationQueueService {
         const results = await Promise.all(
           batch.map(async (user) => {
             try {
-              await this.sendPushNotifications(user, data.title, data.body);
+              const push = await this.buildLocalizedPush(
+                data.contestId,
+                data.contestName,
+                user.language,
+              );
+              await this.sendPushNotifications(user, push.title, push.body);
               await this.notificationGateway.emitProfileUpdate(user.id.toString());
               return true;
             } catch (error) {

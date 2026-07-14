@@ -16,7 +16,13 @@ import {
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt.auth.guard';
-import { ApiBody, ApiOperation, ApiResponse, ApiTags, ApiParam } from '@nestjs/swagger';
+import {
+  ApiBody,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+  ApiParam,
+} from '@nestjs/swagger';
 import { USER_SWAGGER } from 'src/shared/swagger';
 import { UpdateUserDto } from './dto/update.user.details.dto';
 import { AuthenticatedRequest } from 'src/modules/auth/types/auth.user.interface';
@@ -33,6 +39,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UseReferralCodeDto } from './dto/use-refferal-code.dto';
 import { UpdateTwitterUsernameDto } from './dto/update.twitter.user.name.dto';
+import { UpdateLanguageDto } from './dto/update-language.dto';
 import { LogReferralActivityDto } from './dto/log-referral-activity.dto';
 
 @Controller('user')
@@ -251,6 +258,16 @@ export class UserController {
     return updatedUser;
   }
 
+  @Put('update-language')
+  @ApiOperation({ summary: "Update the user's preferred app language" })
+  @ApiBody({ type: UpdateLanguageDto })
+  async updateLanguage(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: UpdateLanguageDto,
+  ) {
+    return this.userService.updateLanguage(req.user.id, body.language);
+  }
+
   @Put('update-twitter-username')
   @ApiOperation(USER_SWAGGER.updateTwitterUsername)
   @ApiBody({ type: UpdateTwitterUsernameDto })
@@ -281,7 +298,4 @@ export class UserController {
   async handleCron() {
     await this.userService.handleDailyReward();
   }
-
-
-
 }

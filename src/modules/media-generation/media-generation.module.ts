@@ -1,3 +1,4 @@
+import { TranslationsModule } from 'src/modules/translations/translations.module';
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -62,6 +63,7 @@ const mediaGenerationQueueOptions = {
 
 @Module({
   imports: [
+    TranslationsModule,
     BullModule.registerQueue({
       name: MEDIA_AUDIO_GENERATION_QUEUE,
       ...mediaGenerationQueueOptions,

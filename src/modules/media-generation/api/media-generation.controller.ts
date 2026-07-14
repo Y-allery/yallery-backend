@@ -22,6 +22,12 @@ import {
   resolveVideoOrientation,
 } from 'src/modules/media-generation/domain/presets';
 import { MediaAISettingsService } from 'src/modules/media-generation/application/ai-settings/media-ai-settings.service';
+import { ContentTranslationService } from 'src/modules/translations/content-translation.service';
+import { RequestLocale } from 'src/modules/translations/request-locale.decorator';
+import {
+  SupportedLocale,
+  TRANSLATABLE_FIELDS,
+} from 'src/modules/translations/translation.catalog';
 import { MediaGenerationEnqueueService } from 'src/modules/media-generation/application/enqueue/media-generation-enqueue.service';
 
 @ApiTags('Media Generation')
@@ -31,7 +37,23 @@ export class MediaGenerationController {
   constructor(
     private readonly mediaAISettingsService: MediaAISettingsService,
     private readonly mediaGenerationEnqueueService: MediaGenerationEnqueueService,
+    private readonly contentTranslationService: ContentTranslationService,
   ) {}
+
+  /** Localizes style names inside an ai-settings response, when present. */
+  private async localizeStyles<T extends { styles?: { id: number }[] }>(
+    response: T,
+    locale: SupportedLocale | null,
+  ): Promise<T> {
+    if (!locale || !response?.styles?.length) return response;
+    const styles = await this.contentTranslationService.resolveMany(
+      'style',
+      locale,
+      response.styles,
+      TRANSLATABLE_FIELDS.style,
+    );
+    return { ...response, styles };
+  }
 
   @Get('image/prompt/ai-settings')
   @ApiOperation(MEDIA_GENERATION_SWAGGER.getPromptImageAISettings)
@@ -41,8 +63,12 @@ export class MediaGenerationController {
   @ApiResponse(
     MEDIA_GENERATION_SWAGGER.getPromptImageAISettings.responses.unauthorized,
   )
-  getPromptImageAISettings() {
-    return this.mediaAISettingsService.getPromptImageAISettings();
+  async getPromptImageAISettings(
+    @RequestLocale() locale: SupportedLocale | null,
+  ) {
+    const response =
+      await this.mediaAISettingsService.getPromptImageAISettings();
+    return this.localizeStyles(response, locale);
   }
 
   @Get('image/finetune/ai-settings')
@@ -54,8 +80,12 @@ export class MediaGenerationController {
     MEDIA_GENERATION_SWAGGER.getFineTunePromptImageAISettings.responses
       .unauthorized,
   )
-  getFineTunePromptImageAISettings() {
-    return this.mediaAISettingsService.getFineTunePromptImageAISettings();
+  async getFineTunePromptImageAISettings(
+    @RequestLocale() locale: SupportedLocale | null,
+  ) {
+    const response =
+      await this.mediaAISettingsService.getFineTunePromptImageAISettings();
+    return this.localizeStyles(response, locale);
   }
 
   @Get('image/edit/ai-settings')
@@ -66,8 +96,11 @@ export class MediaGenerationController {
   @ApiResponse(
     MEDIA_GENERATION_SWAGGER.getEditImageAISettings.responses.unauthorized,
   )
-  getEditImageAISettings() {
-    return this.mediaAISettingsService.getEditImageAISettings();
+  async getEditImageAISettings(
+    @RequestLocale() locale: SupportedLocale | null,
+  ) {
+    const response = await this.mediaAISettingsService.getEditImageAISettings();
+    return this.localizeStyles(response, locale);
   }
 
   @Get('audio/ai-settings')

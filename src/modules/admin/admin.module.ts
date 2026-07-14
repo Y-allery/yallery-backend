@@ -1,3 +1,4 @@
+import { TranslationsModule } from 'src/modules/translations/translations.module';
 import { Module } from '@nestjs/common';
 import { AdminAISettingsController } from './features/ai-settings/admin-ai-settings.controller';
 import { AdminAISettingsService } from './features/ai-settings/admin-ai-settings.service';
@@ -54,6 +55,7 @@ import { TwitterApiIoModule } from 'src/integrations/twitter-api-io/twitter-api-
 
 @Module({
   imports: [
+    TranslationsModule,
     TypeOrmModule.forFeature([
       PartnershipEntity,
       PartnershipActivityEntity,

@@ -1,3 +1,4 @@
+import { TranslationsModule } from 'src/modules/translations/translations.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { MemeEntity } from 'src/modules/memes/entities/meme.entity';
@@ -8,6 +9,7 @@ import { MediaAISettingsEntity } from 'src/modules/media-generation/persistence/
 
 @Module({
   imports: [
+    TranslationsModule,
     TypeOrmModule.forFeature([MemeEntity, PostEntity, MediaAISettingsEntity]),
   ],
   controllers: [MemeController],

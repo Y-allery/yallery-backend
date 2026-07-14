@@ -16,6 +16,7 @@ import { RoleGuard } from 'src/modules/auth/guards/role.guard';
 import { CreateMemeDto } from 'src/modules/memes/dto/create-meme.dto';
 import { UpdateMemeDto } from 'src/modules/memes/dto/update-meme.dto';
 import { MemeService } from 'src/modules/memes/meme.service';
+import { ContentTranslationQueue } from 'src/modules/translations/content-translation.queue';
 import { RoleEnum } from 'src/modules/users/types/role.enum';
 
 @Controller('admin')
@@ -23,7 +24,10 @@ import { RoleEnum } from 'src/modules/users/types/role.enum';
 @UseGuards(JwtAuthGuard, RoleGuard)
 @Roles(RoleEnum.ADMIN)
 export class AdminMemesController {
-  constructor(private readonly memeService: MemeService) {}
+  constructor(
+    private readonly memeService: MemeService,
+    private readonly contentTranslationQueue: ContentTranslationQueue,
+  ) {}
 
   @Get('memes')
   @ApiOperation({ summary: 'List all meme templates' })
@@ -36,7 +40,9 @@ export class AdminMemesController {
   @ApiOperation({ summary: 'Create meme template' })
   @ApiResponse({ status: 201, description: 'Meme created' })
   async createMeme(@Body() dto: CreateMemeDto) {
-    return this.memeService.create(dto);
+    const meme = await this.memeService.create(dto);
+    if (meme?.id) await this.contentTranslationQueue.enqueue('meme', meme.id);
+    return meme;
   }
 
   @Put('memes/:id')
@@ -46,7 +52,9 @@ export class AdminMemesController {
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateMemeDto,
   ) {
-    return this.memeService.update(id, dto);
+    const meme = await this.memeService.update(id, dto);
+    await this.contentTranslationQueue.enqueue('meme', id);
+    return meme;
   }
 
   @Delete('memes/:id')

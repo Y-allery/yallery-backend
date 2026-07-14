@@ -1,3 +1,4 @@
+import { TranslationsModule } from 'src/modules/translations/translations.module';
 import { Module } from '@nestjs/common';
 import { TagService } from './tag.service';
 import { TagController } from './tag.controller';
@@ -7,7 +8,8 @@ import { PostEntity } from 'src/modules/posts/entities/post.entity';
 import { UserEntity } from 'src/modules/users/entities/user.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([TagEntity, PostEntity, UserEntity])],
+  imports: [
+    TranslationsModule,TypeOrmModule.forFeature([TagEntity, PostEntity, UserEntity])],
   providers: [TagService],
   controllers: [TagController],
   exports: [TagService],
