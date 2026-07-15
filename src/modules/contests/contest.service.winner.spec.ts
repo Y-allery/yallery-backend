@@ -74,6 +74,7 @@ describe('ContestService.setContestWinner (legacy double-payout)', () => {
       {} as any, // 12 rewardService
       contestFlowService as any, // 13 contestFlowService
       {} as any, // 14 twitterApiIoService
+      {} as any, // 15 contestStartNotificationQueueService
     );
 
     return { service, increment, contestRepository };

@@ -182,7 +182,11 @@ export class ContestFlowService {
     submissionId: number | null | undefined,
     generationJobId: string | number | undefined,
   ) {
-    if (!submissionId || generationJobId === undefined || generationJobId === null) {
+    if (
+      !submissionId ||
+      generationJobId === undefined ||
+      generationJobId === null
+    ) {
       return;
     }
 
@@ -238,7 +242,8 @@ export class ContestFlowService {
         submission.postId = post.id;
         submission.completedAt = completedAt;
         submission.status = ContestSubmissionStatus.PUBLISHED;
-        submission.eligibilityStatus = ContestSubmissionEligibilityStatus.ELIGIBLE;
+        submission.eligibilityStatus =
+          ContestSubmissionEligibilityStatus.ELIGIBLE;
         await this.submissionRepository.save(submission);
       } else {
         const extraSubmission = this.submissionRepository.create({
@@ -282,6 +287,18 @@ export class ContestFlowService {
 
     const now = new Date();
 
+    // Scheduled and not yet started: surface the explicit public status so the
+    // app can render "starts soon" instead of a generic CLOSED.
+    if (
+      metadata.lifecycleStatus === ContestLifecycleStatus.SCHEDULED &&
+      contest.startTime > now &&
+      contest.status !== ContestStatusEnum.UPCOMING
+    ) {
+      contest.status = ContestStatusEnum.UPCOMING;
+      await this.contestRepository.save(contest);
+      return { handled: true };
+    }
+
     if (
       contest.startTime <= now &&
       contest.endTime >= now &&
@@ -305,7 +322,10 @@ export class ContestFlowService {
         await this.contestRepository.save(contest);
       }
 
-      if (!metadata.reviewSnapshotAt && (await this.canCreateReviewSnapshot(contest))) {
+      if (
+        !metadata.reviewSnapshotAt &&
+        (await this.canCreateReviewSnapshot(contest))
+      ) {
         await this.createReviewSnapshot(contest.id);
       }
     }
@@ -374,7 +394,8 @@ export class ContestFlowService {
           contestType: candidate.contest?.contestType,
           contestStatus: candidate.contest?.status,
           lifecycleStatus:
-            metadataByContestId.get(candidate.contestId)?.lifecycleStatus ?? null,
+            metadataByContestId.get(candidate.contestId)?.lifecycleStatus ??
+            null,
           reviewStatus:
             metadataByContestId.get(candidate.contestId)?.reviewStatus ?? null,
           tag: candidate.contest?.tag
@@ -387,9 +408,9 @@ export class ContestFlowService {
         });
       }
 
-      grouped.get(candidate.contestId).candidates.push(
-        this.serializeCandidate(candidate),
-      );
+      grouped
+        .get(candidate.contestId)
+        .candidates.push(this.serializeCandidate(candidate));
     }
 
     return Array.from(grouped.values()).sort((a, b) => {
@@ -421,8 +442,13 @@ export class ContestFlowService {
         throw new NotFoundException('Candidate not found');
       }
 
-      if (candidate.eligibilityStatus !== ContestSubmissionEligibilityStatus.ELIGIBLE) {
-        throw new BadRequestException('Ineligible candidate cannot be approved');
+      if (
+        candidate.eligibilityStatus !==
+        ContestSubmissionEligibilityStatus.ELIGIBLE
+      ) {
+        throw new BadRequestException(
+          'Ineligible candidate cannot be approved',
+        );
       }
 
       const existingReward = await rewardRepo.findOne({ where: { contestId } });
@@ -500,7 +526,11 @@ export class ContestFlowService {
       return { candidate, contest, alreadyPaid: false };
     });
 
-    if (!result.alreadyPaid && result.candidate.userId && result.candidate.postId) {
+    if (
+      !result.alreadyPaid &&
+      result.candidate.userId &&
+      result.candidate.postId
+    ) {
       await this.userActivityService.logContestWon({
         userId: result.candidate.userId,
         contestId: result.contest.id,
@@ -561,7 +591,11 @@ export class ContestFlowService {
 
     const nextCandidate = await this.selectNextEligibleCandidate(contestId);
     if (!nextCandidate) {
-      await this.markNoWinner(contestId, adminUserId, 'No eligible candidates left.');
+      await this.markNoWinner(
+        contestId,
+        adminUserId,
+        'No eligible candidates left.',
+      );
     }
 
     return {
@@ -569,7 +603,9 @@ export class ContestFlowService {
       message: nextCandidate
         ? 'Candidate rejected. Next candidate selected.'
         : 'Candidate rejected. No eligible candidates left.',
-      nextCandidate: nextCandidate ? this.serializeCandidate(nextCandidate) : null,
+      nextCandidate: nextCandidate
+        ? this.serializeCandidate(nextCandidate)
+        : null,
     };
   }
 
@@ -587,7 +623,10 @@ export class ContestFlowService {
       throw new NotFoundException('Candidate not found');
     }
 
-    if (candidate.eligibilityStatus !== ContestSubmissionEligibilityStatus.ELIGIBLE) {
+    if (
+      candidate.eligibilityStatus !==
+      ContestSubmissionEligibilityStatus.ELIGIBLE
+    ) {
       throw new BadRequestException('Ineligible candidate cannot be selected');
     }
 
@@ -773,7 +812,9 @@ export class ContestFlowService {
       return;
     }
 
-    if (!contest.participants?.some((participant) => participant.id === userId)) {
+    if (
+      !contest.participants?.some((participant) => participant.id === userId)
+    ) {
       contest.participants = [
         ...(contest.participants ?? []),
         { id: userId } as UserEntity,
@@ -787,14 +828,17 @@ export class ContestFlowService {
     );
   }
 
-  private async canCreateReviewSnapshot(contest: ContestEntity): Promise<boolean> {
+  private async canCreateReviewSnapshot(
+    contest: ContestEntity,
+  ): Promise<boolean> {
     const now = new Date();
     const settleMinutes = Number(
       this.configService.get<string>('CONTEST_REVIEW_SETTLE_MINUTES') ?? 30,
     );
     const pendingTimeoutMinutes = Number(
-      this.configService.get<string>('CONTEST_PENDING_SUBMISSION_TIMEOUT_MINUTES') ??
-        120,
+      this.configService.get<string>(
+        'CONTEST_PENDING_SUBMISSION_TIMEOUT_MINUTES',
+      ) ?? 120,
     );
 
     const settleAt = new Date(
@@ -890,7 +934,9 @@ export class ContestFlowService {
     for (const submission of submissions) {
       const post = submission.post;
       const user = post?.user ?? submission.user;
-      const tweet = post ? this.findTweetForPost(tweets, contest, post.id) : null;
+      const tweet = post
+        ? this.findTweetForPost(tweets, contest, post.id)
+        : null;
       let eligibilityStatus = ContestSubmissionEligibilityStatus.ELIGIBLE;
       let score = 0;
       let scoreBreakdown: Record<string, unknown> = {};
@@ -905,7 +951,8 @@ export class ContestFlowService {
         eligibilityStatus =
           ContestSubmissionEligibilityStatus.INELIGIBLE_REJECTED;
       } else if (!post.tweetLink) {
-        eligibilityStatus = ContestSubmissionEligibilityStatus.INELIGIBLE_NO_TWEET;
+        eligibilityStatus =
+          ContestSubmissionEligibilityStatus.INELIGIBLE_NO_TWEET;
       } else if (!tweet) {
         eligibilityStatus =
           ContestSubmissionEligibilityStatus.INELIGIBLE_TWEET_NOT_MATCHED;
@@ -964,7 +1011,8 @@ export class ContestFlowService {
       candidate.rank = index + 1;
       if (
         !selected &&
-        candidate.eligibilityStatus === ContestSubmissionEligibilityStatus.ELIGIBLE
+        candidate.eligibilityStatus ===
+          ContestSubmissionEligibilityStatus.ELIGIBLE
       ) {
         candidate.reviewStatus = ContestWinnerCandidateReviewStatus.SELECTED;
         selected = candidate;
@@ -1025,7 +1073,10 @@ export class ContestFlowService {
 
     nextCandidate.reviewStatus = ContestWinnerCandidateReviewStatus.SELECTED;
     await this.candidateRepository.save(nextCandidate);
-    await this.projectSelectedCandidateToLegacyContest(contestId, nextCandidate);
+    await this.projectSelectedCandidateToLegacyContest(
+      contestId,
+      nextCandidate,
+    );
     return nextCandidate;
   }
 
@@ -1034,7 +1085,9 @@ export class ContestFlowService {
     candidate: ContestWinnerCandidateEntity,
   ) {
     await this.contestRepository.update(contestId, {
-      winner: candidate.userId ? ({ id: candidate.userId } as UserEntity) : null,
+      winner: candidate.userId
+        ? ({ id: candidate.userId } as UserEntity)
+        : null,
       postWinner: candidate.postId
         ? ({ id: candidate.postId } as PostEntity)
         : null,
@@ -1117,7 +1170,10 @@ export class ContestFlowService {
     const tagText = `#${contest.tag?.name ?? ''}`.toLowerCase();
     return tweets.find((tweet) => {
       const text = String(tweet.full_text ?? '').toLowerCase();
-      return text.includes(tagText) && this.extractPostIdFromTweetText(text) === String(postId);
+      return (
+        text.includes(tagText) &&
+        this.extractPostIdFromTweetText(text) === String(postId)
+      );
     });
   }
 

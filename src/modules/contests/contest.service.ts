@@ -27,6 +27,7 @@ import { UserActivityService } from 'src/modules/engagement/user-activity/servic
 import { UserNotificationTypeEnum } from 'src/modules/notifications/types/user-notification-type.enum';
 import { AIFinetuneEntity } from 'src/modules/admin/entities/ai-finetune.entity';
 import { ContestFlowService } from './contest-flow.service';
+import { ContestStartNotificationQueueService } from './notifications/contest-start-notification-queue.service';
 import {
   ContestLifecycleStatus,
   ContestReviewStatus,
@@ -58,9 +59,14 @@ export class ContestService {
     private readonly rewardService: RewardService,
     private readonly contestFlowService: ContestFlowService,
     private readonly twitterApiIoService: TwitterApiIoService,
+    private readonly contestStartNotificationQueueService: ContestStartNotificationQueueService,
   ) {}
 
-  async getAllContests(userId: number, type?: ContestTypeEnum, status?: ContestStatusEnum) {
+  async getAllContests(
+    userId: number,
+    type?: ContestTypeEnum,
+    status?: ContestStatusEnum,
+  ) {
     const whereCondition: any = {};
 
     if (type) {
@@ -84,9 +90,14 @@ export class ContestService {
     if (contestIds.length > 0) {
       const participantResults = await this.contestRepository
         .createQueryBuilder('contest')
-        .innerJoin('contest.participants', 'participant', 'participant.id = :userId', {
-          userId,
-        })
+        .innerJoin(
+          'contest.participants',
+          'participant',
+          'participant.id = :userId',
+          {
+            userId,
+          },
+        )
         .where('contest.id IN (:...contestIds)', { contestIds })
         .select('contest.id', 'id')
         .getRawMany();
@@ -412,7 +423,11 @@ export class ContestService {
   }
 
   private normalizeGenerationParams(params: any): any {
-    if (!params || typeof params !== 'object' || Object.keys(params).length === 0) {
+    if (
+      !params ||
+      typeof params !== 'object' ||
+      Object.keys(params).length === 0
+    ) {
       return {
         prompt: 'Unknown',
         ai_service: 'flux',
@@ -442,7 +457,7 @@ export class ContestService {
       },
       loadRelationIds: { relations: ['posts'], disableMixedMap: true },
     });
-    
+
     if (!contests.length) {
       return;
     }
@@ -455,9 +470,9 @@ export class ContestService {
           await this.contestFlowService.advanceContestLifecycle(contest);
         if (v2Result.handled) {
           if (v2Result.opened) {
-            const title = 'Join the contest!';
-            const body = `The ${contest.name} contest is now live! Join now for a chance to win points!`;
-            await this.sendContestNotificationsToAllUsers(contest, title, body);
+            await this.contestStartNotificationQueueService.enqueueContestStarted(
+              contest,
+            );
           }
           continue;
         }
@@ -471,62 +486,74 @@ export class ContestService {
           },
         });
 
-      if (contest.status === ContestStatusEnum.CLOSED && contest.isApproved) {
-        continue;
-      }
+        if (contest.status === ContestStatusEnum.CLOSED && contest.isApproved) {
+          continue;
+        }
 
-      if (
-        contest.startTime <= currentDate &&
-        contest.endTime >= currentDate &&
-        contest.status !== ContestStatusEnum.OPEN
-      ) {
-        contest.status = ContestStatusEnum.OPEN;
-        await this.contestRepository.save(contest);
+        if (
+          contest.startTime > currentDate &&
+          !contest.winner &&
+          !contest.isApproved &&
+          contest.status !== ContestStatusEnum.UPCOMING
+        ) {
+          // Scheduled but not started: make "starts soon" explicit instead of
+          // reusing CLOSED (which also means "finished").
+          contest.status = ContestStatusEnum.UPCOMING;
+          updatedContests.push(contest);
+        } else if (
+          contest.startTime <= currentDate &&
+          contest.endTime >= currentDate &&
+          contest.status !== ContestStatusEnum.OPEN
+        ) {
+          contest.status = ContestStatusEnum.OPEN;
+          await this.contestRepository.save(contest);
 
-        const title = 'Join the contest!';
-        const body = `The ${contest.name} contest is now live! Join now for a chance to win points!`;
+          await this.contestStartNotificationQueueService.enqueueContestStarted(
+            contest,
+          );
 
-        await this.sendContestNotificationsToAllUsers(contest, title, body);
-
-        updatedContests.push(contest);
-      } else if (contest.endTime < currentDate && postsCount === 0) {
-        contest.status = ContestStatusEnum.CLOSED;
-        contest.isApproved = true;
-        updatedContests.push(contest);
-      } else if (
-        contest.endTime < currentDate &&
-        !contest.winner &&
-        postsCount > 0 &&
-        contest.status !== ContestStatusEnum.PENDING_REVIEW
-      ) {
-        contest = await this.setAutomaticContestWinner(contest);
-        updatedContests.push(contest);
-      } else if (
-        contest.endTime < currentDate &&
-        contest.winner &&
-        !contest.isApproved &&
-        contest.status !== ContestStatusEnum.PENDING_REVIEW
-      ) {
-        contest.status = ContestStatusEnum.PENDING_REVIEW;
-        updatedContests.push(contest);
-      } else if (
-        contest.endTime < currentDate &&
-        contest.winner &&
-        contest.isApproved &&
-        contest.status !== ContestStatusEnum.CLOSED
-      ) {
-        contest.status = ContestStatusEnum.CLOSED;
-        updatedContests.push(contest);
-      }
+          updatedContests.push(contest);
+        } else if (contest.endTime < currentDate && postsCount === 0) {
+          contest.status = ContestStatusEnum.CLOSED;
+          contest.isApproved = true;
+          updatedContests.push(contest);
+        } else if (
+          contest.endTime < currentDate &&
+          !contest.winner &&
+          postsCount > 0 &&
+          contest.status !== ContestStatusEnum.PENDING_REVIEW
+        ) {
+          contest = await this.setAutomaticContestWinner(contest);
+          updatedContests.push(contest);
+        } else if (
+          contest.endTime < currentDate &&
+          contest.winner &&
+          !contest.isApproved &&
+          contest.status !== ContestStatusEnum.PENDING_REVIEW
+        ) {
+          contest.status = ContestStatusEnum.PENDING_REVIEW;
+          updatedContests.push(contest);
+        } else if (
+          contest.endTime < currentDate &&
+          contest.winner &&
+          contest.isApproved &&
+          contest.status !== ContestStatusEnum.CLOSED
+        ) {
+          contest.status = ContestStatusEnum.CLOSED;
+          updatedContests.push(contest);
+        }
       } catch (error) {
-        console.error(`❌ Error processing contest ${contest.id}:`, error.message);
+        console.error(
+          `❌ Error processing contest ${contest.id}:`,
+          error.message,
+        );
         continue;
       }
     }
 
     if (updatedContests.length > 0) {
       await this.contestRepository.save(updatedContests);
-      
+
       const participantUserIds = new Set<number>();
       updatedContests.forEach((contest) => {
         if (contest.participants) {
@@ -535,120 +562,18 @@ export class ContestService {
           });
         }
       });
-      
+
       participantUserIds.forEach((userId) => {
         this.notificationGateway.emitProfileUpdate(userId.toString());
       });
     }
   }
 
-  private async sendContestNotificationsToAllUsers(
-    contest: ContestEntity,
-    title: string,
-    body: string,
-  ): Promise<void> {
-    const USER_BATCH_SIZE = 100;
-    let offset = 0;
-    let totalProcessed = 0;
-    let totalSuccess = 0;
-    let totalErrors = 0;
-
-    while (true) {
-      const users = await this.userRepository.find({
-        where: { isDeleted: false, emailVerified: true },
-        relations: { deviceTokens: true },
-        take: USER_BATCH_SIZE,
-        skip: offset,
-      });
-
-      if (users.length === 0) {
-        break;
-      }
-
-      const batchUserIds = users.map(user => user.id);
-
-      try {
-          await this.userActivityService.logContestOpened({
-            userIds: batchUserIds,
-            contestId: contest.id,
-            contestName: contest.name,
-            contestType: contest.contestType,
-            previewUrl: contest.imageUrl ?? null,
-          });
-      } catch (activityError) {
-        console.error(`❌ Failed to create activities for batch (offset ${offset}):`, activityError.message);
-      }
-
-      const NOTIFICATION_BATCH_SIZE = 10;
-      for (let i = 0; i < users.length; i += NOTIFICATION_BATCH_SIZE) {
-        const batch = users.slice(i, i + NOTIFICATION_BATCH_SIZE);
-
-        const batchPromises = batch.map(async (user) => {
-          try {
-          if (user.deviceTokens && user.deviceTokens.length > 0) {
-            const deviceTokenPromises = user.deviceTokens.map(async (deviceToken) => {
-              try {
-                const result = await this.firebaseService.sendNotification(
-                  deviceToken.token,
-                  title,
-                  body,
-                );
-                
-                // Якщо токен невалідний - видаляємо його з бази
-                if (!result.success && result.isInvalidToken) {
-                  console.log(`🗑️ Removing invalid token for user ${user.id} (token: ${deviceToken.token.substring(0, 10)}...)`);
-                  try {
-                    await this.deviceTokenModel.remove(deviceToken);
-                  } catch (removeError) {
-                    console.error(`❌ Failed to remove invalid token:`, removeError.message);
-                  }
-                  return { success: false, removed: true };
-                }
-                
-                return { success: result.success };
-              } catch (deviceError) {
-                console.error(`❌ Push notification failed for user ${user.id}:`, deviceError.message);
-                return { success: false };
-              }
-            });
-            
-              await Promise.all(deviceTokenPromises);
-          }
-          
-          await this.notificationGateway.emitProfileUpdate(user.id.toString());
-          
-            totalSuccess++;
-            return { success: true, userId: user.id };
-        } catch (userError) {
-          console.error(`❌ Error processing user ${user.id}:`, userError.message);
-            totalErrors++;
-            return { success: false, userId: user.id, error: userError.message };
-        }
-      });
-
-        await Promise.all(batchPromises);
-        totalProcessed += batch.length;
-        
-        if (i + NOTIFICATION_BATCH_SIZE < users.length) {
-          await new Promise(resolve => setTimeout(resolve, 50));
-        }
-      }
-
-      offset += USER_BATCH_SIZE;
-      
-      if (users.length < USER_BATCH_SIZE) {
-        break;
-      }
-    }
-
-    console.log(`📢 Contest "${contest.name}" notifications: ${totalSuccess} success, ${totalErrors} errors, ${totalProcessed} processed`);
-  }
-
   async setAutomaticContestWinner(contest: ContestEntity) {
     // Starting automatic winner selection for contest "${contest.name}" (ID: ${contest.id})
     if (contest.contestType === ContestTypeEnum.FINE_TUNE) {
       // Contest type: FINE_TUNE, Tag: ${contest.tag.name}
-      
+
       if (contest.tag.name) {
         try {
           const query = `from:y_allery #${contest.tag.name}`;
@@ -726,7 +651,10 @@ export class ContestService {
           const savedContest = await this.contestRepository.save(contest);
           return savedContest;
         } catch (error) {
-          console.error(`   ❌ Error in automatic winner selection:`, error.message);
+          console.error(
+            `   ❌ Error in automatic winner selection:`,
+            error.message,
+          );
           console.error(
             'TwitterAPI.io error:',
             error.response?.data || error.message,
@@ -755,7 +683,7 @@ export class ContestService {
     }
 
     // Contest type: DEFAULT - selecting winner by likes
-    
+
     const eligiblePosts = await this.postRepository
       .createQueryBuilder('post')
       .select('post.id')
@@ -857,7 +785,8 @@ export class ContestService {
       tag,
       mediaAiSetting,
       promptExample: data.examplePrompt,
-      status: data.status ?? ContestStatusEnum.CLOSED,
+      // Status is time-driven; a new contest always starts in the future.
+      status: ContestStatusEnum.UPCOMING,
       contestType,
       fineTuneToken:
         contestType === ContestTypeEnum.FINE_TUNE ? fineTuneToken : null,
@@ -980,8 +909,8 @@ export class ContestService {
     mediaAiService: string | null,
   ): ContestTypeEnum {
     return fineTuneToken || mediaAiService === 'sdxl_lora_generation'
-        ? ContestTypeEnum.FINE_TUNE
-        : ContestTypeEnum.DEFAULT;
+      ? ContestTypeEnum.FINE_TUNE
+      : ContestTypeEnum.DEFAULT;
   }
 
   private normalizeCreateContestType(
@@ -998,10 +927,7 @@ export class ContestService {
       return ContestTypeEnum.FINE_TUNE;
     }
 
-    if (
-      contestType === 'standard' ||
-      contestType === ContestTypeEnum.DEFAULT
-    ) {
+    if (contestType === 'standard' || contestType === ContestTypeEnum.DEFAULT) {
       return ContestTypeEnum.DEFAULT;
     }
 
@@ -1029,7 +955,9 @@ export class ContestService {
   ): Promise<AIFinetuneEntity> {
     const loraKey = fineTuneToken?.trim();
     if (!loraKey) {
-      throw new BadRequestException('Fine-tune contests require fineTuneToken.');
+      throw new BadRequestException(
+        'Fine-tune contests require fineTuneToken.',
+      );
     }
 
     const fineTune = await this.aiFinetuneRepository.findOne({
@@ -1045,12 +973,12 @@ export class ContestService {
     return fineTune;
   }
 
-
-
   async setContestWinner({ post_id, contest_id }: SetContestWinnerDto) {
     if (await this.contestFlowService.isV2Contest(contest_id)) {
       const candidates = await this.contestFlowService.getReviewQueue();
-      const contestReview = candidates.find((item) => item.contestId === contest_id);
+      const contestReview = candidates.find(
+        (item) => item.contestId === contest_id,
+      );
       const candidate = contestReview?.candidates.find(
         (item) => item.post?.id === post_id,
       );
@@ -1203,14 +1131,19 @@ export class ContestService {
     );
   }
 
-  async findContestById(id: number): Promise<ContestEntity & Record<string, any>> {
+  async findContestById(
+    id: number,
+  ): Promise<ContestEntity & Record<string, any>> {
     const contest = await this.contestRepository.findOne({
       where: { id },
       relations: ['tag', 'winner', 'participants', 'mediaAiSetting'],
     });
     if (!contest)
       throw new NotFoundException(`Contest with ID ${id} not found`);
-    return Object.assign(contest, await this.contestFlowService.getContestSummary(id));
+    return Object.assign(
+      contest,
+      await this.contestFlowService.getContestSummary(id),
+    );
   }
 
   async getContestById(id: number, userId: number) {
@@ -1262,7 +1195,7 @@ export class ContestService {
     }
 
     const contests = await query.getRawMany();
-    
+
     if (contests.length > 0) {
       // Raw contest data debug removed
     }
@@ -1280,7 +1213,9 @@ export class ContestService {
         tag: {
           name: contest.tagName ? `#${contest.tagName}` : null,
         },
-        ...(await this.contestFlowService.getContestSummary(contest.contest_id)),
+        ...(await this.contestFlowService.getContestSummary(
+          contest.contest_id,
+        )),
       })),
     );
   }
@@ -1358,7 +1293,9 @@ export class ContestService {
     ) {
       const mediaAiSetting = await this.resolveContestMediaAiSettingForAdmin({
         mediaAiSettingId:
-          updateContestDto.media_ai_setting_id ?? contest.mediaAiSetting?.id ?? null,
+          updateContestDto.media_ai_setting_id ??
+          contest.mediaAiSetting?.id ??
+          null,
         fineTuneToken: contest.fineTuneToken ?? null,
       });
 
@@ -1386,7 +1323,9 @@ export class ContestService {
   async rejectContestWinner({ post_id, contest_id }: SetContestWinnerDto) {
     if (await this.contestFlowService.isV2Contest(contest_id)) {
       const candidates = await this.contestFlowService.getReviewQueue();
-      const contestReview = candidates.find((item) => item.contestId === contest_id);
+      const contestReview = candidates.find(
+        (item) => item.contestId === contest_id,
+      );
       const candidate = contestReview?.candidates.find(
         (item) => item.post?.id === post_id,
       );
