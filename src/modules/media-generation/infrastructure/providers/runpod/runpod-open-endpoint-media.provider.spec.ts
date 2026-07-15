@@ -61,7 +61,7 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
     jest.clearAllMocks();
   });
 
-  it('uploads RunPod base64 MP4 output through Cloudinary', async () => {
+  it('uploads RunPod base64 MP4 output through the upload service', async () => {
     const { provider, uploadService } = createProvider();
 
     mockedAxios.post.mockResolvedValueOnce({
@@ -143,7 +143,7 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
     expect(result.hasAudio).toBe(true);
   });
 
-  it('uses video preset dimensions when Cloudinary metadata is missing for text video', async () => {
+  it('uses video preset dimensions when upload metadata is missing for text video', async () => {
     const { provider, uploadService } = createProvider();
     (uploadService.uploadVideoAssetByUrl as jest.Mock).mockResolvedValueOnce({
       videoUrl: 'https://cdn.test/generated.mp4',

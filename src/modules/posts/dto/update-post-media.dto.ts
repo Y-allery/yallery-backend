@@ -4,7 +4,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 export class UpdatePostMediaDto {
   @ApiPropertyOptional({
     description: 'New image URL for the post (for image posts)',
-    example: 'https://res.cloudinary.com/xxx/image/upload/v1/photo.jpg',
+    example: 'https://yallery-api-prod.org/media/image/upload/octoai_images/photo.jpg',
   })
   @IsOptional()
   @IsString()
@@ -13,7 +13,7 @@ export class UpdatePostMediaDto {
 
   @ApiPropertyOptional({
     description: 'New video URL for the post (for video posts)',
-    example: 'https://res.cloudinary.com/xxx/video/upload/v1/video.mp4',
+    example: 'https://yallery-api-prod.org/media/video/upload/octoai_videos/video.mp4',
   })
   @IsOptional()
   @IsString()
@@ -22,7 +22,7 @@ export class UpdatePostMediaDto {
 
   @ApiPropertyOptional({
     description: 'Preview image URL for video posts (thumbnail)',
-    example: 'https://res.cloudinary.com/xxx/image/upload/v1/preview.jpg',
+    example: 'https://yallery-api-prod.org/media/image/upload/octoai_images/preview.jpg',
   })
   @IsOptional()
   @IsString()
