@@ -255,7 +255,7 @@ export class ContestService {
         {
           id: null,
           imageUrl:
-            'https://res.cloudinary.com/dsypundib/image/upload/v1740997871/negr_rzp2mc.jpg',
+            'https://yallery-api-prod.org/media/image/upload/legacy_dsypundib/image/b198db03-57e5-4543-a056-9ab3970b383a.png',
           videoUrl: null,
           previewImageUrl: null,
           createdAt: null,
@@ -273,7 +273,7 @@ export class ContestService {
         {
           id: null,
           imageUrl:
-            'https://res.cloudinary.com/dsypundib/image/upload/v1740997871/ne_negr_d2srly.jpg',
+            'https://yallery-api-prod.org/media/image/upload/legacy_dsypundib/image/f90e08b9-edc7-42a3-9b80-8e73f590fc7c.png',
           videoUrl: null,
           previewImageUrl: null,
           createdAt: null,
@@ -291,7 +291,7 @@ export class ContestService {
         {
           id: null,
           imageUrl:
-            'https://res.cloudinary.com/dsypundib/image/upload/v1740997871/girl_xak05c.jpg',
+            'https://yallery-api-prod.org/media/image/upload/legacy_dsypundib/image/a3170033-3cf8-4af9-a5f7-b6c6c175dd95.png',
           videoUrl: null,
           previewImageUrl: null,
           createdAt: null,

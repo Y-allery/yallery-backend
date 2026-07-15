@@ -118,7 +118,7 @@ export class RunpodMediaClient {
   }
 
   /**
-   * Download a remote asset (e.g. a Cloudinary image URL) as raw bytes. Callers normalise and
+   * Download a remote asset (e.g. a media proxy image URL) as raw bytes. Callers normalise and
    * encode it (e.g. EXIF-orient + base64) before inlining as an `image_b64` worker input.
    */
   async fetchBinary(url: string): Promise<Buffer> {

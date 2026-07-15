@@ -5,7 +5,7 @@ export class GenerateAudioDto {
   @IsUrl()
   @ApiProperty({
     description: 'Public video URL used as the source for audio generation.',
-    example: 'https://res.cloudinary.com/example/video/upload/v123/source.mp4',
+    example: 'https://yallery-api-prod.org/media/video/upload/octoai_videos/source.mp4',
   })
   video_url: string;
 

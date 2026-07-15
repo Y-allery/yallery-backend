@@ -77,7 +77,7 @@ This endpoint is intentionally separate from the legacy \`image-generation/ai-se
                   imageUrl: {
                     type: 'string',
                     nullable: true,
-                    example: 'https://res.cloudinary.com/example/style.png',
+                    example: 'https://yallery-api-prod.org/media/image/upload/octoai_images/style.png',
                   },
                 },
               },
@@ -170,7 +170,7 @@ This endpoint intentionally exposes only the active \`sdxl_lora_generation\` mod
                   imageUrl: {
                     type: 'string',
                     nullable: true,
-                    example: 'https://res.cloudinary.com/example/style.png',
+                    example: 'https://yallery-api-prod.org/media/image/upload/octoai_images/style.png',
                   },
                 },
               },
@@ -246,7 +246,7 @@ This endpoint is separate from the legacy edit flow and reads from the new \`med
                   imageUrl: {
                     type: 'string',
                     nullable: true,
-                    example: 'https://res.cloudinary.com/example/style.png',
+                    example: 'https://yallery-api-prod.org/media/image/upload/octoai_images/style.png',
                   },
                 },
               },

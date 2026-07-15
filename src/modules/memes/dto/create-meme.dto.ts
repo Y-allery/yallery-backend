@@ -23,7 +23,7 @@ export class CreateMemeDto {
   @MaxLength(1024)
   @ApiPropertyOptional({
     description: 'Reference video URL for motion (Kling model)',
-    example: 'https://res.cloudinary.com/xxx/video/upload/v1/ref.mp4',
+    example: 'https://yallery-api-prod.org/media/video/upload/octoai_videos/ref.mp4',
   })
   referenceVideoUrl?: string;
 
@@ -42,7 +42,7 @@ export class CreateMemeDto {
   @MaxLength(1024)
   @ApiPropertyOptional({
     description: 'Reference GIF/image URL (preview for meme)',
-    example: 'https://res.cloudinary.com/xxx/image/upload/v1/ref.gif',
+    example: 'https://yallery-api-prod.org/media/image/upload/octoai_images/ref.gif',
   })
   referenceImageUrl?: string;
 

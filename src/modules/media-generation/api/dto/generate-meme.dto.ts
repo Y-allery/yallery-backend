@@ -21,7 +21,7 @@ export class GenerateMemeDto {
   @ApiProperty({
     description: 'Source image URL that will be animated with the meme template motion.',
     example:
-      'https://res.cloudinary.com/example/image/upload/v1/user-photo.png',
+      'https://yallery-api-prod.org/media/image/upload/octoai_images/user-photo.png',
   })
   image_url: string;
 

@@ -39,7 +39,6 @@ const mysql = require(path.join(ROOT, 'node_modules/mysql2/promise'));
 const axiosLib = require(path.join(ROOT, 'node_modules/axios'));
 const axios = axiosLib.default || axiosLib;
 
-const CLOUD_NAME = env.CLOUDINARY_CLOUD_NAME;
 const PROXY_BASE = (env.MEDIA_PROXY_PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const CDN_BASE = (
   env.SPACES_CDN_BASE_URL ||
@@ -104,41 +103,6 @@ function rewriteUrls(value) {
         ? proxyUrl(resourceTypeFor(bucketPath), bucketPath)
         : match,
     );
-  }
-
-  if (CLOUD_NAME) {
-    const cloudinaryPattern = new RegExp(
-      `https?://res\\.cloudinary\\.com/${escapeRegExp(CLOUD_NAME)}/(image|video)/upload/` +
-        `([^"'\\s\\\\?]+)`,
-      'g',
-    );
-    result = result.replace(cloudinaryPattern, (_m, resourceType, rest) => {
-      // Walk leading segments: drop named/raw transforms and version markers,
-      // keep so_* poster markers, stop at the first public-id path segment.
-      const segments = rest.split('/');
-      const kept = [];
-      let index = 0;
-      while (index < segments.length - 1) {
-        const segment = segments[index];
-        if (POSTER_SEGMENT.test(`${segment}/`)) {
-          kept.push(segment);
-          index++;
-        } else if (
-          segment.startsWith('t_') ||
-          segment.includes(',') ||
-          /^v\d+$/.test(segment)
-        ) {
-          index++;
-        } else {
-          break;
-        }
-      }
-      const bucketPath = [...kept, ...segments.slice(index)].join('/');
-      if (!isProxyableMedia(bucketPath)) {
-        return `${CDN_BASE}/${bucketPath}`;
-      }
-      return proxyUrl(resourceType, bucketPath);
-    });
   }
 
   return result;
@@ -359,7 +323,7 @@ if (require.main === module) {
       process.exit(1);
     }
     console.log(
-      `MODE: ${MODE} (cdn=${CDN_BASE}, proxy=${PROXY_BASE}, cloud=${CLOUD_NAME || '-'})`,
+      `MODE: ${MODE} (cdn=${CDN_BASE}, proxy=${PROXY_BASE})`,
     );
     await rewriteDb(MODE === 'dry-run');
     if (MODE === 'dry-run') console.log('\nDry-run only. Use --rewrite-db to apply.');

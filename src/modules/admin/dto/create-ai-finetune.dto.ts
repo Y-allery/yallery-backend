@@ -14,11 +14,11 @@ import {
 import { Type } from 'class-transformer';
 
 export class AIFinetuneDatasetImageDto {
-  @ApiProperty({ description: 'Cloudinary image URL' })
+  @ApiProperty({ description: 'Dataset image URL' })
   @IsUrl({ require_tld: false })
   url: string;
 
-  @ApiPropertyOptional({ description: 'Cloudinary public id' })
+  @ApiPropertyOptional({ description: 'Storage public id' })
   @IsOptional()
   @IsString()
   publicId?: string;

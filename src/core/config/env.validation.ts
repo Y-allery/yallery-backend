@@ -67,21 +67,7 @@ export class EnvironmentVariables {
   @IsString()
   TWITTER_ACCOUNT_NAME?: string;
 
-  // Cloudinary
-  @IsString()
-  CLOUDINARY_CLOUD_NAME: string;
-
-  @IsString()
-  CLOUDINARY_API_KEY: string;
-
-  @IsString()
-  CLOUDINARY_API_SECRET: string;
-
-  // Generated-media storage (DO Spaces). Driver defaults to cloudinary when unset.
-  @IsOptional()
-  @IsString()
-  MEDIA_STORAGE_DRIVER?: string;
-
+  // Generated-media storage (DO Spaces).
   @IsOptional()
   @IsString()
   SPACES_REGION?: string;
