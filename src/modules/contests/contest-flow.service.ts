@@ -485,8 +485,13 @@ export class ContestFlowService {
       contest.isApproved = true;
       await contestRepo.save(contest);
 
-      user.points += Number(contest.reward ?? 0);
-      await userRepo.save(user);
+      // Atomic increment — a full-entity save() would overwrite points a
+      // concurrent spend/credit changed since the findOne above.
+      await userRepo.increment(
+        { id: user.id },
+        'points',
+        Number(contest.reward ?? 0),
+      );
 
       const reward =
         existingReward ??

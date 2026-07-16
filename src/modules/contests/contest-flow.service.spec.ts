@@ -5,6 +5,7 @@ import { ContestReviewActionEntity } from './entity/contest-review-action.entity
 import { ContestRewardEntity } from './entity/contest-reward.entity';
 import { ContestWinnerCandidateEntity } from './entity/contest-winner-candidate.entity';
 import {
+  ContestRewardStatus,
   ContestSubmissionEligibilityStatus,
   ContestWinnerCandidateReviewStatus,
 } from './types/contest-flow.enums';
@@ -115,6 +116,7 @@ describe('ContestFlowService review status updates', () => {
     const userRepository = {
       findOne: jest.fn(async () => ({ id: 6, points: 0 })),
       save: jest.fn(async (value) => value),
+      increment: jest.fn(),
     };
     const manager = {
       getRepository: jest.fn((entity) => {
@@ -147,5 +149,74 @@ describe('ContestFlowService review status updates', () => {
     expect(candidate.reviewStatus).toBe(
       ContestWinnerCandidateReviewStatus.APPROVED,
     );
+    // Payout must be an atomic increment, never a full-entity save that
+    // could overwrite concurrent points changes with stale values.
+    expect(userRepository.increment).toHaveBeenCalledWith(
+      { id: 6 },
+      'points',
+      1,
+    );
+    expect(userRepository.save).not.toHaveBeenCalled();
+    expect(rewardRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        points: 1,
+        status: ContestRewardStatus.PAID,
+        userId: 6,
+      }),
+    );
+  });
+
+  it('approveCandidate does not pay again when the reward is already paid', async () => {
+    const candidate = {
+      id: 12,
+      contestId: 8,
+      postId: 101,
+      userId: 6,
+      eligibilityStatus: ContestSubmissionEligibilityStatus.ELIGIBLE,
+      reviewStatus: ContestWinnerCandidateReviewStatus.SELECTED,
+      post: { id: 101, user: { id: 6 } },
+      user: { id: 6 },
+      contest: { id: 8, name: 'Contest', reward: 1, imageUrl: null },
+    };
+    const candidateRepository = {
+      findOne: jest.fn(async () => candidate),
+      update: jest.fn(),
+      save: jest.fn(async (value) => value),
+    };
+    const rewardRepository = {
+      findOne: jest.fn(async () => ({
+        id: 3,
+        contestId: 8,
+        status: ContestRewardStatus.PAID,
+      })),
+      create: jest.fn((value) => value),
+      save: jest.fn(async (value) => value),
+    };
+    const userRepository = {
+      findOne: jest.fn(async () => ({ id: 6, points: 0 })),
+      save: jest.fn(async (value) => value),
+      increment: jest.fn(),
+    };
+    const manager = {
+      getRepository: jest.fn((entity) => {
+        const map = new Map<any, any>([
+          [ContestWinnerCandidateEntity, candidateRepository],
+          [ContestRewardEntity, rewardRepository],
+        ]);
+
+        return map.get(entity) ?? userRepository;
+      }),
+    };
+    const dataSource = {
+      transaction: jest.fn(async (callback) => callback(manager)),
+    };
+    const { service } = createService({ dataSource });
+
+    const result = await service.approveCandidate(8, 12, 125);
+
+    expect(result.message).toBe('Winner was already approved.');
+    expect(userRepository.increment).not.toHaveBeenCalled();
+    expect(userRepository.save).not.toHaveBeenCalled();
+    expect(rewardRepository.save).not.toHaveBeenCalled();
   });
 });
