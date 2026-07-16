@@ -24,7 +24,8 @@ export type TranslatableEntityType =
   | 'tag'
   | 'style'
   | 'meme'
-  | 'reward';
+  | 'reward'
+  | 'color';
 
 export const TRANSLATABLE_FIELDS: Record<TranslatableEntityType, string[]> = {
   contest: ['name', 'description', 'promptExample'],
@@ -32,6 +33,7 @@ export const TRANSLATABLE_FIELDS: Record<TranslatableEntityType, string[]> = {
   style: ['name'],
   meme: ['name'],
   reward: ['description'],
+  color: ['name'],
 };
 
 export function isSupportedLocale(value: string): value is SupportedLocale {

@@ -26,6 +26,7 @@ const SOURCES = [
   ['style', 'styles'],
   ['meme', 'memes'],
   ['reward', 'rewards'],
+  ['color', 'colors'],
 ];
 
 (async () => {

@@ -9,6 +9,7 @@ import { TagEntity } from 'src/modules/catalog/tags/entities/tag.entity';
 import { StyleEntity } from 'src/modules/posts/entities/style.entity';
 import { MemeEntity } from 'src/modules/memes/entities/meme.entity';
 import { RewardEntity } from 'src/modules/billing/rewards/entities/reward.entity';
+import { ColorEntity } from 'src/modules/media-generation/persistence/entities/color.entity';
 import { ProviderRuntimeConfigService } from 'src/modules/provider-settings/provider-runtime-config.service';
 import { ContentTranslationService } from './content-translation.service';
 import {
@@ -41,6 +42,8 @@ export class ContentTranslationWorker extends WorkerHost {
     private readonly memeRepository: Repository<MemeEntity>,
     @InjectRepository(RewardEntity)
     private readonly rewardRepository: Repository<RewardEntity>,
+    @InjectRepository(ColorEntity)
+    private readonly colorRepository: Repository<ColorEntity>,
     private readonly providerRuntimeConfigService: ProviderRuntimeConfigService,
     private readonly contentTranslationService: ContentTranslationService,
   ) {
@@ -79,6 +82,7 @@ export class ContentTranslationWorker extends WorkerHost {
       style: this.styleRepository,
       meme: this.memeRepository,
       reward: this.rewardRepository,
+      color: this.colorRepository,
     };
     const entity = await repositories[entityType].findOne({
       where: { id: entityId },

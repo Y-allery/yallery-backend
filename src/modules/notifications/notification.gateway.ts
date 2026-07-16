@@ -63,7 +63,9 @@ export class NotificationGateway {
         this.server.to(to_user_id).emit('imageGenerated', payload);
       } else if (images?.data && Array.isArray(images.data)) {
         if (images.data.length === 0) {
-          console.error(`[NotificationGateway] Empty images.data for user ${to_user_id}`);
+          console.error(
+            `[NotificationGateway] Empty images.data for user ${to_user_id}`,
+          );
           return;
         }
         const payload: Record<string, unknown> = {
@@ -82,17 +84,31 @@ export class NotificationGateway {
         }
         this.server.to(to_user_id).emit('imageGenerated', payload);
       } else {
-        console.error(`[NotificationGateway] Invalid images structure for user ${to_user_id}:`, images);
+        console.error(
+          `[NotificationGateway] Invalid images structure for user ${to_user_id}:`,
+          images,
+        );
         return;
       }
     } else {
-      if (!images?.data || !Array.isArray(images.data) || images.data.length === 0) {
-        console.error(`[NotificationGateway] Invalid images.data structure for offline user ${to_user_id}:`, images);
+      if (
+        !images?.data ||
+        !Array.isArray(images.data) ||
+        images.data.length === 0
+      ) {
+        console.error(
+          `[NotificationGateway] Invalid images.data structure for offline user ${to_user_id}:`,
+          images,
+        );
         return;
       }
-      const postIds = images.data.map((img) => img.id).filter((id) => id != null);
+      const postIds = images.data
+        .map((img) => img.id)
+        .filter((id) => id != null);
       if (postIds.length === 0) {
-        console.error(`[NotificationGateway] No valid post IDs found for offline user ${to_user_id}`);
+        console.error(
+          `[NotificationGateway] No valid post IDs found for offline user ${to_user_id}`,
+        );
         return;
       }
       await this.postRepository.update(
@@ -109,8 +125,15 @@ export class NotificationGateway {
     taskId?: string,
   ) {
     if (this.isUserConnected(to_user_id)) {
-      if (!images?.data || !Array.isArray(images.data) || images.data.length === 0) {
-        console.error(`[NotificationGateway] Invalid image edit payload for user ${to_user_id}:`, images);
+      if (
+        !images?.data ||
+        !Array.isArray(images.data) ||
+        images.data.length === 0
+      ) {
+        console.error(
+          `[NotificationGateway] Invalid image edit payload for user ${to_user_id}:`,
+          images,
+        );
         return;
       }
 
@@ -126,14 +149,23 @@ export class NotificationGateway {
       return;
     }
 
-    if (!images?.data || !Array.isArray(images.data) || images.data.length === 0) {
-      console.error(`[NotificationGateway] Invalid image edit payload for offline user ${to_user_id}:`, images);
+    if (
+      !images?.data ||
+      !Array.isArray(images.data) ||
+      images.data.length === 0
+    ) {
+      console.error(
+        `[NotificationGateway] Invalid image edit payload for offline user ${to_user_id}:`,
+        images,
+      );
       return;
     }
 
     const postIds = images.data.map((img) => img.id).filter((id) => id != null);
     if (postIds.length === 0) {
-      console.error(`[NotificationGateway] No valid image edit post IDs found for offline user ${to_user_id}`);
+      console.error(
+        `[NotificationGateway] No valid image edit post IDs found for offline user ${to_user_id}`,
+      );
       return;
     }
 
@@ -310,7 +342,14 @@ export class NotificationGateway {
       relations: ['contest'],
     });
 
-    const getPublishTo = (contest: { socialPostSettings?: { postToTwitter?: boolean; postToInstagram?: boolean } | null } | null) => {
+    const getPublishTo = (
+      contest: {
+        socialPostSettings?: {
+          postToTwitter?: boolean;
+          postToInstagram?: boolean;
+        } | null;
+      } | null,
+    ) => {
       const s = contest?.socialPostSettings;
       return {
         postToTwitter: s?.postToTwitter ?? false,
@@ -351,9 +390,10 @@ export class NotificationGateway {
           publishTo: getPublishTo(post.contest ?? null),
         }));
 
-      
       const memes = undeliveredPosts
-        .filter((post) => post.videoUrl && post.generationParams?.memeId != null)
+        .filter(
+          (post) => post.videoUrl && post.generationParams?.memeId != null,
+        )
         .map((post) => ({
           id: post.id,
           videoUrl: post.videoUrl,
@@ -363,7 +403,12 @@ export class NotificationGateway {
         }));
 
       const videos = undeliveredPosts
-        .filter((post) => post.videoUrl && !post.hasAudio && post.generationParams?.memeId == null)
+        .filter(
+          (post) =>
+            post.videoUrl &&
+            !post.hasAudio &&
+            post.generationParams?.memeId == null,
+        )
         .map((post) => ({
           id: post.id,
           videoUrl: post.videoUrl,
@@ -373,7 +418,12 @@ export class NotificationGateway {
         }));
 
       const audioVideos = undeliveredPosts
-        .filter((post) => post.videoUrl && post.hasAudio && post.generationParams?.memeId == null)
+        .filter(
+          (post) =>
+            post.videoUrl &&
+            post.hasAudio &&
+            post.generationParams?.memeId == null,
+        )
         .map((post) => ({
           id: post.id,
           videoUrl: post.videoUrl,
@@ -385,15 +435,24 @@ export class NotificationGateway {
       if (images.length > 0 && client.connected) {
         client.emit('undeliveredImages', {
           images: {
-            data: images.map(({ id, imageUrl, videoUrl, previewImageUrl, generationParams, publishTo }) => ({
-              id,
-              imageUrl,
-              videoUrl: videoUrl || null,
-              previewImageUrl: previewImageUrl || null,
-              // Keep payload key as snake_case for client compatibility.
-              generation_params: generationParams || null,
-              publishTo,
-            })),
+            data: images.map(
+              ({
+                id,
+                imageUrl,
+                videoUrl,
+                previewImageUrl,
+                generationParams,
+                publishTo,
+              }) => ({
+                id,
+                imageUrl,
+                videoUrl: videoUrl || null,
+                previewImageUrl: previewImageUrl || null,
+                // Keep payload key as snake_case for client compatibility.
+                generation_params: generationParams || null,
+                publishTo,
+              }),
+            ),
           },
         });
       }
@@ -401,14 +460,23 @@ export class NotificationGateway {
       if (imageEdits.length > 0 && client.connected) {
         client.emit('undeliveredImageEdits', {
           images: {
-            data: imageEdits.map(({ id, imageUrl, videoUrl, previewImageUrl, generationParams, publishTo }) => ({
-              id,
-              imageUrl,
-              videoUrl: videoUrl || null,
-              previewImageUrl: previewImageUrl || null,
-              generation_params: generationParams || null,
-              publishTo,
-            })),
+            data: imageEdits.map(
+              ({
+                id,
+                imageUrl,
+                videoUrl,
+                previewImageUrl,
+                generationParams,
+                publishTo,
+              }) => ({
+                id,
+                imageUrl,
+                videoUrl: videoUrl || null,
+                previewImageUrl: previewImageUrl || null,
+                generation_params: generationParams || null,
+                publishTo,
+              }),
+            ),
           },
         });
       }
@@ -416,13 +484,21 @@ export class NotificationGateway {
       if (videos.length > 0 && client.connected) {
         client.emit('undeliveredVideo', {
           video: {
-            data: videos.map(({ id, videoUrl, previewImageUrl, generationParams, publishTo }) => ({
-              id,
-              videoUrl,
-              previewImageUrl: previewImageUrl || null,
-              generation_params: generationParams || null,
-              publishTo,
-            })),
+            data: videos.map(
+              ({
+                id,
+                videoUrl,
+                previewImageUrl,
+                generationParams,
+                publishTo,
+              }) => ({
+                id,
+                videoUrl,
+                previewImageUrl: previewImageUrl || null,
+                generation_params: generationParams || null,
+                publishTo,
+              }),
+            ),
           },
         });
       }
@@ -431,7 +507,13 @@ export class NotificationGateway {
         client.emit('undeliveredAudio', {
           audio: {
             data: audioVideos.map(
-              ({ id, videoUrl, previewImageUrl, generationParams, publishTo }) => ({
+              ({
+                id,
+                videoUrl,
+                previewImageUrl,
+                generationParams,
+                publishTo,
+              }) => ({
                 id,
                 videoUrl,
                 previewImageUrl: previewImageUrl || null,
@@ -447,7 +529,13 @@ export class NotificationGateway {
         client.emit('undeliveredMeme', {
           memes: {
             data: memes.map(
-              ({ id, videoUrl, previewImageUrl, generationParams, publishTo }) => ({
+              ({
+                id,
+                videoUrl,
+                previewImageUrl,
+                generationParams,
+                publishTo,
+              }) => ({
                 id,
                 videoUrl,
                 previewImageUrl: previewImageUrl || null,
@@ -459,7 +547,6 @@ export class NotificationGateway {
         });
       }
 
-      
       const allUndeliveredIds = undeliveredPosts.map((post) => post.id);
       await this.postRepository.update(
         { id: In(allUndeliveredIds) },

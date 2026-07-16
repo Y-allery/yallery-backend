@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { NotificationPreferenceEntity } from './entity/notification.preferences.entity';
 import { In, Repository } from 'typeorm';
 import { UserNotificationTypeEnum } from './types/user-notification-type.enum';
+import { SupportedLocale } from 'src/modules/translations/translation.catalog';
+import { NOTIFICATION_PREFERENCE_COPY } from './notification-preference-copy';
 
 @Injectable()
 export class NotificationService {
@@ -36,6 +38,7 @@ export class NotificationService {
   async getNotificationPreferences(
     userId: number,
     types: UserNotificationTypeEnum[],
+    locale: SupportedLocale | null = null,
   ) {
     const preferences = await this.notificationPrefMode.find({
       where: {
@@ -44,14 +47,13 @@ export class NotificationService {
       },
     });
 
-    const defaultDescriptions: Record<string, string> = {
-      LIKE_EARN: 'Like earn notification can be disabled.',
-      LIKE_SPEND: 'Like spend notification can be disabled.',
-    };
+    const copy =
+      NOTIFICATION_PREFERENCE_COPY[locale ?? 'en'] ??
+      NOTIFICATION_PREFERENCE_COPY.en;
 
     return types.map((type) => ({
       key: type,
-      description: defaultDescriptions[type],
+      description: copy[type] ?? NOTIFICATION_PREFERENCE_COPY.en[type],
       enabled: preferences.some((p) => p.activityType === type && p.enabled),
     }));
   }

@@ -4,10 +4,9 @@ import { JwtAuthGuard } from 'src/modules/auth/guards/jwt.auth.guard';
 import { ApiBody, ApiOperation, ApiTags, ApiResponse } from '@nestjs/swagger';
 import { NOTIFICATION_SWAGGER } from 'src/shared/swagger';
 import { SetNotificationPreferenceDto } from './dto/change.notification.settings.dto';
-import {
-  UserNotificationTypeEnum,
-  USER_NOTIFICATION_PREFERENCE_TYPES,
-} from './types/user-notification-type.enum';
+import { USER_NOTIFICATION_PREFERENCE_TYPES } from './types/user-notification-type.enum';
+import { RequestLocale } from 'src/modules/translations/request-locale.decorator';
+import { SupportedLocale } from 'src/modules/translations/translation.catalog';
 
 @Controller('notification')
 @UseGuards(JwtAuthGuard)
@@ -18,11 +17,15 @@ export class NotificationController {
   @Get('types')
   @ApiOperation(NOTIFICATION_SWAGGER.getNotificationTypes)
   @ApiResponse(NOTIFICATION_SWAGGER.getNotificationTypes.responses.success)
-  async getNotificationTypes(@Req() req: any) {
+  async getNotificationTypes(
+    @Req() req: any,
+    @RequestLocale() locale: SupportedLocale | null,
+  ) {
     const userId = req.user.id;
     return await this.notificationService.getNotificationPreferences(
       userId,
       [...USER_NOTIFICATION_PREFERENCE_TYPES],
+      locale,
     );
   }
 

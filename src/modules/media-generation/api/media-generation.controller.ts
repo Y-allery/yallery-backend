@@ -40,19 +40,32 @@ export class MediaGenerationController {
     private readonly contentTranslationService: ContentTranslationService,
   ) {}
 
-  /** Localizes style names inside an ai-settings response, when present. */
-  private async localizeStyles<T extends { styles?: { id: number }[] }>(
-    response: T,
-    locale: SupportedLocale | null,
-  ): Promise<T> {
-    if (!locale || !response?.styles?.length) return response;
-    const styles = await this.contentTranslationService.resolveMany(
-      'style',
-      locale,
-      response.styles,
-      TRANSLATABLE_FIELDS.style,
-    );
-    return { ...response, styles };
+  /** Localizes style and color names inside an ai-settings response, when present. */
+  private async localizeStyles<
+    T extends { styles?: { id: number }[]; colors?: { id: number }[] },
+  >(response: T, locale: SupportedLocale | null): Promise<T> {
+    if (!locale || (!response?.styles?.length && !response?.colors?.length)) {
+      return response;
+    }
+    const [styles, colors] = await Promise.all([
+      response.styles?.length
+        ? this.contentTranslationService.resolveMany(
+            'style',
+            locale,
+            response.styles,
+            TRANSLATABLE_FIELDS.style,
+          )
+        : Promise.resolve(response.styles),
+      response.colors?.length
+        ? this.contentTranslationService.resolveMany(
+            'color',
+            locale,
+            response.colors,
+            TRANSLATABLE_FIELDS.color,
+          )
+        : Promise.resolve(response.colors),
+    ]);
+    return { ...response, styles, colors };
   }
 
   @Get('image/prompt/ai-settings')
@@ -168,18 +181,19 @@ export class MediaGenerationController {
     @Body() dto: GeneratePromptImageDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    const job = await this.mediaGenerationEnqueueService.enqueuePromptImageGeneration(
-      {
-        aiService: dto.ai_service,
-        prompt: dto.prompt,
-        imageQuantity: dto.image_quantity,
-        orientation: dto.orientation,
-        styleId: dto.style_id ?? null,
-        colorId: dto.color_id ?? null,
-        contestId: dto.contest_id ?? null,
-      },
-      req.user.id,
-    );
+    const job =
+      await this.mediaGenerationEnqueueService.enqueuePromptImageGeneration(
+        {
+          aiService: dto.ai_service,
+          prompt: dto.prompt,
+          imageQuantity: dto.image_quantity,
+          orientation: dto.orientation,
+          styleId: dto.style_id ?? null,
+          colorId: dto.color_id ?? null,
+          contestId: dto.contest_id ?? null,
+        },
+        req.user.id,
+      );
 
     return {
       message: 'Image generation task has been added to the queue.',
@@ -205,17 +219,18 @@ export class MediaGenerationController {
     @Body() dto: GenerateEditImageDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    const job = await this.mediaGenerationEnqueueService.enqueueImageEditGeneration(
-      {
-        aiService: dto.ai_service,
-        prompt: dto.prompt,
-        imageUrl: dto.image_url,
-        contestId: dto.contest_id ?? null,
-        styleId: dto.style_id ?? null,
-        colorId: dto.color_id ?? null,
-      },
-      req.user.id,
-    );
+    const job =
+      await this.mediaGenerationEnqueueService.enqueueImageEditGeneration(
+        {
+          aiService: dto.ai_service,
+          prompt: dto.prompt,
+          imageUrl: dto.image_url,
+          contestId: dto.contest_id ?? null,
+          styleId: dto.style_id ?? null,
+          colorId: dto.color_id ?? null,
+        },
+        req.user.id,
+      );
 
     return {
       message: 'Image editing task has been added to the queue.',
@@ -285,16 +300,17 @@ export class MediaGenerationController {
       throw new BadRequestException(error.message);
     }
 
-    const job = await this.mediaGenerationEnqueueService.enqueueTextVideoGeneration(
-      {
-        aiService: dto.ai_service,
-        prompt: dto.prompt,
-        orientation,
-        duration,
-        contestId: dto.contest_id ?? null,
-      },
-      req.user.id,
-    );
+    const job =
+      await this.mediaGenerationEnqueueService.enqueueTextVideoGeneration(
+        {
+          aiService: dto.ai_service,
+          prompt: dto.prompt,
+          orientation,
+          duration,
+          contestId: dto.contest_id ?? null,
+        },
+        req.user.id,
+      );
 
     return {
       message: 'Video generation task has been added to the queue.',
@@ -334,17 +350,18 @@ export class MediaGenerationController {
       throw new BadRequestException(error.message);
     }
 
-    const job = await this.mediaGenerationEnqueueService.enqueueImageVideoGeneration(
-      {
-        aiService: dto.ai_service,
-        prompt: dto.prompt,
-        imageUrl: dto.image_url,
-        orientation,
-        duration,
-        contestId: dto.contest_id ?? null,
-      },
-      req.user.id,
-    );
+    const job =
+      await this.mediaGenerationEnqueueService.enqueueImageVideoGeneration(
+        {
+          aiService: dto.ai_service,
+          prompt: dto.prompt,
+          imageUrl: dto.image_url,
+          orientation,
+          duration,
+          contestId: dto.contest_id ?? null,
+        },
+        req.user.id,
+      );
 
     return {
       message: 'Video generation task has been added to the queue.',

@@ -6,6 +6,7 @@ import { TagEntity } from 'src/modules/catalog/tags/entities/tag.entity';
 import { StyleEntity } from 'src/modules/posts/entities/style.entity';
 import { MemeEntity } from 'src/modules/memes/entities/meme.entity';
 import { RewardEntity } from 'src/modules/billing/rewards/entities/reward.entity';
+import { ColorEntity } from 'src/modules/media-generation/persistence/entities/color.entity';
 import { ProviderSettingsModule } from 'src/modules/provider-settings/provider-settings.module';
 import { ContentTranslationEntity } from './entities/content-translation.entity';
 import { ContentTranslationService } from './content-translation.service';
@@ -24,6 +25,7 @@ import {
       StyleEntity,
       MemeEntity,
       RewardEntity,
+      ColorEntity,
     ]),
     BullModule.registerQueue({ name: CONTENT_TRANSLATION_QUEUE }),
     ProviderSettingsModule,
