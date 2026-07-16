@@ -35,6 +35,7 @@ import {
   ContestTypeEnum,
 } from './types/contest.status.enum';
 import { TwitterApiIoService } from 'src/integrations/twitter-api-io/twitter-api-io.service';
+import { ContestStartNotificationQueueService } from './notifications/contest-start-notification-queue.service';
 
 type StartSubmissionParams = {
   contestId?: number | null;
@@ -86,6 +87,7 @@ export class ContestFlowService {
     private readonly userActivityService: UserActivityService,
     private readonly notificationGateway: NotificationGateway,
     private readonly twitterApiIoService: TwitterApiIoService,
+    private readonly contestStartNotificationQueueService: ContestStartNotificationQueueService,
   ) {}
 
   async createMetadataForContest(
@@ -111,6 +113,18 @@ export class ContestFlowService {
       contest.status = ContestStatusEnum.OPEN;
       contest.isApproved = false;
       await this.contestRepository.save(contest);
+
+      // A contest created already inside its window never crosses the
+      // SCHEDULED→RUNNING edge the cron notifies on, so it would open
+      // silently. The per-contest jobId makes this enqueue idempotent.
+      await this.contestStartNotificationQueueService
+        .enqueueContestStarted(contest)
+        .catch((error) => {
+          console.error(
+            `Failed to enqueue start notifications for contest ${contest.id}:`,
+            error?.message ?? error,
+          );
+        });
     }
 
     return savedMetadata;
@@ -1039,6 +1053,14 @@ export class ContestFlowService {
     await this.finalizeSnapshotState(contest, candidates[0] ?? null);
   }
 
+  /**
+   * Fine-tune winners are RANKED by in-app like counts (same signal as
+   * standard contests) and finalized by an admin in the review queue, but the
+   * retweet remains an ELIGIBILITY requirement: a submission without a
+   * verified retweet cannot win regardless of its likes. Unlike
+   * createStandardCandidates, ineligible submissions are still persisted as
+   * INELIGIBLE rows so the review queue shows why each entry lost.
+   */
   private async createFineTuneCandidates(contest: ContestEntity) {
     const submissions = await this.submissionRepository.find({
       where: {
@@ -1049,13 +1071,10 @@ export class ContestFlowService {
       order: { submittedAt: 'ASC' },
     });
 
-    const tweets = await this.fetchTweetsForContest(contest);
-
     type FineTuneEvaluation = {
       submission: ContestSubmissionEntity;
       post: PostEntity | null;
       user: UserEntity | null;
-      tweet: any;
       eligibilityStatus: ContestSubmissionEligibilityStatus;
       needsRetweetCheck: boolean;
     };
@@ -1063,9 +1082,6 @@ export class ContestFlowService {
     const evaluations: FineTuneEvaluation[] = submissions.map((submission) => {
       const post = submission.post;
       const user = post?.user ?? submission.user;
-      const tweet = post
-        ? this.findTweetForPost(tweets, contest, post.id)
-        : null;
       let eligibilityStatus: ContestSubmissionEligibilityStatus =
         ContestSubmissionEligibilityStatus.ELIGIBLE;
       let needsRetweetCheck = false;
@@ -1082,9 +1098,6 @@ export class ContestFlowService {
       } else if (!post.tweetLink) {
         eligibilityStatus =
           ContestSubmissionEligibilityStatus.INELIGIBLE_NO_TWEET;
-      } else if (!tweet) {
-        eligibilityStatus =
-          ContestSubmissionEligibilityStatus.INELIGIBLE_TWEET_NOT_MATCHED;
       } else if (!user?.twitterUsername) {
         eligibilityStatus =
           ContestSubmissionEligibilityStatus.INELIGIBLE_USER_NOT_MATCHED;
@@ -1092,23 +1105,17 @@ export class ContestFlowService {
         needsRetweetCheck = true;
       }
 
-      return {
-        submission,
-        post,
-        user,
-        tweet,
-        eligibilityStatus,
-        needsRetweetCheck,
-      };
+      return { submission, post, user, eligibilityStatus, needsRetweetCheck };
     });
 
-    // The Twitter retweet checks are the slow part: run them with a small
-    // concurrency cap instead of strictly one-by-one. A rejected check keeps
-    // the single-check failure semantics (treated as "did not retweet").
+    // The retweet is checked against the stored tweetLink directly; the old
+    // tweet-engagement lookup (search y_allery's tweets and match the post)
+    // existed only for Twitter-based scoring and stays removed.
     const pendingChecks = evaluations.filter(
       (evaluation) => evaluation.needsRetweetCheck,
     );
     const RETWEET_CHECK_CONCURRENCY = 3;
+    let unavailableChecks = 0;
     for (
       let index = 0;
       index < pendingChecks.length;
@@ -1121,14 +1128,20 @@ export class ContestFlowService {
       const results = await Promise.allSettled(
         chunk.map((evaluation) =>
           this.checkRetweet(
-            evaluation.post.tweetLink,
-            evaluation.user.twitterUsername.replace(/^@/, ''),
+            evaluation.post!.tweetLink,
+            evaluation.user!.twitterUsername.replace(/^@/, ''),
           ),
         ),
       );
       results.forEach((result, chunkIndex) => {
         const retweetCheck =
-          result.status === 'fulfilled' ? result.value : { retweet: false };
+          result.status === 'fulfilled'
+            ? result.value
+            : { retweet: false, unavailable: true };
+        if (retweetCheck.unavailable) {
+          unavailableChecks += 1;
+          return;
+        }
         if (!retweetCheck.retweet) {
           chunk[chunkIndex].eligibilityStatus =
             ContestSubmissionEligibilityStatus.INELIGIBLE_NO_RETWEET;
@@ -1136,13 +1149,49 @@ export class ContestFlowService {
       });
     }
 
+    // Winner selection pays out real points, so it must not run on partial
+    // data. Aborting leaves reviewSnapshotAt null and the metadata in
+    // REVIEWING, so the next cron sweep simply retries the snapshot once
+    // Twitter is reachable again.
+    if (unavailableChecks > 0) {
+      throw new Error(
+        `Retweet verification unavailable for ${unavailableChecks} of ` +
+          `${pendingChecks.length} submissions in contest ${contest.id}; ` +
+          'snapshot deferred to the next sweep',
+      );
+    }
+
+    // One grouped query for all like counts at snapshot time.
+    const eligiblePostIds = evaluations
+      .filter(
+        (evaluation) =>
+          evaluation.eligibilityStatus ===
+          ContestSubmissionEligibilityStatus.ELIGIBLE,
+      )
+      .map((evaluation) => evaluation.post!.id);
+
+    const likeCountByPostId = new Map<number, number>();
+    if (eligiblePostIds.length > 0) {
+      const likeRows: Array<{ postId: number; likeCount: string }> =
+        await this.candidateRepository.query(
+          `SELECT postId, COUNT(*) AS likeCount
+           FROM likes
+           WHERE postId IN (${eligiblePostIds.map(() => '?').join(',')})
+           GROUP BY postId`,
+          eligiblePostIds,
+        );
+      for (const row of likeRows) {
+        likeCountByPostId.set(Number(row.postId), Number(row.likeCount));
+      }
+    }
+
     const candidates = evaluations.map(
-      ({ submission, post, user, tweet, eligibilityStatus }) => {
+      ({ submission, post, user, eligibilityStatus }) => {
         let score = 0;
         let scoreBreakdown: Record<string, unknown> = {};
         if (eligibilityStatus === ContestSubmissionEligibilityStatus.ELIGIBLE) {
-          scoreBreakdown = this.getTweetScoreBreakdown(tweet);
-          score = Number(scoreBreakdown.score ?? 0);
+          score = likeCountByPostId.get(post!.id) ?? 0;
+          scoreBreakdown = { likes: score };
         }
 
         return this.candidateRepository.create({
@@ -1153,7 +1202,7 @@ export class ContestFlowService {
           rank: 0,
           score,
           scoreBreakdown,
-          source: ContestWinnerCandidateSource.TWITTER_ENGAGEMENT,
+          source: ContestWinnerCandidateSource.INTERNAL_LIKES,
           eligibilityStatus,
           reviewStatus:
             eligibilityStatus === ContestSubmissionEligibilityStatus.ELIGIBLE
@@ -1314,65 +1363,20 @@ export class ContestFlowService {
     };
   }
 
-  private async fetchTweetsForContest(contest: ContestEntity): Promise<any[]> {
-    if (!contest.tag?.name) {
-      return [];
-    }
-
-    try {
-      const response = await this.twitterApiIoService.searchTweets(
-        `from:y_allery #${contest.tag.name}`,
-        'Latest',
-        this.toUnixSeconds(contest.startTime),
-        this.toUnixSeconds(contest.endTime),
-      );
-
-      return Array.isArray(response?.tweets) ? response.tweets : [];
-    } catch {
-      return [];
-    }
-  }
-
-  private findTweetForPost(
-    tweets: any[],
-    contest: ContestEntity,
-    postId: number,
-  ) {
-    const tagText = `#${contest.tag?.name ?? ''}`.toLowerCase();
-    return tweets.find((tweet) => {
-      const text = String(tweet.full_text ?? '').toLowerCase();
-      return (
-        text.includes(tagText) &&
-        this.extractPostIdFromTweetText(text) === String(postId)
-      );
-    });
-  }
-
-  private getTweetScoreBreakdown(tweet: any) {
-    const likes = Number(tweet.favorite_count ?? tweet.likeCount ?? 0);
-    const retweets = Number(tweet.retweet_count ?? tweet.retweetCount ?? 0);
-    const replies = Number(tweet.reply_count ?? tweet.replyCount ?? 0);
-    const views = Number(tweet.view_count ?? tweet.viewCount ?? 0);
-    return {
-      likes,
-      retweets,
-      replies,
-      views,
-      score: likes + retweets * 2 + replies + views * 0.01,
-    };
-  }
-
-  private extractPostIdFromTweetText(text: string): string | null {
-    const match = text.match(/#(\d{1,10})\b/);
-    return match ? match[1] : null;
-  }
-
+  /**
+   * Verifies the user retweeted the stored y_allery tweet for their post.
+   * `unavailable: true` means the check could not run (API outage) — callers
+   * must not treat that as "did not retweet": failing closed here would let a
+   * Twitter outage mark every submission ineligible and close the contest
+   * with no winner and no payout.
+   */
   private async checkRetweet(
     tweetLink: string,
     userHandle: string,
-  ): Promise<{ retweet: boolean }> {
+  ): Promise<{ retweet: boolean; unavailable?: boolean }> {
     const tweetId = this.extractTweetIdFromLink(tweetLink);
     if (!tweetId) {
+      // Malformed link is a deterministic data problem, not an outage.
       return { retweet: false };
     }
 
@@ -1382,19 +1386,12 @@ export class ContestFlowService {
         userHandle,
       );
     } catch {
-      return { retweet: false };
+      return { retweet: false, unavailable: true };
     }
   }
 
   private extractTweetIdFromLink(tweetLink: string): string | null {
     const match = tweetLink?.match(/status\/(\d+)/);
     return match?.[1] || null;
-  }
-
-  private toUnixSeconds(date?: Date | string | null): number | undefined {
-    if (!date) return undefined;
-    const time = new Date(date).getTime();
-    if (!Number.isFinite(time)) return undefined;
-    return Math.floor(time / 1000);
   }
 }

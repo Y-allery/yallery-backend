@@ -1,7 +1,7 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Queue } from 'bullmq';
+import { Job, Queue } from 'bullmq';
 import { MoreThan, Repository } from 'typeorm';
 import { FirebaseService } from 'src/integrations/firebase/firebase.service';
 import { UserActivityEntity } from 'src/modules/engagement/user-activity/entities/user-activity.entity';
@@ -71,6 +71,14 @@ export class ContestStartNotificationQueueService {
     const body = `The ${contest.name} contest is now live! Join now for a chance to win points!`;
     const jobId = this.getContestStartJobId(contest.id);
 
+    // removeOnFail keeps failed jobs for inspection, but a lingering failed
+    // job with this fixed jobId would dedupe every future enqueue — the
+    // contest could never be notified again. Clear it before re-adding.
+    const existingJob = await this.queue.getJob(jobId);
+    if (existingJob && (await existingJob.isFailed())) {
+      await existingJob.remove();
+    }
+
     await this.queue.add(
       CONTEST_START_NOTIFICATIONS_JOB_NAME,
       {
@@ -96,19 +104,28 @@ export class ContestStartNotificationQueueService {
     return { jobId };
   }
 
-  async processContestStarted(data: ContestStartNotificationJobData) {
-    let lastUserId = 0;
+  async processContestStarted(
+    data: ContestStartNotificationJobData,
+    job?: Job<ContestStartNotificationJobData>,
+  ) {
+    // Resume from the checkpoint on a re-run; the activity filter below
+    // additionally dedups the window since the last checkpoint.
+    let lastUserId = data.lastUserId ?? 0;
     let totalProcessed = 0;
     let totalSkipped = 0;
     let totalSuccess = 0;
+    let totalNoTokens = 0;
     let totalErrors = 0;
 
     while (true) {
+      // No emailVerified filter: the contest announcement is an engagement
+      // push, and unverified email/password accounts are real app users with
+      // registered devices — filtering them out silently excluded a chunk of
+      // the audience.
       const users = await this.userRepository.find({
         where: {
           id: MoreThan(lastUserId),
           isDeleted: false,
-          emailVerified: true,
         },
         relations: { deviceTokens: true },
         order: { id: 'ASC' },
@@ -124,32 +141,20 @@ export class ContestStartNotificationQueueService {
         data.contestId,
         users,
       );
-      const skippedCount = users.length - eligibleUsers.length;
-      totalSkipped += skippedCount;
+      totalSkipped += users.length - eligibleUsers.length;
 
-      if (!eligibleUsers.length) {
-        continue;
-      }
-
-      try {
-        await this.userActivityService.logContestOpened({
-          userIds: eligibleUsers.map((user) => user.id),
-          contestId: data.contestId,
-          contestName: data.contestName,
-          contestType: data.contestType,
-          previewUrl: data.previewUrl,
-        });
-      } catch (error) {
-        totalErrors += eligibleUsers.length;
-        this.logger.error(
-          `Failed to create contest_opened activities for contest ${data.contestId}`,
-          error?.stack ?? error?.message ?? String(error),
-        );
-        continue;
-      }
-
-      for (let i = 0; i < eligibleUsers.length; i += this.notificationBatchSize) {
+      for (
+        let i = 0;
+        i < eligibleUsers.length;
+        i += this.notificationBatchSize
+      ) {
         const batch = eligibleUsers.slice(i, i + this.notificationBatchSize);
+
+        // Push first, activity after: the CONTEST_OPENED activity doubles as
+        // the "already notified" marker, so writing it before the send meant a
+        // mid-sweep restart skipped everyone whose activity existed but whose
+        // push never left. Order reversed, a restart re-sends at most one
+        // chunk (duplicate push) instead of silently dropping users.
         const results = await Promise.all(
           batch.map(async (user) => {
             try {
@@ -158,31 +163,74 @@ export class ContestStartNotificationQueueService {
                 data.contestName,
                 user.language,
               );
-              await this.sendPushNotifications(user, push.title, push.body);
-              await this.notificationGateway.emitProfileUpdate(user.id.toString());
-              return true;
+              const hadTokens = await this.sendPushNotifications(
+                user,
+                push.title,
+                push.body,
+              );
+              return { user, ok: true, hadTokens };
             } catch (error) {
               this.logger.error(
                 `Failed to process contest start notification for user ${user.id}`,
                 error?.stack ?? error?.message ?? String(error),
               );
-              return false;
+              return { user, ok: false, hadTokens: false };
             }
           }),
         );
 
+        const completed = results.filter((result) => result.ok);
+        if (completed.length) {
+          try {
+            await this.userActivityService.logContestOpened({
+              userIds: completed.map((result) => result.user.id),
+              contestId: data.contestId,
+              contestName: data.contestName,
+              contestType: data.contestType,
+              previewUrl: data.previewUrl,
+            });
+          } catch (error) {
+            // Users stay unmarked and are retried on the next run; the worst
+            // case is a duplicate push, never a silent drop.
+            this.logger.error(
+              `Failed to create contest_opened activities for contest ${data.contestId}`,
+              error?.stack ?? error?.message ?? String(error),
+            );
+          }
+
+          // Profile emits come after the activity write so the pushed badge
+          // counts include the new activity. Failures here are non-fatal: the
+          // push is already out and the activity recorded.
+          await Promise.allSettled(
+            completed.map((result) =>
+              this.notificationGateway.emitProfileUpdate(
+                result.user.id.toString(),
+              ),
+            ),
+          );
+        }
+
         totalProcessed += batch.length;
-        totalSuccess += results.filter(Boolean).length;
-        totalErrors += results.filter((success) => !success).length;
+        totalSuccess += completed.filter((result) => result.hadTokens).length;
+        totalNoTokens += completed.filter(
+          (result) => !result.hadTokens,
+        ).length;
+        totalErrors += results.length - completed.length;
 
         if (i + this.notificationBatchSize < eligibleUsers.length) {
           await this.sleep(50);
         }
       }
+
+      await job
+        ?.updateData({ ...data, lastUserId })
+        .catch(() => undefined);
     }
 
     this.logger.log(
-      `Contest ${data.contestId} start notifications finished: ${totalSuccess} success, ${totalErrors} errors, ${totalSkipped} skipped, ${totalProcessed} processed`,
+      `Contest ${data.contestId} start notifications finished: ` +
+        `${totalSuccess} pushed, ${totalNoTokens} without device tokens, ` +
+        `${totalErrors} errors, ${totalSkipped} already notified, ${totalProcessed} processed`,
     );
   }
 
@@ -212,13 +260,14 @@ export class ContestStartNotificationQueueService {
     return users.filter((user) => !alreadyNotifiedUserIds.has(user.id));
   }
 
+  /** Returns whether the user had any device tokens to push to. */
   private async sendPushNotifications(
     user: UserEntity,
     title: string,
     body: string,
-  ) {
+  ): Promise<boolean> {
     if (!user.deviceTokens?.length) {
-      return;
+      return false;
     }
 
     await Promise.all(
@@ -234,6 +283,7 @@ export class ContestStartNotificationQueueService {
         }
       }),
     );
+    return true;
   }
 
   private getContestStartJobId(contestId: number) {

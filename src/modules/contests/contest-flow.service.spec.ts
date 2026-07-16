@@ -11,6 +11,7 @@ import {
   ContestRewardStatus,
   ContestSubmissionEligibilityStatus,
   ContestWinnerCandidateReviewStatus,
+  ContestWinnerCandidateSource,
 } from './types/contest-flow.enums';
 import { ContestTypeEnum } from './types/contest.status.enum';
 
@@ -44,9 +45,12 @@ describe('ContestFlowService review status updates', () => {
     };
 
     const twitterApiIoService = overrides.twitterApiIoService ?? {
-      searchTweets: jest.fn(),
-      verifyUserRetweeted: jest.fn(),
+      verifyUserRetweeted: jest.fn(async () => ({ retweet: true })),
     };
+    const contestStartNotificationQueueService =
+      overrides.contestStartNotificationQueueService ?? {
+        enqueueContestStarted: jest.fn(async () => ({ jobId: 'j' })),
+      };
 
     const service = new ContestFlowService(
       { get: jest.fn() } as any,
@@ -64,9 +68,15 @@ describe('ContestFlowService review status updates', () => {
       { logContestWon: jest.fn() } as any,
       { emitProfileUpdate: jest.fn() } as any,
       twitterApiIoService as any,
+      contestStartNotificationQueueService as any,
     );
 
-    return { service, repositories, twitterApiIoService };
+    return {
+      service,
+      repositories,
+      twitterApiIoService,
+      contestStartNotificationQueueService,
+    };
   }
 
   it('selectCandidate resets only currently selected eligible candidates', async () => {
@@ -396,8 +406,8 @@ describe('ContestFlowService review status updates', () => {
     });
   });
 
-  describe('createReviewSnapshot fine-tune retweet checks', () => {
-    it('runs checks with a concurrency cap and treats a failed check as no retweet', async () => {
+  describe('createReviewSnapshot fine-tune: retweet gates eligibility, likes decide rank', () => {
+    it('requires a verified retweet but ranks eligible candidates by in-app likes', async () => {
       const contest = {
         id: 5,
         contestType: ContestTypeEnum.FINE_TUNE,
@@ -406,39 +416,35 @@ describe('ContestFlowService review status updates', () => {
         endTime: new Date('2026-01-02T00:00:00Z'),
         reward: 10,
       };
-      const submissions = [1, 2, 3, 4].map((id) => ({
+      // 1: eligible, 3 likes · 2: blocked · 3: eligible, 7 likes ·
+      // 4: most likes but NO retweet · 5: no tweet link at all.
+      const submissions = [1, 2, 3, 4, 5].map((id) => ({
         id,
         contestId: 5,
         submittedAt: new Date('2026-01-01T01:00:00Z'),
         post: {
           id: 100 + id,
           isPublished: true,
-          isBlocked: false,
+          isBlocked: id === 2,
           isRejected: false,
-          tweetLink: `https://x.com/y/status/${1000 + id}`,
+          tweetLink: id === 5 ? null : `https://x.com/y/status/${1000 + id}`,
           user: { id: 200 + id, twitterUsername: `@user${id}` },
         },
         user: { id: 200 + id, twitterUsername: `@user${id}` },
       }));
-      const tweets = submissions.map((submission) => ({
-        full_text: `#cats #${submission.post.id}`,
-        favorite_count: submission.post.id,
+      const likeRows = [
+        { postId: 101, likeCount: '3' },
+        { postId: 103, likeCount: '7' },
+      ];
+
+      const verifyUserRetweeted = jest.fn(async (_tweetId, handle) => ({
+        retweet: handle !== 'user4',
       }));
 
-      let active = 0;
-      let maxActive = 0;
-      const verifyUserRetweeted = jest.fn(async (_tweetId, handle) => {
-        active += 1;
-        maxActive = Math.max(maxActive, active);
-        await new Promise((resolve) => setTimeout(resolve, 5));
-        active -= 1;
-        if (handle === 'user2') {
-          throw new Error('twitter down');
-        }
-        return { retweet: true };
-      });
-
       let savedCandidates: any[] = [];
+      const likeQuery = jest.fn(
+        async (_sql: string, _params: number[]) => likeRows,
+      );
       const metadata = { contestId: 5, reviewSnapshotAt: null };
       const { service, repositories } = createService({
         contestRepository: {
@@ -453,41 +459,63 @@ describe('ContestFlowService review status updates', () => {
         candidateRepository: {
           delete: jest.fn(),
           create: jest.fn((value) => value),
+          query: likeQuery,
           save: jest.fn(async (value) => {
             savedCandidates = value;
             return value;
           }),
         },
-        twitterApiIoService: {
-          searchTweets: jest.fn(async () => ({ tweets })),
-          verifyUserRetweeted,
-        },
+        twitterApiIoService: { verifyUserRetweeted },
       });
 
       await service.createReviewSnapshot(5);
 
-      expect(verifyUserRetweeted).toHaveBeenCalledTimes(4);
-      expect(maxActive).toBeLessThanOrEqual(3);
-      expect(maxActive).toBeGreaterThan(1);
+      // Retweet checked for everyone who passed the basic + tweet-link gates.
+      expect(verifyUserRetweeted).toHaveBeenCalledTimes(3);
 
-      expect(savedCandidates).toHaveLength(4);
-      const failed = savedCandidates.find((c) => c.userId === 202);
-      expect(failed.eligibilityStatus).toBe(
-        ContestSubmissionEligibilityStatus.INELIGIBLE_NO_RETWEET,
-      );
-      expect(failed.reviewStatus).toBe(
-        ContestWinnerCandidateReviewStatus.INELIGIBLE,
-      );
-      expect(failed.rank).toBe(4);
+      // Like counts fetched only for candidates still eligible AFTER the
+      // retweet gate (not for the blocked, no-tweet, or no-retweet ones).
+      expect(likeQuery).toHaveBeenCalledTimes(1);
+      expect(likeQuery.mock.calls[0][1]).toEqual([101, 103]);
 
-      // Highest engagement among eligible candidates is selected at rank 1.
+      expect(savedCandidates).toHaveLength(5);
+
+      // Most likes among retweet-verified submissions wins rank 1.
       const selected = savedCandidates.find((c) => c.rank === 1);
-      expect(selected.postId).toBe(104);
+      expect(selected.postId).toBe(103);
+      expect(selected.score).toBe(7);
+      expect(selected.scoreBreakdown).toEqual({ likes: 7 });
+      expect(selected.source).toBe(
+        ContestWinnerCandidateSource.INTERNAL_LIKES,
+      );
       expect(selected.reviewStatus).toBe(
         ContestWinnerCandidateReviewStatus.SELECTED,
       );
-      expect(selected.eligibilityStatus).toBe(
-        ContestSubmissionEligibilityStatus.ELIGIBLE,
+
+      const second = savedCandidates.find((c) => c.rank === 2);
+      expect(second.postId).toBe(101);
+      expect(second.score).toBe(3);
+
+      // No retweet → ineligible, zero score, ranked below eligible entries —
+      // even though this post would have won on likes alone.
+      const noRetweet = savedCandidates.find((c) => c.postId === 104);
+      expect(noRetweet.eligibilityStatus).toBe(
+        ContestSubmissionEligibilityStatus.INELIGIBLE_NO_RETWEET,
+      );
+      expect(noRetweet.reviewStatus).toBe(
+        ContestWinnerCandidateReviewStatus.INELIGIBLE,
+      );
+      expect(noRetweet.score).toBe(0);
+      expect(noRetweet.rank).toBeGreaterThan(2);
+
+      const noTweet = savedCandidates.find((c) => c.postId === 105);
+      expect(noTweet.eligibilityStatus).toBe(
+        ContestSubmissionEligibilityStatus.INELIGIBLE_NO_TWEET,
+      );
+
+      const blocked = savedCandidates.find((c) => c.postId === 102);
+      expect(blocked.eligibilityStatus).toBe(
+        ContestSubmissionEligibilityStatus.INELIGIBLE_BLOCKED,
       );
 
       expect(metadata).toMatchObject({
@@ -495,6 +523,67 @@ describe('ContestFlowService review status updates', () => {
         reviewStatus: ContestReviewStatus.CANDIDATES_READY,
       });
       expect(repositories.reviewActionRepository.save).toHaveBeenCalled();
+    });
+
+    it('defers the snapshot instead of disqualifying everyone when Twitter is unavailable', async () => {
+      const contest = {
+        id: 5,
+        contestType: ContestTypeEnum.FINE_TUNE,
+        tag: { name: 'cats' },
+        startTime: new Date('2026-01-01T00:00:00Z'),
+        endTime: new Date('2026-01-02T00:00:00Z'),
+        reward: 10,
+      };
+      const submissions = [1, 2].map((id) => ({
+        id,
+        contestId: 5,
+        submittedAt: new Date('2026-01-01T01:00:00Z'),
+        post: {
+          id: 100 + id,
+          isPublished: true,
+          isBlocked: false,
+          isRejected: false,
+          tweetLink: `https://x.com/y/status/${1000 + id}`,
+          user: { id: 200 + id, twitterUsername: `@user${id}` },
+        },
+        user: { id: 200 + id, twitterUsername: `@user${id}` },
+      }));
+
+      const candidateSave = jest.fn(async (value) => value);
+      const metadata = { contestId: 5, reviewSnapshotAt: null };
+      const { service } = createService({
+        contestRepository: {
+          findOne: jest.fn(async () => contest),
+          save: jest.fn(async (value) => value),
+        },
+        flowMetadataRepository: {
+          findOne: jest.fn(async () => metadata),
+          save: jest.fn(async (value) => value),
+        },
+        submissionRepository: { find: jest.fn(async () => submissions) },
+        candidateRepository: {
+          delete: jest.fn(),
+          create: jest.fn((value) => value),
+          query: jest.fn(async () => []),
+          save: candidateSave,
+        },
+        // The API is down: verification errors are NOT "did not retweet".
+        twitterApiIoService: {
+          verifyUserRetweeted: jest.fn(async () => {
+            throw new Error('503');
+          }),
+        },
+      });
+
+      await expect(service.createReviewSnapshot(5)).rejects.toThrow(
+        /Retweet verification unavailable/,
+      );
+
+      // Nothing persisted, reviewSnapshotAt untouched: the next cron sweep
+      // retries the snapshot; the contest is never closed as NO_WINNER
+      // because Twitter happened to be down.
+      expect(candidateSave).not.toHaveBeenCalled();
+      expect(metadata.reviewSnapshotAt).toBeNull();
     });
   });
 });

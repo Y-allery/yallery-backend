@@ -11,4 +11,10 @@ export type ContestStartNotificationJobData = {
   previewUrl: string | null;
   title: string;
   body: string;
+  /**
+   * Sweep checkpoint, persisted via job.updateData after each user batch so a
+   * worker restart (deploys!) resumes where it stopped instead of starting
+   * over — or worse, never finishing the tail.
+   */
+  lastUserId?: number;
 };

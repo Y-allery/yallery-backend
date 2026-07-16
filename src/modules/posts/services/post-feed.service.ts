@@ -48,6 +48,14 @@ export class PostFeedService {
   ) {
     const safeLimit = Math.min(Math.max(limit || 20, 1), 100);
 
+    // In all-tags mode a running contest floods the top of the id-ordered
+    // feed with one tag. Overfetch a window of candidates and interleave
+    // tags round-robin so a page mixes every followed tag that has content.
+    const diversify = !tagId;
+    const fetchLimit = diversify
+      ? Math.min(safeLimit * 4, 120)
+      : safeLimit;
+
     const conditions: string[] = [];
     const params: (number | string)[] = [userId, userId, userId];
 
@@ -59,7 +67,7 @@ export class PostFeedService {
       conditions.push('AND p.id < ?');
       params.push(cursor);
     }
-    params.push(safeLimit);
+    params.push(fetchLimit);
 
     // isViewed is always false here: the NOT EXISTS filter excludes viewed posts.
     const query = `
@@ -99,8 +107,20 @@ export class PostFeedService {
       LIMIT ?;
     `;
 
-    const posts = await this.postRepository.query(query, params);
-    const nextCursor = posts.length > 0 ? posts[posts.length - 1].id : null;
+    const rows = await this.postRepository.query(query, params);
+    const posts = diversify
+      ? this.diversifyPage(rows, safeLimit)
+      : rows;
+
+    // Pagination contract with the app (it appends without deduping and uses
+    // nextCursor verbatim): nextCursor must be the MINIMUM id of the returned
+    // page — not the last array element, which after interleaving is no
+    // longer the smallest. Deprioritized window rows above the cursor are
+    // intentionally skipped for this session; being unviewed, they reappear
+    // on the next refresh.
+    const nextCursor = posts.length
+      ? Math.min(...posts.map((post) => Number(post.id)))
+      : null;
 
     const normalizedPosts = posts.map((post) => ({
       ...post,
@@ -115,6 +135,77 @@ export class PostFeedService {
       nextCursor,
       hasNextPage: posts.length === safeLimit,
     };
+  }
+
+  /**
+   * Interleaved page with a bounded skip cost. Window rows that end up above
+   * the page's min id without being returned are hidden until the next
+   * refresh (the cursor moves past them), so if the interleaved page would
+   * hide more than one page's worth — a stale minority post dragging the
+   * cursor deep — fall back to the plain chronological page. Active tags have
+   * recent ids, so the fallback only fires in the stale-minority case where
+   * the old feed behavior is the lesser evil versus a false end-of-feed.
+   */
+  private diversifyPage<T extends { id: number; tagId: number | null }>(
+    rows: T[],
+    limit: number,
+  ): T[] {
+    const interleaved = this.interleaveByTag(rows, limit);
+    if (rows.length <= limit || interleaved.length === 0) {
+      return interleaved;
+    }
+
+    const minId = Math.min(...interleaved.map((post) => Number(post.id)));
+    const returnedIds = new Set(interleaved.map((post) => Number(post.id)));
+    const skippedAboveCursor = rows.filter(
+      (row) => Number(row.id) > minId && !returnedIds.has(Number(row.id)),
+    ).length;
+
+    return skippedAboveCursor > limit ? rows.slice(0, limit) : interleaved;
+  }
+
+  /**
+   * Round-robin across tags: queues are keyed by tag in order of each tag's
+   * newest post, and one post is taken from each queue per cycle until the
+   * page is full. A tag with a running contest still appears every cycle but
+   * can no longer occupy an entire page while quieter tags have content; with
+   * a single-tag window the page is unchanged. Returns exactly
+   * min(limit, rows.length) posts — full pages whenever the window allows,
+   * which the app's hasNextPage/mark-viewed logic depends on.
+   */
+  private interleaveByTag<T extends { id: number; tagId: number | null }>(
+    rows: T[],
+    limit: number,
+  ): T[] {
+    if (rows.length <= 1) {
+      return rows.slice(0, limit);
+    }
+
+    const queues = new Map<number | 'untagged', T[]>();
+    for (const row of rows) {
+      const key = row.tagId ?? 'untagged';
+      const queue = queues.get(key);
+      if (queue) {
+        queue.push(row);
+      } else {
+        queues.set(key, [row]);
+      }
+    }
+
+    const result: T[] = [];
+    const tagQueues = [...queues.values()];
+    while (result.length < limit) {
+      let took = false;
+      for (const queue of tagQueues) {
+        const next = queue.shift();
+        if (!next) continue;
+        result.push(next);
+        took = true;
+        if (result.length >= limit) break;
+      }
+      if (!took) break;
+    }
+    return result;
   }
 
   async findPostsByTag(

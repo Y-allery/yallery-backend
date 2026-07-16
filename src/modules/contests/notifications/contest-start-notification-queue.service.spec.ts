@@ -4,7 +4,10 @@ import { CONTEST_START_NOTIFICATIONS_JOB_NAME } from './contest-start-notificati
 
 describe('ContestStartNotificationQueueService', () => {
   it('enqueues force-start notifications as a deterministic background job', async () => {
-    const queue = { add: jest.fn(async () => ({ id: 'job' })) };
+    const queue = {
+      add: jest.fn(async () => ({ id: 'job' })),
+      getJob: jest.fn(async () => null),
+    };
     const service = new ContestStartNotificationQueueService(
       queue as any,
       {} as any,
