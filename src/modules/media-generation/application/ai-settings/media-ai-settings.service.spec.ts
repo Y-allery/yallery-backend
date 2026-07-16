@@ -91,6 +91,7 @@ describe('MediaAISettingsService', () => {
       defaultSettings: {
         defaultAI: 'sdxl_lora_generation',
         defaultOrientations: 'horizontal',
+        defaultStyleId: 2,
       },
       aiSettings: [
         expect.objectContaining({

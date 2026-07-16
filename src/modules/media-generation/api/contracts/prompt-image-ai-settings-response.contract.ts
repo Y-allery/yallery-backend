@@ -3,6 +3,8 @@ import { MediaOrientation } from 'src/modules/media-generation/domain/presets';
 export interface PromptImageDefaultSettings {
   defaultAI: string | null;
   defaultOrientations: MediaOrientation;
+  /** styles.id to pre-select; styles[] is also ordered with it first. */
+  defaultStyleId: number | null;
 }
 
 export interface PromptImageAISettingItem {

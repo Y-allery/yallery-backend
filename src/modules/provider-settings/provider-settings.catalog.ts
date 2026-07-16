@@ -232,6 +232,17 @@ export const PROVIDER_SETTING_DEFINITIONS: ProviderSettingDefinition[] = [
     defaultValue: 'sdxl',
   },
   {
+    key: 'DEFAULT_PROMPT_IMAGE_STYLE_ID',
+    provider: 'runpod',
+    group: 'media_defaults',
+    label: 'Default style id (pre-selected in the app)',
+    description:
+      'styles.id to pre-select on the create screen. The style is also served first in the styles list, which is what shipped app builds use to pick their initial style.',
+    type: 'number',
+    isSecret: false,
+    validationKind: 'none',
+  },
+  {
     key: 'DEFAULT_PROMPT_IMAGE_CONTEST_AI_SERVICE',
     provider: 'runpod',
     group: 'media_defaults',

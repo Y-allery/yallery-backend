@@ -94,6 +94,7 @@ export class MediaAISettingsService {
         defaultOrientations: defaultSetting
           ? getPromptImageDefaultOrientation(defaultSetting.aiService)
           : 'vertical',
+        defaultStyleId: styles[0]?.id ?? null,
       },
       aiSettings: visibleSettings.map((setting) => ({
         aiService: setting.aiService,
@@ -141,6 +142,7 @@ export class MediaAISettingsService {
         defaultOrientations: defaultSetting
           ? getPromptImageDefaultOrientation(defaultSetting.aiService)
           : 'vertical',
+        defaultStyleId: styles[0]?.id ?? null,
       },
       aiSettings: settings.map((setting) => ({
         aiService: setting.aiService,
@@ -411,8 +413,14 @@ export class MediaAISettingsService {
     });
   }
 
-  private getStyles() {
-    return this.styleRepository.find({
+  /**
+   * Styles with the configured default first. The app selects styles[0] as the
+   * initial style (its own defaultStyleId param is never passed), so ordering
+   * is what actually drives the default on shipped builds — and a
+   * default-first carousel is the right UX regardless.
+   */
+  private async getStyles() {
+    const styles = await this.styleRepository.find({
       select: {
         id: true,
         name: true,
@@ -422,5 +430,30 @@ export class MediaAISettingsService {
         id: 'ASC',
       },
     });
+
+    const defaultStyleId = await this.resolveDefaultStyleId();
+    if (!defaultStyleId) {
+      return styles;
+    }
+    const defaultIndex = styles.findIndex(
+      (style) => style.id === defaultStyleId,
+    );
+    if (defaultIndex <= 0) {
+      return styles;
+    }
+    return [
+      styles[defaultIndex],
+      ...styles.slice(0, defaultIndex),
+      ...styles.slice(defaultIndex + 1),
+    ];
+  }
+
+  /** DEFAULT_PROMPT_IMAGE_STYLE_ID, or null when unset/not a number. */
+  private async resolveDefaultStyleId(): Promise<number | null> {
+    const raw = await this.providerRuntimeConfigService.getString(
+      'DEFAULT_PROMPT_IMAGE_STYLE_ID',
+    );
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
   }
 }
