@@ -56,9 +56,18 @@ export class RunpodOpenEndpointMediaProvider
   ): Promise<PromptImageGenerationResult> {
     const endpointId =
       await this.endpoints.getEndpointIdForPromptImageRequest(request);
-    const initialJob = await this.client.submitJob(endpointId, {
-      input: this.payloadBuilder.buildPromptImageInput(request),
-    });
+    // Per-route API key: qwen_image lives on the second RunPod account.
+    const apiKeyConfigKey = this.endpoints.getApiKeyConfigKey(
+      request.aiService,
+      'promptImage',
+    );
+    const initialJob = await this.client.submitJob(
+      endpointId,
+      {
+        input: this.payloadBuilder.buildPromptImageInput(request),
+      },
+      apiKeyConfigKey,
+    );
     const completedJob = await this.client.waitForCompletion(
       endpointId,
       initialJob,
@@ -67,6 +76,7 @@ export class RunpodOpenEndpointMediaProvider
         request.aiService,
         'promptImage',
       ),
+      apiKeyConfigKey,
     );
     const providerImageSources = this.extractor.extractImageSources(
       completedJob.output,
