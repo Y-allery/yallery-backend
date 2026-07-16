@@ -15,7 +15,7 @@ describe('RunpodTimeoutPolicyService', () => {
   };
 
   it('declares explicit timeout settings for every RunPod route (all are async/polled)', () => {
-    expect(RUNPOD_MEDIA_ROUTE_CATALOG).toHaveLength(8);
+    expect(RUNPOD_MEDIA_ROUTE_CATALOG).toHaveLength(9);
 
     for (const route of RUNPOD_MEDIA_ROUTE_CATALOG) {
       expect(route.statusTimeoutConfigKey).toBeTruthy();

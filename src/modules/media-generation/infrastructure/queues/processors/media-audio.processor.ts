@@ -70,10 +70,6 @@ export class MediaAudioProcessor extends BaseMediaProcessor {
 
   @OnWorkerEvent('failed')
   async onFailed(job: Job<MediaAudioJobData>, err: Error) {
-    await this.handleFailedGeneration(
-      job,
-      err,
-      'Audio generation failed',
-    );
+    await this.handleFailedGeneration(job, err, 'Audio generation failed');
   }
 }

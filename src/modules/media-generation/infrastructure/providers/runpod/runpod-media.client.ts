@@ -132,8 +132,9 @@ export class RunpodMediaClient {
 
   private async getApiBaseUrl(): Promise<string> {
     return (
-      (await this.providerRuntimeConfigService.getString('RUNPOD_API_BASE_URL')) ||
-      'https://api.runpod.ai/v2'
+      (await this.providerRuntimeConfigService.getString(
+        'RUNPOD_API_BASE_URL',
+      )) || 'https://api.runpod.ai/v2'
     );
   }
 

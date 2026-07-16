@@ -22,12 +22,22 @@ import {
   getPromptImageAllowedOrientations,
   getPromptImageDefaultOrientation,
 } from 'src/modules/media-generation/domain/presets';
+import { ProviderRuntimeConfigService } from 'src/modules/provider-settings/provider-runtime-config.service';
 import { MediaRouteResolverService } from 'src/modules/media-generation/infrastructure/routing/media-route-resolver.service';
 import { MediaGenerationPricingService } from 'src/modules/media-generation/application/pricing/media-generation-pricing.service';
 
 @Injectable()
 export class MediaAISettingsService {
+  /** Fallback when DEFAULT_PROMPT_IMAGE_AI_SERVICE is not configured. */
   private readonly defaultPromptImageAiService = 'sdxl';
+
+  private async resolveDefaultPromptImageAiService(): Promise<string> {
+    return (
+      (await this.providerRuntimeConfigService.getString(
+        'DEFAULT_PROMPT_IMAGE_AI_SERVICE',
+      )) || this.defaultPromptImageAiService
+    );
+  }
 
   private getImageLimitSettings(setting: MediaAISettingsEntity) {
     return {
@@ -38,6 +48,7 @@ export class MediaAISettingsService {
   }
 
   constructor(
+    private readonly providerRuntimeConfigService: ProviderRuntimeConfigService,
     private readonly mediaRouteResolverService: MediaRouteResolverService,
     private readonly mediaGenerationPricingService: MediaGenerationPricingService,
     @InjectRepository(MediaAISettingsEntity)
@@ -53,7 +64,7 @@ export class MediaAISettingsService {
       this.mediaAISettingsRepository.find({
         where: {
           capability: 'image_generate',
-          aiService: In(['flux2_klein', 'sdxl']),
+          aiService: In(['flux2_klein', 'sdxl', 'qwen_image']),
           isActive: true,
         },
         order: {
@@ -68,9 +79,14 @@ export class MediaAISettingsService {
       (setting) => setting.settings?.contestOnly !== true,
     );
 
-    const defaultSetting = visibleSettings.find(
-      (setting) => setting.aiService === this.defaultPromptImageAiService,
-    );
+    const defaultAiService = await this.resolveDefaultPromptImageAiService();
+    const defaultSetting =
+      visibleSettings.find(
+        (setting) => setting.aiService === defaultAiService,
+      ) ??
+      visibleSettings.find(
+        (setting) => setting.aiService === this.defaultPromptImageAiService,
+      );
 
     return {
       defaultSettings: {

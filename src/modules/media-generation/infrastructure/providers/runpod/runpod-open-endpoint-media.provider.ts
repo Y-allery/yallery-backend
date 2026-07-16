@@ -29,7 +29,9 @@ import { RunpodPayloadBuilder } from './runpod-payload.builder';
 import { RunpodTimeoutPolicyService } from './runpod-timeout-policy.service';
 
 @Injectable()
-export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider {
+export class RunpodOpenEndpointMediaProvider
+  implements MediaGenerationProvider
+{
   readonly provider = MediaProvider.RUNPOD;
 
   constructor(
@@ -84,9 +86,8 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
   async editImages(
     request: EditImageGenerationRequest,
   ): Promise<PromptImageGenerationResult> {
-    const endpointId = await this.endpoints.getEndpointIdForImageEditRequest(
-      request,
-    );
+    const endpointId =
+      await this.endpoints.getEndpointIdForImageEditRequest(request);
     // Async /run + polling (not /runsync): RunPod caps runsync at ~90s and returns a
     // non-terminal status with no output, which loses every edit that hits a cold start
     // on an endpoint that scales to zero. Polling tolerates cold starts like the other routes.
@@ -97,7 +98,10 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
       endpointId,
       initialJob,
       this.extractor.hasExtractableImageSource.bind(this.extractor),
-      await this.timeoutPolicy.getStatusTimeoutMs(request.aiService, 'imageEdit'),
+      await this.timeoutPolicy.getStatusTimeoutMs(
+        request.aiService,
+        'imageEdit',
+      ),
     );
     const providerImageSources = this.extractor.extractImageSources(
       completedJob.output,
@@ -127,9 +131,8 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
     }
 
     const normalizedRequest = { ...request, prompt, videoUrl };
-    const endpointId = await this.endpoints.getEndpointIdForAudioRequest(
-      normalizedRequest,
-    );
+    const endpointId =
+      await this.endpoints.getEndpointIdForAudioRequest(normalizedRequest);
     const initialJob = await this.client.submitJob(endpointId, {
       input: this.payloadBuilder.buildAudioInput(normalizedRequest),
     });
@@ -205,7 +208,10 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
     const { imageBase64, orientation } = await this.prepareImageVideoSource(
       request.imageUrl,
     );
-    const videoRequest: ImageVideoGenerationRequest = { ...request, orientation };
+    const videoRequest: ImageVideoGenerationRequest = {
+      ...request,
+      orientation,
+    };
     const initialJob = await this.client.submitJob(
       endpointId,
       {
@@ -263,7 +269,8 @@ export class RunpodOpenEndpointMediaProvider implements MediaGenerationProvider 
   async generateMemes(
     request: MemeGenerationRequest,
   ): Promise<MemeGenerationResult> {
-    const endpointId = await this.endpoints.getEndpointIdForMemeRequest(request);
+    const endpointId =
+      await this.endpoints.getEndpointIdForMemeRequest(request);
     const initialJob = await this.client.submitJob(endpointId, {
       input: this.payloadBuilder.buildMemeInput(request),
     });

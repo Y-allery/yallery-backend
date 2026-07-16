@@ -26,7 +26,8 @@ export class GenerateEditImageDto {
   @IsOptional()
   @IsInt()
   @ApiPropertyOptional({
-    description: 'Optional style ID. When provided, the backend enriches the edit prompt with the selected style.',
+    description:
+      'Optional style ID. When provided, the backend enriches the edit prompt with the selected style.',
     example: 12,
   })
   style_id?: number;
@@ -34,7 +35,8 @@ export class GenerateEditImageDto {
   @IsOptional()
   @IsInt()
   @ApiPropertyOptional({
-    description: 'Optional color ID. When provided, the backend enriches the edit prompt with the selected color direction.',
+    description:
+      'Optional color ID. When provided, the backend enriches the edit prompt with the selected color direction.',
     example: 3,
   })
   color_id?: number;
@@ -42,7 +44,8 @@ export class GenerateEditImageDto {
   @IsOptional()
   @IsInt()
   @ApiPropertyOptional({
-    description: 'Optional contest ID. When present, edited images are attached to the contest flow.',
+    description:
+      'Optional contest ID. When present, edited images are attached to the contest flow.',
     example: 12,
   })
   contest_id?: number;

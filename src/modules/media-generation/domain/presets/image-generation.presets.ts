@@ -22,10 +22,9 @@ const DEFAULT_PROMPT_IMAGE_PRESETS: Record<
 
 const PROMPT_IMAGE_PRESET_OVERRIDES: Record<string, PromptImagePresetMap> = {};
 
-function getPromptImagePresetMap(aiService: string): Record<
-  MediaOrientation,
-  PromptImageDimensions
-> {
+function getPromptImagePresetMap(
+  aiService: string,
+): Record<MediaOrientation, PromptImageDimensions> {
   return {
     ...DEFAULT_PROMPT_IMAGE_PRESETS,
     ...PROMPT_IMAGE_PRESET_OVERRIDES[aiService],
@@ -37,7 +36,9 @@ export function getPromptImageAllowedOrientations(
 ): MediaOrientation[] {
   const presets = getPromptImagePresetMap(aiService);
 
-  return MEDIA_ORIENTATIONS.filter((orientation) => Boolean(presets[orientation]));
+  return MEDIA_ORIENTATIONS.filter((orientation) =>
+    Boolean(presets[orientation]),
+  );
 }
 
 export function getPromptImageDefaultOrientation(

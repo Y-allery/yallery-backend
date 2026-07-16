@@ -15,10 +15,7 @@ export abstract class BaseMediaProcessor extends WorkerHost {
     super();
   }
 
-  protected getCompletedData<T>(
-    job: Job,
-    processorName: string,
-  ): T[] | null {
+  protected getCompletedData<T>(job: Job, processorName: string): T[] | null {
     const result = job.returnvalue;
 
     if (

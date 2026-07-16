@@ -1,4 +1,9 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomBytes,
+} from 'crypto';
 
 const ENCRYPTION_VERSION = 'v1';
 
@@ -33,7 +38,12 @@ export function decryptProviderSettingValue(
   const [version, ivBase64, authTagBase64, encryptedBase64] =
     encryptedValue.split(':');
 
-  if (version !== ENCRYPTION_VERSION || !ivBase64 || !authTagBase64 || !encryptedBase64) {
+  if (
+    version !== ENCRYPTION_VERSION ||
+    !ivBase64 ||
+    !authTagBase64 ||
+    !encryptedBase64
+  ) {
     throw new Error('Unsupported provider setting encryption payload');
   }
 

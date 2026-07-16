@@ -8,9 +8,14 @@ const DEFAULT_AUDIO_GENERATION_PRESET: AudioGenerationPreset = {
   generatePreviewFromVideo: true,
 };
 
-const AUDIO_PRESET_OVERRIDES: Record<string, Partial<AudioGenerationPreset>> = {};
+const AUDIO_PRESET_OVERRIDES: Record<
+  string,
+  Partial<AudioGenerationPreset>
+> = {};
 
-export function getAudioGenerationPreset(aiService: string): AudioGenerationPreset {
+export function getAudioGenerationPreset(
+  aiService: string,
+): AudioGenerationPreset {
   return {
     ...DEFAULT_AUDIO_GENERATION_PRESET,
     ...AUDIO_PRESET_OVERRIDES[aiService],

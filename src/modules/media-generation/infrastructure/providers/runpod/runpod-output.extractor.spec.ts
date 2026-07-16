@@ -37,8 +37,6 @@ describe('RunpodOutputExtractor', () => {
   });
 
   it('throws cleanly when output is missing', () => {
-    expect(() => extractor.extractVideoSource({})).toThrow(
-      BadGatewayException,
-    );
+    expect(() => extractor.extractVideoSource({})).toThrow(BadGatewayException);
   });
 });

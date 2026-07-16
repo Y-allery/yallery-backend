@@ -12,6 +12,9 @@ describe('MediaAISettingsService', () => {
   }) => {
     return new MediaAISettingsService(
       {
+        getString: jest.fn(async () => null),
+      } as any,
+      {
         describeRoutes: jest.fn().mockReturnValue([]),
       } as any,
       {

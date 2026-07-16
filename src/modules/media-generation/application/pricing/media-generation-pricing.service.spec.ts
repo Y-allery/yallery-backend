@@ -42,9 +42,9 @@ describe('MediaGenerationPricingService', () => {
       }),
     );
 
-    await expect(service.getMemeCost('wan22_animate_native', 4.1)).resolves.toBe(
-      13,
-    );
+    await expect(
+      service.getMemeCost('wan22_animate_native', 4.1),
+    ).resolves.toBe(13);
   });
 
   it('throws when active settings are missing', async () => {

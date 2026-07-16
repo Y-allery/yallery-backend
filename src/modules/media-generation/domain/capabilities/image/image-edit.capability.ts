@@ -4,5 +4,6 @@ import { MediaCapability } from 'src/modules/media-generation/domain/enums/media
 export const imageEditCapability: MediaCapabilityDescriptor = {
   capability: MediaCapability.IMAGE_EDIT,
   mediaType: 'image',
-  description: 'Edit an existing image with provider-specific edit models or endpoints.',
+  description:
+    'Edit an existing image with provider-specific edit models or endpoints.',
 };

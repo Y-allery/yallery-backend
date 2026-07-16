@@ -9,6 +9,7 @@ import { ContestTypeEnum } from 'src/modules/contests/types/contest.status.enum'
 import { AIFinetuneEntity } from 'src/modules/admin/entities/ai-finetune.entity';
 import { ContestFlowMetadataEntity } from 'src/modules/contests/entity/contest-flow-metadata.entity';
 import { Repository } from 'typeorm';
+import { ProviderRuntimeConfigService } from 'src/modules/provider-settings/provider-runtime-config.service';
 import {
   PromptImageGenerationRequest,
   ResolvedPromptImageGenerationRequest,
@@ -21,6 +22,7 @@ import {
 
 @Injectable()
 export class ContestMediaGenerationResolverService {
+  /** Fallback when DEFAULT_PROMPT_IMAGE_CONTEST_AI_SERVICE is not configured. */
   private readonly defaultPromptImageContestAiService = 'sdxl';
 
   constructor(
@@ -32,6 +34,7 @@ export class ContestMediaGenerationResolverService {
     private readonly aiFinetuneRepository: Repository<AIFinetuneEntity>,
     @InjectRepository(ContestFlowMetadataEntity)
     private readonly contestFlowMetadataRepository: Repository<ContestFlowMetadataEntity>,
+    private readonly providerRuntimeConfigService: ProviderRuntimeConfigService,
   ) {}
 
   async resolvePromptImageRequest(
@@ -55,7 +58,10 @@ export class ContestMediaGenerationResolverService {
       'image_generate',
     );
     const aiService = mediaAiSetting.aiService;
-    const orientation = resolvePromptImageOrientation(aiService, request.orientation);
+    const orientation = resolvePromptImageOrientation(
+      aiService,
+      request.orientation,
+    );
     const { width, height } = getPromptImageDimensions(aiService, orientation);
 
     if (contest.contestType !== ContestTypeEnum.FINE_TUNE) {
@@ -88,7 +94,9 @@ export class ContestMediaGenerationResolverService {
 
     const basePrompt = request.resolvedPrompt ?? request.prompt;
 
-    const fineTune = await this.getReadyFineTuneByLoraKey(contest.fineTuneToken);
+    const fineTune = await this.getReadyFineTuneByLoraKey(
+      contest.fineTuneToken,
+    );
     const triggerWord = contest.fineTuneTriggerWord || fineTune.triggerWord;
     const loraScale =
       Number(contest.fineTuneStrength) ||
@@ -142,7 +150,10 @@ export class ContestMediaGenerationResolverService {
     }
 
     const aiService = request.aiService.trim();
-    const orientation = resolvePromptImageOrientation(aiService, request.orientation);
+    const orientation = resolvePromptImageOrientation(
+      aiService,
+      request.orientation,
+    );
     const { width, height } = getPromptImageDimensions(aiService, orientation);
 
     return {
@@ -177,7 +188,10 @@ export class ContestMediaGenerationResolverService {
   ): Promise<MediaAISettingsEntity> {
     const mediaAiSetting =
       contest.mediaAiSetting ??
-      (await this.resolveFallbackContestMediaAiSetting(contest, expectedCapability));
+      (await this.resolveFallbackContestMediaAiSetting(
+        contest,
+        expectedCapability,
+      ));
 
     if (!mediaAiSetting.isActive) {
       throw new BadRequestException(
@@ -236,20 +250,29 @@ export class ContestMediaGenerationResolverService {
   }
 
   private async getDefaultPromptImageContestSetting(): Promise<MediaAISettingsEntity> {
-    const preferredSetting = await this.mediaAISettingsRepository.findOne({
-      where: {
-        aiService: this.defaultPromptImageContestAiService,
-        capability: 'image_generate',
-        isActive: true,
-      },
-    });
+    const configured =
+      (await this.providerRuntimeConfigService.getString(
+        'DEFAULT_PROMPT_IMAGE_CONTEST_AI_SERVICE',
+      )) || this.defaultPromptImageContestAiService;
 
-    if (preferredSetting) {
-      return preferredSetting;
+    for (const aiService of [
+      configured,
+      this.defaultPromptImageContestAiService,
+    ]) {
+      const preferredSetting = await this.mediaAISettingsRepository.findOne({
+        where: {
+          aiService,
+          capability: 'image_generate',
+          isActive: true,
+        },
+      });
+      if (preferredSetting) {
+        return preferredSetting;
+      }
     }
 
     throw new BadRequestException(
-      `No active ${this.defaultPromptImageContestAiService} prompt-image model is configured for contests.`,
+      `No active ${configured} prompt-image model is configured for contests.`,
     );
   }
 
@@ -277,7 +300,9 @@ export class ContestMediaGenerationResolverService {
     });
 
     if (!fineTune) {
-      throw new BadRequestException(`Fine-tune "${loraKey}" is not configured.`);
+      throw new BadRequestException(
+        `Fine-tune "${loraKey}" is not configured.`,
+      );
     }
 
     if (fineTune.status !== 'ready' || !fineTune.loraUrl) {

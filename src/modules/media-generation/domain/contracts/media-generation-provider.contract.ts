@@ -29,7 +29,5 @@ export interface MediaGenerationProvider {
   generateImageVideos?(
     request: ImageVideoGenerationRequest,
   ): Promise<VideoGenerationResult>;
-  generateMemes?(
-    request: MemeGenerationRequest,
-  ): Promise<MemeGenerationResult>;
+  generateMemes?(request: MemeGenerationRequest): Promise<MemeGenerationResult>;
 }

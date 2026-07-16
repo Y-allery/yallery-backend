@@ -53,10 +53,7 @@ export class MediaEditImageProcessor extends BaseMediaProcessor {
   @OnWorkerEvent('completed')
   async onCompleted(job: Job<MediaEditImageJobData>) {
     const { userId } = job.data;
-    const data = this.getCompletedData<unknown>(
-      job,
-      'MediaEditImageProcessor',
-    );
+    const data = this.getCompletedData<unknown>(job, 'MediaEditImageProcessor');
 
     if (!userId || !data) {
       return;

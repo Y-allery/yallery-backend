@@ -34,7 +34,10 @@ export class MediaTagResolverService {
       return otherTag;
     }
 
-    const keywordMatch = this.findKeywordTagMatch(normalizedPrompt, candidateTags);
+    const keywordMatch = this.findKeywordTagMatch(
+      normalizedPrompt,
+      candidateTags,
+    );
     if (keywordMatch) {
       return keywordMatch;
     }
@@ -78,9 +81,7 @@ export class MediaTagResolverService {
     const otherTag =
       tags.find((tag) => tag.name.trim().toLowerCase() === 'other') ?? null;
 
-    const candidateTags = tags.filter(
-      (tag) => tag.id !== otherTag?.id,
-    );
+    const candidateTags = tags.filter((tag) => tag.id !== otherTag?.id);
 
     return {
       otherTag,
@@ -88,7 +89,10 @@ export class MediaTagResolverService {
     };
   }
 
-  private findKeywordTagMatch(prompt: string, tags: TagEntity[]): TagEntity | null {
+  private findKeywordTagMatch(
+    prompt: string,
+    tags: TagEntity[],
+  ): TagEntity | null {
     const normalizedPrompt = this.normalizeText(prompt);
 
     const sortedTags = [...tags].sort(
@@ -166,17 +170,13 @@ Rules:
   }
 
   private async createOpenAIClient(): Promise<OpenAI | null> {
-    const apiKey = await this.providerRuntimeConfigService.getString(
-      'OPENAI_API_KEY',
-    );
+    const apiKey =
+      await this.providerRuntimeConfigService.getString('OPENAI_API_KEY');
 
     return apiKey ? new OpenAI({ apiKey }) : null;
   }
 
   private normalizeText(value: string): string {
-    return value
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, ' ');
+    return value.trim().toLowerCase().replace(/\s+/g, ' ');
   }
 }

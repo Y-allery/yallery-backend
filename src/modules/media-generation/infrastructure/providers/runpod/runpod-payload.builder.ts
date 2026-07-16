@@ -38,6 +38,17 @@ export class RunpodPayloadBuilder {
           return_base64: true,
           return_data_uri: true,
         };
+      case 'qwen_image':
+        return {
+          prompt,
+          style,
+          width: request.width,
+          height: request.height,
+          num_images: request.imageQuantity,
+          output_format: 'png',
+          return_base64: true,
+          return_data_uri: true,
+        };
       case 'sdxl':
         return {
           prompt,

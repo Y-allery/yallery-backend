@@ -33,7 +33,10 @@ describe('BaseMediaProcessor', () => {
   it('emits mediaGenerationError and refunds the charge after final failed attempt', async () => {
     const notificationGateway = createGateway();
     const balanceService = createBalanceService();
-    const processor = new TestMediaProcessor(notificationGateway, balanceService);
+    const processor = new TestMediaProcessor(
+      notificationGateway,
+      balanceService,
+    );
 
     await processor.fail(
       {
@@ -65,7 +68,10 @@ describe('BaseMediaProcessor', () => {
   it('does not emit or refund before retry attempts are exhausted', async () => {
     const notificationGateway = createGateway();
     const balanceService = createBalanceService();
-    const processor = new TestMediaProcessor(notificationGateway, balanceService);
+    const processor = new TestMediaProcessor(
+      notificationGateway,
+      balanceService,
+    );
 
     await processor.fail(
       {

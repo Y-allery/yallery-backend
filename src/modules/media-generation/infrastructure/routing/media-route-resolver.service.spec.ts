@@ -26,7 +26,9 @@ describe('MediaRouteResolverService', () => {
       RUNPOD_MMAUDIO_ENDPOINT_ID: 'mmaudio-endpoint',
     });
 
-    await expect(service.resolveAudioRoute('mmaudio_v2')).resolves.toMatchObject({
+    await expect(
+      service.resolveAudioRoute('mmaudio_v2'),
+    ).resolves.toMatchObject({
       aiService: 'mmaudio_v2',
       capability: MediaCapability.AUDIO_GENERATE,
       provider: MediaProvider.RUNPOD,
@@ -61,7 +63,11 @@ describe('MediaRouteResolverService', () => {
       RUNPOD_P_VIDEO_ENDPOINT_ID: 'p-video-endpoint',
     });
 
-    await expect(service.resolveTextVideoRoute('p_video_image')).resolves.toBeNull();
-    await expect(service.resolveImageVideoRoute('p_video_text')).resolves.toBeNull();
+    await expect(
+      service.resolveTextVideoRoute('p_video_image'),
+    ).resolves.toBeNull();
+    await expect(
+      service.resolveImageVideoRoute('p_video_text'),
+    ).resolves.toBeNull();
   });
 });

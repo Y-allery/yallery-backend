@@ -324,7 +324,11 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
 
     expect(mockedAxios.post).toHaveBeenCalledWith(
       'https://api.runpod.ai/v2/test-qwen-endpoint/run',
-      { input: expect.objectContaining({ image_url: 'https://cdn.test/source.png' }) },
+      {
+        input: expect.objectContaining({
+          image_url: 'https://cdn.test/source.png',
+        }),
+      },
       expect.any(Object),
     );
     // Must have polled /status rather than trusting the first non-terminal response.

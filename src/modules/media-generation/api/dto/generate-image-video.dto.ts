@@ -1,12 +1,24 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsInt, IsOptional, IsString, IsUrl, Max, Min } from 'class-validator';
-import { MEDIA_ORIENTATIONS, MediaOrientation } from 'src/modules/media-generation/domain/presets';
+import {
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUrl,
+  Max,
+  Min,
+} from 'class-validator';
+import {
+  MEDIA_ORIENTATIONS,
+  MediaOrientation,
+} from 'src/modules/media-generation/domain/presets';
 
 export class GenerateImageVideoDto {
   @IsString()
   @ApiProperty({
     description: 'Prompt text used to animate the source image into a video.',
-    example: 'Subtle cinematic motion, hair moving gently, realistic city ambience',
+    example:
+      'Subtle cinematic motion, hair moving gently, realistic city ambience',
   })
   prompt: string;
 

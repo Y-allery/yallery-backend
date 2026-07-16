@@ -19,23 +19,28 @@ const DEFAULT_VIDEO_PRESETS: Record<MediaOrientation, VideoOutputPreset> = {
 
 const VIDEO_PRESET_OVERRIDES: Record<string, VideoPresetMap> = {};
 
-function getVideoPresetMap(aiService: string): Record<
-  MediaOrientation,
-  VideoOutputPreset
-> {
+function getVideoPresetMap(
+  aiService: string,
+): Record<MediaOrientation, VideoOutputPreset> {
   return {
     ...DEFAULT_VIDEO_PRESETS,
     ...VIDEO_PRESET_OVERRIDES[aiService],
   };
 }
 
-export function getVideoAllowedOrientations(aiService: string): MediaOrientation[] {
+export function getVideoAllowedOrientations(
+  aiService: string,
+): MediaOrientation[] {
   const presets = getVideoPresetMap(aiService);
 
-  return MEDIA_ORIENTATIONS.filter((orientation) => Boolean(presets[orientation]));
+  return MEDIA_ORIENTATIONS.filter((orientation) =>
+    Boolean(presets[orientation]),
+  );
 }
 
-export function getVideoDefaultOrientation(aiService: string): MediaOrientation {
+export function getVideoDefaultOrientation(
+  aiService: string,
+): MediaOrientation {
   return getVideoAllowedOrientations(aiService)[0] ?? 'vertical';
 }
 
@@ -43,7 +48,8 @@ export function resolveVideoOrientation(
   aiService: string,
   orientation?: MediaOrientation,
 ): MediaOrientation {
-  const resolvedOrientation = orientation ?? getVideoDefaultOrientation(aiService);
+  const resolvedOrientation =
+    orientation ?? getVideoDefaultOrientation(aiService);
   const allowedOrientations = getVideoAllowedOrientations(aiService);
 
   if (!allowedOrientations.includes(resolvedOrientation)) {

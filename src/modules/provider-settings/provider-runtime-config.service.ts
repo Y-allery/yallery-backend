@@ -44,7 +44,10 @@ export class ProviderRuntimeConfigService {
       groups: this.groupDefinitions(
         await Promise.all(
           PROVIDER_SETTING_DEFINITIONS.map((definition) =>
-            this.formatSetting(definition, rowsByKey.get(definition.key) ?? null),
+            this.formatSetting(
+              definition,
+              rowsByKey.get(definition.key) ?? null,
+            ),
           ),
         ),
       ),
@@ -269,9 +272,13 @@ export class ProviderRuntimeConfigService {
       validationKind: definition.validationKind,
       isConfigured,
       source: resolved.source,
-      value: definition.isSecret ? undefined : this.formatPlainValue(definition, resolved.value),
+      value: definition.isSecret
+        ? undefined
+        : this.formatPlainValue(definition, resolved.value),
       maskedValue:
-        definition.isSecret && isConfigured ? this.maskSecret(resolved.value) : null,
+        definition.isSecret && isConfigured
+          ? this.maskSecret(resolved.value)
+          : null,
       updatedAt: resolved.row?.updatedAt ?? null,
     };
   }
@@ -392,7 +399,9 @@ export class ProviderRuntimeConfigService {
     if (definition.type === 'number') {
       const numericValue = Number(value);
       if (!Number.isFinite(numericValue) || numericValue < 0) {
-        throw new BadRequestException(`${definition.key} must be a positive number`);
+        throw new BadRequestException(
+          `${definition.key} must be a positive number`,
+        );
       }
       return String(numericValue);
     }
@@ -435,7 +444,9 @@ export class ProviderRuntimeConfigService {
     const secret = this.configService.get<string>('SETTINGS_ENCRYPTION_KEY');
 
     if (!secret) {
-      throw new BadRequestException('SETTINGS_ENCRYPTION_KEY is not configured');
+      throw new BadRequestException(
+        'SETTINGS_ENCRYPTION_KEY is not configured',
+      );
     }
 
     return secret;

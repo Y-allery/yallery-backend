@@ -6,9 +6,14 @@ export type ProviderSettingGroup =
   | 'runpod_private_endpoints'
   | 'runpod_public_endpoints'
   | 'runpod_toggles'
-  | 'runpod_timeouts';
+  | 'runpod_timeouts'
+  | 'media_defaults';
 
-export type ProviderSettingValueType = 'secret' | 'string' | 'boolean' | 'number';
+export type ProviderSettingValueType =
+  | 'secret'
+  | 'string'
+  | 'boolean'
+  | 'number';
 
 export type ProviderSettingValidationKind =
   | 'openai_api_key'
@@ -123,6 +128,15 @@ export const PROVIDER_SETTING_DEFINITIONS: ProviderSettingDefinition[] = [
     validationKind: 'runpod_serverless_endpoint',
   },
   {
+    key: 'RUNPOD_QWEN_IMAGE_ENDPOINT_ID',
+    provider: 'runpod',
+    group: 'runpod_private_endpoints',
+    label: 'Qwen Image (t2i) Endpoint — account #2',
+    type: 'string',
+    isSecret: false,
+    validationKind: 'runpod_serverless_endpoint',
+  },
+  {
     key: 'RUNPOD_SDXL_ENDPOINT_ID',
     provider: 'runpod',
     group: 'runpod_private_endpoints',
@@ -181,7 +195,8 @@ export const PROVIDER_SETTING_DEFINITIONS: ProviderSettingDefinition[] = [
     provider: 'runpod',
     group: 'runpod_public_endpoints',
     label: 'P-Video Public Endpoint',
-    description: 'Public/logical RunPod endpoint identifier; not a serverless control-plane endpoint id.',
+    description:
+      'Public/logical RunPod endpoint identifier; not a serverless control-plane endpoint id.',
     type: 'string',
     isSecret: false,
     validationKind: 'runpod_public_endpoint',
@@ -195,6 +210,36 @@ export const PROVIDER_SETTING_DEFINITIONS: ProviderSettingDefinition[] = [
     isSecret: false,
     validationKind: 'none',
     defaultValue: 'true',
+  },
+  {
+    key: 'RUNPOD_QWEN_IMAGE_ENABLED',
+    provider: 'runpod',
+    group: 'runpod_toggles',
+    label: 'Qwen Image (t2i) Enabled',
+    type: 'boolean',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: 'true',
+  },
+  {
+    key: 'DEFAULT_PROMPT_IMAGE_AI_SERVICE',
+    provider: 'runpod',
+    group: 'media_defaults',
+    label: 'Default prompt-image model (app)',
+    type: 'string',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: 'sdxl',
+  },
+  {
+    key: 'DEFAULT_PROMPT_IMAGE_CONTEST_AI_SERVICE',
+    provider: 'runpod',
+    group: 'media_defaults',
+    label: 'Default prompt-image model (legacy contests fallback)',
+    type: 'string',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: 'sdxl',
   },
   {
     key: 'RUNPOD_SDXL_ENABLED',
@@ -310,5 +355,8 @@ export const PROVIDER_SETTING_DEFINITIONS: ProviderSettingDefinition[] = [
 ];
 
 export const PROVIDER_SETTING_DEFINITION_BY_KEY = new Map(
-  PROVIDER_SETTING_DEFINITIONS.map((definition) => [definition.key, definition]),
+  PROVIDER_SETTING_DEFINITIONS.map((definition) => [
+    definition.key,
+    definition,
+  ]),
 );

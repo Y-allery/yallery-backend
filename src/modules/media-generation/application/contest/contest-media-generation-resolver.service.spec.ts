@@ -22,6 +22,7 @@ describe('ContestMediaGenerationResolverService', () => {
       mediaAISettingsRepository as any,
       aiFinetuneRepository as any,
       contestFlowMetadataRepository as any,
+      { getString: jest.fn(async () => null) } as any,
     );
 
     return {

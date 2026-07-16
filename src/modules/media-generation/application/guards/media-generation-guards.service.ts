@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { MemeEntity } from 'src/modules/memes/entities/meme.entity';
 import { UserEntity } from 'src/modules/users/entities/user.entity';
@@ -87,10 +91,9 @@ export class MediaGenerationGuardsService {
     }
 
     const user = await this.getRequiredUser(userId);
-    const totalCost =
-      await this.mediaGenerationPricingService.getImageEditCost(
-        request.aiService,
-      );
+    const totalCost = await this.mediaGenerationPricingService.getImageEditCost(
+      request.aiService,
+    );
 
     if (user.points < totalCost) {
       throw new BadRequestException('Not enough credits to edit images');
@@ -111,8 +114,9 @@ export class MediaGenerationGuardsService {
     }
 
     const user = await this.getRequiredUser(userId);
-    const totalCost =
-      await this.mediaGenerationPricingService.getAudioCost(request.aiService);
+    const totalCost = await this.mediaGenerationPricingService.getAudioCost(
+      request.aiService,
+    );
 
     if (user.points < totalCost) {
       throw new BadRequestException('Not enough credits to generate audio');

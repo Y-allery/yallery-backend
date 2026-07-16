@@ -27,20 +27,24 @@ describe('MediaGenerationFinalizeService', () => {
         previewImageUrl: 'https://cdn.test/result.jpg',
         generationParams: { aiService: 'mmaudio_v2' },
       })),
-      createVideoPost: jest.fn(async (_params, _userId, videoUrl, previewImageUrl) => ({
-        id: 10,
-        imageUrl: null,
-        videoUrl,
-        previewImageUrl,
-        generationParams: { aiService: 'p_video_text' },
-      })),
-      createMemePost: jest.fn(async (_request, _meme, _userId, videoUrl, previewImageUrl) => ({
-        id: 11,
-        imageUrl: null,
-        videoUrl,
-        previewImageUrl,
-        generationParams: { aiService: 'wan22_animate_native' },
-      })),
+      createVideoPost: jest.fn(
+        async (_params, _userId, videoUrl, previewImageUrl) => ({
+          id: 10,
+          imageUrl: null,
+          videoUrl,
+          previewImageUrl,
+          generationParams: { aiService: 'p_video_text' },
+        }),
+      ),
+      createMemePost: jest.fn(
+        async (_request, _meme, _userId, videoUrl, previewImageUrl) => ({
+          id: 11,
+          imageUrl: null,
+          videoUrl,
+          previewImageUrl,
+          generationParams: { aiService: 'wan22_animate_native' },
+        }),
+      ),
     };
     const mediaGenerationExecutionService = {
       generatePromptImages: jest.fn(async () => ({

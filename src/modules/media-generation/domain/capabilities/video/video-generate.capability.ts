@@ -4,5 +4,6 @@ import { MediaCapability } from 'src/modules/media-generation/domain/enums/media
 export const videoGenerateCapability: MediaCapabilityDescriptor = {
   capability: MediaCapability.VIDEO_GENERATE,
   mediaType: 'video',
-  description: 'Generate or render a video asset from prompts or other source media.',
+  description:
+    'Generate or render a video asset from prompts or other source media.',
 };

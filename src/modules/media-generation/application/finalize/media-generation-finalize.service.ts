@@ -39,7 +39,8 @@ export class MediaGenerationFinalizeService {
   ) {
     const result =
       await this.mediaGenerationExecutionService.generatePromptImages(request);
-    const user = await this.mediaGenerationGuardsService.getRequiredUser(userId);
+    const user =
+      await this.mediaGenerationGuardsService.getRequiredUser(userId);
     const totalCost =
       await this.mediaGenerationPricingService.getPromptImageCost(
         request.aiService,
@@ -81,8 +82,7 @@ export class MediaGenerationFinalizeService {
       orientation: request.orientation,
       contestId: request.contestId ?? null,
       postId: primaryPost?.id ?? null,
-      previewUrl:
-        primaryPost?.imageUrl ?? primaryPost?.previewImageUrl ?? null,
+      previewUrl: primaryPost?.imageUrl ?? primaryPost?.previewImageUrl ?? null,
     });
 
     return {
@@ -102,12 +102,13 @@ export class MediaGenerationFinalizeService {
     request: EditImageGenerationRequest,
     userId: number,
   ) {
-    const result = await this.mediaGenerationExecutionService.editImages(request);
-    const user = await this.mediaGenerationGuardsService.getRequiredUser(userId);
-    const totalCost =
-      await this.mediaGenerationPricingService.getImageEditCost(
-        request.aiService,
-      );
+    const result =
+      await this.mediaGenerationExecutionService.editImages(request);
+    const user =
+      await this.mediaGenerationGuardsService.getRequiredUser(userId);
+    const totalCost = await this.mediaGenerationPricingService.getImageEditCost(
+      request.aiService,
+    );
 
     const publishTo = await this.getContestPublishTo(request.contestId ?? null);
     const resolvedTag = await this.mediaTagResolverService.resolveTagForPrompt(
@@ -143,8 +144,7 @@ export class MediaGenerationFinalizeService {
       quantity: result.imageUrls.length,
       contestId: request.contestId ?? null,
       postId: primaryPost?.id ?? null,
-      previewUrl:
-        primaryPost?.imageUrl ?? primaryPost?.previewImageUrl ?? null,
+      previewUrl: primaryPost?.imageUrl ?? primaryPost?.previewImageUrl ?? null,
     });
 
     return {
@@ -166,9 +166,11 @@ export class MediaGenerationFinalizeService {
   ) {
     const result =
       await this.mediaGenerationExecutionService.generateAudio(request);
-    const user = await this.mediaGenerationGuardsService.getRequiredUser(userId);
-    const totalCost =
-      await this.mediaGenerationPricingService.getAudioCost(request.aiService);
+    const user =
+      await this.mediaGenerationGuardsService.getRequiredUser(userId);
+    const totalCost = await this.mediaGenerationPricingService.getAudioCost(
+      request.aiService,
+    );
 
     const publishTo = await this.getContestPublishTo(request.contestId ?? null);
     const audioPreset = getAudioGenerationPreset(request.aiService);
@@ -180,7 +182,9 @@ export class MediaGenerationFinalizeService {
       request,
       user.id,
       result.videoUrl,
-      audioPreset.generatePreviewFromVideo ? result.previewImageUrl ?? null : null,
+      audioPreset.generatePreviewFromVideo
+        ? (result.previewImageUrl ?? null)
+        : null,
       resolvedTag,
       {
         width: result.width ?? null,
@@ -216,7 +220,8 @@ export class MediaGenerationFinalizeService {
           imageUrl: savedPost?.imageUrl ?? post.imageUrl,
           videoUrl: savedPost?.videoUrl ?? post.videoUrl,
           previewImageUrl: savedPost?.previewImageUrl ?? post.previewImageUrl,
-          generationParams: savedPost?.generationParams ?? post.generationParams,
+          generationParams:
+            savedPost?.generationParams ?? post.generationParams,
           publishTo,
         },
       ],
@@ -230,7 +235,8 @@ export class MediaGenerationFinalizeService {
   ) {
     const result =
       await this.mediaGenerationExecutionService.generateTextVideos(request);
-    const user = await this.mediaGenerationGuardsService.getRequiredUser(userId);
+    const user =
+      await this.mediaGenerationGuardsService.getRequiredUser(userId);
     const totalCost = await this.mediaGenerationPricingService.getVideoCost(
       request.aiService,
       request.duration,
@@ -287,7 +293,8 @@ export class MediaGenerationFinalizeService {
           imageUrl: savedPost?.imageUrl ?? post.imageUrl,
           videoUrl: savedPost?.videoUrl ?? post.videoUrl,
           previewImageUrl: savedPost?.previewImageUrl ?? post.previewImageUrl,
-          generationParams: savedPost?.generationParams ?? post.generationParams,
+          generationParams:
+            savedPost?.generationParams ?? post.generationParams,
           publishTo,
         },
       ],
@@ -301,7 +308,8 @@ export class MediaGenerationFinalizeService {
   ) {
     const result =
       await this.mediaGenerationExecutionService.generateImageVideos(request);
-    const user = await this.mediaGenerationGuardsService.getRequiredUser(userId);
+    const user =
+      await this.mediaGenerationGuardsService.getRequiredUser(userId);
     const totalCost = await this.mediaGenerationPricingService.getVideoCost(
       request.aiService,
       request.duration,
@@ -359,7 +367,8 @@ export class MediaGenerationFinalizeService {
           imageUrl: savedPost?.imageUrl ?? post.imageUrl,
           videoUrl: savedPost?.videoUrl ?? post.videoUrl,
           previewImageUrl: savedPost?.previewImageUrl ?? post.previewImageUrl,
-          generationParams: savedPost?.generationParams ?? post.generationParams,
+          generationParams:
+            savedPost?.generationParams ?? post.generationParams,
           publishTo,
         },
       ],
@@ -367,10 +376,7 @@ export class MediaGenerationFinalizeService {
     };
   }
 
-  async finalizeMemeGeneration(
-    request: MemeGenerationRequest,
-    userId: number,
-  ) {
+  async finalizeMemeGeneration(request: MemeGenerationRequest, userId: number) {
     const meme = await this.mediaGenerationGuardsService.getRequiredMeme(
       request.memeId,
     );

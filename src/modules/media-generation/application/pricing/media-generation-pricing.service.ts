@@ -102,10 +102,7 @@ export class MediaGenerationPricingService {
     return aiSetting.cost;
   }
 
-  async getVideoCost(
-    aiService: string,
-    duration?: number,
-  ): Promise<number> {
+  async getVideoCost(aiService: string, duration?: number): Promise<number> {
     const aiSetting = await this.mediaAISettingsRepository.findOne({
       where: {
         aiService,
@@ -177,7 +174,8 @@ export class MediaGenerationPricingService {
       durations,
       pricing: pricing
         ? {
-            strategy: pricing.strategy === 'per_second' ? 'per_second' : 'fixed',
+            strategy:
+              pricing.strategy === 'per_second' ? 'per_second' : 'fixed',
             creditsPerSecond: pricing.creditsPerSecond,
             durationCosts:
               durations?.map((duration) => ({

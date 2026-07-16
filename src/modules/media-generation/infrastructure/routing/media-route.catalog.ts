@@ -53,6 +53,21 @@ export const RUNPOD_MEDIA_ROUTE_CATALOG: MediaRouteCatalogEntry[] = [
   },
   {
     routeType: 'promptImage',
+    aiService: 'qwen_image',
+    capability: MediaCapability.IMAGE_GENERATE,
+    provider: MediaProvider.RUNPOD,
+    dispatch: MediaDispatch.BULLMQ_QUEUE,
+    queueName: MEDIA_PROMPT_IMAGE_GENERATION_QUEUE,
+    endpointConfigKey: 'RUNPOD_QWEN_IMAGE_ENDPOINT_ID',
+    // Lives on RunPod account #2 (the LTX/video account) — same per-route key.
+    apiKeyConfigKey: 'RUNPOD_VIDEO_API_KEY',
+    enabledConfigKey: 'RUNPOD_QWEN_IMAGE_ENABLED',
+    statusTimeoutConfigKey: 'RUNPOD_QWEN_IMAGE_STATUS_TIMEOUT_MS',
+    statusTimeoutLabel: 'Qwen Image Status Timeout',
+    defaultStatusTimeoutMs: 1200000,
+  },
+  {
+    routeType: 'promptImage',
     aiService: 'sdxl',
     capability: MediaCapability.IMAGE_GENERATE,
     provider: MediaProvider.RUNPOD,
@@ -73,8 +88,7 @@ export const RUNPOD_MEDIA_ROUTE_CATALOG: MediaRouteCatalogEntry[] = [
     queueName: MEDIA_PROMPT_IMAGE_GENERATION_QUEUE,
     endpointConfigKey: 'RUNPOD_SDXL_LORA_GENERATION_ENDPOINT_ID',
     enabledConfigKey: 'RUNPOD_SDXL_LORA_GENERATION_ENABLED',
-    statusTimeoutConfigKey:
-      'RUNPOD_SDXL_LORA_GENERATION_STATUS_TIMEOUT_MS',
+    statusTimeoutConfigKey: 'RUNPOD_SDXL_LORA_GENERATION_STATUS_TIMEOUT_MS',
     statusTimeoutLabel: 'SDXL LoRA Generation Status Timeout',
     defaultStatusTimeoutMs: 1800000,
   },
@@ -141,8 +155,7 @@ export const RUNPOD_MEDIA_ROUTE_CATALOG: MediaRouteCatalogEntry[] = [
     queueName: MEDIA_MEME_GENERATION_QUEUE,
     endpointConfigKey: 'RUNPOD_WAN22_ANIMATE_MEME_ENDPOINT_ID',
     enabledConfigKey: 'RUNPOD_WAN22_ANIMATE_MEME_ENABLED',
-    statusTimeoutConfigKey:
-      'RUNPOD_WAN22_ANIMATE_MEME_STATUS_TIMEOUT_MS',
+    statusTimeoutConfigKey: 'RUNPOD_WAN22_ANIMATE_MEME_STATUS_TIMEOUT_MS',
     statusTimeoutLabel: 'WAN 2.2 Animate Meme Status Timeout',
     defaultStatusTimeoutMs: 7200000,
   },

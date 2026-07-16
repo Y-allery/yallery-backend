@@ -5,13 +5,15 @@ export class GenerateAudioDto {
   @IsUrl()
   @ApiProperty({
     description: 'Public video URL used as the source for audio generation.',
-    example: 'https://yallery-api-prod.org/media/video/upload/octoai_videos/source.mp4',
+    example:
+      'https://yallery-api-prod.org/media/video/upload/octoai_videos/source.mp4',
   })
   video_url: string;
 
   @IsString()
   @ApiProperty({
-    description: 'Prompt used to generate the audio track for the source video.',
+    description:
+      'Prompt used to generate the audio track for the source video.',
     example: 'Playful cinematic synthwave soundtrack with soft female vocals.',
   })
   prompt: string;

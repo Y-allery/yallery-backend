@@ -14,11 +14,15 @@ export class MediaRouteResolverService {
     private readonly providerRuntimeConfigService: ProviderRuntimeConfigService,
   ) {}
 
-  resolvePromptImageRoute(aiService: string): Promise<MediaGenerationRoute | null> {
+  resolvePromptImageRoute(
+    aiService: string,
+  ): Promise<MediaGenerationRoute | null> {
     return this.resolveRoute(aiService, 'promptImage');
   }
 
-  resolveImageEditRoute(aiService: string): Promise<MediaGenerationRoute | null> {
+  resolveImageEditRoute(
+    aiService: string,
+  ): Promise<MediaGenerationRoute | null> {
     return this.resolveRoute(aiService, 'imageEdit');
   }
 
@@ -26,11 +30,15 @@ export class MediaRouteResolverService {
     return this.resolveRoute(aiService, 'audio');
   }
 
-  resolveTextVideoRoute(aiService: string): Promise<MediaGenerationRoute | null> {
+  resolveTextVideoRoute(
+    aiService: string,
+  ): Promise<MediaGenerationRoute | null> {
     return this.resolveRoute(aiService, 'textVideo');
   }
 
-  resolveImageVideoRoute(aiService: string): Promise<MediaGenerationRoute | null> {
+  resolveImageVideoRoute(
+    aiService: string,
+  ): Promise<MediaGenerationRoute | null> {
     return this.resolveRoute(aiService, 'imageVideo');
   }
 
@@ -72,7 +80,9 @@ export class MediaRouteResolverService {
     };
   }
 
-  private async isRouteEnabled(entry: MediaRouteCatalogEntry): Promise<boolean> {
+  private async isRouteEnabled(
+    entry: MediaRouteCatalogEntry,
+  ): Promise<boolean> {
     const isEnabled = entry.enabledConfigKey
       ? await this.providerRuntimeConfigService.getBoolean(
           entry.enabledConfigKey,

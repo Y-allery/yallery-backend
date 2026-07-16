@@ -1,6 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
-import { MEDIA_ORIENTATIONS, MediaOrientation } from 'src/modules/media-generation/domain/presets';
+import {
+  MEDIA_ORIENTATIONS,
+  MediaOrientation,
+} from 'src/modules/media-generation/domain/presets';
 
 export class GenerateTextVideoDto {
   @IsString()

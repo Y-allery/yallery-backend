@@ -19,7 +19,8 @@ export class GenerateMemeDto {
 
   @IsString()
   @ApiProperty({
-    description: 'Source image URL that will be animated with the meme template motion.',
+    description:
+      'Source image URL that will be animated with the meme template motion.',
     example:
       'https://yallery-api-prod.org/media/image/upload/octoai_images/user-photo.png',
   })
@@ -38,7 +39,8 @@ export class GenerateMemeDto {
   @IsOptional()
   @IsString()
   @ApiPropertyOptional({
-    description: 'Optional negative prompt override for RunPod WAN motion transfer.',
+    description:
+      'Optional negative prompt override for RunPod WAN motion transfer.',
     example: 'foreign limbs, copied background, jitter, flicker',
   })
   negative_prompt?: string;

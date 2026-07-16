@@ -20,9 +20,13 @@ export interface MediaAISettingsJson {
 
 @Entity('media_ai_settings')
 @Index('IDX_media_ai_settings_capability_isActive', ['capability', 'isActive'])
-@Index('IDX_media_ai_settings_aiService_capability', ['aiService', 'capability'], {
-  unique: true,
-})
+@Index(
+  'IDX_media_ai_settings_aiService_capability',
+  ['aiService', 'capability'],
+  {
+    unique: true,
+  },
+)
 export class MediaAISettingsEntity extends TimeStampEntity {
   @Column({ type: 'varchar', length: 120 })
   aiService: string;

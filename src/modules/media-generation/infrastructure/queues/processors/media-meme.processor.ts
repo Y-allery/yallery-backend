@@ -41,16 +41,24 @@ export class MediaMemeProcessor extends BaseMediaProcessor {
       `[MediaMemeProcessor] Starting generation | Job: ${job.id} | User: ${userId} | Service: ${request.aiService} | Meme: ${request.memeId}`,
     );
 
-    await this.notificationGateway.sendMemeGenerationProgress(userId.toString(), {
-      ...MemeNotificationPresenter.started(String(job.id)),
-    });
-
-    const result = await this.mediaGenerationFinalizeService.finalizeMemeGeneration(
-      request,
-      userId,
+    await this.notificationGateway.sendMemeGenerationProgress(
+      userId.toString(),
+      {
+        ...MemeNotificationPresenter.started(String(job.id)),
+      },
     );
 
-    if (!result?.data || !Array.isArray(result.data) || result.data.length === 0) {
+    const result =
+      await this.mediaGenerationFinalizeService.finalizeMemeGeneration(
+        request,
+        userId,
+      );
+
+    if (
+      !result?.data ||
+      !Array.isArray(result.data) ||
+      result.data.length === 0
+    ) {
       console.error(
         `[MediaMemeProcessor] Missing completed payload for job ${job.id}: ${JSON.stringify(result)}`,
       );
