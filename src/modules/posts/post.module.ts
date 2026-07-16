@@ -1,3 +1,4 @@
+import { TranslationsModule } from 'src/modules/translations/translations.module';
 import { Module } from '@nestjs/common';
 import { PostController } from './post.controller';
 import { ImageGenerationCompatController } from './image-generation-compat.controller';
@@ -32,6 +33,7 @@ const postServices = [
 
 @Module({
   imports: [
+    TranslationsModule,
     TypeOrmModule.forFeature([
       PostEntity,
       TagEntity,

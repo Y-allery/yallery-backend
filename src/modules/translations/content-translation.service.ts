@@ -2,7 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ContentTranslationEntity } from './entities/content-translation.entity';
-import { SupportedLocale, TranslatableEntityType } from './translation.catalog';
+import {
+  SupportedLocale,
+  TRANSLATABLE_FIELDS,
+  TranslatableEntityType,
+} from './translation.catalog';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -76,6 +80,38 @@ export class ContentTranslationService {
         this.resolve(entityType, item.id, locale, item, translatableFields),
       ),
     );
+  }
+
+  /**
+   * Localizes `tagName` on feed-shaped rows. Post feeds join tags in raw SQL
+   * (`CONCAT('#', t.name) AS tagName`), so the name is baked in before any
+   * resolver runs — this patches it back to the caller's locale, preserving
+   * the '#' prefix. Resolution is per distinct tag id (cached), not per row.
+   */
+  async localizeTagNames<
+    T extends { tagId?: number | null; tagName?: string | null },
+  >(rows: T[], locale: SupportedLocale | null): Promise<T[]> {
+    if (!locale || rows.length === 0) return rows;
+
+    const byTagId = new Map<number, string>();
+    for (const row of rows) {
+      if (!row.tagId || !row.tagName || byTagId.has(row.tagId)) continue;
+      const original = row.tagName.replace(/^#/, '');
+      const resolved = await this.resolve(
+        'tag',
+        row.tagId,
+        locale,
+        { id: row.tagId, name: original },
+        TRANSLATABLE_FIELDS.tag,
+      );
+      byTagId.set(row.tagId, resolved.name);
+    }
+
+    return rows.map((row) => {
+      if (!row.tagId || !row.tagName) return row;
+      const name = byTagId.get(row.tagId);
+      return name ? { ...row, tagName: `#${name}` } : row;
+    });
   }
 
   async localesFor(

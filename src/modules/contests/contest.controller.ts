@@ -122,18 +122,26 @@ export class ContestController {
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
   @ApiResponse(CONTEST_SWAGGER.getPostsByContest.responses.success)
   @ApiResponse(CONTEST_SWAGGER.getPostsByContest.responses.notFound)
-  getPostsByContest(
+  async getPostsByContest(
     @Param('contestId') contestId: number,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Req() req: AuthenticatedRequest,
+    @RequestLocale() locale: SupportedLocale | null,
   ) {
-    return this.contestService.getPostsByContest(
+    const result = await this.contestService.getPostsByContest(
       contestId,
       page,
       limit,
       req.user.id,
     );
+    return {
+      ...result,
+      data: await this.contentTranslationService.localizeTagNames(
+        result.data,
+        locale,
+      ),
+    };
   }
 
   @Get('example-contest')

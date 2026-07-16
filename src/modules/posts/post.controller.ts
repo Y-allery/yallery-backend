@@ -28,6 +28,9 @@ import { JwtAuthGuard } from 'src/modules/auth/guards/jwt.auth.guard';
 import { RateLimit, RateLimitGuard } from 'src/core/guards/rate-limit.guard';
 import { ReportPostDto } from './dto/report.post.dto';
 import { Response } from 'express';
+import { ContentTranslationService } from 'src/modules/translations/content-translation.service';
+import { RequestLocale } from 'src/modules/translations/request-locale.decorator';
+import { SupportedLocale } from 'src/modules/translations/translation.catalog';
 import { MarkViewedDto } from './dto/mark.viewed.dto';
 import { UpdatePostMediaDto } from './dto/update-post-media.dto';
 import { PopularPostsResponseDto } from './dto/popular-posts.dto';
@@ -47,6 +50,7 @@ export class PostController {
     private readonly postModerationService: PostModerationService,
     private readonly postDownloadService: PostDownloadService,
     private readonly notificationGateway: NotificationGateway,
+    private readonly contentTranslationService: ContentTranslationService,
   ) {}
 
   @Get('feed')
@@ -54,10 +58,16 @@ export class PostController {
   @ApiOperation(POST_SWAGGER.getFeed)
   @ApiQuery({ name: 'cursor', required: false, type: String })
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
-  @ApiQuery({ name: 'tagId', required: false, type: Number, description: 'Optional tag filter for feed' })
+  @ApiQuery({
+    name: 'tagId',
+    required: false,
+    type: Number,
+    description: 'Optional tag filter for feed',
+  })
   @ApiResponse(POST_SWAGGER.getFeed.responses.success)
-  getPosts(
+  async getPosts(
     @Req() req: AuthenticatedRequest,
+    @RequestLocale() locale: SupportedLocale | null,
     @Query('cursor') cursor?: string,
     @Query('limit') limit: number = 10,
     @Query('tagId') tagId?: string,
@@ -66,8 +76,21 @@ export class PostController {
     if (isNaN(limit) || limit <= 0) limit = 10;
 
     const tagIdNum = tagId != null ? parseInt(tagId, 10) : null;
-    const tagFilter = tagIdNum != null && !isNaN(tagIdNum) && tagIdNum > 0 ? tagIdNum : null;
-    return this.postFeedService.getPosts(cursorNum, limit, req.user.id, tagFilter);
+    const tagFilter =
+      tagIdNum != null && !isNaN(tagIdNum) && tagIdNum > 0 ? tagIdNum : null;
+    const result = await this.postFeedService.getPosts(
+      cursorNum,
+      limit,
+      req.user.id,
+      tagFilter,
+    );
+    return {
+      ...result,
+      data: await this.contentTranslationService.localizeTagNames(
+        result.data,
+        locale,
+      ),
+    };
   }
 
   @Get('get-posts-by-tag')
@@ -83,8 +106,21 @@ export class PostController {
     @Query('page') page: number,
     @Query('limit') limit: number,
     @Req() req: AuthenticatedRequest,
+    @RequestLocale() locale: SupportedLocale | null,
   ): Promise<any> {
-    return this.postFeedService.findPostsByTag(tagId, page, limit, req.user.id);
+    const result = await this.postFeedService.findPostsByTag(
+      tagId,
+      page,
+      limit,
+      req.user.id,
+    );
+    return {
+      ...result,
+      data: await this.contentTranslationService.localizeTagNames(
+        result.data,
+        locale,
+      ),
+    };
   }
 
   @Patch('publish/:id')
@@ -102,12 +138,16 @@ export class PostController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({
     summary: 'Update post media',
-    description: 'Update image URL or video URL (and optional previewImageUrl) of an existing post. Provide either imageUrl or videoUrl, not both. Only the post owner can update.',
+    description:
+      'Update image URL or video URL (and optional previewImageUrl) of an existing post. Provide either imageUrl or videoUrl, not both. Only the post owner can update.',
   })
   @ApiParam({ name: 'id', required: true, description: 'Post ID' })
   @ApiBody({ type: UpdatePostMediaDto })
   @ApiResponse({ status: 200, description: 'Post media updated successfully' })
-  @ApiResponse({ status: 400, description: 'Provide imageUrl or videoUrl (not both)' })
+  @ApiResponse({
+    status: 400,
+    description: 'Provide imageUrl or videoUrl (not both)',
+  })
   @ApiResponse({ status: 404, description: 'Post not found or not owner' })
   async updatePostMedia(
     @Param('id', ParseIntPipe) id: number,
@@ -120,37 +160,77 @@ export class PostController {
   @Get('published')
   @UseGuards(JwtAuthGuard)
   @ApiOperation(POST_SWAGGER.getPublishedPosts)
-  @ApiQuery({ name: 'page', required: false, type: Number, example: 1, description: 'Page number' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, example: 10, description: 'Items per page' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    example: 1,
+    description: 'Page number',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    example: 10,
+    description: 'Items per page',
+  })
   @ApiResponse(POST_SWAGGER.getPublishedPosts.responses.success)
-  getPublishedPosts(
+  async getPublishedPosts(
     @Req() req: AuthenticatedRequest,
+    @RequestLocale() locale: SupportedLocale | null,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
-    return this.postFeedService.getPublishedPosts(
+    const result = await this.postFeedService.getPublishedPosts(
       req.user.id,
       page ? Number(page) : 1,
       limit ? Number(limit) : 10,
     );
+    return {
+      ...result,
+      data: await this.contentTranslationService.localizeTagNames(
+        result.data,
+        locale,
+      ),
+    };
   }
 
   @Get('unpublished')
   @UseGuards(JwtAuthGuard)
   @ApiOperation(POST_SWAGGER.getUnpublishedPosts)
-  @ApiQuery({ name: 'page', required: false, type: Number, example: 1, description: 'Page number' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, example: 10, description: 'Items per page' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    example: 1,
+    description: 'Page number',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    example: 10,
+    description: 'Items per page',
+  })
   @ApiResponse(POST_SWAGGER.getUnpublishedPosts.responses.success)
-  getUnpublishedPosts(
+  async getUnpublishedPosts(
     @Req() req: AuthenticatedRequest,
+    @RequestLocale() locale: SupportedLocale | null,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
-    return this.postFeedService.getUnpublishedPosts(
+    const result = await this.postFeedService.getUnpublishedPosts(
       req.user.id,
       page ? Number(page) : 1,
       limit ? Number(limit) : 10,
     );
+    return {
+      ...result,
+      data: await this.contentTranslationService.localizeTagNames(
+        result.data,
+        locale,
+      ),
+    };
   }
 
   @Get('popular-posts')
@@ -163,8 +243,16 @@ export class PostController {
   })
   async getPopularPosts(
     @Req() req: AuthenticatedRequest,
+    @RequestLocale() locale: SupportedLocale | null,
   ): Promise<PopularPostsResponseDto> {
-    return await this.postFeedService.getPopularPosts(req.user.id);
+    const result = await this.postFeedService.getPopularPosts(req.user.id);
+    return {
+      ...result,
+      posts: await this.contentTranslationService.localizeTagNames(
+        result.posts,
+        locale,
+      ),
+    };
   }
 
   @Patch('mark-viewed')
@@ -184,9 +272,7 @@ export class PostController {
       userId,
     );
     if (result.markedCount > 0) {
-      await this.notificationGateway.emitProfileUpdate(
-        req.user.id.toString(),
-      );
+      await this.notificationGateway.emitProfileUpdate(req.user.id.toString());
     }
     return result;
   }
@@ -247,5 +333,4 @@ export class PostController {
       pointsAwarded: result.pointsAwarded,
     };
   }
-
 }
