@@ -48,16 +48,16 @@ describe('MediaProxyController (HTTP)', () => {
     await app.close();
   });
 
-  it('302-redirects originals to the CDN with cache headers', async () => {
+  it('301-redirects originals to the CDN with immutable cache headers', async () => {
     const res = await http.get(
       `${baseUrl}/media/image/upload/octoai_images/a.png`,
     );
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(301);
     expect(res.headers.location).toBe('https://cdn.test/octoai_images/a.png');
-    expect(res.headers['cache-control']).toContain('public');
+    expect(res.headers['cache-control']).toContain('immutable');
   });
 
-  it('302-redirects generated variants to their derived CDN key', async () => {
+  it('301-redirects generated variants to their derived CDN key', async () => {
     objects.set(
       'octoai_images/b.jpg',
       await sharp({
@@ -75,13 +75,28 @@ describe('MediaProxyController (HTTP)', () => {
     const res = await http.get(
       `${baseUrl}/media/image/upload/t_yallery_thumb_image_v2/octoai_images/b.jpg`,
     );
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(301);
     expect(res.headers.location).toBe(
       'https://cdn.test/t/t_yallery_thumb_image_v2/octoai_images/b.jpg',
+    );
+    expect(res.headers['cache-control']).toBe(
+      'public, max-age=31536000, immutable',
     );
     expect(objects.has('t/t_yallery_thumb_image_v2/octoai_images/b.jpg')).toBe(
       true,
     );
+  });
+
+  it('302-redirects failed generations to the original without caching', async () => {
+    // Source object missing -> variant generation fails -> fallback.
+    const res = await http.get(
+      `${baseUrl}/media/image/upload/t_yallery_thumb_image_v2/octoai_images/missing.jpg`,
+    );
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe(
+      'https://cdn.test/octoai_images/missing.jpg',
+    );
+    expect(res.headers['cache-control']).toBe('no-cache');
   });
 
   it('streams download variants with Content-Disposition', async () => {

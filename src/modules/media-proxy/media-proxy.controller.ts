@@ -4,9 +4,17 @@ import { Request, Response } from 'express';
 import { MediaResourceType } from './media-transformations';
 import { MediaProxyService } from './media-proxy.service';
 
-/** Redirects are re-resolvable, so a day of client/edge caching is safe. */
-const REDIRECT_CACHE_CONTROL = 'public, max-age=86400';
+/**
+ * Deterministic answers (derived variants are immutable, their CDN URL never
+ * changes) — let browsers and any edge cache keep them for a year.
+ */
+const IMMUTABLE_REDIRECT_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 const ATTACHMENT_CACHE_CONTROL = 'public, max-age=86400';
+/**
+ * Fallback answers after a failed generation: the next attempt may succeed,
+ * so no cache anywhere may pin the degraded response.
+ */
+const FALLBACK_CACHE_CONTROL = 'no-cache';
 
 /**
  * Cloudinary-compatible media URLs over DO Spaces:
@@ -51,8 +59,15 @@ export class MediaProxyController {
     );
 
     if (resolved.redirectUrl) {
-      response.setHeader('Cache-Control', REDIRECT_CACHE_CONTROL);
-      response.redirect(302, resolved.redirectUrl);
+      // 301 lets HTTP-cache-aware clients (browsers, CDN edges) skip the
+      // whole API round-trip on repeat loads; fallbacks stay temporary.
+      response.setHeader(
+        'Cache-Control',
+        resolved.cacheable
+          ? IMMUTABLE_REDIRECT_CACHE_CONTROL
+          : FALLBACK_CACHE_CONTROL,
+      );
+      response.redirect(resolved.cacheable ? 301 : 302, resolved.redirectUrl);
       return;
     }
 
@@ -60,7 +75,10 @@ export class MediaProxyController {
       throw new NotFoundException('Media not found');
     }
 
-    response.setHeader('Cache-Control', ATTACHMENT_CACHE_CONTROL);
+    response.setHeader(
+      'Cache-Control',
+      resolved.cacheable ? ATTACHMENT_CACHE_CONTROL : FALLBACK_CACHE_CONTROL,
+    );
     response.setHeader(
       'Content-Type',
       resolved.contentType ?? 'application/octet-stream',

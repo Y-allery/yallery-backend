@@ -40,6 +40,13 @@ export interface ResolvedMedia {
   contentType: string | null;
   /** Content-Disposition attachment filename, when the variant is a download. */
   attachmentFilename: string | null;
+  /**
+   * True when the answer is deterministic forever (derived/original object
+   * whose URL never changes) and may be cached aggressively. False for
+   * fallback answers after a failed generation — a retry may start
+   * succeeding, so caches must not pin the degraded response.
+   */
+  cacheable: boolean;
 }
 
 @Injectable()
@@ -93,12 +100,13 @@ export class MediaProxyService {
     );
   }
 
-  private redirectTo(key: string): ResolvedMedia {
+  private redirectTo(key: string, cacheable = true): ResolvedMedia {
     return {
       redirectUrl: this.spacesStorage.cdnUrl(key),
       body: null,
       contentType: null,
       attachmentFilename: null,
+      cacheable,
     };
   }
 
@@ -129,7 +137,7 @@ export class MediaProxyService {
         `[MediaProxyService] image variant ${derivedKey} failed: ${(error as Error).message}`,
       );
       // Graceful degradation — the original is always a valid answer.
-      return this.attachmentAware(spec, key, key);
+      return this.attachmentAware(spec, key, key, false);
     }
     return this.attachmentAware(spec, derivedKey, key);
   }
@@ -166,7 +174,7 @@ export class MediaProxyService {
       console.warn(
         `[MediaProxyService] video variant ${derivedKey} failed: ${(error as Error).message}`,
       );
-      return this.attachmentAware(spec, key, key);
+      return this.attachmentAware(spec, key, key, false);
     }
     return this.attachmentAware(spec, derivedKey, key);
   }
@@ -239,9 +247,10 @@ export class MediaProxyService {
     spec: MediaTransformation,
     servedKey: string,
     originalKey: string,
+    cacheable = true,
   ): Promise<ResolvedMedia> {
     if (!spec.attachment) {
-      return this.redirectTo(servedKey);
+      return this.redirectTo(servedKey, cacheable);
     }
     // Attachment variants must carry Content-Disposition, which the public
     // CDN cannot set — stream the bytes through the API instead.
@@ -251,6 +260,7 @@ export class MediaProxyService {
       body,
       contentType: this.contentTypeFor(servedKey, spec),
       attachmentFilename: path.posix.basename(originalKey),
+      cacheable,
     };
   }
 

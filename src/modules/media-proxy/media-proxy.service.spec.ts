@@ -43,6 +43,7 @@ describe('MediaProxyService', () => {
   it('redirects originals straight to the CDN', async () => {
     const resolved = await service.resolve('image', 'octoai_images/a.png');
     expect(resolved.redirectUrl).toBe('https://cdn.test/octoai_images/a.png');
+    expect(resolved.cacheable).toBe(true);
     expect(spaces.objectExists).not.toHaveBeenCalled();
   });
 
@@ -61,6 +62,7 @@ describe('MediaProxyService', () => {
     );
     const derivedKey = 't/t_yallery_thumb_image_v2/octoai_images/a.jpg';
     expect(first.redirectUrl).toBe(`https://cdn.test/${derivedKey}`);
+    expect(first.cacheable).toBe(true);
     expect(spaces.putPublicObject).toHaveBeenCalledTimes(1);
 
     const derived = objects.get(derivedKey)!;
@@ -102,7 +104,7 @@ describe('MediaProxyService', () => {
     expect(spaces.putPublicObject).not.toHaveBeenCalled();
   });
 
-  it('falls back to the original when generation fails', async () => {
+  it('falls back to the original when generation fails, uncacheable', async () => {
     // No source object stored -> getObjectBuffer throws.
     const resolved = await service.resolve(
       'image',
@@ -111,6 +113,7 @@ describe('MediaProxyService', () => {
     expect(resolved.redirectUrl).toBe(
       'https://cdn.test/octoai_images/missing.jpg',
     );
+    expect(resolved.cacheable).toBe(false);
   });
 
   it('streams watermarked downloads as attachments', async () => {
