@@ -264,7 +264,7 @@ export class ContestService {
     return {
       data: [
         {
-          id: null,
+          id: -1,
           imageUrl:
             'https://yallery-api-prod.org/media/image/upload/legacy_dsypundib/image/b198db03-57e5-4543-a056-9ab3970b383a.png',
           videoUrl: null,
@@ -282,7 +282,7 @@ export class ContestService {
           generationParams: null,
         },
         {
-          id: null,
+          id: -2,
           imageUrl:
             'https://yallery-api-prod.org/media/image/upload/legacy_dsypundib/image/f90e08b9-edc7-42a3-9b80-8e73f590fc7c.png',
           videoUrl: null,
@@ -300,7 +300,7 @@ export class ContestService {
           generationParams: null,
         },
         {
-          id: null,
+          id: -3,
           imageUrl:
             'https://yallery-api-prod.org/media/image/upload/legacy_dsypundib/image/a3170033-3cf8-4af9-a5f7-b6c6c175dd95.png',
           videoUrl: null,
@@ -318,6 +318,9 @@ export class ContestService {
           generationParams: null,
         },
       ],
+      total: 3,
+      page: 1,
+      lastPage: 1,
     };
   }
   async getPostsByContest(

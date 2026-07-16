@@ -63,6 +63,9 @@ export class SpacesStorageService {
     const extension = EXTENSION_BY_MIME[contentType] ?? 'bin';
     const key = `${folder}/${randomUUID()}.${extension}`;
     await this.putObject(key, buffer, contentType);
+    if (contentType.startsWith('image/')) {
+      this.warmImageVariants(key);
+    }
     return this.publicMediaUrl(key, 'image');
   }
 
@@ -128,6 +131,7 @@ export class SpacesStorageService {
       if (previewBuffer) {
         const previewKey = `${VIDEO_FOLDER}/${assetId}_preview.jpg`;
         await this.putObject(previewKey, previewBuffer, 'image/jpeg');
+        this.warmImageVariants(previewKey);
         previewImageUrl = this.publicMediaUrl(previewKey, 'image');
       } else {
         console.warn(
@@ -145,6 +149,31 @@ export class SpacesStorageService {
     } finally {
       await fs
         .rm(tempDir, { recursive: true, force: true })
+        .catch(() => undefined);
+    }
+  }
+
+  /**
+   * Fire-and-forget pre-generation of the display variants the app requests,
+   * so freshly uploaded images never pay the first-hit transform latency.
+   */
+  private warmImageVariants(key: string): void {
+    const proxyBaseUrl = this.configService.get<string>(
+      'MEDIA_PROXY_PUBLIC_BASE_URL',
+    );
+    if (!proxyBaseUrl) return;
+    const base = proxyBaseUrl.replace(/\/+$/, '');
+    for (const variant of [
+      't_yallery_thumb_image_v2',
+      't_yallery_feed_image_v2',
+      't_yallery_preview_image_v2',
+    ]) {
+      axios
+        .head(`${base}/media/image/upload/${variant}/${key}`, {
+          timeout: 120000,
+          maxRedirects: 0,
+          validateStatus: () => true,
+        })
         .catch(() => undefined);
     }
   }
