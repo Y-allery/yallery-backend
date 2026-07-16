@@ -102,6 +102,7 @@ export class PostEntity extends TimeStampEntity {
     width?: number | null;
     height?: number | null;
     duration?: number;
+    seed?: number | null;
     negativePrompt?: string;
     /** Meme generation (Kling motion control) */
     memeId?: number;

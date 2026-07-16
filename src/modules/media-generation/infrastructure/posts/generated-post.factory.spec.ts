@@ -98,6 +98,7 @@ describe('GeneratedPostFactory', () => {
         prompt: 'cinematic robot',
         orientation: 'horizontal',
         duration: 5,
+        seed: 777,
         width: 1280,
         height: 720,
         hasAudio: true,
@@ -113,6 +114,7 @@ describe('GeneratedPostFactory', () => {
       prompt: 'cinematic robot',
       orientation: 'horizontal',
       duration: 5,
+      seed: 777,
       width: 1280,
       height: 720,
     });

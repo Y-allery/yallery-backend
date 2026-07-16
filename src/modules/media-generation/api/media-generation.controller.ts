@@ -19,6 +19,7 @@ import { GeneratePromptImageDto } from 'src/modules/media-generation/api/dto/gen
 import { GenerateTextVideoDto } from 'src/modules/media-generation/api/dto/generate-text-video.dto';
 import {
   MediaOrientation,
+  randomVideoSeed,
   resolveVideoOrientation,
 } from 'src/modules/media-generation/domain/presets';
 import { MediaAISettingsService } from 'src/modules/media-generation/application/ai-settings/media-ai-settings.service';
@@ -307,6 +308,7 @@ export class MediaGenerationController {
           prompt: dto.prompt,
           orientation,
           duration,
+          seed: randomVideoSeed(),
           contestId: dto.contest_id ?? null,
         },
         req.user.id,
@@ -358,6 +360,7 @@ export class MediaGenerationController {
           imageUrl: dto.image_url,
           orientation,
           duration,
+          seed: randomVideoSeed(),
           contestId: dto.contest_id ?? null,
         },
         req.user.id,

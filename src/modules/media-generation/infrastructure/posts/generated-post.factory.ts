@@ -127,6 +127,7 @@ export class GeneratedPostFactory {
       aiService: string;
       orientation: MediaOrientation;
       duration: number;
+      seed?: number | null;
       contestId?: number | null;
       sourceImageUrl?: string;
       width?: number | null;
@@ -155,6 +156,7 @@ export class GeneratedPostFactory {
         aiService: generationParams.aiService,
         orientation: generationParams.orientation,
         duration: generationParams.duration,
+        seed: generationParams.seed ?? null,
         sourceImageUrl: generationParams.sourceImageUrl,
         width: generationParams.width ?? null,
         height: generationParams.height ?? null,

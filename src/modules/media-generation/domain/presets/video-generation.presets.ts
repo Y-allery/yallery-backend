@@ -1,7 +1,15 @@
+import { randomInt } from 'crypto';
 import {
   MEDIA_ORIENTATIONS,
   MediaOrientation,
 } from './media-orientation.types';
+
+/** LTX seeds the whole generation (and its prompt enhancer) from `seed`. A fixed value
+ * made every same-prompt request bit-identical and pinned short prompts to a single
+ * prior scene, so each request draws a fresh positive int32 instead. */
+export function randomVideoSeed(): number {
+  return randomInt(1, 2 ** 31);
+}
 
 type VideoOutputPreset = {
   size: string;

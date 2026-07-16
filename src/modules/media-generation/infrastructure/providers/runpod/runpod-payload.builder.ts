@@ -5,7 +5,10 @@ import { ImageVideoGenerationRequest } from 'src/modules/media-generation/domain
 import { MemeGenerationRequest } from 'src/modules/media-generation/domain/contracts/meme-generation-request.contract';
 import { ResolvedPromptImageGenerationRequest } from 'src/modules/media-generation/domain/contracts/prompt-image-generation-request.contract';
 import { TextVideoGenerationRequest } from 'src/modules/media-generation/domain/contracts/text-video-generation-request.contract';
-import { MediaOrientation } from 'src/modules/media-generation/domain/presets';
+import {
+  MediaOrientation,
+  randomVideoSeed,
+} from 'src/modules/media-generation/domain/presets';
 
 // LTX video worker (2nd RunPod account). Dimensions must be multiples of 32; the 720 tier is
 // the default product resolution. Frames snap to the worker's validated tiers @ 24fps.
@@ -122,6 +125,7 @@ export class RunpodPayloadBuilder {
   buildTextVideoInput(request: TextVideoGenerationRequest) {
     // LTX worker owns the prompt upsampler (enhance defaults on). The backend only maps
     // orientation -> 32-multiple dimensions and duration -> validated frame tier.
+    // Jobs queued before the seed field existed fall back to a fresh random seed.
     const { width, height } = this.resolveLtxDimensions(request.orientation);
 
     return {
@@ -132,7 +136,7 @@ export class RunpodPayloadBuilder {
       fps: LTX_FPS,
       audio: true,
       tier: 'quality',
-      seed: 0,
+      seed: request.seed ?? randomVideoSeed(),
     };
   }
 

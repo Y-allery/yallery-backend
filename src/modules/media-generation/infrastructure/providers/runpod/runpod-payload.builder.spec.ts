@@ -61,6 +61,7 @@ describe('RunpodPayloadBuilder', () => {
         prompt: 'a red dragon over snowy mountains',
         orientation: 'horizontal',
         duration: 5,
+        seed: 123456,
       }),
     ).toEqual({
       prompt: 'a red dragon over snowy mountains',
@@ -70,8 +71,21 @@ describe('RunpodPayloadBuilder', () => {
       fps: 24,
       audio: true,
       tier: 'quality',
-      seed: 0,
+      seed: 123456,
     });
+  });
+
+  it('falls back to a random positive int32 seed when the request has none', () => {
+    const { seed } = builder.buildTextVideoInput({
+      aiService: 'p_video_text',
+      prompt: 'a red dragon over snowy mountains',
+      orientation: 'horizontal',
+      duration: 5,
+    });
+
+    expect(Number.isInteger(seed)).toBe(true);
+    expect(seed).toBeGreaterThanOrEqual(1);
+    expect(seed).toBeLessThan(2 ** 31);
   });
 
   it('maps vertical orientation and 10s duration to LTX dims/frames', () => {

@@ -6,6 +6,7 @@ export interface ImageVideoGenerationRequest {
   imageUrl: string;
   orientation: MediaOrientation;
   duration: number;
+  seed?: number;
   contestId?: number | null;
   contestSubmissionId?: number | null;
 }
