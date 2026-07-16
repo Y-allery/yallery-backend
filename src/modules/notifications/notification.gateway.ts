@@ -29,6 +29,9 @@ export type MediaGenerationErrorType =
 })
 @UseGuards(WsAuthGuard)
 export class NotificationGateway {
+  /** Max undelivered posts flushed per joinRoom; the rest go out on subsequent joins. */
+  private static readonly UNDELIVERED_POSTS_BATCH_SIZE = 50;
+
   constructor(
     @Inject(forwardRef(() => UserService))
     private readonly userService: UserService,
@@ -328,6 +331,7 @@ export class NotificationGateway {
   async handleJoinRoom(@ConnectedSocket() client: Socket) {
     const userId = client.data.userId;
     const roomId = this.getUserRoomId(userId);
+    // Not findAuthUserById: emailVerified is read at the end of this handler.
     const user = await this.userService.findById(userId);
 
     if (!user) {
@@ -337,9 +341,21 @@ export class NotificationGateway {
 
     client.join(roomId);
 
+    // Oldest batch first; whatever is left gets flushed on the next join.
+    // Only socialPostSettings is read off the contest, so skip its heavy
+    // columns (JSON columns are fetched whole; the nested keys only satisfy
+    // the FindOptionsSelect type).
     const undeliveredPosts = await this.postRepository.find({
       where: { user: { id: userId }, isDelivered: false },
       relations: ['contest'],
+      select: {
+        contest: {
+          id: true,
+          socialPostSettings: { postToTwitter: true, postToInstagram: true },
+        },
+      },
+      order: { id: 'ASC' },
+      take: NotificationGateway.UNDELIVERED_POSTS_BATCH_SIZE,
     });
 
     const getPublishTo = (

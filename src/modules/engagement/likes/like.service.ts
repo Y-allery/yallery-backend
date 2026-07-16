@@ -2,6 +2,7 @@ import {
   BadRequestException,
   HttpException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
@@ -19,6 +20,8 @@ import { UserNotificationTypeEnum } from 'src/modules/notifications/types/user-n
 
 @Injectable()
 export class LikeService {
+  private readonly logger = new Logger(LikeService.name);
+
   constructor(
     @InjectRepository(LikeEntity)
     private readonly likeRepository: Repository<LikeEntity>,
@@ -35,11 +38,13 @@ export class LikeService {
   ) {}
 
   async createLike(createLikeDto: CreateLikeDto, userId: number) {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    const post = await this.postRepository.findOne({
-      where: { id: createLikeDto.postId },
-      relations: ['user'],
-    });
+    const [user, post] = await Promise.all([
+      this.userRepository.findOne({ where: { id: userId } }),
+      this.postRepository.findOne({
+        where: { id: createLikeDto.postId },
+        relations: ['user'],
+      }),
+    ]);
 
     // post entity logged for debug previously; removed to avoid noisy output
     if (!user || !post) {
@@ -54,14 +59,10 @@ export class LikeService {
     // duplicate-like and balance checks happen INSIDE it (the pre-transaction
     // user.points / existingLike reads were racy — concurrent double-taps both
     // passed them and double-spent).
-    const likeSpendPoints = await this.rewardService.getRewardPointsOrDefault(
-      RewardTypeEnum.LIKE_SPEND,
-      15,
-    );
-    const likeEarnPoints = await this.rewardService.getRewardPointsOrDefault(
-      RewardTypeEnum.LIKE_EARN,
-      5,
-    );
+    const [likeSpendPoints, likeEarnPoints] = await Promise.all([
+      this.rewardService.getRewardPointsOrDefault(RewardTypeEnum.LIKE_SPEND, 15),
+      this.rewardService.getRewardPointsOrDefault(RewardTypeEnum.LIKE_EARN, 5),
+    ]);
 
     try {
       await this.dataSource.transaction(async (manager) => {
@@ -103,32 +104,48 @@ export class LikeService {
           );
       });
 
-      await this.userActivityService.logLikeReceived({
-        userId: post.user.id,
-        actorUserId: user.id,
-        pointsDelta: likeEarnPoints,
-        postId: post.id,
-        previewUrl: post.imageUrl ?? post.previewImageUrl ?? null,
-      });
+      await Promise.all([
+        this.userActivityService.logLikeReceived({
+          userId: post.user.id,
+          actorUserId: user.id,
+          pointsDelta: likeEarnPoints,
+          postId: post.id,
+          previewUrl: post.imageUrl ?? post.previewImageUrl ?? null,
+        }),
+        this.userActivityService.logLikeSpent({
+          userId: user.id,
+          pointsDelta: -likeSpendPoints,
+          postId: post.id,
+          previewUrl: post.imageUrl ?? post.previewImageUrl ?? null,
+        }),
+      ]);
 
-      await this.userActivityService.logLikeSpent({
-        userId: user.id,
-        pointsDelta: -likeSpendPoints,
-        postId: post.id,
-        previewUrl: post.imageUrl ?? post.previewImageUrl ?? null,
-      });
+      // Best-effort side effects: the like is already committed, so an FCM or
+      // socket failure must not fail the request.
+      const sideEffects = await Promise.allSettled([
+        this.userService.sendPushNotificationIfEnabled(
+          post.user.id,
+          UserNotificationTypeEnum.LIKE_EARN,
+        ),
+        this.userService.sendPushNotificationIfEnabled(
+          user.id,
+          UserNotificationTypeEnum.LIKE_SPEND,
+        ),
+        this.notificationGateway.emitProfileUpdate(user.id.toString()),
+        this.notificationGateway.emitProfileUpdate(post.user.id.toString()),
+      ]);
+      for (const result of sideEffects) {
+        if (result.status === 'rejected') {
+          // These no longer fail the request, so this log is the only signal
+          // that push/socket delivery is broken — it must reach the Nest
+          // logger and Sentry, not raw stdout.
+          this.logger.error(
+            `createLike post-commit side effect failed: ${result.reason?.message ?? result.reason}`,
+            result.reason?.stack,
+          );
+        }
+      }
 
-      await this.userService.sendPushNotificationIfEnabled(
-        post.user.id,
-        UserNotificationTypeEnum.LIKE_EARN,
-      );
-      await this.userService.sendPushNotificationIfEnabled(
-        user.id,
-        UserNotificationTypeEnum.LIKE_SPEND,
-      );
-
-      await this.notificationGateway.emitProfileUpdate(user.id.toString());
-      await this.notificationGateway.emitProfileUpdate(post.user.id.toString());
       return 'success';
     } catch (error) {
       // Preserve intentional HTTP errors (already-liked, insufficient points)

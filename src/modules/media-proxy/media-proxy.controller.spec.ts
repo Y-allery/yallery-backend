@@ -2,7 +2,11 @@ import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import axios from 'axios';
 import * as sharp from 'sharp';
-import { SpacesStorageService } from 'src/modules/uploads/spaces-storage.service';
+import { Readable } from 'stream';
+import {
+  ObjectTooLargeError,
+  SpacesStorageService,
+} from 'src/modules/uploads/spaces-storage.service';
 import { MediaProxyController } from './media-proxy.controller';
 import { MediaProxyService } from './media-proxy.service';
 
@@ -22,9 +26,21 @@ describe('MediaProxyController (HTTP)', () => {
       cdnUrl: (key: string) => `https://cdn.test/${key}`,
       objectExists: async (key: string) => objects.has(key),
       getObjectBuffer: async (key: string) => {
+        if (key.includes('toolarge')) {
+          throw new ObjectTooLargeError(key, 1024);
+        }
         const body = objects.get(key);
         if (!body) throw new Error(`missing object ${key}`);
         return body;
+      },
+      getObjectStream: async (key: string) => {
+        const body = objects.get(key);
+        if (!body) throw new Error(`missing object ${key}`);
+        return {
+          stream: Readable.from(body),
+          contentLength: body.length,
+          contentType: null,
+        };
       },
       putPublicObject: async (key: string, body: Buffer) => {
         objects.set(key, body);
@@ -111,7 +127,19 @@ describe('MediaProxyController (HTTP)', () => {
       'attachment; filename="x.mp4"',
     );
     expect(res.headers['content-type']).toContain('video/mp4');
+    expect(res.headers['content-length']).toBe('10');
     expect(Buffer.from(res.data)).toEqual(Buffer.from('fake-video'));
+  });
+
+  it('413s when a source object exceeds the download byte cap', async () => {
+    // Legacy poster regeneration downloads the source video into memory —
+    // the storage layer refuses oversized objects with ObjectTooLargeError.
+    objects.set('octoai_videos/toolarge.mp4', Buffer.from('v'));
+
+    const res = await http.get(
+      `${baseUrl}/media/video/upload/so_0/octoai_videos/toolarge.jpg`,
+    );
+    expect(res.status).toBe(413);
   });
 
   it('404s unsafe or unknown paths', async () => {

@@ -30,26 +30,26 @@ export class PartnershipActivityLoggerService {
         where: { userId },
       });
 
-      for (const link of links) {
-        const exists = await this.partnershipActivityRepository.findOne({
-          where: {
+      if (links.length === 0) {
+        return;
+      }
+
+      // Single bulk INSERT IGNORE; the unique (userId, partnershipId,
+      // activity) index makes already-logged rows no-ops without a
+      // read-before-write round trip per link.
+      await this.partnershipActivityRepository
+        .createQueryBuilder()
+        .insert()
+        .values(
+          links.map((link) => ({
             partnershipId: link.partnershipId,
             userId,
             activity: normalizedActivity,
-          },
-        });
-
-        if (exists) {
-          continue;
-        }
-
-        const record = this.partnershipActivityRepository.create({
-          partnershipId: link.partnershipId,
-          userId,
-          activity: normalizedActivity,
-        });
-        await this.partnershipActivityRepository.save(record);
-      }
+          })),
+        )
+        .orIgnore()
+        .updateEntity(false)
+        .execute();
     } catch (error) {
       this.logger.error(
         `Failed to log partnership activity "${normalizedActivity}" for userId=${userId}: ${error?.message || error}`,

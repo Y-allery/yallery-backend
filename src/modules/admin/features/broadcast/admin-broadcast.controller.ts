@@ -18,21 +18,18 @@ export class AdminBroadcastController {
   @ApiOperation({
     summary: 'Broadcast notification to all users',
     description:
-      'Sends push notifications or email notifications to all verified users. ' +
-      'Notifications are sent in batches to prevent system overload. ' +
-      'Event loop is preserved with delays between batches.',
+      'Queues a broadcast of push or email notifications to all verified users. ' +
+      'Delivery runs asynchronously in a background queue; the request returns immediately.',
   })
   @ApiResponse({
     status: 200,
-    description: 'Notification broadcast started successfully.',
+    description: 'Notification broadcast queued successfully.',
     schema: {
       type: 'object',
       properties: {
         success: { type: 'boolean' },
         type: { type: 'string', enum: ['push', 'email'] },
-        totalProcessed: { type: 'number' },
-        totalSuccess: { type: 'number' },
-        totalErrors: { type: 'number' },
+        jobId: { type: 'string' },
         message: { type: 'string' },
       },
     },

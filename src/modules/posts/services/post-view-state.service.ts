@@ -14,14 +14,17 @@ export class PostViewStateService {
   ) {}
 
   async markPostsAsViewed(postIds: number[], userId: number) {
+    const uniqueIds = [...new Set(postIds)];
+
     const posts = await this.postRepository.find({
-      where: { id: In(postIds) },
+      select: { id: true },
+      where: { id: In(uniqueIds) },
     });
 
-    const foundIds = posts.map((post) => post.id);
-    const notFoundIds = postIds.filter((id) => !foundIds.includes(id));
+    const foundIds = new Set(posts.map((post) => post.id));
+    const notFoundIds = uniqueIds.filter((id) => !foundIds.has(id));
 
-    if (posts.length === 0) {
+    if (foundIds.size === 0) {
       return {
         message: 'No posts were marked as viewed.',
         markedCount: 0,
@@ -29,22 +32,24 @@ export class PostViewStateService {
       };
     }
 
-    const existingViewedPosts = await this.viewedPostRepository.find({
-      where: {
-        post: { id: In(foundIds) },
-        user: { id: userId },
-      },
-      relations: { post: true },
-      select: ['post'],
-    });
+    // Single bulk INSERT IGNORE; the unique (userId, postId) index makes
+    // already-viewed rows no-ops without a read-before-write round trip.
+    const insertResult = await this.viewedPostRepository
+      .createQueryBuilder()
+      .insert()
+      .values(
+        [...foundIds].map((id) => ({
+          post: { id },
+          user: { id: userId },
+        })),
+      )
+      .orIgnore()
+      .updateEntity(false)
+      .execute();
 
-    const viewedPostIds = existingViewedPosts.map((vp) => vp.post.id);
+    const markedCount = Number(insertResult.raw?.affectedRows ?? 0);
 
-    const newViewedPostIds = foundIds.filter(
-      (id) => !viewedPostIds.includes(id),
-    );
-
-    if (newViewedPostIds.length === 0) {
+    if (markedCount === 0) {
       return {
         message: 'All existing posts have already been marked as viewed.',
         markedCount: 0,
@@ -52,25 +57,12 @@ export class PostViewStateService {
       };
     }
 
-    const newViewedPosts = newViewedPostIds
-      .map((id) => {
-        const post = posts.find((p) => p.id === id);
-        if (!post) return null;
-        return this.viewedPostRepository.create({
-          post,
-          user: { id: userId },
-        });
-      })
-      .filter((item) => item !== null);
-
-    await this.viewedPostRepository.save(newViewedPosts);
-
     return {
       message:
         notFoundIds.length > 0
           ? 'Some posts were marked as viewed, but some posts were not found.'
           : 'All posts were successfully marked as viewed.',
-      markedCount: newViewedPosts.length,
+      markedCount,
       notFoundIds,
     };
   }

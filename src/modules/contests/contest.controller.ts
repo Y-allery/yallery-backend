@@ -159,9 +159,13 @@ export class ContestController {
   @Cron(CronExpression.EVERY_10_MINUTES)
   async handleContests() {
     const lockKey = 'contest:update:lock';
-    const lockAcquired = await this.redisService.acquireLock(lockKey, 600);
+    // TTL must exceed the 10-minute cron interval so a still-running sweep
+    // keeps the lock past the next tick; a crashed run still expires. The
+    // owner token means a sweep that outlives even this TTL releases only its
+    // own lock, never one its successor has since taken.
+    const lockToken = await this.redisService.acquireLock(lockKey, 1800);
 
-    if (!lockAcquired) {
+    if (!lockToken) {
       console.log('⏸️  Contest update already in progress, skipping...');
       return;
     }
@@ -171,7 +175,7 @@ export class ContestController {
     } catch (error) {
       console.error(`❌ Cron job error:`, error.message);
     } finally {
-      await this.redisService.releaseLock(lockKey);
+      await this.redisService.releaseLock(lockKey, lockToken);
     }
   }
 

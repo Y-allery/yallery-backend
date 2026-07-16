@@ -3,6 +3,7 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
+  Index,
 } from 'typeorm';
 
 export enum PartnershipSource {
@@ -28,6 +29,7 @@ export class PartnershipEntity {
   })
   source: PartnershipSource;
 
+  @Index('idx_partnerships_referralToken')
   @Column()
   referralToken: string;
 

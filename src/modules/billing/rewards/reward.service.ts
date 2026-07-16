@@ -247,46 +247,65 @@ export class RewardService {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Auto-claim registration reward (one-time, zero points by default)
-    await this.ensureRegistrationRewardAutoClaimed(userId, today);
-
-    // Fetch claimable rewards
-    const rewards = await this.rewardRepository
-      .createQueryBuilder('reward')
-      .select([
-        'reward.id',
-        'reward.rewardType',
-        'reward.points',
-        'reward.description',
-        'reward.isActive',
-        'reward.isDaily',
-        'reward.createdAt',
-        'reward.updatedAt',
-      ])
-      .where('reward.rewardType IN (:...types)', { types: this.claimableRewardTypes })
-      .andWhere('reward.isActive = :isActive', { isActive: true })
-      .getMany();
-
-    // Daily rewards: eligibility is day-bound (today)
-    const dailyUserRewards = await this.userRewardRepository.find({
-      where: {
-        userId,
-        rewardType: In(
-          this.claimableRewardTypes.filter(
-            (t) => !this.oneTimeRewardTypes.includes(t),
-          ),
-        ),
-        eligibleDate: today,
-      },
-    });
-
     // One-time rewards: eligibility is not day-bound
-    const oneTimeUserRewards = await this.userRewardRepository.find({
-      where: {
-        userId,
-        rewardType: In(this.oneTimeRewardTypes),
-      },
-    });
+    const fetchOneTimeUserRewards = () =>
+      this.userRewardRepository.find({
+        where: {
+          userId,
+          rewardType: In(this.oneTimeRewardTypes),
+        },
+      });
+
+    const [rewards, dailyUserRewards, initialOneTimeUserRewards] =
+      await Promise.all([
+        // Fetch claimable rewards
+        this.rewardRepository
+          .createQueryBuilder('reward')
+          .select([
+            'reward.id',
+            'reward.rewardType',
+            'reward.points',
+            'reward.description',
+            'reward.isActive',
+            'reward.isDaily',
+            'reward.createdAt',
+            'reward.updatedAt',
+          ])
+          .where('reward.rewardType IN (:...types)', { types: this.claimableRewardTypes })
+          .andWhere('reward.isActive = :isActive', { isActive: true })
+          .getMany(),
+        // Daily rewards: eligibility is day-bound (today)
+        this.userRewardRepository.find({
+          where: {
+            userId,
+            rewardType: In(
+              this.claimableRewardTypes.filter(
+                (t) => !this.oneTimeRewardTypes.includes(t),
+              ),
+            ),
+            eligibleDate: today,
+          },
+        }),
+        fetchOneTimeUserRewards(),
+      ]);
+
+    let oneTimeUserRewards = initialOneTimeUserRewards;
+
+    // Auto-claim registration reward (one-time, zero points by default).
+    // The one-time read above already answers its early-return check (any
+    // record for this user+type, date-independent), so skip it when a record
+    // is present. When a record was created (or raced in), only the one-time
+    // read is affected — re-fetch just that.
+    const hasRegistrationRecord = oneTimeUserRewards.some(
+      (ur) => ur.rewardType === RewardTypeEnum.REGISTRATION_REWARD,
+    );
+    if (!hasRegistrationRecord) {
+      const registrationRecordExists =
+        await this.ensureRegistrationRewardAutoClaimed(userId, today);
+      if (registrationRecordExists) {
+        oneTimeUserRewards = await fetchOneTimeUserRewards();
+      }
+    }
 
     const dailyRewardsMap = new Map(
       dailyUserRewards.map((ur) => [ur.rewardType, ur]),
@@ -324,12 +343,14 @@ export class RewardService {
   }
 
   /**
-   * Auto-claim registration reward (one-time).
+   * Auto-claim registration reward (one-time). Returns true when a
+   * registration user-reward record exists or was created, so callers
+   * holding a pre-fetched snapshot without such a record must re-read.
    */
   private async ensureRegistrationRewardAutoClaimed(
     userId: number,
     today: Date,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const existing = await this.userRewardRepository.findOne({
       where: {
         userId,
@@ -338,7 +359,7 @@ export class RewardService {
     });
 
     if (existing) {
-      return;
+      return true;
     }
 
     const reward = await this.rewardRepository
@@ -358,7 +379,7 @@ export class RewardService {
       .getOne();
 
     if (!reward) {
-      return;
+      return false;
     }
 
     const claimed = this.userRewardRepository.create({
@@ -375,6 +396,7 @@ export class RewardService {
     }
 
     await this.userRewardRepository.save(claimed);
+    return true;
   }
 
   /**

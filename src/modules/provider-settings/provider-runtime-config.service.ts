@@ -30,6 +30,21 @@ interface ResolvedProviderSetting {
 
 @Injectable()
 export class ProviderRuntimeConfigService {
+  // Per-key row cache for hot read paths (RunPod polling resolves several
+  // keys per iteration). Misses are cached too: most keys have no DB row
+  // and resolve to env/default. Bounded by the settings catalog size.
+  private readonly settingRowCache = new Map<
+    string,
+    { row: ProviderRuntimeSettingEntity | null; expiresAt: number }
+  >();
+  private static readonly SETTING_ROW_CACHE_TTL_MS = 30_000;
+
+  // Bumped by every invalidation. A read that starts before an admin write and
+  // resolves after it would otherwise cache the pre-write row for a full TTL —
+  // the admin gets a 200 while the app keeps serving the old value. Comparing
+  // the generation across the await lets such a read skip caching its result.
+  private cacheGeneration = 0;
+
   constructor(
     @InjectRepository(ProviderRuntimeSettingEntity)
     private readonly providerSettingsRepository: Repository<ProviderRuntimeSettingEntity>,
@@ -94,17 +109,21 @@ export class ProviderRuntimeConfigService {
     }
 
     const saved = await this.providerSettingsRepository.save(row);
+    this.invalidateSettingRow(definition.key);
     return this.formatSetting(definition, saved);
   }
 
   async clearSetting(key: string) {
     const definition = this.getDefinition(key);
     await this.providerSettingsRepository.delete({ key });
+    this.invalidateSettingRow(definition.key);
     return this.formatSetting(definition, null);
   }
 
   async validateSetting(key: string) {
     const definition = this.getDefinition(key);
+    // Admin validation must check the current DB state, not a cached row.
+    this.invalidateSettingRow(definition.key);
     const resolved = await this.resolveDefinitionValue(definition);
 
     if (!resolved.value) {
@@ -299,9 +318,7 @@ export class ProviderRuntimeConfigService {
   ): Promise<ResolvedProviderSetting> {
     const row =
       knownRow === undefined
-        ? await this.providerSettingsRepository.findOne({
-            where: { key: definition.key },
-          })
+        ? await this.findRowCached(definition.key)
         : knownRow;
 
     if (row) {
@@ -340,6 +357,36 @@ export class ProviderRuntimeConfigService {
       source: 'none',
       row: null,
     };
+  }
+
+  private async findRowCached(
+    key: string,
+  ): Promise<ProviderRuntimeSettingEntity | null> {
+    const cached = this.settingRowCache.get(key);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.row;
+    }
+
+    const generationAtRead = this.cacheGeneration;
+    const row = await this.providerSettingsRepository.findOne({
+      where: { key },
+    });
+
+    // An invalidation landed while this read was in flight, so `row` may
+    // already be stale. Serve it to this caller but do not cache it.
+    if (generationAtRead === this.cacheGeneration) {
+      this.settingRowCache.set(key, {
+        row,
+        expiresAt:
+          Date.now() + ProviderRuntimeConfigService.SETTING_ROW_CACHE_TTL_MS,
+      });
+    }
+    return row;
+  }
+
+  private invalidateSettingRow(key: string): void {
+    this.settingRowCache.delete(key);
+    this.cacheGeneration += 1;
   }
 
   private decryptSecretValue(row: ProviderRuntimeSettingEntity): string | null {

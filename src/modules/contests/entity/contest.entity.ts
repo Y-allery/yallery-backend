@@ -1,6 +1,7 @@
 import {
   Entity,
   Column,
+  Index,
   PrimaryGeneratedColumn,
   ManyToOne,
   OneToMany,
@@ -19,6 +20,8 @@ import { MediaAISettingsEntity } from 'src/modules/media-generation/persistence/
 import { UserActivityEntity } from 'src/modules/engagement/user-activity/entities/user-activity.entity';
 
 @Entity('contests')
+@Index('idx_contests_status', ['status'])
+@Index('idx_contests_start_end', ['startTime', 'endTime'])
 export class ContestEntity {
   @PrimaryGeneratedColumn()
   id: number;
@@ -89,7 +92,10 @@ export class ContestEntity {
   @Column({ type: 'text', nullable: true, name: 'promptExample' })
   promptExample: string;
 
-  @ManyToOne(() => MediaAISettingsEntity, { nullable: true, onDelete: 'SET NULL' })
+  @ManyToOne(() => MediaAISettingsEntity, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
   @JoinColumn({ name: 'mediaAiSettingId' })
   mediaAiSetting: MediaAISettingsEntity | null;
 
@@ -98,7 +104,10 @@ export class ContestEntity {
     nullable: true,
     name: 'socialPostSettings',
   })
-  socialPostSettings: { postToTwitter: boolean; postToInstagram: boolean } | null;
+  socialPostSettings: {
+    postToTwitter: boolean;
+    postToInstagram: boolean;
+  } | null;
 
   @ManyToOne(() => PostEntity, (post) => post.id, {
     nullable: true,

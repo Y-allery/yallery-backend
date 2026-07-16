@@ -49,6 +49,16 @@ type LifecycleAdvanceResult = {
   opened?: boolean;
 };
 
+export type ContestFlowSummary = {
+  flowVersion: string;
+  lifecycleStatus: ContestLifecycleStatus | null;
+  reviewStatus: ContestReviewStatus | null;
+  visibility?: ContestVisibility;
+  reviewSnapshotAt?: Date | null;
+  submissionsCount: number;
+  currentCandidate: Record<string, any> | null;
+};
+
 @Injectable()
 export class ContestFlowService {
   constructor(
@@ -267,12 +277,31 @@ export class ContestFlowService {
     return savedPosts;
   }
 
+  async getFlowMetadataByContestIds(
+    contestIds: number[],
+  ): Promise<Map<number, ContestFlowMetadataEntity>> {
+    if (!contestIds.length) {
+      return new Map();
+    }
+
+    const rows = await this.flowMetadataRepository.find({
+      where: { contestId: In(contestIds) },
+    });
+    return new Map(rows.map((metadata) => [metadata.contestId, metadata]));
+  }
+
   async advanceContestLifecycle(
     contest: ContestEntity,
+    // Pass null when the caller already knows no metadata exists (batch
+    // lookups); undefined falls back to a per-contest query.
+    preloadedMetadata?: ContestFlowMetadataEntity | null,
   ): Promise<LifecycleAdvanceResult> {
-    const metadata = await this.flowMetadataRepository.findOne({
-      where: { contestId: contest.id },
-    });
+    const metadata =
+      preloadedMetadata !== undefined
+        ? preloadedMetadata
+        : await this.flowMetadataRepository.findOne({
+            where: { contestId: contest.id },
+          });
 
     if (!metadata) {
       return { handled: false };
@@ -361,8 +390,35 @@ export class ContestFlowService {
     );
   }
 
-  async getReviewQueue() {
+  async getReviewQueue(contestIds?: number[]) {
+    let scopedContestIds: number[];
+    let preloadedMetadata: ContestFlowMetadataEntity[] | null = null;
+
+    if (contestIds) {
+      scopedContestIds = Array.from(new Set(contestIds));
+    } else {
+      // Bare listing (admin review queue): scope to the lifecycle states the
+      // review UI displays instead of loading every candidate ever created.
+      preloadedMetadata = await this.flowMetadataRepository.find({
+        where: {
+          lifecycleStatus: In([
+            ContestLifecycleStatus.RUNNING,
+            ContestLifecycleStatus.REVIEWING,
+            ContestLifecycleStatus.COMPLETED,
+          ]),
+        },
+      });
+      scopedContestIds = preloadedMetadata.map(
+        (metadata) => metadata.contestId,
+      );
+    }
+
+    if (!scopedContestIds.length) {
+      return [];
+    }
+
     const candidates = await this.candidateRepository.find({
+      where: { contestId: In(scopedContestIds) },
       relations: {
         contest: { tag: true },
         post: { user: true },
@@ -375,12 +431,16 @@ export class ContestFlowService {
       },
     });
 
-    const contestIds = Array.from(new Set(candidates.map((c) => c.contestId)));
-    const metadataRows = contestIds.length
-      ? await this.flowMetadataRepository.find({
-          where: { contestId: In(contestIds) },
-        })
-      : [];
+    const candidateContestIds = Array.from(
+      new Set(candidates.map((c) => c.contestId)),
+    );
+    const metadataRows =
+      preloadedMetadata ??
+      (candidateContestIds.length
+        ? await this.flowMetadataRepository.find({
+            where: { contestId: In(candidateContestIds) },
+          })
+        : []);
     const metadataByContestId = new Map(
       metadataRows.map((metadata) => [metadata.contestId, metadata]),
     );
@@ -702,43 +762,99 @@ export class ContestFlowService {
     };
   }
 
-  async getContestSummary(contestId: number) {
-    const [metadata, submissionsCount, selectedCandidate] = await Promise.all([
-      this.flowMetadataRepository.findOne({ where: { contestId } }),
-      this.submissionRepository.count({ where: { contestId } }),
-      this.candidateRepository.findOne({
-        where: {
-          contestId,
-          reviewStatus: In([
-            ContestWinnerCandidateReviewStatus.SELECTED,
-            ContestWinnerCandidateReviewStatus.APPROVED,
-          ]),
-        },
-        relations: { post: { user: true }, user: true },
-        order: { rank: 'ASC' },
-      }),
-    ]);
+  async getContestSummary(contestId: number): Promise<ContestFlowSummary> {
+    const summaries = await this.getContestSummaries([contestId]);
+    return summaries.get(contestId) ?? this.buildLegacyContestSummary();
+  }
 
-    if (!metadata) {
-      return {
-        flowVersion: 'legacy',
-        lifecycleStatus: null,
-        reviewStatus: null,
-        submissionsCount: 0,
-        currentCandidate: null,
-      };
+  async getContestSummaries(
+    contestIds: number[],
+  ): Promise<Map<number, ContestFlowSummary>> {
+    const summaries = new Map<number, ContestFlowSummary>();
+    const uniqueContestIds = Array.from(new Set(contestIds));
+    if (!uniqueContestIds.length) {
+      return summaries;
     }
 
+    const [metadataRows, submissionCountRows, selectedCandidates] =
+      await Promise.all([
+        this.flowMetadataRepository.find({
+          where: { contestId: In(uniqueContestIds) },
+        }),
+        this.submissionRepository
+          .createQueryBuilder('submission')
+          .select('submission.contestId', 'contestId')
+          .addSelect('COUNT(*)', 'count')
+          .where('submission.contestId IN (:...contestIds)', {
+            contestIds: uniqueContestIds,
+          })
+          .groupBy('submission.contestId')
+          .getRawMany(),
+        this.candidateRepository.find({
+          where: {
+            contestId: In(uniqueContestIds),
+            reviewStatus: In([
+              ContestWinnerCandidateReviewStatus.SELECTED,
+              ContestWinnerCandidateReviewStatus.APPROVED,
+            ]),
+          },
+          relations: { post: { user: true }, user: true },
+          order: { contestId: 'ASC', rank: 'ASC' },
+        }),
+      ]);
+
+    const metadataByContestId = new Map(
+      metadataRows.map((metadata) => [metadata.contestId, metadata]),
+    );
+    const submissionsCountByContestId = new Map(
+      submissionCountRows.map((row: any) => [
+        Number(row.contestId),
+        Number(row.count),
+      ]),
+    );
+    // First candidate per contest = lowest rank, mirroring the single-contest
+    // findOne ordered by rank ASC.
+    const selectedCandidateByContestId = new Map<
+      number,
+      ContestWinnerCandidateEntity
+    >();
+    for (const candidate of selectedCandidates) {
+      if (!selectedCandidateByContestId.has(candidate.contestId)) {
+        selectedCandidateByContestId.set(candidate.contestId, candidate);
+      }
+    }
+
+    for (const contestId of uniqueContestIds) {
+      const metadata = metadataByContestId.get(contestId);
+      if (!metadata) {
+        summaries.set(contestId, this.buildLegacyContestSummary());
+        continue;
+      }
+
+      const selectedCandidate = selectedCandidateByContestId.get(contestId);
+      summaries.set(contestId, {
+        flowVersion: metadata.flowVersion,
+        lifecycleStatus: metadata.lifecycleStatus,
+        reviewStatus: metadata.reviewStatus,
+        visibility: metadata.visibility,
+        reviewSnapshotAt: metadata.reviewSnapshotAt,
+        submissionsCount: submissionsCountByContestId.get(contestId) ?? 0,
+        currentCandidate: selectedCandidate
+          ? this.serializeCandidate(selectedCandidate)
+          : null,
+      });
+    }
+
+    return summaries;
+  }
+
+  private buildLegacyContestSummary(): ContestFlowSummary {
     return {
-      flowVersion: metadata.flowVersion,
-      lifecycleStatus: metadata.lifecycleStatus,
-      reviewStatus: metadata.reviewStatus,
-      visibility: metadata.visibility,
-      reviewSnapshotAt: metadata.reviewSnapshotAt,
-      submissionsCount,
-      currentCandidate: selectedCandidate
-        ? this.serializeCandidate(selectedCandidate)
-        : null,
+      flowVersion: 'legacy',
+      lifecycleStatus: null,
+      reviewStatus: null,
+      submissionsCount: 0,
+      currentCandidate: null,
     };
   }
 
@@ -934,17 +1050,25 @@ export class ContestFlowService {
     });
 
     const tweets = await this.fetchTweetsForContest(contest);
-    const candidates: ContestWinnerCandidateEntity[] = [];
 
-    for (const submission of submissions) {
+    type FineTuneEvaluation = {
+      submission: ContestSubmissionEntity;
+      post: PostEntity | null;
+      user: UserEntity | null;
+      tweet: any;
+      eligibilityStatus: ContestSubmissionEligibilityStatus;
+      needsRetweetCheck: boolean;
+    };
+
+    const evaluations: FineTuneEvaluation[] = submissions.map((submission) => {
       const post = submission.post;
       const user = post?.user ?? submission.user;
       const tweet = post
         ? this.findTweetForPost(tweets, contest, post.id)
         : null;
-      let eligibilityStatus = ContestSubmissionEligibilityStatus.ELIGIBLE;
-      let score = 0;
-      let scoreBreakdown: Record<string, unknown> = {};
+      let eligibilityStatus: ContestSubmissionEligibilityStatus =
+        ContestSubmissionEligibilityStatus.ELIGIBLE;
+      let needsRetweetCheck = false;
 
       if (!post || !post.isPublished) {
         eligibilityStatus =
@@ -965,21 +1089,63 @@ export class ContestFlowService {
         eligibilityStatus =
           ContestSubmissionEligibilityStatus.INELIGIBLE_USER_NOT_MATCHED;
       } else {
-        const retweetCheck = await this.checkRetweet(
-          post.tweetLink,
-          user.twitterUsername.replace(/^@/, ''),
-        );
+        needsRetweetCheck = true;
+      }
+
+      return {
+        submission,
+        post,
+        user,
+        tweet,
+        eligibilityStatus,
+        needsRetweetCheck,
+      };
+    });
+
+    // The Twitter retweet checks are the slow part: run them with a small
+    // concurrency cap instead of strictly one-by-one. A rejected check keeps
+    // the single-check failure semantics (treated as "did not retweet").
+    const pendingChecks = evaluations.filter(
+      (evaluation) => evaluation.needsRetweetCheck,
+    );
+    const RETWEET_CHECK_CONCURRENCY = 3;
+    for (
+      let index = 0;
+      index < pendingChecks.length;
+      index += RETWEET_CHECK_CONCURRENCY
+    ) {
+      const chunk = pendingChecks.slice(
+        index,
+        index + RETWEET_CHECK_CONCURRENCY,
+      );
+      const results = await Promise.allSettled(
+        chunk.map((evaluation) =>
+          this.checkRetweet(
+            evaluation.post.tweetLink,
+            evaluation.user.twitterUsername.replace(/^@/, ''),
+          ),
+        ),
+      );
+      results.forEach((result, chunkIndex) => {
+        const retweetCheck =
+          result.status === 'fulfilled' ? result.value : { retweet: false };
         if (!retweetCheck.retweet) {
-          eligibilityStatus =
+          chunk[chunkIndex].eligibilityStatus =
             ContestSubmissionEligibilityStatus.INELIGIBLE_NO_RETWEET;
-        } else {
+        }
+      });
+    }
+
+    const candidates = evaluations.map(
+      ({ submission, post, user, tweet, eligibilityStatus }) => {
+        let score = 0;
+        let scoreBreakdown: Record<string, unknown> = {};
+        if (eligibilityStatus === ContestSubmissionEligibilityStatus.ELIGIBLE) {
           scoreBreakdown = this.getTweetScoreBreakdown(tweet);
           score = Number(scoreBreakdown.score ?? 0);
         }
-      }
 
-      candidates.push(
-        this.candidateRepository.create({
+        return this.candidateRepository.create({
           contestId: contest.id,
           submissionId: submission.id,
           postId: post?.id ?? null,
@@ -993,9 +1159,9 @@ export class ContestFlowService {
             eligibilityStatus === ContestSubmissionEligibilityStatus.ELIGIBLE
               ? ContestWinnerCandidateReviewStatus.CANDIDATE
               : ContestWinnerCandidateReviewStatus.INELIGIBLE,
-        }),
-      );
-    }
+        });
+      },
+    );
 
     candidates.sort((a, b) => {
       const aEligible =

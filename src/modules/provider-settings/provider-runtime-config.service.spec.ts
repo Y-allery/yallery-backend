@@ -39,6 +39,7 @@ describe('ProviderRuntimeConfigService', () => {
         configService,
       ),
       rows,
+      repository,
     };
   };
 
@@ -85,6 +86,68 @@ describe('ProviderRuntimeConfigService', () => {
     await service.clearSetting('RUNPOD_MMAUDIO_ENDPOINT_ID');
     expect(await service.getString('RUNPOD_MMAUDIO_ENDPOINT_ID')).toBe(
       'env-endpoint',
+    );
+  });
+
+  it('caches per-key row lookups (including misses) within the TTL', async () => {
+    const { service, repository } = createService({
+      RUNPOD_MMAUDIO_ENDPOINT_ID: 'env-endpoint',
+    });
+
+    expect(await service.getString('RUNPOD_MMAUDIO_ENDPOINT_ID')).toBe(
+      'env-endpoint',
+    );
+    expect(await service.getString('RUNPOD_MMAUDIO_ENDPOINT_ID')).toBe(
+      'env-endpoint',
+    );
+    expect(repository.findOne).toHaveBeenCalledTimes(1);
+  });
+
+  it('invalidates the cache on update and clear', async () => {
+    const { service } = createService({
+      RUNPOD_MMAUDIO_ENDPOINT_ID: 'env-endpoint',
+    });
+
+    // Prime the cache with a miss.
+    expect(await service.getString('RUNPOD_MMAUDIO_ENDPOINT_ID')).toBe(
+      'env-endpoint',
+    );
+
+    await service.updateSetting('RUNPOD_MMAUDIO_ENDPOINT_ID', {
+      value: 'db-endpoint',
+    });
+    expect(await service.getString('RUNPOD_MMAUDIO_ENDPOINT_ID')).toBe(
+      'db-endpoint',
+    );
+
+    await service.clearSetting('RUNPOD_MMAUDIO_ENDPOINT_ID');
+    expect(await service.getString('RUNPOD_MMAUDIO_ENDPOINT_ID')).toBe(
+      'env-endpoint',
+    );
+  });
+
+  it('bypasses the cache when validating a setting', async () => {
+    const { service, rows } = createService({});
+
+    // Prime the cache with a miss for the key.
+    expect(await service.getString('RUNPOD_P_VIDEO_ENDPOINT_ID')).toBeNull();
+
+    // Simulate a DB change the service did not observe (no invalidation).
+    const row = new ProviderRuntimeSettingEntity();
+    row.key = 'RUNPOD_P_VIDEO_ENDPOINT_ID';
+    row.isSecret = false;
+    row.valuePlain = 'p-video';
+    rows.set(row.key, row);
+
+    // Cached miss still served on the hot path.
+    expect(await service.getString('RUNPOD_P_VIDEO_ENDPOINT_ID')).toBeNull();
+
+    // Validation reads fresh and repopulates the cache.
+    await expect(
+      service.validateSetting('RUNPOD_P_VIDEO_ENDPOINT_ID'),
+    ).resolves.toMatchObject({ ok: true, status: 'configured' });
+    expect(await service.getString('RUNPOD_P_VIDEO_ENDPOINT_ID')).toBe(
+      'p-video',
     );
   });
 

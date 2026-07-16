@@ -68,7 +68,15 @@ describe('LikeService.createLike (double-spend race)', () => {
       dataSource as any,
     );
 
-    return { service, saveImpl, execute, increment };
+    return {
+      service,
+      saveImpl,
+      execute,
+      increment,
+      notificationGateway,
+      userService,
+      userActivityService,
+    };
   };
 
   it('likes once: conditional debit of liker, atomic credit of author', async () => {
@@ -123,5 +131,54 @@ describe('LikeService.createLike (double-spend race)', () => {
     await expect(service.createLike({ postId: 20 } as any, 10)).rejects.toBeInstanceOf(
       NotFoundException,
     );
+  });
+
+  it('logs both activities and fires pushes/profile emits for both users', async () => {
+    const { service, userActivityService, userService, notificationGateway } =
+      createService();
+
+    await service.createLike({ postId: 20 } as any, 10);
+
+    expect(userActivityService.logLikeReceived).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 30, actorUserId: 10, pointsDelta: 5 }),
+    );
+    expect(userActivityService.logLikeSpent).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 10, pointsDelta: -15 }),
+    );
+    expect(userService.sendPushNotificationIfEnabled).toHaveBeenCalledTimes(2);
+    expect(notificationGateway.emitProfileUpdate).toHaveBeenCalledWith('10');
+    expect(notificationGateway.emitProfileUpdate).toHaveBeenCalledWith('30');
+  });
+
+  it('still succeeds when a push notification fails after commit', async () => {
+    const { service, userService, notificationGateway } = createService();
+    userService.sendPushNotificationIfEnabled.mockRejectedValue(
+      new Error('FCM down'),
+    );
+    const logError = jest
+      .spyOn((service as any).logger, 'error')
+      .mockImplementation(() => undefined);
+
+    await expect(service.createLike({ postId: 20 } as any, 10)).resolves.toBe(
+      'success',
+    );
+    // Remaining side effects still ran despite the push failure.
+    expect(notificationGateway.emitProfileUpdate).toHaveBeenCalledTimes(2);
+    expect(logError).toHaveBeenCalled();
+  });
+
+  it('still succeeds when a profile emit fails after commit', async () => {
+    const { service, notificationGateway } = createService();
+    notificationGateway.emitProfileUpdate.mockRejectedValue(
+      new Error('socket down'),
+    );
+    const logError = jest
+      .spyOn((service as any).logger, 'error')
+      .mockImplementation(() => undefined);
+
+    await expect(service.createLike({ postId: 20 } as any, 10)).resolves.toBe(
+      'success',
+    );
+    expect(logError).toHaveBeenCalled();
   });
 });

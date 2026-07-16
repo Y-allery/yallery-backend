@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -11,11 +12,27 @@ import { randomUUID } from 'crypto';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
+import { Readable } from 'stream';
 import { UploadedVideoAsset } from './upload.types';
 
 const IMAGE_FOLDER = 'octoai_images';
 const VIDEO_FOLDER = 'octoai_videos';
 const CACHE_CONTROL = 'public, max-age=31536000, immutable';
+/**
+ * Cap on whole-object downloads into memory (MEDIA_MAX_OBJECT_BYTES
+ * overrides). 300MB leaves headroom for legit ~100MB videos while keeping a
+ * single hostile request from OOMing the droplet.
+ */
+const DEFAULT_MAX_OBJECT_BYTES = 314572800;
+/** Media-proxy reads: a request is already waiting on these. */
+const OBJECT_FETCH_TIMEOUT_MS = 120000;
+/**
+ * Worker reads of provider output. Deliberately far higher than the proxy's:
+ * this path had no timeout at all and routinely pulls large videos off RunPod,
+ * so a proxy-sized budget here would fail generations that used to succeed.
+ * It exists only to stop a hung download from pinning a worker forever.
+ */
+const WORKER_FETCH_TIMEOUT_MS = 600000;
 
 const EXTENSION_BY_MIME: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -38,6 +55,21 @@ const VIDEO_MIME_BY_EXTENSION: Record<string, string> = {
 interface FetchedMedia {
   buffer: Buffer;
   contentType: string;
+}
+
+export interface ObjectStream {
+  stream: Readable;
+  /** Size in bytes when the storage layer reports it. */
+  contentLength: number | null;
+  contentType: string | null;
+}
+
+/** Thrown when a download exceeds the byte cap — callers map it to an HTTP 413 instead of a 500. */
+export class ObjectTooLargeError extends Error {
+  constructor(source: string, limitBytes: number) {
+    super(`Object ${source} exceeds the ${limitBytes}-byte download limit`);
+    this.name = 'ObjectTooLargeError';
+  }
 }
 
 @Injectable()
@@ -207,13 +239,55 @@ export class SpacesStorageService {
 
   /** Downloads an object's bytes via the CDN edge. */
   async getObjectBuffer(key: string): Promise<Buffer> {
-    const response = await axios.get<ArrayBuffer>(this.cdnUrl(key), {
-      responseType: 'arraybuffer',
-      maxContentLength: Infinity,
-      maxBodyLength: Infinity,
-      timeout: 120000,
-    });
-    return Buffer.from(response.data);
+    const cap = this.maxObjectBytes();
+    try {
+      const response = await axios.get<ArrayBuffer>(this.cdnUrl(key), {
+        responseType: 'arraybuffer',
+        maxContentLength: cap,
+        maxBodyLength: cap,
+        timeout: OBJECT_FETCH_TIMEOUT_MS,
+      });
+      return Buffer.from(response.data);
+    } catch (error) {
+      throw this.mapSizeError(error, key, cap);
+    }
+  }
+
+  /** Opens an object as a stream — attachment responses pipe this straight to the client. */
+  async getObjectStream(key: string): Promise<ObjectStream> {
+    const response = await this.getClient().send(
+      new GetObjectCommand({
+        Bucket: this.configService.get<string>('SPACES_BUCKET'),
+        Key: key,
+      }),
+    );
+    if (!response.Body) {
+      throw new Error(`Empty response body for object ${key}`);
+    }
+    return {
+      stream: response.Body as Readable,
+      contentLength:
+        typeof response.ContentLength === 'number'
+          ? response.ContentLength
+          : null,
+      contentType: response.ContentType ?? null,
+    };
+  }
+
+  private maxObjectBytes(): number {
+    const raw = Number(this.configService.get<string>('MEDIA_MAX_OBJECT_BYTES'));
+    return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_MAX_OBJECT_BYTES;
+  }
+
+  /** Axios rejects cap overruns with a generic error — surface them as ObjectTooLargeError. */
+  private mapSizeError(error: unknown, source: string, cap: number): unknown {
+    if (
+      error instanceof Error &&
+      error.message.includes('maxContentLength size of')
+    ) {
+      return new ObjectTooLargeError(source, cap);
+    }
+    return error;
   }
 
   private async putObject(
@@ -286,28 +360,44 @@ export class SpacesStorageService {
     source: string,
     fallbackContentType: string,
   ): Promise<FetchedMedia> {
+    const cap = this.maxObjectBytes();
+
     const dataUriMatch = source.match(/^data:([^;,]+)?(;base64)?,/);
     if (dataUriMatch) {
       const contentType = dataUriMatch[1] || fallbackContentType;
       const payload = source.slice(dataUriMatch[0].length);
+      // Cap before allocating: base64 decodes to ~3/4 of its encoded length,
+      // and this branch (LTX returns base64 mp4) is the likeliest in-memory
+      // blowup in the worker path — the axios cap below never sees it.
+      const decodedBytes = dataUriMatch[2]
+        ? Math.floor((payload.length * 3) / 4)
+        : payload.length;
+      if (decodedBytes > cap) {
+        throw new ObjectTooLargeError('data: URI payload', cap);
+      }
       const buffer = dataUriMatch[2]
         ? Buffer.from(payload, 'base64')
         : Buffer.from(decodeURIComponent(payload), 'utf8');
       return { buffer, contentType };
     }
 
-    const response = await axios.get<ArrayBuffer>(source, {
-      responseType: 'arraybuffer',
-      maxContentLength: Infinity,
-      maxBodyLength: Infinity,
-    });
-    const headerContentType = String(
-      response.headers?.['content-type'] ?? '',
-    ).split(';')[0];
-    return {
-      buffer: Buffer.from(response.data),
-      contentType: headerContentType || fallbackContentType,
-    };
+    try {
+      const response = await axios.get<ArrayBuffer>(source, {
+        responseType: 'arraybuffer',
+        maxContentLength: cap,
+        maxBodyLength: cap,
+        timeout: WORKER_FETCH_TIMEOUT_MS,
+      });
+      const headerContentType = String(
+        response.headers?.['content-type'] ?? '',
+      ).split(';')[0];
+      return {
+        buffer: Buffer.from(response.data),
+        contentType: headerContentType || fallbackContentType,
+      };
+    } catch (error) {
+      throw this.mapSizeError(error, source, cap);
+    }
   }
 
   private async probeVideo(filePath: string): Promise<{

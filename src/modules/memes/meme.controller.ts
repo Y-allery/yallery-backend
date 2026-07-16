@@ -1,5 +1,6 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { JwtAuthGuard } from 'src/modules/auth/guards/jwt.auth.guard';
 import { MemeService } from './meme.service';
 import { ContentTranslationService } from 'src/modules/translations/content-translation.service';
 import { RequestLocale } from 'src/modules/translations/request-locale.decorator';
@@ -17,6 +18,7 @@ export class MemeController {
   ) {}
 
   @Get()
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({
     summary:
       'List memes: popular (top 6 by generations this month) + regular, with generationsCount',

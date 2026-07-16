@@ -6,16 +6,22 @@ describe('ReferralFlagService', () => {
       findOne: jest.fn(),
       ...overrides.partnershipRepo,
     };
+    const insertBuilder = {
+      insert: jest.fn().mockReturnThis(),
+      values: jest.fn().mockReturnThis(),
+      orIgnore: jest.fn().mockReturnThis(),
+      updateEntity: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue({ raw: { affectedRows: 1 } }),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      getOne: jest.fn().mockResolvedValue(null),
+    };
     const activityRepo = {
       findOne: jest.fn(),
       create: jest.fn((data) => data),
       save: jest.fn(),
-      createQueryBuilder: jest.fn(() => ({
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockReturnThis(),
-        getOne: jest.fn().mockResolvedValue(null),
-      })),
+      createQueryBuilder: jest.fn(() => insertBuilder),
       ...overrides.activityRepo,
     };
     const linkRepo = {
@@ -77,11 +83,10 @@ describe('ReferralFlagService', () => {
     ).resolves.toEqual({ status: false });
   });
 
-  it('does not duplicate an existing activity flag', async () => {
+  it('writes the flag with INSERT IGNORE, so a concurrent duplicate is a no-op', async () => {
     const { service, partnershipRepo, linkRepo, activityRepo } = createService();
     partnershipRepo.findOne.mockResolvedValue({ id: 1 });
     linkRepo.findOne.mockResolvedValue({ userId: 10 });
-    activityRepo.findOne.mockResolvedValue({ id: 20 });
 
     await expect(
       service.setReferralFlag({
@@ -91,7 +96,15 @@ describe('ReferralFlagService', () => {
       }),
     ).resolves.toEqual({ status: true });
 
-    expect(activityRepo.create).not.toHaveBeenCalled();
+    const builder = activityRepo.createQueryBuilder.mock.results[0].value;
+    expect(builder.values).toHaveBeenCalledWith({
+      partnershipId: 1,
+      userId: 10,
+      activity: 'posted_to_twitter',
+    });
+    expect(builder.orIgnore).toHaveBeenCalled();
+    // The unique index dedupes; no read-before-write, no full-entity save.
+    expect(activityRepo.findOne).not.toHaveBeenCalled();
     expect(activityRepo.save).not.toHaveBeenCalled();
   });
 
@@ -128,12 +141,66 @@ describe('ReferralFlagService', () => {
     expect(twitterApiIoService.searchTweets).not.toHaveBeenCalled();
   });
 
+  it('does not cache a negative when a Twitter strategy could not be checked', async () => {
+    const queryBuilder = {
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      getOne: jest.fn().mockResolvedValue(null),
+      insert: jest.fn().mockReturnThis(),
+      values: jest.fn().mockReturnThis(),
+      orIgnore: jest.fn().mockReturnThis(),
+      updateEntity: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue({ raw: { affectedRows: 1 } }),
+    };
+    const { service, partnershipRepo, linkRepo, userRepo, twitterApiIoService } =
+      createService({
+        activityRepo: { createQueryBuilder: jest.fn(() => queryBuilder) },
+      });
+    partnershipRepo.findOne.mockResolvedValue({ id: 1 });
+    linkRepo.findOne.mockResolvedValue({ userId: 10 });
+    userRepo.findOne.mockResolvedValue({ id: 10, twitterUsername: '@tester' });
+
+    // Timeline endpoints are down (their failures are swallowed internally),
+    // while search legitimately answers "nothing found".
+    twitterApiIoService.getUserProfile.mockRejectedValue(new Error('429'));
+    twitterApiIoService.getUserLastTweets.mockRejectedValue(new Error('429'));
+    twitterApiIoService.searchTweets.mockResolvedValue({ tweets: [] });
+
+    const params = {
+      referralToken: 'token',
+      partnerUserId: 'partner-user',
+      flag: 'retweet',
+    };
+    await expect(service.checkReferralFlag(params)).resolves.toEqual({
+      status: 'false',
+    });
+
+    // The user then retweets. Because the outage was never cached as a
+    // negative, the next call must re-check Twitter rather than replay 'false'.
+    twitterApiIoService.getUserProfile.mockResolvedValue({ id: 'tw-1' });
+    twitterApiIoService.getUserTimeline.mockResolvedValue({
+      tweets: [{ full_text: 'hello y_allery', id_str: 't-1' }],
+      has_next_page: false,
+      next_cursor: '',
+    });
+
+    await expect(service.checkReferralFlag(params)).resolves.toEqual({
+      status: 'true',
+    });
+  });
+
   it('checks profile timeline and saves retweet activity on y_allery match', async () => {
     const queryBuilder = {
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
       limit: jest.fn().mockReturnThis(),
       getOne: jest.fn().mockResolvedValue(null),
+      insert: jest.fn().mockReturnThis(),
+      values: jest.fn().mockReturnThis(),
+      orIgnore: jest.fn().mockReturnThis(),
+      updateEntity: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue({ raw: { affectedRows: 1 } }),
     };
     const {
       service,
@@ -176,12 +243,12 @@ describe('ReferralFlagService', () => {
       },
     );
     expect(twitterApiIoService.searchTweets).not.toHaveBeenCalled();
-    expect(activityRepo.create).toHaveBeenCalledWith({
+    expect(queryBuilder.values).toHaveBeenCalledWith({
       partnershipId: 1,
       userId: 10,
       activity: 'retweet',
     });
-    expect(activityRepo.save).toHaveBeenCalled();
+    expect(queryBuilder.orIgnore).toHaveBeenCalled();
   });
 
   it('falls back to y_allery mention search when timeline endpoints do not surface profile content', async () => {
@@ -190,6 +257,11 @@ describe('ReferralFlagService', () => {
       andWhere: jest.fn().mockReturnThis(),
       limit: jest.fn().mockReturnThis(),
       getOne: jest.fn().mockResolvedValue(null),
+      insert: jest.fn().mockReturnThis(),
+      values: jest.fn().mockReturnThis(),
+      orIgnore: jest.fn().mockReturnThis(),
+      updateEntity: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue({ raw: { affectedRows: 1 } }),
     };
     const {
       service,
@@ -219,17 +291,14 @@ describe('ReferralFlagService', () => {
       has_next_page: false,
       next_cursor: '',
     });
-    twitterApiIoService.searchTweets
-      .mockResolvedValueOnce({ tweets: [] })
-      .mockResolvedValueOnce({ tweets: [] })
-      .mockResolvedValueOnce({
-        tweets: [
-          {
-            full_text: 'Generated by @tester #nomisma',
-            author: { userName: 'y_allery' },
-          },
-        ],
-      });
+    twitterApiIoService.searchTweets.mockResolvedValue({
+      tweets: [
+        {
+          full_text: 'Generated by @tester #nomisma',
+          author: { userName: 'y_allery' },
+        },
+      ],
+    });
 
     await expect(
       service.checkReferralFlag({
@@ -239,14 +308,157 @@ describe('ReferralFlagService', () => {
       }),
     ).resolves.toEqual({ status: 'true' });
 
+    expect(twitterApiIoService.searchTweets).toHaveBeenCalledTimes(1);
+    // `from:` scopes the search to the user's own tweets. A bare
+    // `y_allery tester` would instead match tweets *mentioning* the handle,
+    // which the user's own retweet does not contain.
     expect(twitterApiIoService.searchTweets).toHaveBeenCalledWith(
-      'y_allery tester',
+      'from:tester y_allery',
       'Latest',
     );
-    expect(activityRepo.create).toHaveBeenCalledWith({
+    expect(queryBuilder.values).toHaveBeenCalledWith({
       partnershipId: 1,
       userId: 10,
       activity: 'retweet',
     });
+  });
+
+  it('checks at most two pages per timeline strategy and one search query', async () => {
+    const queryBuilder = {
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      getOne: jest.fn().mockResolvedValue(null),
+      insert: jest.fn().mockReturnThis(),
+      values: jest.fn().mockReturnThis(),
+      orIgnore: jest.fn().mockReturnThis(),
+      updateEntity: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue({ raw: { affectedRows: 1 } }),
+    };
+    const { service, partnershipRepo, linkRepo, userRepo, twitterApiIoService } =
+      createService({
+        activityRepo: {
+          createQueryBuilder: jest.fn(() => queryBuilder),
+        },
+      });
+    partnershipRepo.findOne.mockResolvedValue({ id: 1 });
+    linkRepo.findOne.mockResolvedValue({ userId: 10 });
+    userRepo.findOne.mockResolvedValue({ id: 10, twitterUsername: '@tester' });
+    twitterApiIoService.getUserProfile.mockResolvedValue({
+      id: 'twitter-user-id',
+    });
+    const endlessPage = {
+      tweets: [],
+      has_next_page: true,
+      next_cursor: 'next',
+    };
+    twitterApiIoService.getUserTimeline.mockResolvedValue(endlessPage);
+    twitterApiIoService.getUserLastTweets.mockResolvedValue(endlessPage);
+    twitterApiIoService.searchTweets.mockResolvedValue({ tweets: [] });
+
+    await expect(
+      service.checkReferralFlag({
+        referralToken: 'token',
+        partnerUserId: 'partner-user',
+        flag: 'retweet',
+      }),
+    ).resolves.toEqual({ status: 'false' });
+
+    expect(twitterApiIoService.getUserTimeline).toHaveBeenCalledTimes(2);
+    expect(twitterApiIoService.getUserLastTweets).toHaveBeenCalledTimes(2);
+    expect(twitterApiIoService.searchTweets).toHaveBeenCalledTimes(1);
+  });
+
+  it('caches a negative retweet result and skips the Twitter cascade on the next check', async () => {
+    const queryBuilder = {
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      getOne: jest.fn().mockResolvedValue(null),
+      insert: jest.fn().mockReturnThis(),
+      values: jest.fn().mockReturnThis(),
+      orIgnore: jest.fn().mockReturnThis(),
+      updateEntity: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue({ raw: { affectedRows: 1 } }),
+    };
+    const { service, partnershipRepo, linkRepo, userRepo, twitterApiIoService } =
+      createService({
+        activityRepo: {
+          createQueryBuilder: jest.fn(() => queryBuilder),
+        },
+      });
+    partnershipRepo.findOne.mockResolvedValue({ id: 1 });
+    linkRepo.findOne.mockResolvedValue({ userId: 10 });
+    userRepo.findOne.mockResolvedValue({ id: 10, twitterUsername: '@tester' });
+    twitterApiIoService.getUserProfile.mockResolvedValue({
+      id: 'twitter-user-id',
+    });
+    const emptyPage = { tweets: [], has_next_page: false, next_cursor: '' };
+    twitterApiIoService.getUserTimeline.mockResolvedValue(emptyPage);
+    twitterApiIoService.getUserLastTweets.mockResolvedValue(emptyPage);
+    twitterApiIoService.searchTweets.mockResolvedValue({ tweets: [] });
+
+    const params = {
+      referralToken: 'token',
+      partnerUserId: 'partner-user',
+      flag: 'retweet',
+    };
+
+    await expect(service.checkReferralFlag(params)).resolves.toEqual({
+      status: 'false',
+    });
+    expect(twitterApiIoService.getUserProfile).toHaveBeenCalledTimes(1);
+
+    await expect(service.checkReferralFlag(params)).resolves.toEqual({
+      status: 'false',
+    });
+    expect(twitterApiIoService.getUserProfile).toHaveBeenCalledTimes(1);
+    expect(twitterApiIoService.searchTweets).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not cache a negative result when the Twitter check errors', async () => {
+    const queryBuilder = {
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      getOne: jest.fn().mockResolvedValue(null),
+      insert: jest.fn().mockReturnThis(),
+      values: jest.fn().mockReturnThis(),
+      orIgnore: jest.fn().mockReturnThis(),
+      updateEntity: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue({ raw: { affectedRows: 1 } }),
+    };
+    const { service, partnershipRepo, linkRepo, userRepo, twitterApiIoService } =
+      createService({
+        activityRepo: {
+          createQueryBuilder: jest.fn(() => queryBuilder),
+        },
+      });
+    partnershipRepo.findOne.mockResolvedValue({ id: 1 });
+    linkRepo.findOne.mockResolvedValue({ userId: 10 });
+    userRepo.findOne.mockResolvedValue({ id: 10, twitterUsername: '@tester' });
+    twitterApiIoService.getUserProfile.mockResolvedValue({
+      id: 'twitter-user-id',
+    });
+    const emptyPage = { tweets: [], has_next_page: false, next_cursor: '' };
+    twitterApiIoService.getUserTimeline.mockResolvedValue(emptyPage);
+    twitterApiIoService.getUserLastTweets.mockResolvedValue(emptyPage);
+    twitterApiIoService.searchTweets.mockRejectedValue(
+      new Error('twitter down'),
+    );
+
+    const params = {
+      referralToken: 'token',
+      partnerUserId: 'partner-user',
+      flag: 'retweet',
+    };
+
+    await expect(service.checkReferralFlag(params)).resolves.toEqual({
+      status: 'false',
+    });
+    await expect(service.checkReferralFlag(params)).resolves.toEqual({
+      status: 'false',
+    });
+    expect(twitterApiIoService.getUserProfile).toHaveBeenCalledTimes(2);
   });
 });

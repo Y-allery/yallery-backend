@@ -106,6 +106,19 @@ export class UserService {
     return this.userModel.findOne({ where: { id }, relations: ['tags'] });
   }
 
+  /**
+   * Lean lookup for the per-request JWT validation: primary-key read of the
+   * three columns the guard needs, without the tags join findById() carries.
+   */
+  async findAuthUserById(
+    id: number,
+  ): Promise<Pick<UserEntity, 'id' | 'role' | 'isDeleted'> | null> {
+    return this.userModel.findOne({
+      where: { id },
+      select: { id: true, role: true, isDeleted: true },
+    });
+  }
+
   async updateUser(user: UserEntity): Promise<UserEntity> {
     return this.userModel.save(user);
   }
@@ -572,38 +585,36 @@ export class UserService {
   }
 
   async getUserProfile(userId: number) {
-    const user = await this.findById(userId);
+    // Hot path: runs on GET /user/profile and every emitProfileUpdate.
+    // The five reads only depend on userId, so they run in parallel.
+    const [
+      user,
+      unreadCount,
+      unreadContestActivity,
+      unreadCollabsActivity,
+      totalLikesCount,
+    ] = await Promise.all([
+      this.findById(userId),
+      this.userActivityQueryService.countUnreadFeed(userId),
+      this.userActivityQueryService.countUnreadContestActivitiesByType(
+        userId,
+        ContestTypeEnum.DEFAULT,
+      ),
+      this.userActivityQueryService.countUnreadContestActivitiesByType(
+        userId,
+        ContestTypeEnum.FINE_TUNE,
+      ),
+      this.likeModel
+        .createQueryBuilder('like')
+        .innerJoin('like.post', 'post')
+        .where('post.userId = :userId', { userId })
+        .getCount(),
+    ]);
+
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    const unreadCount =
-      await this.userActivityQueryService.countUnreadFeed(userId);
-
-    const unreadContestActivity =
-      await this.userActivityQueryService.countUnreadContestActivitiesByType(
-        userId,
-        ContestTypeEnum.DEFAULT,
-      );
-    const unreadCollabsActivity =
-      await this.userActivityQueryService.countUnreadContestActivitiesByType(
-        userId,
-        ContestTypeEnum.FINE_TUNE,
-      );
-    
-    // Get puid (partnerUserId) from partner_user_links
-    const partnerUserLink = await this.partnerUserLinkRepository.findOne({
-      where: { userId },
-    });
-    const puid = partnerUserLink?.partnerUserId ?? null;
-    
-    // Get total likes count - count all likes on user's posts
-    const totalLikesCount = await this.likeModel
-      .createQueryBuilder('like')
-      .innerJoin('like.post', 'post')
-      .where('post.userId = :userId', { userId })
-      .getCount();
-    
     // Return only specified fields
     return {
       id: user.id,

@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'crypto';
 import { createClient } from 'redis';
 
 @Injectable()
@@ -40,19 +41,38 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return this.client;
   }
 
-  async acquireLock(key: string, ttl: number = 600): Promise<boolean> {
+  /**
+   * Returns an owner token to pass back to releaseLock, or null if the lock is
+   * held. The token is what makes release safe: a run that overruns its TTL
+   * would otherwise DEL a lock its successor now holds, and the two would race
+   * — each overrun cascading into the next.
+   */
+  async acquireLock(key: string, ttl: number = 600): Promise<string | null> {
     try {
-      const result = await this.client.set(key, '1', { EX: ttl, NX: true });
-      return result === 'OK';
+      const token = randomUUID();
+      const result = await this.client.set(key, token, { EX: ttl, NX: true });
+      return result === 'OK' ? token : null;
     } catch (error) {
       console.error(`Failed to acquire lock ${key}:`, error);
-      return false;
+      return null;
     }
   }
 
-  async releaseLock(key: string): Promise<void> {
+  async releaseLock(key: string, token?: string): Promise<void> {
     try {
-      await this.client.del(key);
+      if (!token) {
+        await this.client.del(key);
+        return;
+      }
+      // Compare-and-delete: only the owner clears the key.
+      await this.client.eval(
+        `if redis.call('get', KEYS[1]) == ARGV[1] then
+           return redis.call('del', KEYS[1])
+         else
+           return 0
+         end`,
+        { keys: [key], arguments: [token] },
+      );
     } catch (error) {
       console.error(`Failed to release lock ${key}:`, error);
     }

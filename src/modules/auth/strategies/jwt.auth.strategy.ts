@@ -18,7 +18,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any): Promise<{ id: number; role: RoleEnum }> {
-    const user = await this.userService.findById(payload.sub);
+    // Runs on every authenticated request: use the lean lookup instead of
+    // findById(), which joins the tags relation and loads the full user row.
+    const user = await this.userService.findAuthUserById(payload.sub);
     if (!user || user.isDeleted) {
       throw new UnauthorizedException();
     }

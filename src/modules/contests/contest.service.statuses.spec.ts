@@ -12,9 +12,13 @@ const createService = (contest: any) => {
       return value;
     }),
   };
-  const postRepository = { count: jest.fn(async () => 0) };
+  const postRepository = {
+    query: jest.fn(async () => []),
+    count: jest.fn(async () => 0),
+  };
   const contestFlowService = {
     advanceContestLifecycle: jest.fn(async () => ({ handled: false })),
+    getFlowMetadataByContestIds: jest.fn(async () => new Map()),
   };
   const queueService = {
     enqueueContestStarted: jest.fn(async () => ({ jobId: 'j' })),

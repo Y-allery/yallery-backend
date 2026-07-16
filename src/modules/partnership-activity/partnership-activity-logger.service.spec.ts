@@ -3,25 +3,25 @@ import { PartnershipActivityLoggerService } from './partnership-activity-logger.
 describe('PartnershipActivityLoggerService', () => {
   const createService = (options?: {
     links?: Array<{ partnershipId: number; userId: number }>;
-    existingKeys?: string[];
-    saveRejects?: boolean;
+    insertRejects?: boolean;
   }) => {
-    const existingKeys = new Set(options?.existingKeys ?? []);
     const partnerUserLinkRepository = {
       find: jest.fn(async () => options?.links ?? []),
     };
-    const partnershipActivityRepository = {
-      findOne: jest.fn(async ({ where }) => {
-        const key = `${where.partnershipId}:${where.userId}:${where.activity}`;
-        return existingKeys.has(key) ? { id: 1, ...where } : null;
-      }),
-      create: jest.fn((data) => data),
-      save: jest.fn(async (data) => {
-        if (options?.saveRejects) {
-          throw new Error('save failed');
+    const insertQueryBuilder = {
+      insert: jest.fn().mockReturnThis(),
+      values: jest.fn().mockReturnThis(),
+      orIgnore: jest.fn().mockReturnThis(),
+      updateEntity: jest.fn().mockReturnThis(),
+      execute: jest.fn(async () => {
+        if (options?.insertRejects) {
+          throw new Error('insert failed');
         }
-        return { id: 1, ...data };
+        return { raw: { affectedRows: options?.links?.length ?? 0 } };
       }),
+    };
+    const partnershipActivityRepository = {
+      createQueryBuilder: jest.fn(() => insertQueryBuilder),
     };
 
     const service = new PartnershipActivityLoggerService(
@@ -39,6 +39,7 @@ describe('PartnershipActivityLoggerService', () => {
       service,
       partnerUserLinkRepository,
       partnershipActivityRepository,
+      insertQueryBuilder,
       loggerErrorSpy,
       loggerWarnSpy,
     };
@@ -49,39 +50,36 @@ describe('PartnershipActivityLoggerService', () => {
 
     await service.logOnceForUser(10, 'image_generated');
 
-    expect(partnershipActivityRepository.findOne).not.toHaveBeenCalled();
-    expect(partnershipActivityRepository.save).not.toHaveBeenCalled();
+    expect(partnershipActivityRepository.createQueryBuilder).not.toHaveBeenCalled();
   });
 
-  it('creates one activity for one partner link', async () => {
-    const { service, partnershipActivityRepository } = createService({
+  it('warns and skips when userId or activity is missing', async () => {
+    const { service, partnerUserLinkRepository, loggerWarnSpy } =
+      createService();
+
+    await service.logOnceForUser(0, 'image_generated');
+    await service.logOnceForUser(10, '   ');
+
+    expect(loggerWarnSpy).toHaveBeenCalledTimes(2);
+    expect(partnerUserLinkRepository.find).not.toHaveBeenCalled();
+  });
+
+  it('inserts one activity for one partner link', async () => {
+    const { service, insertQueryBuilder } = createService({
       links: [{ partnershipId: 3, userId: 10 }],
     });
 
     await service.logOnceForUser(10, 'image_generated');
 
-    expect(partnershipActivityRepository.create).toHaveBeenCalledWith({
-      partnershipId: 3,
-      userId: 10,
-      activity: 'image_generated',
-    });
-    expect(partnershipActivityRepository.save).toHaveBeenCalledTimes(1);
+    expect(insertQueryBuilder.values).toHaveBeenCalledWith([
+      { partnershipId: 3, userId: 10, activity: 'image_generated' },
+    ]);
+    expect(insertQueryBuilder.orIgnore).toHaveBeenCalled();
+    expect(insertQueryBuilder.execute).toHaveBeenCalledTimes(1);
   });
 
-  it('does not duplicate an existing activity', async () => {
-    const { service, partnershipActivityRepository } = createService({
-      links: [{ partnershipId: 3, userId: 10 }],
-      existingKeys: ['3:10:image_generated'],
-    });
-
-    await service.logOnceForUser(10, 'image_generated');
-
-    expect(partnershipActivityRepository.create).not.toHaveBeenCalled();
-    expect(partnershipActivityRepository.save).not.toHaveBeenCalled();
-  });
-
-  it('creates one activity per partnership link', async () => {
-    const { service, partnershipActivityRepository } = createService({
+  it('inserts all partnership links in a single bulk statement', async () => {
+    const { service, insertQueryBuilder } = createService({
       links: [
         { partnershipId: 3, userId: 10 },
         { partnershipId: 4, userId: 10 },
@@ -90,23 +88,17 @@ describe('PartnershipActivityLoggerService', () => {
 
     await service.logOnceForUser(10, 'image_generated');
 
-    expect(partnershipActivityRepository.save).toHaveBeenCalledTimes(2);
-    expect(partnershipActivityRepository.create).toHaveBeenCalledWith({
-      partnershipId: 3,
-      userId: 10,
-      activity: 'image_generated',
-    });
-    expect(partnershipActivityRepository.create).toHaveBeenCalledWith({
-      partnershipId: 4,
-      userId: 10,
-      activity: 'image_generated',
-    });
+    expect(insertQueryBuilder.values).toHaveBeenCalledWith([
+      { partnershipId: 3, userId: 10, activity: 'image_generated' },
+      { partnershipId: 4, userId: 10, activity: 'image_generated' },
+    ]);
+    expect(insertQueryBuilder.execute).toHaveBeenCalledTimes(1);
   });
 
-  it('logs and does not throw when save fails', async () => {
+  it('logs and does not throw when the insert fails', async () => {
     const { service, loggerErrorSpy } = createService({
       links: [{ partnershipId: 3, userId: 10 }],
-      saveRejects: true,
+      insertRejects: true,
     });
 
     await expect(

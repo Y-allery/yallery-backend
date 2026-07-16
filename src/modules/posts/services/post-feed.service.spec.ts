@@ -82,13 +82,18 @@ describe('PostFeedService', () => {
 
   it('returns hasAudio in popular posts', async () => {
     const { service, postRepository } = createService();
-    postRepository.query.mockResolvedValueOnce(
-      Array.from({ length: 6 }, (_, index) => ({
-        ...postRow,
-        id: index + 1,
-        hasAudio: true,
-      })),
-    );
+    postRepository.query
+      .mockResolvedValueOnce(
+        Array.from({ length: 6 }, (_, index) => ({
+          ...postRow,
+          id: index + 1,
+          hasAudio: true,
+          periodBucket: 0,
+        })),
+      )
+      // per-user isLiked / isViewed flag lookups
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
 
     const result = await service.getPopularPosts(55);
 

@@ -4,7 +4,11 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import * as sharp from 'sharp';
-import { SpacesStorageService } from 'src/modules/uploads/spaces-storage.service';
+import { Readable } from 'stream';
+import {
+  ObjectTooLargeError,
+  SpacesStorageService,
+} from 'src/modules/uploads/spaces-storage.service';
 import {
   ImageTransformation,
   MediaResourceType,
@@ -31,12 +35,15 @@ const WATERMARK_MARGIN = 40;
 const VIDEO_EXTENSIONS = ['mp4', 'webm', 'mov'];
 const MAX_KNOWN_DERIVED = 10000;
 const FFMPEG_TIMEOUT_MS = 180000;
+const MAX_CONCURRENT_IMAGE_TRANSFORMS = 4;
 
 export interface ResolvedMedia {
   /** CDN URL to redirect to (null when the variant must be streamed). */
   redirectUrl: string | null;
-  /** Inline bytes for attachment responses. */
-  body: Buffer | null;
+  /** Byte stream for attachment responses (piped straight to the HTTP response). */
+  bodyStream: Readable | null;
+  /** Size of bodyStream when the storage layer reports it. */
+  contentLength: number | null;
   contentType: string | null;
   /** Content-Disposition attachment filename, when the variant is a download. */
   attachmentFilename: string | null;
@@ -57,6 +64,10 @@ export class MediaProxyService {
   private readonly knownDerived = new Set<string>();
   /** Keeps concurrent ffmpeg work bounded on the droplet. */
   private transcodeQueue: Promise<void> = Promise.resolve();
+  /** Sharp pipelines currently running (bounded by MAX_CONCURRENT_IMAGE_TRANSFORMS). */
+  private imageTransformActive = 0;
+  /** FIFO wake-up callbacks for transforms waiting on a free slot. */
+  private readonly imageTransformWaiters: Array<() => void> = [];
 
   constructor(private readonly spacesStorage: SpacesStorageService) {}
 
@@ -103,7 +114,8 @@ export class MediaProxyService {
   private redirectTo(key: string, cacheable = true): ResolvedMedia {
     return {
       redirectUrl: this.spacesStorage.cdnUrl(key),
-      body: null,
+      bodyStream: null,
+      contentLength: null,
       contentType: null,
       attachmentFilename: null,
       cacheable,
@@ -125,7 +137,9 @@ export class MediaProxyService {
     try {
       await this.ensureDerived(derivedKey, async () => {
         const original = await this.spacesStorage.getObjectBuffer(key);
-        const transformed = await this.transformImage(original, spec, key);
+        const transformed = await this.enqueueImageTransform(() =>
+          this.transformImage(original, spec, key),
+        );
         await this.spacesStorage.putPublicObject(
           derivedKey,
           transformed.body,
@@ -133,6 +147,10 @@ export class MediaProxyService {
         );
       });
     } catch (error) {
+      // An oversized original is not something to degrade around: falling back
+      // would stream the very object we refused to load, un-watermarked, as a
+      // 200. Let it surface as a 413.
+      if (error instanceof ObjectTooLargeError) throw error;
       console.warn(
         `[MediaProxyService] image variant ${derivedKey} failed: ${(error as Error).message}`,
       );
@@ -171,6 +189,7 @@ export class MediaProxyService {
         );
       });
     } catch (error) {
+      if (error instanceof ObjectTooLargeError) throw error;
       console.warn(
         `[MediaProxyService] video variant ${derivedKey} failed: ${(error as Error).message}`,
       );
@@ -253,11 +272,13 @@ export class MediaProxyService {
       return this.redirectTo(servedKey, cacheable);
     }
     // Attachment variants must carry Content-Disposition, which the public
-    // CDN cannot set — stream the bytes through the API instead.
-    const body = await this.spacesStorage.getObjectBuffer(servedKey);
+    // CDN cannot set — stream the bytes through the API instead (as a stream,
+    // so multi-hundred-MB videos never sit in memory).
+    const object = await this.spacesStorage.getObjectStream(servedKey);
     return {
       redirectUrl: null,
-      body,
+      bodyStream: object.stream,
+      contentLength: object.contentLength,
       contentType: this.contentTypeFor(servedKey, spec),
       attachmentFilename: path.posix.basename(originalKey),
       cacheable,
@@ -441,6 +462,33 @@ export class MediaProxyService {
       await fs
         .rm(tempDir, { recursive: true, force: true })
         .catch(() => undefined);
+    }
+  }
+
+  /**
+   * Bounds concurrent sharp pipelines (FIFO) so image cache-miss storms
+   * cannot exhaust droplet memory. Same spirit as enqueueTranscode, but
+   * images are cheap enough to allow a few in parallel.
+   */
+  private async enqueueImageTransform<T>(work: () => Promise<T>): Promise<T> {
+    if (this.imageTransformActive >= MAX_CONCURRENT_IMAGE_TRANSFORMS) {
+      await new Promise<void>((resolve) =>
+        this.imageTransformWaiters.push(resolve),
+      );
+    } else {
+      this.imageTransformActive += 1;
+    }
+    try {
+      return await work();
+    } finally {
+      const next = this.imageTransformWaiters.shift();
+      if (next) {
+        // Hand the slot straight to the next waiter — the active count
+        // must never dip below the number of running pipelines.
+        next();
+      } else {
+        this.imageTransformActive -= 1;
+      }
     }
   }
 

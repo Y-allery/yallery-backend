@@ -4,8 +4,9 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { CreateAIFinetuneDto } from 'src/modules/admin/dto/create-ai-finetune.dto';
 import {
   AIFinetuneEntity,
@@ -18,9 +19,13 @@ import {
 } from './runpod-finetune.types';
 import { RunpodFineTuneClient } from './runpod-finetune.client';
 
+const ACTIVE_STATUSES: AIFinetuneStatus[] = ['pending', 'queued', 'training'];
+const REFRESH_CONCURRENCY = 3;
+
 @Injectable()
 export class AdminFineTuneService {
   private readonly logger = new Logger(AdminFineTuneService.name);
+  private isRefreshSweepRunning = false;
 
   constructor(
     @InjectRepository(AIFinetuneEntity)
@@ -49,31 +54,43 @@ export class AdminFineTuneService {
 
   async getFineTunes(status?: AIFinetuneStatus) {
     const where = status ? { status } : {};
-    const items = await this.aiFinetuneRepository.find({
-      where,
-      order: { createdAt: 'DESC' },
-    });
-
-    await Promise.all(
-      items
-        .filter((item) =>
-          ['pending', 'queued', 'training'].includes(item.status),
-        )
-        .map(async (item) => {
-          try {
-            await this.refreshFineTuneStatus(item);
-          } catch (error) {
-            this.logger.warn(
-              `Failed to refresh fine-tune ${item.id}: ${error.message}`,
-            );
-          }
-        }),
-    );
-
     return this.aiFinetuneRepository.find({
       where,
       order: { createdAt: 'DESC' },
     });
+  }
+
+  // Keeps list GET a pure read: active jobs are polled from RunPod here
+  // instead, so the admin list shows at most ~2 min stale statuses.
+  @Cron('*/2 * * * *')
+  async refreshActiveFineTunes() {
+    if (this.isRefreshSweepRunning) {
+      return;
+    }
+    this.isRefreshSweepRunning = true;
+    try {
+      const activeItems = await this.aiFinetuneRepository.find({
+        where: { status: In(ACTIVE_STATUSES) },
+      });
+
+      for (let i = 0; i < activeItems.length; i += REFRESH_CONCURRENCY) {
+        await Promise.allSettled(
+          activeItems.slice(i, i + REFRESH_CONCURRENCY).map(async (item) => {
+            try {
+              await this.refreshFineTuneStatus(item);
+            } catch (error) {
+              this.logger.warn(
+                `Failed to refresh fine-tune ${item.id}: ${error.message}`,
+              );
+            }
+          }),
+        );
+      }
+    } catch (error) {
+      this.logger.warn(`Fine-tune refresh sweep failed: ${error.message}`);
+    } finally {
+      this.isRefreshSweepRunning = false;
+    }
   }
 
   async createFineTune(dto: CreateAIFinetuneDto) {

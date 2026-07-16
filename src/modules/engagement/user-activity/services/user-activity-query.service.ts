@@ -36,6 +36,8 @@ export class UserActivityQueryService {
     filter?: UserActivityFilter;
     category?: UserActivityCategory;
     period?: UserActivityPeriod;
+    limit?: number;
+    beforeId?: number;
   }) {
     const now = new Date();
     const period = params.period ?? USER_ACTIVITY_PERIODS.WEEK;
@@ -69,6 +71,12 @@ export class UserActivityQueryService {
         now,
       })
       .orderBy('activity.createdAt', 'DESC')
+      // Tie-breaker so rows sharing a createdAt have a stable order. Note the
+      // beforeId cursor assumes id order tracks createdAt order; MySQL assigns
+      // both within the same INSERT, so that holds except for concurrent
+      // same-user writes in the same microsecond. A strict keyset would need
+      // the client to echo createdAt too — worth doing if the app ever pages.
+      .addOrderBy('activity.id', 'DESC')
       .select([
         'activity.id',
         'activity.type',
@@ -87,6 +95,18 @@ export class UserActivityQueryService {
         'contest.id',
         'contest.name',
       ]);
+
+    // Deliberately unbounded by default: the mobile client has no paging UI and
+    // sends no limit, so any default cap would silently drop the tail of a
+    // heavy user's history. The period filter + (userId, createdAt) index bound
+    // the scan. Once the app adopts limit/beforeId, give this a default.
+    if (params.limit) {
+      qb.take(params.limit);
+    }
+
+    if (params.beforeId) {
+      qb.andWhere('activity.id < :beforeId', { beforeId: params.beforeId });
+    }
 
     if (params.category) {
       qb.andWhere('activity.category = :category', {

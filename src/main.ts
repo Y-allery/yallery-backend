@@ -3,6 +3,7 @@ import { AppModule } from './app/app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
 import * as bodyParser from 'body-parser';
+import * as compression from 'compression';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import './core/observability/sentry/instrument';
 import * as session from 'express-session';
@@ -108,6 +109,10 @@ async function bootstrap() {
     console.log('🔔 ====================================');
     next();
   });
+
+  // Gzip JSON/text responses (feed payloads shrink ~4-5x). Images/video are
+  // already-compressed content types and are skipped by the default filter.
+  app.use(compression({ threshold: 1024 }));
 
   // Increase limits for video/GIF uploads (413). If behind nginx, set client_max_body_size 100m;
   app.use('/payment/webhook', bodyParser.raw({ type: 'application/json', limit: '50mb' }));

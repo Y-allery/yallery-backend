@@ -39,6 +39,8 @@ export class UserActivityController {
   @ApiQuery({ name: 'filter', required: false, enum: ['all', 'earned', 'spent'] })
   @ApiQuery({ name: 'category', required: false, enum: ['social', 'generation', 'contest'] })
   @ApiQuery({ name: 'period', required: false, enum: ['day', 'week', 'month', 'year'] })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Max items (1-500). Omit for the full period.' })
+  @ApiQuery({ name: 'beforeId', required: false, type: Number, description: 'Cursor: return activities with id below this' })
   async getFeed(
     @Req() req: AuthenticatedRequest,
     @Query() query: GetUserActivitiesDto,
@@ -48,6 +50,8 @@ export class UserActivityController {
       filter: query.filter as any,
       category: query.category as any,
       period: query.period as any,
+      limit: query.limit,
+      beforeId: query.beforeId,
     });
   }
 

@@ -1,9 +1,14 @@
 import { TranslationsModule } from 'src/modules/translations/translations.module';
+import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { AdminAISettingsController } from './features/ai-settings/admin-ai-settings.controller';
 import { AdminAISettingsService } from './features/ai-settings/admin-ai-settings.service';
 import { AISettingsMapper } from './features/ai-settings/ai-settings.mapper';
 import { AdminBroadcastController } from './features/broadcast/admin-broadcast.controller';
+import {
+  ADMIN_BROADCAST_QUEUE,
+  AdminBroadcastProcessor,
+} from './features/broadcast/admin-broadcast.processor';
 import { AdminBroadcastService } from './features/broadcast/admin-broadcast.service';
 import { AdminCatalogController } from './features/catalog/admin-catalog.controller';
 import { AdminCatalogService } from './features/catalog/admin-catalog.service';
@@ -70,6 +75,7 @@ import { TwitterApiIoModule } from 'src/integrations/twitter-api-io/twitter-api-
       DeviceTokenEntity,
       AIFinetuneEntity,
     ]),
+    BullModule.registerQueue({ name: ADMIN_BROADCAST_QUEUE }),
     ContestModule,
     UserModule,
     PostModule,
@@ -100,6 +106,7 @@ import { TwitterApiIoModule } from 'src/integrations/twitter-api-io/twitter-api-
     PaymentMetricsCollector,
     PostMetricsCollector,
     AdminBroadcastService,
+    AdminBroadcastProcessor,
   ],
   controllers: [
     AdminContestsController,

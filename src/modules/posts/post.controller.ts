@@ -25,6 +25,7 @@ import {
 import { POST_SWAGGER } from 'src/shared/swagger';
 import { AuthenticatedRequest } from 'src/modules/auth/types/auth.user.interface';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt.auth.guard';
+import { RateLimit, RateLimitGuard } from 'src/core/guards/rate-limit.guard';
 import { ReportPostDto } from './dto/report.post.dto';
 import { Response } from 'express';
 import { MarkViewedDto } from './dto/mark.viewed.dto';
@@ -178,10 +179,16 @@ export class PostController {
   ) {
     const userId = req.user.id;
     const postIds = markViewedDto.ids;
-    await this.postViewStateService.markPostsAsViewed(postIds, userId);
-    return await this.notificationGateway.emitProfileUpdate(
-      req.user.id.toString(),
+    const result = await this.postViewStateService.markPostsAsViewed(
+      postIds,
+      userId,
     );
+    if (result.markedCount > 0) {
+      await this.notificationGateway.emitProfileUpdate(
+        req.user.id.toString(),
+      );
+    }
+    return result;
   }
 
   @Patch('mark-all-as-unviewed')
@@ -209,6 +216,8 @@ export class PostController {
   }
 
   @Get('download/:id')
+  @UseGuards(JwtAuthGuard, RateLimitGuard)
+  @RateLimit({ limit: 10, windowMs: 60000, keyPrefix: 'post-download' })
   @ApiOperation(POST_SWAGGER.downloadPost)
   @ApiParam({ name: 'id', required: true })
   @ApiResponse(POST_SWAGGER.downloadPost.responses.success)

@@ -1,8 +1,16 @@
-import { Controller, Get, NotFoundException, Req, Res } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  NotFoundException,
+  PayloadTooLargeException,
+  Req,
+  Res,
+} from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { Request, Response } from 'express';
+import { ObjectTooLargeError } from 'src/modules/uploads/spaces-storage.service';
 import { MediaResourceType } from './media-transformations';
-import { MediaProxyService } from './media-proxy.service';
+import { MediaProxyService, ResolvedMedia } from './media-proxy.service';
 
 /**
  * Deterministic answers (derived variants are immutable, their CDN URL never
@@ -53,10 +61,15 @@ export class MediaProxyController {
     response: Response,
   ): Promise<void> {
     const rawPath = request.params[0] ?? '';
-    const resolved = await this.mediaProxyService.resolve(
-      resourceType,
-      rawPath,
-    );
+    let resolved: ResolvedMedia;
+    try {
+      resolved = await this.mediaProxyService.resolve(resourceType, rawPath);
+    } catch (error) {
+      if (error instanceof ObjectTooLargeError) {
+        throw new PayloadTooLargeException('Media object too large');
+      }
+      throw error;
+    }
 
     if (resolved.redirectUrl) {
       // 301 lets HTTP-cache-aware clients (browsers, CDN edges) skip the
@@ -71,7 +84,8 @@ export class MediaProxyController {
       return;
     }
 
-    if (!resolved.body) {
+    const bodyStream = resolved.bodyStream;
+    if (!bodyStream) {
       throw new NotFoundException('Media not found');
     }
 
@@ -89,6 +103,27 @@ export class MediaProxyController {
         `attachment; filename="${resolved.attachmentFilename.replace(/"/g, '')}"`,
       );
     }
-    response.send(resolved.body);
+    if (resolved.contentLength !== null) {
+      response.setHeader('Content-Length', String(resolved.contentLength));
+    }
+
+    bodyStream.on('error', (error) => {
+      console.warn(
+        `[MediaProxyController] attachment stream failed: ${error.message}`,
+      );
+      if (!response.headersSent) {
+        response.removeHeader('Content-Length');
+        response.status(502).send();
+      } else {
+        // Mid-body failure — kill the socket so the client sees a broken
+        // transfer instead of a silently truncated file.
+        response.destroy();
+      }
+    });
+    // Client aborts must not leak the upstream S3 connection.
+    response.on('close', () => {
+      if (!bodyStream.destroyed) bodyStream.destroy();
+    });
+    bodyStream.pipe(response);
   }
 }

@@ -61,6 +61,7 @@
     "bullmq": "^5.13.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
+    "compression": "^1.8.1",
     "connect-redis": "^8.0.2",
     "csv-writer": "^1.6.0",
     "date-fns": "^3.6.0",
@@ -96,6 +97,7 @@
   },
   "devDependencies": {
     "@nestjs/testing": "^10.0.0",
+    "@types/compression": "^1.8.1",
     "@types/jest": "^29.5.0",
     "@types/node": "^20.3.1",
     "@types/passport-google-oauth20": "^2.0.16",

@@ -1,5 +1,9 @@
 import { ConfigService } from '@nestjs/config';
-import { SpacesStorageService } from './spaces-storage.service';
+import axios from 'axios';
+import {
+  ObjectTooLargeError,
+  SpacesStorageService,
+} from './spaces-storage.service';
 
 const createService = () => {
   const configService = {
@@ -67,5 +71,50 @@ describe('SpacesStorageService.uploadVideoBuffer', () => {
       expect.any(Buffer),
       'video/mp4',
     );
+  });
+});
+
+describe('SpacesStorageService.getObjectBuffer', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('downloads with the default 300MB cap and a timeout', async () => {
+    const { service } = createService();
+    const get = jest
+      .spyOn(axios, 'get')
+      .mockResolvedValue({ data: new ArrayBuffer(4), headers: {} } as never);
+
+    await service.getObjectBuffer('octoai_images/a.jpg');
+
+    expect(get).toHaveBeenCalledWith(
+      expect.stringContaining('octoai_images/a.jpg'),
+      expect.objectContaining({
+        maxContentLength: 314572800,
+        maxBodyLength: 314572800,
+        timeout: 120000,
+      }),
+    );
+  });
+
+  it('maps axios cap overruns to ObjectTooLargeError', async () => {
+    const { service } = createService();
+    jest
+      .spyOn(axios, 'get')
+      .mockRejectedValue(new Error('maxContentLength size of 314572800 exceeded'));
+
+    await expect(
+      service.getObjectBuffer('octoai_videos/huge.mp4'),
+    ).rejects.toBeInstanceOf(ObjectTooLargeError);
+  });
+
+  it('rethrows unrelated download errors untouched', async () => {
+    const { service } = createService();
+    const failure = new Error('socket hang up');
+    jest.spyOn(axios, 'get').mockRejectedValue(failure);
+
+    await expect(
+      service.getObjectBuffer('octoai_images/a.jpg'),
+    ).rejects.toBe(failure);
   });
 });

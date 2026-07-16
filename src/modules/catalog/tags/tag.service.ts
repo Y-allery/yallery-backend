@@ -18,6 +18,10 @@ const FALLBACK_TAG_NAMES = ['other', 'others'];
 
 @Injectable()
 export class TagService {
+  private tagsWithCountsCache: { rows: any[]; expiresAt: number } | null =
+    null;
+  private static readonly TAGS_CACHE_TTL_MS = 60_000;
+
   constructor(
     @InjectRepository(TagEntity)
     private readonly tagModel: Repository<TagEntity>,
@@ -30,6 +34,11 @@ export class TagService {
     private readonly dataSource: DataSource,
   ) {}
   async findAll(): Promise<any[]> {
+    const now = Date.now();
+    if (this.tagsWithCountsCache && this.tagsWithCountsCache.expiresAt > now) {
+      return this.tagsWithCountsCache.rows;
+    }
+
     const tags = await this.tagModel
       .createQueryBuilder('tag')
       .leftJoin(
@@ -56,7 +65,7 @@ export class TagService {
       .orderBy('tag.id', 'ASC')
       .getRawMany();
 
-    return tags.map((tag) => ({
+    const rows = tags.map((tag) => ({
       id: tag.tag_id,
       name: tag.tag_name,
       imageUrl: tag.tag_imageUrl,
@@ -64,6 +73,13 @@ export class TagService {
       updatedAt: tag.tag_updatedAt,
       totalPosts: parseInt(tag.totalPosts) || 0,
     }));
+
+    this.tagsWithCountsCache = {
+      rows,
+      expiresAt: now + TagService.TAGS_CACHE_TTL_MS,
+    };
+
+    return rows;
   }
 
   async searchByName(name: string, userId: number): Promise<any[]> {
@@ -114,14 +130,16 @@ export class TagService {
   ): Promise<void> {
     const { post_id, tag_id } = assignTagDto;
 
-    const user = await this.userRepository.findOne({
-      where: { id: userId },
-      relations: { tags: true },
-    });
-    const post = await this.postRepository.findOne({
-      where: { id: post_id },
-      relations: ['user'],
-    });
+    const [user, post] = await Promise.all([
+      this.userRepository.findOne({
+        where: { id: userId },
+        relations: { tags: true },
+      }),
+      this.postRepository.findOne({
+        where: { id: post_id },
+        relations: ['user'],
+      }),
+    ]);
 
     if (!post) {
       throw new NotFoundException('Post not found');
@@ -146,7 +164,9 @@ export class TagService {
 
   async create(tagDto: CreateTagDto): Promise<TagEntity> {
     const newTag = this.tagModel.create(tagDto);
-    return this.tagModel.save(newTag);
+    const savedTag = await this.tagModel.save(newTag);
+    this.tagsWithCountsCache = null;
+    return savedTag;
   }
 
   async update(tagId: number, tagDto: UpdateTagDto): Promise<TagEntity> {
@@ -154,7 +174,9 @@ export class TagService {
     if (!tag) throw new NotFoundException('Tag not found');
 
     this.tagModel.merge(tag, tagDto);
-    return this.tagModel.save(tag);
+    const savedTag = await this.tagModel.save(tag);
+    this.tagsWithCountsCache = null;
+    return savedTag;
   }
 
   async delete(tagId: number): Promise<void> {
@@ -198,6 +220,7 @@ export class TagService {
         throw new NotFoundException('Tag not found');
       }
     });
+    this.tagsWithCountsCache = null;
   }
 
   private async findOrCreateFallbackTag(
@@ -226,14 +249,8 @@ export class TagService {
   }
 
   async checkAndSubscribeToTag(user: UserEntity, tag_id: number) {
-    const tags = await this.userRepository
-      .createQueryBuilder('user')
-      .leftJoin('user.tags', 'tag')
-      .where('user.id = :userId', { userId: user.id })
-      .select(['tag.id', 'tag.name', 'tag.imageUrl'])
-      .getRawMany();
-
-    const isSubscribed = tags.some((tag) => tag.tag_id === tag_id);
+    // Callers load the user with the tags relation, so no re-query is needed.
+    const isSubscribed = user.tags.some((tag) => tag.id === tag_id);
 
     if (!isSubscribed) {
       const tag = await this.tagRepository.findOne({ where: { id: tag_id } });
@@ -242,9 +259,13 @@ export class TagService {
         throw new Error(`Tag with id ${tag_id} not found`);
       }
 
-      user.tags.push(tag);
+      await this.userRepository
+        .createQueryBuilder()
+        .relation(UserEntity, 'tags')
+        .of(user)
+        .add(tag);
 
-      await this.userRepository.save(user);
+      user.tags.push(tag);
 
       // User successfully subscribed to tag ${tag_id}
     }

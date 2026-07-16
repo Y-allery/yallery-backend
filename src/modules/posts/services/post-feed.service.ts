@@ -2,10 +2,39 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PostEntity } from '../entities/post.entity';
-import { PopularPostsResponse } from '../types/popular-post.interface';
+import {
+  PopularPost,
+  PopularPostsResponse,
+} from '../types/popular-post.interface';
+
+interface PopularCoreRow {
+  id: number;
+  imageUrl: string | null;
+  videoUrl: string | null;
+  previewImageUrl: string | null;
+  createdAt: Date;
+  userId: number;
+  username: string | null;
+  tagId: number | null;
+  tagName: string | null;
+  isPublished: boolean;
+  isBlocked: boolean;
+  isRejected: boolean;
+  likeCount: number;
+  viewCount: number;
+  generationParams: unknown;
+  hasAudio: boolean;
+  periodBucket: number;
+}
 
 @Injectable()
 export class PostFeedService {
+  // Popular posts are identical for all users except isLiked/isViewed flags,
+  // so the heavy aggregate query is cached and flags are resolved per request.
+  private popularPostsCache: { rows: PopularCoreRow[]; expiresAt: number } | null =
+    null;
+  private static readonly POPULAR_POSTS_CACHE_TTL_MS = 60_000;
+
   constructor(
     @InjectRepository(PostEntity)
     private readonly postRepository: Repository<PostEntity>,
@@ -18,11 +47,23 @@ export class PostFeedService {
     tagId: number | null = null,
   ) {
     const safeLimit = Math.min(Math.max(limit || 20, 1), 100);
-    const cursorCondition = cursor ? `AND p.id < ${cursor}` : '';
-    const tagCondition = tagId ? `AND p.tagId = ${tagId}` : '';
 
+    const conditions: string[] = [];
+    const params: (number | string)[] = [userId, userId, userId];
+
+    if (tagId) {
+      conditions.push('AND p.tagId = ?');
+      params.push(tagId);
+    }
+    if (cursor) {
+      conditions.push('AND p.id < ?');
+      params.push(cursor);
+    }
+    params.push(safeLimit);
+
+    // isViewed is always false here: the NOT EXISTS filter excludes viewed posts.
     const query = `
-      SELECT DISTINCT
+      SELECT
         p.id AS id,
         p.imageUrl AS imageUrl,
         p.videoUrl AS videoUrl,
@@ -32,42 +73,33 @@ export class PostFeedService {
         u.nickname AS username,
         t.id AS tagId,
         CONCAT('#', t.name) AS tagName,
-        (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS likeCount,
-        (SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id) AS viewCount,
-        CASE
-          WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ${userId})
-          THEN TRUE
-          ELSE FALSE
-        END AS isLiked,
-        CASE
-          WHEN EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ${userId})
-          THEN TRUE
-          ELSE FALSE
-        END AS isViewed,
+        (SELECT COUNT(*) FROM likes l WHERE l.postId = p.id) AS likeCount,
+        (SELECT COUNT(*) FROM viewed_posts v WHERE v.postId = p.id) AS viewCount,
+        EXISTS (SELECT 1 FROM likes l WHERE l.postId = p.id AND l.userId = ?) AS isLiked,
+        FALSE AS isViewed,
         p.generationParams AS generationParams,
         p.isPublished AS isPublished,
         p.hasAudio AS hasAudio
       FROM
         posts p
-        JOIN users u ON p.userId = u.id
-        JOIN tags t ON p.tagId = t.id
+        JOIN users u ON u.id = p.userId
+        JOIN tags t ON t.id = p.tagId
       WHERE
         p.isPublished = true
         AND p.isBlocked = false
-        AND NOT EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ${userId})
+        AND NOT EXISTS (SELECT 1 FROM viewed_posts v WHERE v.postId = p.id AND v.userId = ?)
         AND p.tagId IN (
-          SELECT tagsId
-          FROM users_tags_tags t
-          WHERE t.usersId = ${userId}
+          SELECT ut.tagsId
+          FROM users_tags_tags ut
+          WHERE ut.usersId = ?
         )
-        ${tagCondition}
-        ${cursorCondition}
+        ${conditions.join('\n        ')}
       ORDER BY
         p.id DESC
-      LIMIT ${safeLimit};
+      LIMIT ?;
     `;
 
-    const posts = await this.postRepository.query(query);
+    const posts = await this.postRepository.query(query, params);
     const nextCursor = posts.length > 0 ? posts[posts.length - 1].id : null;
 
     const normalizedPosts = posts.map((post) => ({
@@ -94,7 +126,7 @@ export class PostFeedService {
     const offset = (page - 1) * limit;
 
     const postsQuery = `
-      SELECT DISTINCT
+      SELECT
         p.id AS id,
         p.imageUrl AS imageUrl,
         p.videoUrl AS videoUrl,
@@ -104,24 +136,16 @@ export class PostFeedService {
         u.nickname AS username,
         t.id AS tagId,
         CONCAT('#', t.name) AS tagName,
-        (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS likeCount,
-        (SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id) AS viewCount,
-        CASE
-          WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ${userId || 0})
-          THEN TRUE
-          ELSE FALSE
-        END AS isLiked,
-        CASE
-          WHEN EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ${userId || 0})
-          THEN TRUE
-          ELSE FALSE
-        END AS isViewed,
+        (SELECT COUNT(*) FROM likes l WHERE l.postId = p.id) AS likeCount,
+        (SELECT COUNT(*) FROM viewed_posts v WHERE v.postId = p.id) AS viewCount,
+        EXISTS (SELECT 1 FROM likes l WHERE l.postId = p.id AND l.userId = ?) AS isLiked,
+        EXISTS (SELECT 1 FROM viewed_posts v WHERE v.postId = p.id AND v.userId = ?) AS isViewed,
         p.generationParams AS generationParams,
         p.isPublished AS isPublished,
         p.hasAudio AS hasAudio
       FROM posts p
-      JOIN users u ON p.userId = u.id
-      JOIN tags t ON p.tagId = t.id
+      JOIN users u ON u.id = p.userId
+      JOIN tags t ON t.id = p.tagId
       WHERE t.id = ?
         AND p.isPublished = true
         AND p.isBlocked = false
@@ -140,7 +164,13 @@ export class PostFeedService {
     `;
 
     const [posts, totalResult] = await Promise.all([
-      this.postRepository.query(postsQuery, [tagId, limit, offset]),
+      this.postRepository.query(postsQuery, [
+        userId || 0,
+        userId || 0,
+        tagId,
+        limit,
+        offset,
+      ]),
       this.postRepository.query(totalQuery, [tagId]),
     ]);
 
@@ -316,229 +346,76 @@ export class PostFeedService {
 
   async getPopularPosts(userId: number): Promise<PopularPostsResponse> {
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
+      const rows = await this.getPopularPostsCore();
 
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-
-      const allFoundPosts = [];
-      let period: 'today' | 'yesterday' | 'all_time' | 'mixed' = 'today';
-
-      const todayQuery = `
-        SELECT DISTINCT
-          p.id AS id,
-          p.imageUrl AS imageUrl,
-          p.videoUrl AS videoUrl,
-          p.previewImageUrl AS previewImageUrl,
-          p.createdAt AS createdAt,
-          u.id AS userId,
-          u.nickname AS username,
-          t.id AS tagId,
-          CONCAT('#', t.name) AS tagName,
-          p.\`isPublished\` AS isPublished,
-          p.\`isBlocked\` AS isBlocked,
-          p.\`isRejected\` AS isRejected,
-          (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS likeCount,
-          (SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id) AS viewCount,
-          CASE
-            WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ${userId})
-            THEN TRUE
-            ELSE FALSE
-          END AS isLiked,
-          CASE
-            WHEN EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ${userId})
-            THEN TRUE
-            ELSE FALSE
-          END AS isViewed,
-          p.generationParams AS generationParams,
-          p.hasAudio AS hasAudio
-        FROM
-          posts p
-          JOIN users u ON p.userId = u.id
-          LEFT JOIN tags t ON p.tagId = t.id
-        WHERE
-          p.createdAt >= '${today.toISOString()}'
-          AND p.createdAt < '${tomorrow.toISOString()}'
-          AND p.\`isPublished\` = true
-          AND p.\`isBlocked\` = false
-          AND p.\`isRejected\` = false
-          AND (p.imageUrl IS NOT NULL OR p.videoUrl IS NOT NULL)
-        ORDER BY
-          likeCount DESC, viewCount DESC
-        LIMIT 6;
-      `;
-
-      const todayPosts = await this.postRepository.query(todayQuery);
-
-      if (todayPosts.length > 0) {
-        allFoundPosts.push(
-          ...todayPosts.map((post) => ({
-            post,
-            period: 'today',
-          })),
-        );
-        period = 'today';
+      if (rows.length === 0) {
+        return { posts: [], period: 'all_time', totalCount: 0 };
       }
 
-      if (allFoundPosts.length < 6) {
-        const yesterdayQuery = `
-          SELECT DISTINCT
-            p.id AS id,
-            p.imageUrl AS imageUrl,
-            p.videoUrl AS videoUrl,
-            p.previewImageUrl AS previewImageUrl,
-            p.createdAt AS createdAt,
-            u.id AS userId,
-            u.nickname AS username,
-            t.id AS tagId,
-            CONCAT('#', t.name) AS tagName,
-            p.isPublished AS isPublished,
-            p.isBlocked AS isBlocked,
-            p.isRejected AS isRejected,
-            (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS likeCount,
-            (SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id) AS viewCount,
-            CASE
-              WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ${userId})
-              THEN TRUE
-              ELSE FALSE
-            END AS isLiked,
-            CASE
-              WHEN EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ${userId})
-              THEN TRUE
-              ELSE FALSE
-            END AS isViewed,
-            p.generationParams AS generationParams,
-            p.hasAudio AS hasAudio
-          FROM
-            posts p
-            JOIN users u ON p.userId = u.id
-            LEFT JOIN tags t ON p.tagId = t.id
-          WHERE
-            p.createdAt >= '${yesterday.toISOString()}'
-            AND p.createdAt < '${today.toISOString()}'
-            AND p.isPublished = true
-            AND p.isBlocked = false
-            AND p.isRejected = false
-            AND (p.imageUrl IS NOT NULL OR p.videoUrl IS NOT NULL)
-          ORDER BY
-            likeCount DESC, viewCount DESC
-          LIMIT ${6 - allFoundPosts.length};
-        `;
+      const ids = rows.map((row) => row.id);
+      const placeholders = ids.map(() => '?').join(',');
 
-        const yesterdayPosts = await this.postRepository.query(yesterdayQuery);
+      const [likedRows, viewedRows] = await Promise.all([
+        this.postRepository.query(
+          `SELECT postId FROM likes WHERE userId = ? AND postId IN (${placeholders})`,
+          [userId, ...ids],
+        ),
+        this.postRepository.query(
+          `SELECT postId FROM viewed_posts WHERE userId = ? AND postId IN (${placeholders})`,
+          [userId, ...ids],
+        ),
+      ]);
 
-        if (yesterdayPosts.length > 0) {
-          allFoundPosts.push(
-            ...yesterdayPosts.map((post) => ({
-              post,
-              period: 'yesterday',
-            })),
-          );
-          if (period === 'today') period = 'mixed';
-          else period = 'yesterday';
+      const likedIds = new Set(likedRows.map((row) => Number(row.postId)));
+      const viewedIds = new Set(viewedRows.map((row) => Number(row.postId)));
+
+      const sortedRows = [...rows].sort((a, b) => {
+        if (Number(b.likeCount) !== Number(a.likeCount)) {
+          return Number(b.likeCount) - Number(a.likeCount);
         }
-      }
-
-      if (allFoundPosts.length < 6) {
-        const allTimeQuery = `
-          SELECT DISTINCT
-            p.id AS id,
-            p.imageUrl AS imageUrl,
-            p.videoUrl AS videoUrl,
-            p.previewImageUrl AS previewImageUrl,
-            p.createdAt AS createdAt,
-            u.id AS userId,
-            u.nickname AS username,
-            t.id AS tagId,
-            CONCAT('#', t.name) AS tagName,
-            p.isPublished AS isPublished,
-            p.isBlocked AS isBlocked,
-            p.isRejected AS isRejected,
-            (SELECT COUNT(*) FROM likes WHERE postId = p.id) AS likeCount,
-            (SELECT COUNT(*) FROM viewed_posts WHERE postId = p.id) AS viewCount,
-            CASE
-              WHEN EXISTS (SELECT 1 FROM likes WHERE postId = p.id AND userId = ${userId})
-              THEN TRUE
-              ELSE FALSE
-            END AS isLiked,
-            CASE
-              WHEN EXISTS (SELECT 1 FROM viewed_posts WHERE postId = p.id AND userId = ${userId})
-              THEN TRUE
-              ELSE FALSE
-            END AS isViewed,
-            p.generationParams AS generationParams,
-            p.hasAudio AS hasAudio
-          FROM
-            posts p
-            JOIN users u ON p.userId = u.id
-            LEFT JOIN tags t ON p.tagId = t.id
-          WHERE
-            p.isPublished = true
-            AND p.isBlocked = false
-            AND p.isRejected = false
-            AND (p.imageUrl IS NOT NULL OR p.videoUrl IS NOT NULL)
-          ORDER BY
-            likeCount DESC, viewCount DESC
-          LIMIT ${6 - allFoundPosts.length};
-        `;
-
-        const allTimePosts = await this.postRepository.query(allTimeQuery);
-
-        allFoundPosts.push(
-          ...allTimePosts.map((post) => ({
-            post,
-            period: 'all_time',
-          })),
-        );
-
-        if (period !== 'mixed') period = 'all_time';
-      }
-
-      allFoundPosts.sort((a, b) => {
-        const aLikes = a.post.likeCount || 0;
-        const bLikes = b.post.likeCount || 0;
-        const aViews = a.post.viewCount || 0;
-        const bViews = b.post.viewCount || 0;
-
-        if (bLikes !== aLikes) {
-          return bLikes - aLikes;
-        }
-
-        return bViews - aViews;
+        return Number(b.viewCount) - Number(a.viewCount);
       });
 
-      const topPosts = allFoundPosts.slice(0, 6);
-      const formattedPosts = topPosts.map((item) => ({
-        id: item.post.id,
-        imageUrl: item.post.imageUrl,
-        videoUrl: item.post.videoUrl,
-        previewImageUrl: item.post.previewImageUrl,
-        likeCount: item.post.likeCount || 0,
-        viewCount: item.post.viewCount || 0,
-        createdAt: item.post.createdAt,
-        userId: item.post.userId,
-        username: item.post.username || 'Unknown User',
-        tagName: item.post.tagName,
-        tagId: item.post.tagId,
-        isPublished: item.post.isPublished,
-        hasAudio: Boolean(item.post.hasAudio),
-        isBlocked: item.post.isBlocked || false,
-        isRejected: item.post.isRejected || false,
-        isLiked: item.post.isLiked,
-        isViewed: item.post.isViewed,
+      const posts: PopularPost[] = sortedRows.map((row) => ({
+        id: row.id,
+        imageUrl: row.imageUrl,
+        videoUrl: row.videoUrl,
+        previewImageUrl: row.previewImageUrl,
+        likeCount: Number(row.likeCount) || 0,
+        viewCount: Number(row.viewCount) || 0,
+        createdAt: row.createdAt,
+        userId: row.userId,
+        username: row.username || 'Unknown User',
+        tagName: row.tagName,
+        tagId: row.tagId,
+        isPublished: Boolean(row.isPublished),
+        hasAudio: Boolean(row.hasAudio),
+        isBlocked: Boolean(row.isBlocked),
+        isRejected: Boolean(row.isRejected),
+        isLiked: likedIds.has(row.id),
+        isViewed: viewedIds.has(row.id),
         generationParams:
           this.normalizeGenerationParams(
-            this.parseGenerationParams(item.post.generationParams),
+            this.parseGenerationParams(row.generationParams),
           ) || null,
       }));
 
+      const buckets = new Set(rows.map((row) => Number(row.periodBucket)));
+      let period: PopularPostsResponse['period'];
+      if (buckets.size > 1) {
+        period = 'mixed';
+      } else if (buckets.has(0)) {
+        period = 'today';
+      } else if (buckets.has(1)) {
+        period = 'yesterday';
+      } else {
+        period = 'all_time';
+      }
+
       return {
-        posts: formattedPosts,
+        posts,
         period,
-        totalCount: formattedPosts.length,
+        totalCount: posts.length,
       };
     } catch (error) {
       console.error('Error getting popular posts:', error);
@@ -548,6 +425,73 @@ export class PostFeedService {
         totalCount: 0,
       };
     }
+  }
+
+  /**
+   * Top-6 posts prioritized by recency bucket (today > yesterday > older) and
+   * ranked by like/view counts. One query with pre-aggregated counts instead of
+   * the previous three sequential full scans ordered by correlated subqueries.
+   */
+  private async getPopularPostsCore(): Promise<PopularCoreRow[]> {
+    const now = Date.now();
+    if (this.popularPostsCache && this.popularPostsCache.expiresAt > now) {
+      return this.popularPostsCache.rows;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const query = `
+      SELECT
+        p.id AS id,
+        p.imageUrl AS imageUrl,
+        p.videoUrl AS videoUrl,
+        p.previewImageUrl AS previewImageUrl,
+        p.createdAt AS createdAt,
+        u.id AS userId,
+        u.nickname AS username,
+        t.id AS tagId,
+        CONCAT('#', t.name) AS tagName,
+        p.isPublished AS isPublished,
+        p.isBlocked AS isBlocked,
+        p.isRejected AS isRejected,
+        COALESCE(lc.cnt, 0) AS likeCount,
+        COALESCE(vc.cnt, 0) AS viewCount,
+        p.generationParams AS generationParams,
+        p.hasAudio AS hasAudio,
+        CASE
+          WHEN p.createdAt >= ? THEN 0
+          WHEN p.createdAt >= ? THEN 1
+          ELSE 2
+        END AS periodBucket
+      FROM posts p
+      JOIN users u ON u.id = p.userId
+      LEFT JOIN tags t ON t.id = p.tagId
+      LEFT JOIN (SELECT postId, COUNT(*) AS cnt FROM likes GROUP BY postId) lc
+        ON lc.postId = p.id
+      LEFT JOIN (SELECT postId, COUNT(*) AS cnt FROM viewed_posts GROUP BY postId) vc
+        ON vc.postId = p.id
+      WHERE p.isPublished = true
+        AND p.isBlocked = false
+        AND p.isRejected = false
+        AND (p.imageUrl IS NOT NULL OR p.videoUrl IS NOT NULL)
+      ORDER BY periodBucket ASC, likeCount DESC, viewCount DESC
+      LIMIT 6;
+    `;
+
+    const rows: PopularCoreRow[] = await this.postRepository.query(query, [
+      today.toISOString(),
+      yesterday.toISOString(),
+    ]);
+
+    this.popularPostsCache = {
+      rows,
+      expiresAt: now + PostFeedService.POPULAR_POSTS_CACHE_TTL_MS,
+    };
+
+    return rows;
   }
 
   private parseGenerationParams(params: any): any {

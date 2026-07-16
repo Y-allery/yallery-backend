@@ -33,8 +33,20 @@ export interface MemesListResponse {
   regular: MemeWithGenerationsCount[];
 }
 
+interface MemeGenerationCountRow {
+  memeId: number;
+  total: number;
+  thisMonth: number;
+}
+
 @Injectable()
 export class MemeService {
+  private generationCountsCache: {
+    rows: MemeGenerationCountRow[];
+    expiresAt: number;
+  } | null = null;
+  private static readonly GENERATION_COUNTS_CACHE_TTL_MS = 60_000;
+
   constructor(
     @InjectRepository(MemeEntity)
     private readonly memeRepository: Repository<MemeEntity>,
@@ -79,37 +91,18 @@ export class MemeService {
 
     const memeIds = memes.map((m) => m.id);
     const memePricing = await this.getMemePricing();
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const countRows = await this.getGenerationCountRows();
 
-    const qb = this.postRepository
-      .createQueryBuilder('p')
-      .select('p.generationParams', 'params')
-      .addSelect('p.createdAt', 'createdAt')
-      .where('p.generationParams IS NOT NULL');
-    const posts = await qb.getRawMany();
     const totalByMemeId: Record<number, number> = {};
     const thisMonthByMemeId: Record<number, number> = {};
     memeIds.forEach((id) => {
       totalByMemeId[id] = 0;
       thisMonthByMemeId[id] = 0;
     });
-    for (const row of posts) {
-      let params = row.params;
-      if (typeof params === 'string') {
-        try {
-          params = JSON.parse(params);
-        } catch {
-          continue;
-        }
-      }
-      const memeId = params?.memeId;
-      if (memeId == null || !memeIds.includes(memeId)) continue;
-      totalByMemeId[memeId] = (totalByMemeId[memeId] ?? 0) + 1;
-      const createdAt = row.createdAt ? new Date(row.createdAt) : null;
-      if (createdAt && createdAt >= monthStart) {
-        thisMonthByMemeId[memeId] = (thisMonthByMemeId[memeId] ?? 0) + 1;
-      }
+    for (const row of countRows) {
+      if (!memeIds.includes(row.memeId)) continue;
+      totalByMemeId[row.memeId] = row.total;
+      thisMonthByMemeId[row.memeId] = row.thisMonth;
     }
 
     const withCount: MemeWithGenerationsCount[] = memes.map((m) => ({
@@ -129,6 +122,51 @@ export class MemeService {
     const regular = withCount.filter((m) => !regularIds.has(m.id));
 
     return { popular, regular };
+  }
+
+  /** Per-meme generation counts (all-time + current month) aggregated in SQL, cached for 60s */
+  private async getGenerationCountRows(): Promise<MemeGenerationCountRow[]> {
+    const now = Date.now();
+    if (
+      this.generationCountsCache &&
+      this.generationCountsCache.expiresAt > now
+    ) {
+      return this.generationCountsCache.rows;
+    }
+
+    const nowDate = new Date();
+    const monthStart = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1);
+    // JSON_TYPE filter mirrors the previous strict memeIds.includes(params.memeId)
+    // check: string-typed memeId values were never counted.
+    const raw = await this.postRepository.query(
+      `
+      SELECT
+        JSON_EXTRACT(p.generationParams, '$.memeId') AS memeId,
+        COUNT(*) AS total,
+        SUM(CASE WHEN p.createdAt >= ? THEN 1 ELSE 0 END) AS thisMonth
+      FROM posts p
+      WHERE p.generationParams IS NOT NULL
+        AND JSON_TYPE(JSON_EXTRACT(p.generationParams, '$.memeId')) IN ('INTEGER', 'UNSIGNED INTEGER', 'DOUBLE')
+      GROUP BY memeId
+      `,
+      [monthStart],
+    );
+
+    const rows: MemeGenerationCountRow[] = [];
+    for (const r of raw as Array<Record<string, unknown>>) {
+      const memeId = Number(r.memeId);
+      if (!Number.isFinite(memeId)) continue;
+      rows.push({
+        memeId,
+        total: Number(r.total),
+        thisMonth: Number(r.thisMonth),
+      });
+    }
+    this.generationCountsCache = {
+      rows,
+      expiresAt: now + MemeService.GENERATION_COUNTS_CACHE_TTL_MS,
+    };
+    return rows;
   }
 
   async findOne(id: number): Promise<MemeEntity> {

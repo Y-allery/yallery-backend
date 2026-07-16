@@ -1,5 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import * as sharp from 'sharp';
+import { Readable } from 'stream';
 import { SpacesStorageService } from 'src/modules/uploads/spaces-storage.service';
 import { MediaProxyService } from './media-proxy.service';
 
@@ -12,10 +13,27 @@ const createSpacesMock = (objects: Map<string, Buffer>) =>
       if (!body) throw new Error(`missing object ${key}`);
       return body;
     }),
+    getObjectStream: jest.fn(async (key: string) => {
+      const body = objects.get(key);
+      if (!body) throw new Error(`missing object ${key}`);
+      return {
+        stream: Readable.from(body),
+        contentLength: body.length,
+        contentType: null,
+      };
+    }),
     putPublicObject: jest.fn(async (key: string, body: Buffer) => {
       objects.set(key, body);
     }),
   }) as unknown as jest.Mocked<SpacesStorageService>;
+
+const readAll = async (stream: Readable): Promise<Buffer> => {
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) {
+    chunks.push(Buffer.from(chunk as Buffer));
+  }
+  return Buffer.concat(chunks);
+};
 
 const testJpeg = (width: number, height: number): Promise<Buffer> =>
   sharp({
@@ -126,7 +144,9 @@ describe('MediaProxyService', () => {
     expect(resolved.redirectUrl).toBeNull();
     expect(resolved.contentType).toBe('image/jpeg');
     expect(resolved.attachmentFilename).toBe('art.jpg');
-    const metadata = await sharp(resolved.body!).metadata();
+    const body = await readAll(resolved.bodyStream!);
+    expect(resolved.contentLength).toBe(body.length);
+    const metadata = await sharp(body).metadata();
     expect(metadata.width).toBe(1600);
   });
 
@@ -139,9 +159,47 @@ describe('MediaProxyService', () => {
       't_yallery_video_download_v1/octoai_videos/x.mp4',
     );
     expect(resolved.redirectUrl).toBeNull();
-    expect(resolved.body).toEqual(bytes);
+    expect(await readAll(resolved.bodyStream!)).toEqual(bytes);
+    expect(resolved.contentLength).toBe(bytes.length);
     expect(resolved.contentType).toBe('video/mp4');
     expect(resolved.attachmentFilename).toBe('x.mp4');
+  });
+
+  it('bounds concurrent image transforms to 4, queueing the rest', async () => {
+    const source = await testJpeg(800, 600);
+    const keys = Array.from({ length: 8 }, (_, i) => `octoai_images/c${i}.jpg`);
+    for (const key of keys) objects.set(key, source);
+
+    let active = 0;
+    let peak = 0;
+    const realTransform = (
+      service as unknown as {
+        transformImage: (...args: unknown[]) => Promise<unknown>;
+      }
+    ).transformImage.bind(service);
+    jest
+      .spyOn(
+        service as unknown as {
+          transformImage: (...args: unknown[]) => Promise<unknown>;
+        },
+        'transformImage',
+      )
+      .mockImplementation(async (...args: unknown[]) => {
+        active += 1;
+        peak = Math.max(peak, active);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        const result = await realTransform(...args);
+        active -= 1;
+        return result;
+      });
+
+    await Promise.all(
+      keys.map((key) =>
+        service.resolve('image', `t_yallery_thumb_image_v2/${key}`),
+      ),
+    );
+    expect(peak).toBeLessThanOrEqual(4);
+    expect(spaces.putPublicObject).toHaveBeenCalledTimes(8);
   });
 
   it('serves already-generated legacy posters without regenerating', async () => {

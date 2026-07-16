@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsOptional } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
 import {
   USER_ACTIVITY_CATEGORIES,
   USER_ACTIVITY_FILTERS,
@@ -29,4 +30,30 @@ export class GetUserActivitiesDto {
   @IsOptional()
   @IsIn(Object.values(USER_ACTIVITY_PERIODS))
   period?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Max number of activities to return (1-500). Omit for the full period, ' +
+      'which is what the current mobile client does — it has no paging UI, so ' +
+      'a default cap here would silently truncate a heavy user\'s history.',
+    minimum: 1,
+    maximum: 500,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(500)
+  limit?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Cursor for pagination: only activities with id lower than this are returned.',
+    minimum: 1,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  beforeId?: number;
 }

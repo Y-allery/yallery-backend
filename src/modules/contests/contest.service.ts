@@ -26,7 +26,7 @@ import { MediaAISettingsEntity } from 'src/modules/media-generation/persistence/
 import { UserActivityService } from 'src/modules/engagement/user-activity/services/user-activity.service';
 import { UserNotificationTypeEnum } from 'src/modules/notifications/types/user-notification-type.enum';
 import { AIFinetuneEntity } from 'src/modules/admin/entities/ai-finetune.entity';
-import { ContestFlowService } from './contest-flow.service';
+import { ContestFlowService, ContestFlowSummary } from './contest-flow.service';
 import { ContestStartNotificationQueueService } from './notifications/contest-start-notification-queue.service';
 import {
   ContestLifecycleStatus,
@@ -105,12 +105,18 @@ export class ContestService {
       participantContestIds = participantResults.map((r) => r.id);
     }
 
+    // One set-based summary lookup for the whole list instead of 3 queries
+    // per contest.
+    const summaries =
+      await this.contestFlowService.getContestSummaries(contestIds);
+
     return await Promise.all(
       contests.map((contest) =>
         this.buildContestResponse(
           contest,
           userId,
           participantContestIds.includes(contest.id),
+          summaries.get(contest.id),
         ),
       ),
     );
@@ -120,6 +126,7 @@ export class ContestService {
     contest: ContestEntity,
     userId: number,
     isParticipant: boolean,
+    summary?: ContestFlowSummary,
   ) {
     return {
       id: contest.id,
@@ -140,7 +147,8 @@ export class ContestService {
         name: contest?.tag?.name,
       },
       is_participant: isParticipant,
-      ...(await this.contestFlowService.getContestSummary(contest.id)),
+      ...(summary ??
+        (await this.contestFlowService.getContestSummary(contest.id))),
     };
   }
 
@@ -167,25 +175,26 @@ export class ContestService {
       ])
       .where('user.id = :userId', { userId })
       .getMany();
-    return await Promise.all(
-      contests.map(async (contest) => ({
-        id: contest.id,
-        name: contest.name,
-        imageUrl: contest.imageUrl,
-        status: contest.status,
-        reward: contest.reward,
-        description: contest.description,
-        is_won: contest.winner?.id === userId,
-        mediaAiService: contest.mediaAiSetting?.aiService ?? null,
-        mediaCapability: contest.mediaAiSetting?.capability ?? null,
-        tag: {
-          id: contest?.tag?.id,
-          name: contest?.tag?.name,
-        },
-        is_participant: true,
-        ...(await this.contestFlowService.getContestSummary(contest.id)),
-      })),
+    const summaries = await this.contestFlowService.getContestSummaries(
+      contests.map((contest) => contest.id),
     );
+    return contests.map((contest) => ({
+      id: contest.id,
+      name: contest.name,
+      imageUrl: contest.imageUrl,
+      status: contest.status,
+      reward: contest.reward,
+      description: contest.description,
+      is_won: contest.winner?.id === userId,
+      mediaAiService: contest.mediaAiSetting?.aiService ?? null,
+      mediaCapability: contest.mediaAiSetting?.capability ?? null,
+      tag: {
+        id: contest?.tag?.id,
+        name: contest?.tag?.name,
+      },
+      is_participant: true,
+      ...summaries.get(contest.id),
+    }));
   }
 
   async getWonContests(userId: number) {
@@ -194,25 +203,27 @@ export class ContestService {
       relations: { tag: true, participants: true, mediaAiSetting: true },
     });
 
-    return await Promise.all(
-      contests.map(async (contest) => ({
-        id: contest.id,
-        name: contest.name,
-        imageUrl: contest.imageUrl,
-        status: contest.status,
-        reward: contest.reward,
-        description: contest.description,
-        is_won: true,
-        mediaAiService: contest.mediaAiSetting?.aiService ?? null,
-        mediaCapability: contest.mediaAiSetting?.capability ?? null,
-        tag: {
-          id: contest?.tag?.id,
-          name: contest?.tag?.name,
-        },
-        is_participant: true,
-        ...(await this.contestFlowService.getContestSummary(contest.id)),
-      })),
+    const summaries = await this.contestFlowService.getContestSummaries(
+      contests.map((contest) => contest.id),
     );
+
+    return contests.map((contest) => ({
+      id: contest.id,
+      name: contest.name,
+      imageUrl: contest.imageUrl,
+      status: contest.status,
+      reward: contest.reward,
+      description: contest.description,
+      is_won: true,
+      mediaAiService: contest.mediaAiSetting?.aiService ?? null,
+      mediaCapability: contest.mediaAiSetting?.capability ?? null,
+      tag: {
+        id: contest?.tag?.id,
+        name: contest?.tag?.name,
+      },
+      is_participant: true,
+      ...summaries.get(contest.id),
+    }));
   }
 
   async participateInContest(contestId: number, userId: number) {
@@ -465,12 +476,19 @@ export class ContestService {
       return;
     }
 
+    // Batch the metadata lookup the loop used to run once per contest.
+    const contestIds = contests.map((contest) => contest.id);
+    const metadataByContestId =
+      await this.contestFlowService.getFlowMetadataByContestIds(contestIds);
+
     const updatedContests = [];
 
     for (let contest of contests) {
       try {
-        const v2Result =
-          await this.contestFlowService.advanceContestLifecycle(contest);
+        const v2Result = await this.contestFlowService.advanceContestLifecycle(
+          contest,
+          metadataByContestId.get(contest.id) ?? null,
+        );
         if (v2Result.handled) {
           if (v2Result.opened) {
             await this.contestStartNotificationQueueService.enqueueContestStarted(
@@ -480,6 +498,10 @@ export class ContestService {
           continue;
         }
 
+        // Counted here rather than batched up front, and only for the legacy
+        // contests that reach this line: the sweep awaits Twitter calls per
+        // contest, so a count read before the loop can be minutes stale by the
+        // time it decides whether to close a contest with no winner.
         const postsCount = await this.postRepository.count({
           where: {
             contest: { id: contest.id },
@@ -978,7 +1000,9 @@ export class ContestService {
 
   async setContestWinner({ post_id, contest_id }: SetContestWinnerDto) {
     if (await this.contestFlowService.isV2Contest(contest_id)) {
-      const candidates = await this.contestFlowService.getReviewQueue();
+      const candidates = await this.contestFlowService.getReviewQueue([
+        contest_id,
+      ]);
       const contestReview = candidates.find(
         (item) => item.contestId === contest_id,
       );
@@ -1203,24 +1227,24 @@ export class ContestService {
       // Raw contest data debug removed
     }
 
-    return await Promise.all(
-      contests.map(async (contest) => ({
-        id: contest.contest_id,
-        name: contest.contest_name,
-        imageUrl: contest.contest_imageUrl,
-        endTime: contest.end_time,
-        startTime: contest.start_time,
-        description: contest.contest_description,
-        reward: contest.contest_reward,
-        status: contest.contest_status,
-        tag: {
-          name: contest.tagName ? `#${contest.tagName}` : null,
-        },
-        ...(await this.contestFlowService.getContestSummary(
-          contest.contest_id,
-        )),
-      })),
+    const summaries = await this.contestFlowService.getContestSummaries(
+      contests.map((contest) => contest.contest_id),
     );
+
+    return contests.map((contest) => ({
+      id: contest.contest_id,
+      name: contest.contest_name,
+      imageUrl: contest.contest_imageUrl,
+      endTime: contest.end_time,
+      startTime: contest.start_time,
+      description: contest.contest_description,
+      reward: contest.contest_reward,
+      status: contest.contest_status,
+      tag: {
+        name: contest.tagName ? `#${contest.tagName}` : null,
+      },
+      ...summaries.get(contest.contest_id),
+    }));
   }
   async updateContest(
     id: number,
@@ -1325,7 +1349,9 @@ export class ContestService {
 
   async rejectContestWinner({ post_id, contest_id }: SetContestWinnerDto) {
     if (await this.contestFlowService.isV2Contest(contest_id)) {
-      const candidates = await this.contestFlowService.getReviewQueue();
+      const candidates = await this.contestFlowService.getReviewQueue([
+        contest_id,
+      ]);
       const contestReview = candidates.find(
         (item) => item.contestId === contest_id,
       );
@@ -1425,7 +1451,22 @@ export class ContestService {
     }
   }
   async getTopPostForEachContest() {
-    const v2ReviewQueue = await this.contestFlowService.getReviewQueue();
+    // Fetch the contests this method actually reports on first, so their ids
+    // can scope both the review queue and the ranking CTE below.
+    const contests = await this.contestRepository.find({
+      relations: ['postWinner', 'postWinner.user'],
+      where: {
+        status: In([
+          ContestStatusEnum.OPEN,
+          ContestStatusEnum.CLOSED,
+          ContestStatusEnum.PENDING_REVIEW,
+        ]),
+      },
+    });
+    const contestIds = contests.map((contest) => contest.id);
+
+    const v2ReviewQueue =
+      await this.contestFlowService.getReviewQueue(contestIds);
     const v2Results = v2ReviewQueue
       .map((contestReview) => {
         const currentCandidate =
@@ -1477,17 +1518,6 @@ export class ContestService {
       })
       .filter(Boolean);
 
-    const contests = await this.contestRepository.find({
-      relations: ['postWinner', 'postWinner.user'],
-      where: {
-        status: In([
-          ContestStatusEnum.OPEN,
-          ContestStatusEnum.CLOSED,
-          ContestStatusEnum.PENDING_REVIEW,
-        ]),
-      },
-    });
-
     const fineTuneResults = contests
       .filter(
         (c) => c.contestType === ContestTypeEnum.FINE_TUNE && c.postWinner,
@@ -1515,9 +1545,14 @@ export class ContestService {
         },
       }));
 
+    if (!contestIds.length) {
+      return [...v2Results, ...fineTuneResults];
+    }
+
+    const placeholders = contestIds.map(() => '?').join(',');
     const rawQuery = `
       WITH RankedPosts AS (
-        SELECT 
+        SELECT
           p.id AS post_id,
           p.imageUrl AS image_url,
           u.id AS user_id,
@@ -1528,23 +1563,24 @@ export class ContestService {
           c.isApproved AS contest_is_approved,
           COUNT(l.id) AS like_count,
           ROW_NUMBER() OVER (PARTITION BY c.id ORDER BY COUNT(l.id) DESC) AS rn,
-          CASE 
+          CASE
             WHEN c.status = 'closed' AND c.isApproved = true THEN 'approved'
             WHEN c.status = 'pending_review' AND c.isApproved = false THEN 'pending_review'
             ELSE 'rejected'
           END AS post_status
-        FROM 
+        FROM
           posts p
         JOIN users u ON p.userId = u.id
         JOIN contests c ON p.contestId = c.id
         LEFT JOIN likes l ON p.id = l.postId
-        WHERE 
-          p.isRejected = false 
-          AND p.isBlocked = false 
+        WHERE
+          p.isRejected = false
+          AND p.isBlocked = false
           AND p.isPublished = true
           AND c.contestType != 'FINE_TUNE'
           AND c.status IN ('pending_review', 'open', 'closed')
-        GROUP BY 
+          AND c.id IN (${placeholders})
+        GROUP BY
           p.id, u.id, c.id
       )
       SELECT
@@ -1558,19 +1594,22 @@ export class ContestService {
         contest_is_approved,
         like_count,
         post_status
-      FROM 
+      FROM
         RankedPosts
-      WHERE 
+      WHERE
         rn = 1
-      ORDER BY 
-        CASE 
+      ORDER BY
+        CASE
           WHEN post_status = 'pending_review' THEN 1
           ELSE 2
         END,
         contest_id ASC;
     `;
 
-    const regularResultsRaw = await this.postRepository.query(rawQuery);
+    const regularResultsRaw = await this.postRepository.query(
+      rawQuery,
+      contestIds,
+    );
 
     const regularResults = regularResultsRaw.map((winner) => ({
       contestId: winner.contest_id,

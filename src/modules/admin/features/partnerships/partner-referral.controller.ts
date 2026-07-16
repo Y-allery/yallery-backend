@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { RateLimit, RateLimitGuard } from 'src/core/guards/rate-limit.guard';
 import { ReferralFlagService } from './referral-flag.service';
 
 @Controller('partner')
@@ -10,6 +11,8 @@ export class PartnerController {
   ) {}
 
   @Get('referral-status')
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 20, windowMs: 60000, keyPrefix: 'partner' })
   @ApiOperation({
     summary: 'Check referral user flag status (public)',
     description:
@@ -38,6 +41,8 @@ export class PartnerController {
   }
 
   @Post('referral-flag')
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 20, windowMs: 60000, keyPrefix: 'partner' })
   @ApiOperation({
     summary: 'Set referral user flag (public, idempotent)',
     description:

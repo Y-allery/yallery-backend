@@ -19,6 +19,10 @@ jobs:
           host: ${{ secrets.SERVER_IP }}
           username: root
           key: ${{ secrets.YALLERY_DEPLOY }}
+          # Without this the script runs every line regardless of failures, so a
+          # failed migration:run would still be followed by pm2 restart —
+          # serving new code against an unmigrated schema.
+          script_stop: true
           script: |
             cd /root/yallery-backend
             git reset --hard HEAD
