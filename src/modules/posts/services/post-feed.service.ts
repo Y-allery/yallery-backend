@@ -48,30 +48,97 @@ export class PostFeedService {
   ) {
     const safeLimit = Math.min(Math.max(limit || 20, 1), 100);
 
-    // In all-tags mode a running contest floods the top of the id-ordered
-    // feed with one tag. Overfetch a window of candidates and interleave
-    // tags round-robin so a page mixes every followed tag that has content.
-    const diversify = !tagId;
-    const fetchLimit = diversify
-      ? Math.min(safeLimit * 4, 120)
-      : safeLimit;
-
-    const conditions: string[] = [];
-    const params: (number | string)[] = [userId, userId, userId];
+    const chronoRows = await this.fetchFeedRows({
+      userId,
+      tagId,
+      cursor,
+      limit: safeLimit,
+    });
 
     if (tagId) {
-      conditions.push('AND p.tagId = ?');
-      params.push(tagId);
+      return this.buildFeedResponse(chronoRows, safeLimit, chronoRows, cursor);
     }
-    if (cursor) {
-      conditions.push('AND p.id < ?');
-      params.push(cursor);
-    }
-    params.push(fetchLimit);
 
+    // All-tags mode. A running contest buries every other tag: on a real
+    // account the 120 newest feed posts were 119 contest posts and one other,
+    // with the next tag's freshest post 1147 rows down — no overfetch window
+    // can reach that. So the page is built from two sources instead: a
+    // chronological backbone, which is the only thing the cursor advances
+    // over, plus one freshest post pulled per other followed tag.
+    const spotlight = await this.fetchTagSpotlight({
+      userId,
+      excludeTagIds: new Set<number>(
+        chronoRows.map((row) => Number(row.tagId)),
+      ),
+      quota: Math.floor(safeLimit / 2),
+    });
+
+    if (spotlight.length === 0) {
+      return this.buildFeedResponse(chronoRows, safeLimit, chronoRows, cursor);
+    }
+
+    // Spotlight posts take slots away from the backbone rather than extending
+    // the page, so the cursor advances only over the backbone posts actually
+    // served — nothing between them is skipped.
+    const backbone = chronoRows.slice(0, safeLimit - spotlight.length);
+    const page = this.interleave(backbone, spotlight);
+
+    // Spotlight ids sit below the cursor, so the next page's `id < cursor`
+    // would serve them again. Marking them viewed now is what keeps them out;
+    // the app marks every served post viewed one page later anyway.
+    await this.markSpotlightViewed(
+      userId,
+      spotlight.map((row) => Number(row.id)),
+    );
+
+    return this.buildFeedResponse(page, safeLimit, backbone, cursor);
+  }
+
+  private buildFeedResponse(
+    page: any[],
+    safeLimit: number,
+    cursorRows: any[],
+    previousCursor: number | null,
+  ) {
+    // The app appends pages without deduping and echoes nextCursor verbatim
+    // into `p.id < cursor`, so the cursor must be the lowest id whose
+    // predecessors are all accounted for — the backbone's minimum. When the
+    // backbone is exhausted the cursor holds, and spotlight posts keep coming
+    // because each is marked viewed as it is served.
+    const nextCursor = cursorRows.length
+      ? Math.min(...cursorRows.map((row) => Number(row.id)))
+      : previousCursor;
+
+    const data = page.map((post) => ({
+      ...post,
+      hasAudio: Boolean(post.hasAudio),
+      generationParams: this.normalizeGenerationParams(
+        this.parseGenerationParams(post.generationParams),
+      ),
+    }));
+
+    return {
+      data,
+      nextCursor,
+      hasNextPage: page.length === safeLimit,
+    };
+  }
+
+  /** Round-robin, so a spotlight post lands between backbone posts. */
+  private interleave(backbone: any[], spotlight: any[]): any[] {
+    const page: any[] = [];
+    const max = Math.max(backbone.length, spotlight.length);
+    for (let i = 0; i < max; i++) {
+      if (i < backbone.length) page.push(backbone[i]);
+      if (i < spotlight.length) page.push(spotlight[i]);
+    }
+    return page;
+  }
+
+  private feedRowColumns(userId: number): { sql: string; params: number[] } {
     // isViewed is always false here: the NOT EXISTS filter excludes viewed posts.
-    const query = `
-      SELECT
+    return {
+      sql: `
         p.id AS id,
         p.imageUrl AS imageUrl,
         p.videoUrl AS videoUrl,
@@ -87,7 +154,38 @@ export class PostFeedService {
         FALSE AS isViewed,
         p.generationParams AS generationParams,
         p.isPublished AS isPublished,
-        p.hasAudio AS hasAudio
+        p.hasAudio AS hasAudio`,
+      params: [userId],
+    };
+  }
+
+  private async fetchFeedRows(args: {
+    userId: number;
+    tagId: number | null;
+    cursor: number | null;
+    limit: number;
+  }): Promise<any[]> {
+    const columns = this.feedRowColumns(args.userId);
+    const conditions: string[] = [];
+    const params: number[] = [
+      ...columns.params,
+      args.userId,
+      args.userId,
+    ];
+
+    if (args.tagId) {
+      conditions.push('AND p.tagId = ?');
+      params.push(args.tagId);
+    }
+    if (args.cursor) {
+      conditions.push('AND p.id < ?');
+      params.push(args.cursor);
+    }
+    params.push(args.limit);
+
+    return this.postRepository.query(
+      `
+      SELECT ${columns.sql}
       FROM
         posts p
         JOIN users u ON u.id = p.userId
@@ -102,104 +200,81 @@ export class PostFeedService {
           WHERE ut.usersId = ?
         )
         ${conditions.join('\n        ')}
-      ORDER BY
-        p.id DESC
+      ORDER BY p.id DESC
       LIMIT ?;
-    `;
-
-    const rows = await this.postRepository.query(query, params);
-    const posts = diversify
-      ? this.diversifyPage(rows, safeLimit, rows.length === fetchLimit)
-      : rows;
-
-    // Pagination contract with the app (it appends without deduping and uses
-    // nextCursor verbatim): nextCursor must be the MINIMUM id of the returned
-    // page — not the last array element, which after interleaving is no
-    // longer the smallest. Deprioritized window rows above the cursor are
-    // intentionally skipped for this session; being unviewed, they reappear
-    // on the next refresh.
-    const nextCursor = posts.length
-      ? Math.min(...posts.map((post) => Number(post.id)))
-      : null;
-
-    const normalizedPosts = posts.map((post) => ({
-      ...post,
-      hasAudio: Boolean(post.hasAudio),
-      generationParams: this.normalizeGenerationParams(
-        this.parseGenerationParams(post.generationParams),
-      ),
-    }));
-
-    return {
-      data: normalizedPosts,
-      nextCursor,
-      hasNextPage: posts.length === safeLimit,
-    };
-  }
-
-  /**
-   * Reaching down the window for variety costs coverage: nextCursor is the
-   * page's min id, so fresher window rows left above it are skipped until the
-   * next refresh. That is the right trade while more posts exist below — the
-   * user keeps scrolling and the skipped ones resurface on refresh — but not
-   * once the window is all that is left: there is no page below to continue
-   * into, so skipping would strand fresh posts behind a premature end of
-   * feed. A short window means exactly that, and there we mix only within the
-   * page itself: same posts, better spread, nothing skipped.
-   */
-  private diversifyPage<T extends { id: number; tagId: number | null }>(
-    rows: T[],
-    limit: number,
-    windowWasFull: boolean,
-  ): T[] {
-    return this.interleaveByTag(
-      windowWasFull ? rows : rows.slice(0, limit),
-      limit,
+      `,
+      params,
     );
   }
 
   /**
-   * Round-robin across tags: queues are keyed by tag in order of each tag's
-   * newest post, and one post is taken from each queue per cycle until the
-   * page is full. A tag with a running contest still appears every cycle but
-   * can no longer occupy an entire page while quieter tags have content; with
-   * a single-tag window the page is unchanged. Returns exactly
-   * min(limit, rows.length) posts — full pages whenever the window allows,
-   * which the app's hasNextPage/mark-viewed logic depends on.
+   * The freshest unviewed post of each followed tag that the backbone does not
+   * already cover, newest tags first. One bounded query per tag keeps this off
+   * the flooded id ordering entirely — depth in the global feed is irrelevant.
    */
-  private interleaveByTag<T extends { id: number; tagId: number | null }>(
-    rows: T[],
-    limit: number,
-  ): T[] {
-    if (rows.length <= 1) {
-      return rows.slice(0, limit);
+  private async fetchTagSpotlight(args: {
+    userId: number;
+    excludeTagIds: Set<number>;
+    quota: number;
+  }): Promise<any[]> {
+    if (args.quota < 1) {
+      return [];
     }
 
-    const queues = new Map<number | 'untagged', T[]>();
-    for (const row of rows) {
-      const key = row.tagId ?? 'untagged';
-      const queue = queues.get(key);
-      if (queue) {
-        queue.push(row);
-      } else {
-        queues.set(key, [row]);
-      }
+    const tagRows: Array<{ tagsId: number }> = await this.postRepository.query(
+      'SELECT ut.tagsId AS tagsId FROM users_tags_tags ut WHERE ut.usersId = ?',
+      [args.userId],
+    );
+    const candidateTagIds = tagRows
+      .map((row) => Number(row.tagsId))
+      .filter((id) => !args.excludeTagIds.has(id));
+
+    if (candidateTagIds.length === 0) {
+      return [];
     }
 
-    const result: T[] = [];
-    const tagQueues = [...queues.values()];
-    while (result.length < limit) {
-      let took = false;
-      for (const queue of tagQueues) {
-        const next = queue.shift();
-        if (!next) continue;
-        result.push(next);
-        took = true;
-        if (result.length >= limit) break;
-      }
-      if (!took) break;
+    const columns = this.feedRowColumns(args.userId);
+    const branches = candidateTagIds.map(
+      () => `
+        (SELECT ${columns.sql}
+         FROM posts p
+           JOIN users u ON u.id = p.userId
+           JOIN tags t ON t.id = p.tagId
+         WHERE p.tagId = ?
+           AND p.isPublished = true
+           AND p.isBlocked = false
+           AND NOT EXISTS (SELECT 1 FROM viewed_posts v WHERE v.postId = p.id AND v.userId = ?)
+         ORDER BY p.id DESC
+         LIMIT 1)`,
+    );
+    // Each branch binds, in order: isLiked's userId, its own tagId, then the
+    // NOT EXISTS userId.
+    const params = candidateTagIds.flatMap((candidateTagId) => [
+      args.userId,
+      candidateTagId,
+      args.userId,
+    ]);
+
+    const rows: any[] = await this.postRepository.query(
+      branches.join('\n        UNION ALL\n'),
+      params,
+    );
+
+    return rows
+      .sort((a, b) => Number(b.id) - Number(a.id))
+      .slice(0, args.quota);
+  }
+
+  private async markSpotlightViewed(userId: number, postIds: number[]) {
+    if (!postIds.length) {
+      return;
     }
-    return result;
+    await this.postRepository.query(
+      `INSERT IGNORE INTO viewed_posts (userId, postId) VALUES ${postIds
+        .map(() => '(?, ?)')
+        .join(', ')}`,
+      postIds.flatMap((postId) => [userId, postId]),
+    );
   }
 
   async findPostsByTag(

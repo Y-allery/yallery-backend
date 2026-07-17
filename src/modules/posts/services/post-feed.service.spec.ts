@@ -46,85 +46,94 @@ describe('PostFeedService', () => {
       tagName: `#tag${tagId}`,
     });
 
-    it('interleaves tags round-robin over a full window so a flooding tag cannot own the page', async () => {
+    // Query order in all-tags mode: backbone page, the user's tag ids, the
+    // per-tag spotlight UNION, then the INSERT IGNORE that marks spotlight
+    // posts viewed.
+    const mockAllTags = (
+      postRepository: any,
+      backbone: any[],
+      tagIds: number[],
+      spotlight: any[],
+    ) => {
+      postRepository.query
+        .mockResolvedValueOnce(backbone)
+        .mockResolvedValueOnce(tagIds.map((tagsId) => ({ tagsId })))
+        .mockResolvedValueOnce(spotlight)
+        .mockResolvedValueOnce({});
+    };
+
+    it('gives half the page to other tags even when they are buried below the flood', async () => {
       const { service, postRepository } = createService();
-      // Full window (24 = 4x the page): a contest tag (1) floods the fresh end
-      // while tags 2 and 3 sit deeper. This is the case the feature exists for.
-      const window = [
-        ...Array.from({ length: 10 }, (_, i) => feedRow(100 - i, 1)),
-        feedRow(90, 2),
-        ...Array.from({ length: 12 }, (_, i) => feedRow(89 - i, 1)),
-        feedRow(77, 3),
-      ];
-      expect(window).toHaveLength(24);
-      postRepository.query.mockResolvedValueOnce(window);
+      // The backbone is all tag 1 (a contest flood); tags 2-4 are far deeper
+      // in the id order than any window could reach.
+      mockAllTags(
+        postRepository,
+        Array.from({ length: 6 }, (_, i) => feedRow(1000 - i, 1)),
+        [1, 2, 3, 4],
+        [feedRow(400, 2), feedRow(300, 3), feedRow(200, 4)],
+      );
 
       const result = await service.getPosts(null, 6, 55, null);
 
-      // Window overfetch: LIMIT param is 4x the requested page size.
-      const params = postRepository.query.mock.calls[0][1];
-      expect(params[params.length - 1]).toBe(24);
-
-      // One post per tag per cycle: both minority tags reach page one even
-      // though they are buried 11 and 24 rows deep.
-      expect(result.data.map((post) => post.tagId)).toEqual([1, 2, 3, 1, 1, 1]);
+      expect(result.data.map((post) => post.tagId)).toEqual([1, 2, 1, 3, 1, 4]);
       expect(result.data.map((post) => post.id)).toEqual([
-        100, 90, 77, 99, 98, 97,
+        1000, 400, 999, 300, 998, 200,
       ]);
-
-      // nextCursor must be the minimum id of the returned page, not the last
-      // element (the app paginates with p.id < cursor and never dedupes).
-      expect(result.nextCursor).toBe(77);
+      // Cursor advances only over the three backbone posts served, so nothing
+      // between 998 and 400 is skipped — it is still ahead of the next page.
+      expect(result.nextCursor).toBe(998);
       expect(result.hasNextPage).toBe(true);
     });
 
-    it('mixes only within the page when the window is short, so no fresh post is stranded', async () => {
+    it('marks spotlight posts viewed so the next page cannot repeat them', async () => {
       const { service, postRepository } = createService();
-      // Short window (20 < 24) = this is everything the user has left. Pulling
-      // the id-50 post up would set the cursor to 50 and hide the 14 fresh
-      // posts above it with no page below to recover them.
-      const window = [
-        ...Array.from({ length: 19 }, (_, i) => feedRow(100 - i, 1)),
-        feedRow(50, 2),
-      ];
-      postRepository.query.mockResolvedValueOnce(window);
+      mockAllTags(
+        postRepository,
+        Array.from({ length: 6 }, (_, i) => feedRow(1000 - i, 1)),
+        [1, 2, 3],
+        [feedRow(400, 2), feedRow(300, 3)],
+      );
+
+      await service.getPosts(null, 6, 55, null);
+
+      const [sql, params] = postRepository.query.mock.calls[3];
+      expect(sql).toContain('INSERT IGNORE INTO viewed_posts');
+      expect(params).toEqual([55, 400, 55, 300]);
+    });
+
+    it('holds the cursor and keeps serving spotlight posts once the backbone runs out', async () => {
+      const { service, postRepository } = createService();
+      mockAllTags(postRepository, [], [1, 2], [feedRow(400, 2)]);
+
+      const result = await service.getPosts(900, 6, 55, null);
+
+      expect(result.data.map((post) => post.id)).toEqual([400]);
+      // No backbone post was served, so the cursor cannot move; the spotlight
+      // still advances because each post is marked viewed as it is served.
+      expect(result.nextCursor).toBe(900);
+    });
+
+    it('falls back to a plain chronological page when no other tag has content', async () => {
+      const { service, postRepository } = createService();
+      mockAllTags(
+        postRepository,
+        Array.from({ length: 6 }, (_, i) => feedRow(1000 - i, 1)),
+        [1],
+        [],
+      );
 
       const result = await service.getPosts(null, 6, 55, null);
 
-      // Cursor stays at the chronological page boundary: nothing skipped.
       expect(result.data.map((post) => post.id)).toEqual([
-        100, 99, 98, 97, 96, 95,
+        1000, 999, 998, 997, 996, 995,
       ]);
-      expect(result.nextCursor).toBe(95);
-      expect(result.hasNextPage).toBe(true);
+      expect(result.nextCursor).toBe(995);
+      // Backbone + tag lookup only: with no other tag to pull from there is no
+      // spotlight UNION and nothing to mark viewed.
+      expect(postRepository.query).toHaveBeenCalledTimes(2);
     });
 
-    it('still spreads tags within the page on a short window', async () => {
-      const { service, postRepository } = createService();
-      // Short window, but the page itself holds two tags: chronologically it
-      // would read 1,1,1,1,2,2 — interleaving alternates them instead, and
-      // still returns the same six posts (cursor unmoved, nothing skipped).
-      const window = [
-        feedRow(100, 1),
-        feedRow(99, 1),
-        feedRow(98, 1),
-        feedRow(97, 1),
-        feedRow(96, 2),
-        feedRow(95, 2),
-        feedRow(94, 1),
-      ];
-      postRepository.query.mockResolvedValueOnce(window);
-
-      const result = await service.getPosts(null, 6, 55, null);
-
-      expect(result.data.map((post) => post.tagId)).toEqual([1, 2, 1, 2, 1, 1]);
-      expect(result.data.map((post) => post.id)).toEqual([
-        100, 96, 99, 95, 98, 97,
-      ]);
-      expect(result.nextCursor).toBe(95);
-    });
-
-    it('keeps single-tag feeds and short windows unchanged', async () => {
+    it('keeps the single-tag feed on the plain chronological path', async () => {
       const { service, postRepository } = createService();
       postRepository.query.mockResolvedValueOnce([
         feedRow(10, 7),
@@ -133,8 +142,9 @@ describe('PostFeedService', () => {
 
       const result = await service.getPosts(null, 6, 55, 7);
 
+      // One query only: no spotlight, no viewed-marking.
+      expect(postRepository.query).toHaveBeenCalledTimes(1);
       const params = postRepository.query.mock.calls[0][1];
-      // Tag-filtered feed fetches exactly the page size (no window).
       expect(params[params.length - 1]).toBe(6);
       expect(result.data.map((post) => post.id)).toEqual([10, 9]);
       expect(result.nextCursor).toBe(9);
