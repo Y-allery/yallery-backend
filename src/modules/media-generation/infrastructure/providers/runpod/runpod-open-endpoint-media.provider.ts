@@ -277,15 +277,13 @@ export class RunpodOpenEndpointMediaProvider
   }
 
   private async buildLtxMemeSubmitInput(request: MemeGenerationRequest) {
-    const [{ imageBase64, orientation }, referenceVideo] = await Promise.all([
-      this.prepareImageVideoSource(request.imageUrl),
-      this.client.fetchBinary(request.videoUrl),
-    ]);
+    const { imageBase64, orientation } = await this.prepareImageVideoSource(
+      request.imageUrl,
+    );
 
     return this.payloadBuilder.buildLtxMemeInput(
       request,
       imageBase64,
-      referenceVideo.toString('base64'),
       orientation,
     );
   }

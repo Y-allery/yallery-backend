@@ -154,12 +154,13 @@ export class RunpodPayloadBuilder {
   buildLtxMemeInput(
     request: MemeGenerationRequest,
     imageBase64: string,
-    referenceVideoBase64: string,
     orientation: MediaOrientation,
   ) {
-    // LTX worker v8.20 meme mode: DWPose of the reference video + Union IC-LoRA. Dims must be
-    // divisible by 128 (the reference is VAE-encoded at half resolution); the worker derives
+    // LTX worker v8.20.4+ meme mode: DWPose of the reference video + Union IC-LoRA. Dims must
+    // be divisible by 128 (the reference is VAE-encoded at half resolution); the worker derives
     // frame count from the reference length itself, and remuxes the meme's own audio.
+    // The reference goes by URL — RunPod /run caps payloads at 10MB and a 10s meme in base64
+    // blows past it; only the (EXIF-normalised) character image is inlined.
     const { width, height } =
       orientation === 'horizontal'
         ? { width: 1152, height: 640 }
@@ -168,7 +169,7 @@ export class RunpodPayloadBuilder {
     return {
       prompt: request.prompt?.trim() || '',
       image_b64: imageBase64,
-      reference_video_b64: referenceVideoBase64,
+      reference_video_url: request.videoUrl,
       width,
       height,
       fps: 24,
