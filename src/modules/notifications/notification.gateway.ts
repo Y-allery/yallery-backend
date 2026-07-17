@@ -42,6 +42,61 @@ export class NotificationGateway {
   @WebSocketServer()
   server: Server;
 
+  /**
+   * Offline path: flags the posts for the joinRoom backlog and persists the
+   * generation taskId into generationParams — the live events carry taskId in
+   * their payload, and without persisting it here the undelivered replay
+   * would have no way to include it.
+   */
+  private async markUndelivered(
+    postIds: number[],
+    taskId?: string,
+  ): Promise<void> {
+    if (!postIds.length) {
+      return;
+    }
+    if (taskId) {
+      await this.postRepository.query(
+        `UPDATE posts
+         SET isDelivered = false,
+             generationParams = JSON_SET(COALESCE(generationParams, JSON_OBJECT()), '$.taskId', ?)
+         WHERE id IN (${postIds.map(() => '?').join(',')})`,
+        [taskId, ...postIds],
+      );
+      return;
+    }
+    await this.postRepository.update(
+      { id: In(postIds) },
+      { isDelivered: false },
+    );
+  }
+
+  /**
+   * The joinRoom backlog can hold posts from several generation tasks, while
+   * live events carry exactly one taskId per emission — so the replay groups
+   * posts by their persisted taskId and emits one event per task, matching
+   * the live payload shape. Pre-existing posts without a taskId form a single
+   * legacy group whose payload has no taskId field, exactly as before.
+   */
+  private groupByTaskId<T extends { generationParams?: any }>(
+    items: T[],
+  ): Map<string | null, T[]> {
+    const groups = new Map<string | null, T[]>();
+    for (const item of items) {
+      const taskId =
+        typeof item.generationParams?.taskId === 'string'
+          ? item.generationParams.taskId
+          : null;
+      const group = groups.get(taskId);
+      if (group) {
+        group.push(item);
+      } else {
+        groups.set(taskId, [item]);
+      }
+    }
+    return groups;
+  }
+
   async sendImageArrayNotification(
     to_user_id: string,
     images: any,
@@ -114,10 +169,7 @@ export class NotificationGateway {
         );
         return;
       }
-      await this.postRepository.update(
-        { id: In(postIds) },
-        { isDelivered: false },
-      );
+      await this.markUndelivered(postIds, taskId);
       // User ${to_user_id} is not connected. Handling offline logic.
     }
   }
@@ -172,10 +224,7 @@ export class NotificationGateway {
       return;
     }
 
-    await this.postRepository.update(
-      { id: In(postIds) },
-      { isDelivered: false },
-    );
+    await this.markUndelivered(postIds, taskId);
   }
   async sendVideoNotification(
     to_user_id: string,
@@ -220,10 +269,7 @@ export class NotificationGateway {
       }
       this.server.to(to_user_id).emit('videoGenerated', payload);
     } else {
-      await this.postRepository.update(
-        { id: video.id },
-        { isDelivered: false },
-      );
+      await this.markUndelivered([video.id], taskId);
     }
   }
 
@@ -270,10 +316,7 @@ export class NotificationGateway {
       }
       this.server.to(to_user_id).emit('audioGenerated', payload);
     } else {
-      await this.postRepository.update(
-        { id: video.id },
-        { isDelivered: false },
-      );
+      await this.markUndelivered([video.id], taskId);
     }
   }
 
@@ -321,10 +364,7 @@ export class NotificationGateway {
       return;
     }
 
-    await this.postRepository.update(
-      { id: payload.id },
-      { isDelivered: false },
-    );
+    await this.markUndelivered([payload.id], taskId);
   }
 
   @SubscribeMessage('joinRoom')
@@ -449,118 +489,151 @@ export class NotificationGateway {
         }));
 
       if (images.length > 0 && client.connected) {
-        client.emit('undeliveredImages', {
-          images: {
-            data: images.map(
-              ({
-                id,
-                imageUrl,
-                videoUrl,
-                previewImageUrl,
-                generationParams,
-                publishTo,
-              }) => ({
-                id,
-                imageUrl,
-                videoUrl: videoUrl || null,
-                previewImageUrl: previewImageUrl || null,
-                // Keep payload key as snake_case for client compatibility.
-                generation_params: generationParams || null,
-                publishTo,
-              }),
-            ),
-          },
-        });
+        // One event per generation task, mirroring the live imageGenerated
+        // payload (top-level taskId); the legacy no-taskId group keeps the
+        // exact pre-existing shape.
+        for (const [taskId, taskImages] of this.groupByTaskId(images)) {
+          const payload: Record<string, unknown> = {
+            images: {
+              data: taskImages.map(
+                ({
+                  id,
+                  imageUrl,
+                  videoUrl,
+                  previewImageUrl,
+                  generationParams,
+                  publishTo,
+                }) => ({
+                  id,
+                  imageUrl,
+                  videoUrl: videoUrl || null,
+                  previewImageUrl: previewImageUrl || null,
+                  // Keep payload key as snake_case for client compatibility.
+                  generation_params: generationParams || null,
+                  publishTo,
+                }),
+              ),
+            },
+          };
+          if (taskId) {
+            payload.taskId = taskId;
+          }
+          client.emit('undeliveredImages', payload);
+        }
       }
 
       if (imageEdits.length > 0 && client.connected) {
-        client.emit('undeliveredImageEdits', {
-          images: {
-            data: imageEdits.map(
-              ({
-                id,
-                imageUrl,
-                videoUrl,
-                previewImageUrl,
-                generationParams,
-                publishTo,
-              }) => ({
-                id,
-                imageUrl,
-                videoUrl: videoUrl || null,
-                previewImageUrl: previewImageUrl || null,
-                generation_params: generationParams || null,
-                publishTo,
-              }),
-            ),
-          },
-        });
+        for (const [taskId, taskEdits] of this.groupByTaskId(imageEdits)) {
+          const payload: Record<string, unknown> = {
+            images: {
+              data: taskEdits.map(
+                ({
+                  id,
+                  imageUrl,
+                  videoUrl,
+                  previewImageUrl,
+                  generationParams,
+                  publishTo,
+                }) => ({
+                  id,
+                  imageUrl,
+                  videoUrl: videoUrl || null,
+                  previewImageUrl: previewImageUrl || null,
+                  generation_params: generationParams || null,
+                  publishTo,
+                }),
+              ),
+            },
+          };
+          if (taskId) {
+            payload.taskId = taskId;
+          }
+          client.emit('undeliveredImageEdits', payload);
+        }
       }
 
       if (videos.length > 0 && client.connected) {
-        client.emit('undeliveredVideo', {
-          video: {
-            data: videos.map(
-              ({
-                id,
-                videoUrl,
-                previewImageUrl,
-                generationParams,
-                publishTo,
-              }) => ({
-                id,
-                videoUrl,
-                previewImageUrl: previewImageUrl || null,
-                generation_params: generationParams || null,
-                publishTo,
-              }),
-            ),
-          },
-        });
+        for (const [taskId, taskVideos] of this.groupByTaskId(videos)) {
+          const payload: Record<string, unknown> = {
+            video: {
+              data: taskVideos.map(
+                ({
+                  id,
+                  videoUrl,
+                  previewImageUrl,
+                  generationParams,
+                  publishTo,
+                }) => ({
+                  id,
+                  videoUrl,
+                  previewImageUrl: previewImageUrl || null,
+                  generation_params: generationParams || null,
+                  publishTo,
+                }),
+              ),
+            },
+          };
+          if (taskId) {
+            payload.taskId = taskId;
+          }
+          client.emit('undeliveredVideo', payload);
+        }
       }
 
       if (audioVideos.length > 0 && client.connected) {
-        client.emit('undeliveredAudio', {
-          audio: {
-            data: audioVideos.map(
-              ({
-                id,
-                videoUrl,
-                previewImageUrl,
-                generationParams,
-                publishTo,
-              }) => ({
-                id,
-                videoUrl,
-                previewImageUrl: previewImageUrl || null,
-                generation_params: generationParams || null,
-                publishTo,
-              }),
-            ),
-          },
-        });
+        for (const [taskId, taskAudio] of this.groupByTaskId(audioVideos)) {
+          const payload: Record<string, unknown> = {
+            audio: {
+              data: taskAudio.map(
+                ({
+                  id,
+                  videoUrl,
+                  previewImageUrl,
+                  generationParams,
+                  publishTo,
+                }) => ({
+                  id,
+                  videoUrl,
+                  previewImageUrl: previewImageUrl || null,
+                  generation_params: generationParams || null,
+                  publishTo,
+                }),
+              ),
+            },
+          };
+          if (taskId) {
+            payload.taskId = taskId;
+          }
+          client.emit('undeliveredAudio', payload);
+        }
       }
 
       if (memes.length > 0 && client.connected) {
-        client.emit('undeliveredMeme', {
-          memes: {
-            data: memes.map(
-              ({
-                id,
-                videoUrl,
-                previewImageUrl,
-                generationParams,
-                publishTo,
-              }) => ({
-                id,
-                videoUrl,
-                previewImageUrl: previewImageUrl || null,
-                generation_params: generationParams || null,
-                publishTo,
-              }),
-            ),
-          },
-        });
+        for (const [taskId, taskMemes] of this.groupByTaskId(memes)) {
+          const payload: Record<string, unknown> = {
+            memes: {
+              data: taskMemes.map(
+                ({
+                  id,
+                  videoUrl,
+                  previewImageUrl,
+                  generationParams,
+                  publishTo,
+                }) => ({
+                  id,
+                  videoUrl,
+                  previewImageUrl: previewImageUrl || null,
+                  generation_params: generationParams || null,
+                  publishTo,
+                }),
+              ),
+            },
+          };
+          if (taskId) {
+            payload.taskId = taskId;
+          }
+          client.emit('undeliveredMeme', payload);
+        }
       }
 
       const allUndeliveredIds = undeliveredPosts.map((post) => post.id);

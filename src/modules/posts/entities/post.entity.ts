@@ -87,6 +87,8 @@ export class PostEntity extends TimeStampEntity {
 
   @Column({ type: 'json', nullable: true, name: 'generationParams' })
   generationParams: {
+    /** Generation task (BullMQ job) id; persisted on the offline path so the undelivered replay can carry it like live events do. */
+    taskId?: string;
     prompt?: string;
     translatedPrompt?: string;
     resolvedPrompt?: string;
