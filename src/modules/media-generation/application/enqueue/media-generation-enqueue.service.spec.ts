@@ -42,6 +42,7 @@ describe('MediaGenerationEnqueueService', () => {
       {} as any,
       {} as any,
       {} as any,
+      { getString: jest.fn().mockResolvedValue(null) } as any,
     );
 
     return {

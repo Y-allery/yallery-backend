@@ -276,19 +276,47 @@ export class RunpodOpenEndpointMediaProvider
     return { imageBase64: data.toString('base64'), orientation };
   }
 
+  private async buildLtxMemeSubmitInput(request: MemeGenerationRequest) {
+    const [{ imageBase64, orientation }, referenceVideo] = await Promise.all([
+      this.prepareImageVideoSource(request.imageUrl),
+      this.client.fetchBinary(request.videoUrl),
+    ]);
+
+    return this.payloadBuilder.buildLtxMemeInput(
+      request,
+      imageBase64,
+      referenceVideo.toString('base64'),
+      orientation,
+    );
+  }
+
   async generateMemes(
     request: MemeGenerationRequest,
   ): Promise<MemeGenerationResult> {
     const endpointId =
       await this.endpoints.getEndpointIdForMemeRequest(request);
-    const initialJob = await this.client.submitJob(endpointId, {
-      input: this.payloadBuilder.buildMemeInput(request),
-    });
+    const apiKeyConfigKey = this.endpoints.getApiKeyConfigKey(
+      request.aiService,
+      'meme',
+    );
+    // ltx_meme (worker v8.20): inline character image + reference video as base64; the WAN
+    // worker keeps taking URLs. The character image goes through the same EXIF-normalising
+    // prep as i2v, and its aspect picks the output orientation.
+    const input =
+      request.aiService === 'ltx_meme'
+        ? await this.buildLtxMemeSubmitInput(request)
+        : this.payloadBuilder.buildMemeInput(request);
+    const initialJob = await this.client.submitJob(
+      endpointId,
+      { input },
+      apiKeyConfigKey,
+    );
     const completedJob = await this.waitForVideo(
       endpointId,
       initialJob,
       request.aiService,
       'meme',
+      apiKeyConfigKey,
     );
     const providerVideoSource = this.extractor.extractVideoSource(
       completedJob.output,

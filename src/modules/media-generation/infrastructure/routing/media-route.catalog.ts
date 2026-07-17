@@ -159,6 +159,22 @@ export const RUNPOD_MEDIA_ROUTE_CATALOG: MediaRouteCatalogEntry[] = [
     statusTimeoutLabel: 'WAN 2.2 Animate Meme Status Timeout',
     defaultStatusTimeoutMs: 7200000,
   },
+  {
+    // LTX meme motion control (worker v8.20+: DWPose reference + Union IC-LoRA). Lives on the
+    // VIDEO RunPod account, hence the per-route api key — same mechanism as the p_video routes.
+    aiService: 'ltx_meme',
+    routeType: 'meme',
+    capability: MediaCapability.MEME_GENERATE,
+    provider: MediaProvider.RUNPOD,
+    dispatch: MediaDispatch.BULLMQ_QUEUE,
+    queueName: MEDIA_MEME_GENERATION_QUEUE,
+    endpointConfigKey: 'RUNPOD_LTX_MEME_ENDPOINT_ID',
+    apiKeyConfigKey: 'RUNPOD_VIDEO_API_KEY',
+    enabledConfigKey: 'RUNPOD_LTX_MEME_ENABLED',
+    statusTimeoutConfigKey: 'RUNPOD_LTX_MEME_STATUS_TIMEOUT_MS',
+    statusTimeoutLabel: 'LTX Meme Status Timeout',
+    defaultStatusTimeoutMs: 7200000,
+  },
 ];
 
 export function getRunpodMediaRoute(

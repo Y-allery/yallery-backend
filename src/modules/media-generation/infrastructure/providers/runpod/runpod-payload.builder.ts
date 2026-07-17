@@ -151,6 +151,34 @@ export class RunpodPayloadBuilder {
     };
   }
 
+  buildLtxMemeInput(
+    request: MemeGenerationRequest,
+    imageBase64: string,
+    referenceVideoBase64: string,
+    orientation: MediaOrientation,
+  ) {
+    // LTX worker v8.20 meme mode: DWPose of the reference video + Union IC-LoRA. Dims must be
+    // divisible by 128 (the reference is VAE-encoded at half resolution); the worker derives
+    // frame count from the reference length itself, and remuxes the meme's own audio.
+    const { width, height } =
+      orientation === 'horizontal'
+        ? { width: 1152, height: 640 }
+        : { width: 640, height: 1152 };
+
+    return {
+      prompt: request.prompt?.trim() || '',
+      image_b64: imageBase64,
+      reference_video_b64: referenceVideoBase64,
+      width,
+      height,
+      fps: 24,
+      audio: false,
+      preserve_source_audio: true,
+      tier: 'quality',
+      seed: randomVideoSeed(),
+    };
+  }
+
   buildMemeInput(request: MemeGenerationRequest) {
     return {
       prompt:

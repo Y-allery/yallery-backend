@@ -16,6 +16,7 @@ import { EditImageGenerationRequest } from 'src/modules/media-generation/domain/
 import { ImageVideoGenerationRequest } from 'src/modules/media-generation/domain/contracts/image-video-generation-request.contract';
 import { MemeGenerationRequest } from 'src/modules/media-generation/domain/contracts/meme-generation-request.contract';
 import { PromptImageGenerationRequest } from 'src/modules/media-generation/domain/contracts/prompt-image-generation-request.contract';
+import { ProviderRuntimeConfigService } from 'src/modules/provider-settings/provider-runtime-config.service';
 import { TextVideoGenerationRequest } from 'src/modules/media-generation/domain/contracts/text-video-generation-request.contract';
 import { ContestMediaGenerationResolverService } from 'src/modules/media-generation/application/contest/contest-media-generation-resolver.service';
 import { MediaPromptEnhancerService } from 'src/modules/media-generation/application/prompt-enhancement/media-prompt-enhancer.service';
@@ -49,6 +50,7 @@ export class MediaGenerationEnqueueService {
     private readonly mediaTextVideoQueue: Queue,
     @InjectQueue(MEDIA_IMAGE_VIDEO_GENERATION_QUEUE)
     private readonly mediaImageVideoQueue: Queue,
+    private readonly providerRuntimeConfigService: ProviderRuntimeConfigService,
   ) {}
 
   async enqueuePromptImageGeneration(
@@ -359,8 +361,18 @@ export class MediaGenerationEnqueueService {
     const meme = await this.mediaGenerationGuardsService.getRequiredMeme(
       request.memeId,
     );
+    // Runtime A/B switch: when MEME_AI_SERVICE_OVERRIDE is set (e.g. "ltx_meme"), every meme
+    // routes there regardless of what the app sent — flips via provider_runtime_settings, no
+    // deploy, no app release. Pricing/guards then resolve against the overridden service, so
+    // it needs its own ACTIVE media_ai_settings row (capability meme_generate).
+    const serviceOverride = (
+      await this.providerRuntimeConfigService.getString(
+        'MEME_AI_SERVICE_OVERRIDE',
+      )
+    )?.trim();
     const enrichedRequest: MemeGenerationRequest = {
       ...request,
+      aiService: serviceOverride || request.aiService,
       videoUrl: meme.referenceVideoUrl,
     };
 
