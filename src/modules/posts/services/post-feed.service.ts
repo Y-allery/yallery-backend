@@ -109,7 +109,7 @@ export class PostFeedService {
 
     const rows = await this.postRepository.query(query, params);
     const posts = diversify
-      ? this.diversifyPage(rows, safeLimit)
+      ? this.diversifyPage(rows, safeLimit, rows.length === fetchLimit)
       : rows;
 
     // Pagination contract with the app (it appends without deduping and uses
@@ -138,30 +138,24 @@ export class PostFeedService {
   }
 
   /**
-   * Interleaved page with a bounded skip cost. Window rows that end up above
-   * the page's min id without being returned are hidden until the next
-   * refresh (the cursor moves past them), so if the interleaved page would
-   * hide more than one page's worth — a stale minority post dragging the
-   * cursor deep — fall back to the plain chronological page. Active tags have
-   * recent ids, so the fallback only fires in the stale-minority case where
-   * the old feed behavior is the lesser evil versus a false end-of-feed.
+   * Reaching down the window for variety costs coverage: nextCursor is the
+   * page's min id, so fresher window rows left above it are skipped until the
+   * next refresh. That is the right trade while more posts exist below — the
+   * user keeps scrolling and the skipped ones resurface on refresh — but not
+   * once the window is all that is left: there is no page below to continue
+   * into, so skipping would strand fresh posts behind a premature end of
+   * feed. A short window means exactly that, and there we mix only within the
+   * page itself: same posts, better spread, nothing skipped.
    */
   private diversifyPage<T extends { id: number; tagId: number | null }>(
     rows: T[],
     limit: number,
+    windowWasFull: boolean,
   ): T[] {
-    const interleaved = this.interleaveByTag(rows, limit);
-    if (rows.length <= limit || interleaved.length === 0) {
-      return interleaved;
-    }
-
-    const minId = Math.min(...interleaved.map((post) => Number(post.id)));
-    const returnedIds = new Set(interleaved.map((post) => Number(post.id)));
-    const skippedAboveCursor = rows.filter(
-      (row) => Number(row.id) > minId && !returnedIds.has(Number(row.id)),
-    ).length;
-
-    return skippedAboveCursor > limit ? rows.slice(0, limit) : interleaved;
+    return this.interleaveByTag(
+      windowWasFull ? rows : rows.slice(0, limit),
+      limit,
+    );
   }
 
   /**
