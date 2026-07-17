@@ -101,6 +101,50 @@ describe('PostFeedService', () => {
       expect(params).toEqual([55, 400, 55, 300]);
     });
 
+    it('bounds spotlight by the cursor so a served post cannot resurface', async () => {
+      const { service, postRepository } = createService();
+      mockAllTags(
+        postRepository,
+        Array.from({ length: 6 }, (_, i) => feedRow(500 - i, 1)),
+        [1, 2],
+        [feedRow(300, 2)],
+      );
+
+      await service.getPosts(600, 6, 55, null);
+
+      // The spotlight UNION (query call #3) must carry the cursor bound and
+      // bind the cursor value in each branch.
+      const [spotlightSql, spotlightParams] =
+        postRepository.query.mock.calls[2];
+      expect(spotlightSql).toContain('AND p.id < ?');
+      expect(spotlightParams).toEqual([55, 2, 55, 600]);
+    });
+
+    it('does not fail the feed when marking spotlight viewed throws', async () => {
+      const { service, postRepository } = createService();
+      postRepository.query
+        .mockResolvedValueOnce(
+          Array.from({ length: 6 }, (_, i) => feedRow(1000 - i, 1)),
+        )
+        .mockResolvedValueOnce([{ tagsId: 1 }, { tagsId: 2 }])
+        .mockResolvedValueOnce([feedRow(400, 2)])
+        .mockRejectedValueOnce(new Error('deadlock'));
+      const consoleError = jest
+        .spyOn(console, 'error')
+        .mockImplementation(() => undefined);
+
+      try {
+        const result = await service.getPosts(null, 6, 55, null);
+        // Page was already computed; a write failure must not sink the read.
+        expect(result.data.map((post) => post.id)).toEqual([
+          1000, 400, 999, 998, 997, 996,
+        ]);
+        expect(consoleError).toHaveBeenCalled();
+      } finally {
+        consoleError.mockRestore();
+      }
+    });
+
     it('holds the cursor and keeps serving spotlight posts once the backbone runs out', async () => {
       const { service, postRepository } = createService();
       mockAllTags(postRepository, [], [1, 2], [feedRow(400, 2)]);
@@ -108,9 +152,11 @@ describe('PostFeedService', () => {
       const result = await service.getPosts(900, 6, 55, null);
 
       expect(result.data.map((post) => post.id)).toEqual([400]);
-      // No backbone post was served, so the cursor cannot move; the spotlight
-      // still advances because each post is marked viewed as it is served.
+      // No backbone post was served, so the cursor cannot move; the short page
+      // reports hasNextPage=false, which is what actually stops the client —
+      // the held cursor never loops.
       expect(result.nextCursor).toBe(900);
+      expect(result.hasNextPage).toBe(false);
     });
 
     it('falls back to a plain chronological page when no other tag has content', async () => {

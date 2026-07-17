@@ -67,6 +67,7 @@ export class PostFeedService {
     // over, plus one freshest post pulled per other followed tag.
     const spotlight = await this.fetchTagSpotlight({
       userId,
+      cursor,
       excludeTagIds: new Set<number>(
         chronoRows.map((row) => Number(row.tagId)),
       ),
@@ -83,13 +84,19 @@ export class PostFeedService {
     const backbone = chronoRows.slice(0, safeLimit - spotlight.length);
     const page = this.interleave(backbone, spotlight);
 
-    // Spotlight ids sit below the cursor, so the next page's `id < cursor`
-    // would serve them again. Marking them viewed now is what keeps them out;
-    // the app marks every served post viewed one page later anyway.
-    await this.markSpotlightViewed(
-      userId,
-      spotlight.map((row) => Number(row.id)),
-    );
+    // Spotlight posts sit below the cursor (the `id < cursor` bound above), so
+    // the next page's backbone query would serve them again; marking them
+    // viewed now is what keeps them out. Kept off the response's critical path:
+    // a write failure at worst re-serves a post, which is better than a 500 on
+    // an already-computed page.
+    try {
+      await this.markSpotlightViewed(
+        userId,
+        spotlight.map((row) => Number(row.id)),
+      );
+    } catch (error) {
+      console.error('markSpotlightViewed failed:', error);
+    }
 
     return this.buildFeedResponse(page, safeLimit, backbone, cursor);
   }
@@ -211,9 +218,12 @@ export class PostFeedService {
    * The freshest unviewed post of each followed tag that the backbone does not
    * already cover, newest tags first. One bounded query per tag keeps this off
    * the flooded id ordering entirely — depth in the global feed is irrelevant.
+   * Bounded by the cursor so a spotlight post can never surface an id at or
+   * above the cursor that a previous page already served as backbone.
    */
   private async fetchTagSpotlight(args: {
     userId: number;
+    cursor: number | null;
     excludeTagIds: Set<number>;
     quota: number;
   }): Promise<any[]> {
@@ -233,6 +243,7 @@ export class PostFeedService {
       return [];
     }
 
+    const cursorClause = args.cursor ? 'AND p.id < ?' : '';
     const columns = this.feedRowColumns(args.userId);
     const branches = candidateTagIds.map(
       () => `
@@ -243,17 +254,19 @@ export class PostFeedService {
          WHERE p.tagId = ?
            AND p.isPublished = true
            AND p.isBlocked = false
+           AND p.isRejected = false
            AND NOT EXISTS (SELECT 1 FROM viewed_posts v WHERE v.postId = p.id AND v.userId = ?)
+           ${cursorClause}
          ORDER BY p.id DESC
          LIMIT 1)`,
     );
-    // Each branch binds, in order: isLiked's userId, its own tagId, then the
-    // NOT EXISTS userId.
-    const params = candidateTagIds.flatMap((candidateTagId) => [
-      args.userId,
-      candidateTagId,
-      args.userId,
-    ]);
+    // Each branch binds, in order: isLiked's userId, its own tagId, the
+    // NOT EXISTS userId, then the cursor when present.
+    const params = candidateTagIds.flatMap((candidateTagId) =>
+      args.cursor
+        ? [args.userId, candidateTagId, args.userId, args.cursor]
+        : [args.userId, candidateTagId, args.userId],
+    );
 
     const rows: any[] = await this.postRepository.query(
       branches.join('\n        UNION ALL\n'),
