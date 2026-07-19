@@ -141,6 +141,7 @@ export class ContestService {
       mediaAiService: contest.mediaAiSetting?.aiService ?? null,
       mediaCapability: contest.mediaAiSetting?.capability ?? null,
       examplePrompt: contest.promptExample,
+      startTime: contest.startTime,
       endTime: contest.endTime,
       tag: {
         id: contest?.tag?.id,
