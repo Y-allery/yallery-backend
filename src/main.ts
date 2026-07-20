@@ -4,7 +4,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
 import * as bodyParser from 'body-parser';
 import * as compression from 'compression';
-import { IoAdapter } from '@nestjs/platform-socket.io';
+import { HeartbeatIoAdapter } from './core/websocket/heartbeat-io.adapter';
 import './core/observability/sentry/instrument';
 import * as session from 'express-session';
 import * as passport from 'passport';
@@ -25,7 +25,7 @@ function createSwaggerDevToken(): string {
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.useWebSocketAdapter(new IoAdapter(app));
+  app.useWebSocketAdapter(new HeartbeatIoAdapter(app));
   const expressApp = app.getHttpAdapter().getInstance();
 
   redisClient = createClient({
