@@ -11,6 +11,7 @@ import { UserService } from 'src/modules/users/user.service';
 import { In, Repository } from 'typeorm';
 import { PostEntity } from 'src/modules/posts/entities/post.entity';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ProviderRuntimeConfigService } from 'src/modules/provider-settings/provider-runtime-config.service';
 
 export type MediaGenerationErrorType =
   | 'image'
@@ -32,15 +33,180 @@ export class NotificationGateway {
   /** Max undelivered posts flushed per joinRoom; the rest go out on subsequent joins. */
   private static readonly UNDELIVERED_POSTS_BATCH_SIZE = 50;
 
+  /**
+   * How long a client has to confirm. Generous on purpose: the point is to
+   * catch a frozen app, and a slow-but-alive phone should not be mistaken for
+   * one — an unconfirmed result is replayed later, so erring long is cheap.
+   */
+  private static readonly ACK_TIMEOUT_MS = 5000;
+
+  /**
+   * Clients advertise ack support with `ack=1` in the handshake query.
+   * Requesting an ack changes the wire format — socket.io delivers
+   * [payload, ackFn] instead of payload — and versions that do not expect it
+   * drop the event entirely. So the ask is per connection, never global: an
+   * un-updated app keeps receiving exactly what it receives today, and there
+   * is no flag-flip moment that could blind everyone who has not upgraded.
+   */
+  private static readonly ACK_QUERY_FLAG = 'ack';
+
   constructor(
     @Inject(forwardRef(() => UserService))
     private readonly userService: UserService,
     @InjectRepository(PostEntity)
     private readonly postRepository: Repository<PostEntity>,
+    private readonly providerRuntimeConfigService: ProviderRuntimeConfigService,
   ) {}
 
   @WebSocketServer()
   server: Server;
+
+  /**
+   * Sends one event to a user's sockets and reports whether the result can be
+   * considered delivered.
+   *
+   * `confirmed` is true when an ack-capable client acknowledged, or when a
+   * legacy client was online — the latter cannot confirm, so treating its
+   * presence as delivery keeps behaviour for un-updated apps exactly as it is
+   * today rather than flooding them with replays.
+   */
+  private async deliverToUser(
+    userId: string,
+    event: string,
+    payload: unknown,
+  ): Promise<{ online: boolean; confirmed: boolean }> {
+    const room = this.getUserRoomId(userId);
+
+    let sockets: Awaited<ReturnType<Server['fetchSockets']>>;
+    try {
+      sockets = await this.server.in(room).fetchSockets();
+    } catch (error) {
+      // Never let a transport hiccup masquerade as "delivered".
+      console.error(`[NotificationGateway] fetchSockets failed for ${room}:`, error);
+      return { online: false, confirmed: false };
+    }
+
+    if (!sockets.length) {
+      return { online: false, confirmed: false };
+    }
+
+    const ackEnabled = await this.providerRuntimeConfigService
+      .getBoolean('WS_ACK_DELIVERY_ENABLED', true)
+      .catch(() => true);
+
+    const ackCapable = ackEnabled
+      ? sockets.filter(
+          (socket) =>
+            socket.handshake.query[NotificationGateway.ACK_QUERY_FLAG] === '1',
+        )
+      : [];
+    const legacy = sockets.filter((socket) => !ackCapable.includes(socket));
+
+    for (const socket of legacy) {
+      socket.emit(event, payload);
+    }
+
+    let acknowledged = false;
+    if (ackCapable.length) {
+      const results = await Promise.allSettled(
+        ackCapable.map((socket) =>
+          socket
+            .timeout(NotificationGateway.ACK_TIMEOUT_MS)
+            .emitWithAck(event, payload),
+        ),
+      );
+      // One confirmation is enough: the user has seen it on some device, and
+      // any other device still finds it in the gallery.
+      acknowledged = results.some((result) => result.status === 'fulfilled');
+    }
+
+    return { online: true, confirmed: acknowledged || legacy.length > 0 };
+  }
+
+  /** Clears the undelivered flag once delivery is actually confirmed. */
+  private async markDelivered(postIds: number[]): Promise<void> {
+    if (!postIds.length) {
+      return;
+    }
+    await this.postRepository.update(
+      { id: In(postIds) },
+      { isDelivered: true },
+    );
+  }
+
+  /**
+   * Replays one backlog batch to the joining socket and returns the post ids
+   * that may now be considered delivered.
+   *
+   * The backlog was previously cleared in bulk right after a fire-and-forget
+   * emit, so anything the client failed to take was lost for good — the exact
+   * failure the flag exists to prevent. A batch that is not acknowledged stays
+   * flagged and comes back on the next join.
+   */
+  private async replayToClient(
+    client: Socket,
+    event: string,
+    payload: unknown,
+    postIds: number[],
+  ): Promise<number[]> {
+    const supportsAck =
+      client.handshake.query[NotificationGateway.ACK_QUERY_FLAG] === '1' &&
+      (await this.providerRuntimeConfigService
+        .getBoolean('WS_ACK_DELIVERY_ENABLED', true)
+        .catch(() => true));
+
+    if (!supportsAck) {
+      // Legacy client: it cannot confirm, and asking would change the wire
+      // format it expects. Emit plainly and keep today's behaviour.
+      client.emit(event, payload);
+      return postIds;
+    }
+
+    try {
+      await client
+        .timeout(NotificationGateway.ACK_TIMEOUT_MS)
+        .emitWithAck(event, payload);
+      return postIds;
+    } catch {
+      // Timed out: leave the batch flagged so the next join retries it.
+      return [];
+    }
+  }
+
+  /**
+   * Delivers a generation result, flagging the posts undelivered FIRST and
+   * clearing that flag only once delivery is confirmed.
+   *
+   * The old order — decide by room size, then emit, and touch the database
+   * only when the user looked offline — lost results whenever the socket was
+   * stale: a backgrounded iOS app stays in the room for the length of the
+   * heartbeat, so the emit went nowhere while the post stayed marked
+   * delivered and the joinRoom replay could never pick it up. Writing the
+   * flag up front makes the replay the safety net it was meant to be; the
+   * cost is that an unconfirmed delivery may be replayed once, which is why
+   * clients must deduplicate by post id.
+   */
+  private async deliverPosts(
+    userId: string,
+    event: string,
+    payload: unknown,
+    postIds: number[],
+    taskId?: string,
+  ): Promise<void> {
+    if (!postIds.length) {
+      console.error(
+        `[NotificationGateway] No valid post IDs for user ${userId}, event ${event}`,
+      );
+      return;
+    }
+
+    await this.markUndelivered(postIds, taskId);
+
+    const { confirmed } = await this.deliverToUser(userId, event, payload);
+    if (confirmed) {
+      await this.markDelivered(postIds);
+    }
+  }
 
   /**
    * Offline path: flags the posts for the joinRoom backlog and persists the
@@ -104,74 +270,33 @@ export class NotificationGateway {
     isEdit?: boolean,
     taskId?: string,
   ) {
-    if (this.isUserConnected(to_user_id)) {
-      if (Array.isArray(images)) {
-        const payload: Record<string, unknown> = {
-          images: { data: images },
-        };
-        if (activity_type) {
-          payload.activity_type = activity_type;
-        }
-        if (typeof isEdit === 'boolean') {
-          payload.isEdit = isEdit;
-        }
-        if (taskId) {
-          payload.taskId = taskId;
-        }
-        this.server.to(to_user_id).emit('imageGenerated', payload);
-      } else if (images?.data && Array.isArray(images.data)) {
-        if (images.data.length === 0) {
-          console.error(
-            `[NotificationGateway] Empty images.data for user ${to_user_id}`,
-          );
-          return;
-        }
-        const payload: Record<string, unknown> = {
-          images: {
-            data: images.data,
-          },
-        };
-        if (activity_type) {
-          payload.activity_type = activity_type;
-        }
-        if (typeof isEdit === 'boolean') {
-          payload.isEdit = isEdit;
-        }
-        if (taskId) {
-          payload.taskId = taskId;
-        }
-        this.server.to(to_user_id).emit('imageGenerated', payload);
-      } else {
-        console.error(
-          `[NotificationGateway] Invalid images structure for user ${to_user_id}:`,
-          images,
-        );
-        return;
-      }
-    } else {
-      if (
-        !images?.data ||
-        !Array.isArray(images.data) ||
-        images.data.length === 0
-      ) {
-        console.error(
-          `[NotificationGateway] Invalid images.data structure for offline user ${to_user_id}:`,
-          images,
-        );
-        return;
-      }
-      const postIds = images.data
-        .map((img) => img.id)
-        .filter((id) => id != null);
-      if (postIds.length === 0) {
-        console.error(
-          `[NotificationGateway] No valid post IDs found for offline user ${to_user_id}`,
-        );
-        return;
-      }
-      await this.markUndelivered(postIds, taskId);
-      // User ${to_user_id} is not connected. Handling offline logic.
+    const data = Array.isArray(images) ? images : images?.data;
+    if (!Array.isArray(data) || data.length === 0) {
+      console.error(
+        `[NotificationGateway] Invalid images payload for user ${to_user_id}:`,
+        images,
+      );
+      return;
     }
+
+    const payload: Record<string, unknown> = { images: { data } };
+    if (activity_type) {
+      payload.activity_type = activity_type;
+    }
+    if (typeof isEdit === 'boolean') {
+      payload.isEdit = isEdit;
+    }
+    if (taskId) {
+      payload.taskId = taskId;
+    }
+
+    await this.deliverPosts(
+      to_user_id,
+      'imageGenerated',
+      payload,
+      data.map((image: any) => image?.id).filter((id: any) => id != null),
+      taskId,
+    );
   }
 
   async sendImageEditNotification(
@@ -179,53 +304,28 @@ export class NotificationGateway {
     images: any,
     taskId?: string,
   ) {
-    if (this.isUserConnected(to_user_id)) {
-      if (
-        !images?.data ||
-        !Array.isArray(images.data) ||
-        images.data.length === 0
-      ) {
-        console.error(
-          `[NotificationGateway] Invalid image edit payload for user ${to_user_id}:`,
-          images,
-        );
-        return;
-      }
-
-      const payload: Record<string, unknown> = {
-        images: {
-          data: images.data,
-        },
-      };
-      if (taskId) {
-        payload.taskId = taskId;
-      }
-      this.server.to(to_user_id).emit('imageEdited', payload);
-      return;
-    }
-
-    if (
-      !images?.data ||
-      !Array.isArray(images.data) ||
-      images.data.length === 0
-    ) {
+    if (!Array.isArray(images?.data) || images.data.length === 0) {
       console.error(
-        `[NotificationGateway] Invalid image edit payload for offline user ${to_user_id}:`,
+        `[NotificationGateway] Invalid image edit payload for user ${to_user_id}:`,
         images,
       );
       return;
     }
 
-    const postIds = images.data.map((img) => img.id).filter((id) => id != null);
-    if (postIds.length === 0) {
-      console.error(
-        `[NotificationGateway] No valid image edit post IDs found for offline user ${to_user_id}`,
-      );
-      return;
+    const payload: Record<string, unknown> = { images: { data: images.data } };
+    if (taskId) {
+      payload.taskId = taskId;
     }
 
-    await this.markUndelivered(postIds, taskId);
+    await this.deliverPosts(
+      to_user_id,
+      'imageEdited',
+      payload,
+      images.data.map((img: any) => img?.id).filter((id: any) => id != null),
+      taskId,
+    );
   }
+
   async sendVideoNotification(
     to_user_id: string,
     video: {
@@ -240,37 +340,37 @@ export class NotificationGateway {
     activity_type?: string,
     taskId?: string,
   ) {
-    const generationParams =
-      video.generationParams ?? video.generation_params ?? null;
-    const publishTo = video.publishTo ?? {
-      postToTwitter: false,
-      postToInstagram: false,
-    };
-
-    if (this.isUserConnected(to_user_id)) {
-      const payload: Record<string, unknown> = {
-        video: {
-          data: [
-            {
-              id: video.id,
-              videoUrl: video.videoUrl || video.uploadedVideoUrl,
-              previewImageUrl: video.previewImageUrl || null,
-              generationParams,
-              publishTo,
+    const payload: Record<string, unknown> = {
+      video: {
+        data: [
+          {
+            id: video.id,
+            videoUrl: video.videoUrl || video.uploadedVideoUrl,
+            previewImageUrl: video.previewImageUrl || null,
+            generationParams:
+              video.generationParams ?? video.generation_params ?? null,
+            publishTo: video.publishTo ?? {
+              postToTwitter: false,
+              postToInstagram: false,
             },
-          ],
-        },
-      };
-      if (activity_type) {
-        payload.activity_type = activity_type;
-      }
-      if (taskId) {
-        payload.taskId = taskId;
-      }
-      this.server.to(to_user_id).emit('videoGenerated', payload);
-    } else {
-      await this.markUndelivered([video.id], taskId);
+          },
+        ],
+      },
+    };
+    if (activity_type) {
+      payload.activity_type = activity_type;
     }
+    if (taskId) {
+      payload.taskId = taskId;
+    }
+
+    await this.deliverPosts(
+      to_user_id,
+      'videoGenerated',
+      payload,
+      [video.id],
+      taskId,
+    );
   }
 
   async sendAudioNotification(
@@ -287,37 +387,37 @@ export class NotificationGateway {
     activity_type?: string,
     taskId?: string,
   ) {
-    const generationParams =
-      video.generationParams ?? video.generation_params ?? null;
-    const publishTo = video.publishTo ?? {
-      postToTwitter: false,
-      postToInstagram: false,
-    };
-
-    if (this.isUserConnected(to_user_id)) {
-      const payload: Record<string, unknown> = {
-        audio: {
-          data: [
-            {
-              id: video.id,
-              videoUrl: video.videoUrl || video.uploadedVideoUrl,
-              previewImageUrl: video.previewImageUrl || null,
-              generationParams,
-              publishTo,
+    const payload: Record<string, unknown> = {
+      audio: {
+        data: [
+          {
+            id: video.id,
+            videoUrl: video.videoUrl || video.uploadedVideoUrl,
+            previewImageUrl: video.previewImageUrl || null,
+            generationParams:
+              video.generationParams ?? video.generation_params ?? null,
+            publishTo: video.publishTo ?? {
+              postToTwitter: false,
+              postToInstagram: false,
             },
-          ],
-        },
-      };
-      if (activity_type) {
-        payload.activity_type = activity_type;
-      }
-      if (taskId) {
-        payload.taskId = taskId;
-      }
-      this.server.to(to_user_id).emit('audioGenerated', payload);
-    } else {
-      await this.markUndelivered([video.id], taskId);
+          },
+        ],
+      },
+    };
+    if (activity_type) {
+      payload.activity_type = activity_type;
     }
+    if (taskId) {
+      payload.taskId = taskId;
+    }
+
+    await this.deliverPosts(
+      to_user_id,
+      'audioGenerated',
+      payload,
+      [video.id],
+      taskId,
+    );
   }
 
   async sendMediaGenerationError(
@@ -353,18 +453,18 @@ export class NotificationGateway {
     },
     taskId?: string,
   ) {
-    if (this.isUserConnected(toUserId)) {
-      const event: Record<string, unknown> = {
-        memes: { data: [payload] },
-      };
-      if (taskId) {
-        event.taskId = taskId;
-      }
-      this.server.to(toUserId).emit('memeGenerated', event);
-      return;
+    const event: Record<string, unknown> = { memes: { data: [payload] } };
+    if (taskId) {
+      event.taskId = taskId;
     }
 
-    await this.markUndelivered([payload.id], taskId);
+    await this.deliverPosts(
+      toUserId,
+      'memeGenerated',
+      event,
+      [payload.id],
+      taskId,
+    );
   }
 
   @SubscribeMessage('joinRoom')
@@ -414,6 +514,8 @@ export class NotificationGateway {
     };
 
     if (undeliveredPosts.length > 0) {
+      // Post ids the client actually acknowledged receiving.
+      const confirmedIds: number[] = [];
       const imageEdits = undeliveredPosts
         .filter(
           (post) =>
@@ -493,6 +595,7 @@ export class NotificationGateway {
         // payload (top-level taskId); the legacy no-taskId group keeps the
         // exact pre-existing shape.
         for (const [taskId, taskImages] of this.groupByTaskId(images)) {
+          const taskGroupIds = taskImages.map((item: any) => item.id);
           const payload: Record<string, unknown> = {
             images: {
               data: taskImages.map(
@@ -518,12 +621,15 @@ export class NotificationGateway {
           if (taskId) {
             payload.taskId = taskId;
           }
-          client.emit('undeliveredImages', payload);
+          confirmedIds.push(
+            ...(await this.replayToClient(client, 'undeliveredImages', payload, taskGroupIds)),
+          );
         }
       }
 
       if (imageEdits.length > 0 && client.connected) {
         for (const [taskId, taskEdits] of this.groupByTaskId(imageEdits)) {
+          const taskGroupIds = taskEdits.map((item: any) => item.id);
           const payload: Record<string, unknown> = {
             images: {
               data: taskEdits.map(
@@ -548,12 +654,15 @@ export class NotificationGateway {
           if (taskId) {
             payload.taskId = taskId;
           }
-          client.emit('undeliveredImageEdits', payload);
+          confirmedIds.push(
+            ...(await this.replayToClient(client, 'undeliveredImageEdits', payload, taskGroupIds)),
+          );
         }
       }
 
       if (videos.length > 0 && client.connected) {
         for (const [taskId, taskVideos] of this.groupByTaskId(videos)) {
+          const taskGroupIds = taskVideos.map((item: any) => item.id);
           const payload: Record<string, unknown> = {
             video: {
               data: taskVideos.map(
@@ -576,12 +685,15 @@ export class NotificationGateway {
           if (taskId) {
             payload.taskId = taskId;
           }
-          client.emit('undeliveredVideo', payload);
+          confirmedIds.push(
+            ...(await this.replayToClient(client, 'undeliveredVideo', payload, taskGroupIds)),
+          );
         }
       }
 
       if (audioVideos.length > 0 && client.connected) {
         for (const [taskId, taskAudio] of this.groupByTaskId(audioVideos)) {
+          const taskGroupIds = taskAudio.map((item: any) => item.id);
           const payload: Record<string, unknown> = {
             audio: {
               data: taskAudio.map(
@@ -604,12 +716,15 @@ export class NotificationGateway {
           if (taskId) {
             payload.taskId = taskId;
           }
-          client.emit('undeliveredAudio', payload);
+          confirmedIds.push(
+            ...(await this.replayToClient(client, 'undeliveredAudio', payload, taskGroupIds)),
+          );
         }
       }
 
       if (memes.length > 0 && client.connected) {
         for (const [taskId, taskMemes] of this.groupByTaskId(memes)) {
+          const taskGroupIds = taskMemes.map((item: any) => item.id);
           const payload: Record<string, unknown> = {
             memes: {
               data: taskMemes.map(
@@ -632,15 +747,17 @@ export class NotificationGateway {
           if (taskId) {
             payload.taskId = taskId;
           }
-          client.emit('undeliveredMeme', payload);
+          confirmedIds.push(
+            ...(await this.replayToClient(client, 'undeliveredMeme', payload, taskGroupIds)),
+          );
         }
       }
 
-      const allUndeliveredIds = undeliveredPosts.map((post) => post.id);
-      await this.postRepository.update(
-        { id: In(allUndeliveredIds) },
-        { isDelivered: true },
-      );
+      // Only what the client confirmed. An unconfirmed batch stays flagged
+      // and is replayed on the next join, which is the whole point of the
+      // flag; a legacy client cannot confirm, so replayToClient reports its
+      // batch as delivered to preserve today's behaviour for un-updated apps.
+      await this.markDelivered(confirmedIds);
     }
 
     const isVerified = Boolean(user.emailVerified);

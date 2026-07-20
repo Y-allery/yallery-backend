@@ -23,7 +23,8 @@ export type ProviderSettingValidationKind =
 
 export interface ProviderSettingDefinition {
   key: string;
-  provider: 'openai' | 'runpod';
+  /** 'app' covers settings that are not tied to an external provider. */
+  provider: 'openai' | 'runpod' | 'app';
   group: ProviderSettingGroup;
   label: string;
   description?: string;
@@ -211,6 +212,18 @@ export const PROVIDER_SETTING_DEFINITIONS: ProviderSettingDefinition[] = [
     type: 'string',
     isSecret: false,
     validationKind: 'runpod_public_endpoint',
+  },
+  {
+    key: 'WS_ACK_DELIVERY_ENABLED',
+    provider: 'app',
+    group: 'media_defaults',
+    label: 'Websocket acknowledged delivery',
+    description:
+      'Kill-switch for acknowledged websocket delivery. When on, sockets that advertised ack support (handshake query ack=1) are asked to confirm each generation result, and the post is only marked delivered once one confirms; clients that did not advertise support always get a plain emit and are unaffected. Turn off to fall back to fire-and-forget for everyone.',
+    type: 'boolean',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: 'true',
   },
   {
     key: 'MEME_AI_SERVICE_OVERRIDE',
