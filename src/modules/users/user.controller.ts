@@ -180,11 +180,12 @@ export class UserController {
     @Req() req: AuthenticatedRequest,
     @Body() unregisterDeviceTokenDto: UnregisterDeviceTokenDto,
   ) {
-    const { deviceType } = unregisterDeviceTokenDto;
+    const { deviceType, token } = unregisterDeviceTokenDto;
     const userId = req.user.id;
     const result = await this.userService.removeDeviceTokensByType(
       userId,
       deviceType,
+      token,
     );
     return result;
   }

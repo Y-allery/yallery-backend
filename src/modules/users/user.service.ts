@@ -404,51 +404,56 @@ export class UserService {
       throw new NotFoundException('User not found');
     }
 
-    const existingToken = await this.deviceTokenModel.findOne({
-      where: { user: { id: user.id }, deviceType: deviceType },
-    });
-
-    if (existingToken) {
-      existingToken.token = token;
-      await this.deviceTokenModel.save(existingToken);
-    } else {
-      const newToken = this.deviceTokenModel.create({
-        token,
-        deviceType,
-        user,
-      });
-      await this.deviceTokenModel.save(newToken);
-    }
+    // Upsert keyed on the TOKEN, not on (user, deviceType). A token identifies
+    // one app install, so re-registering it must move it to the current user —
+    // otherwise a shared or re-logged-in device keeps receiving the previous
+    // account's pushes (one prod token was bound to 19 accounts this way).
+    // Doing it in a single statement also removes the read-then-write race,
+    // which matters now that the client registers on every session start.
+    await this.deviceTokenModel.query(
+      `INSERT INTO user_device_tokens (token, deviceType, userId, createdAt, updatedAt)
+       VALUES (?, ?, ?, NOW(), NOW())
+       ON DUPLICATE KEY UPDATE
+         userId = VALUES(userId),
+         deviceType = VALUES(deviceType),
+         updatedAt = NOW()`,
+      [token, deviceType, user.id],
+    );
 
     return { message: 'Device token registered successfully' };
   }
 
+  /**
+   * Removes the given token when one is supplied, which is the only way to log
+   * out of one device without silencing the user's other devices of the same
+   * type. Falls back to clearing the whole device type for clients that do not
+   * send a token yet.
+   */
   async removeDeviceTokensByType(
     userId: number,
     deviceType: string,
+    token?: string,
   ): Promise<{ message: string }> {
-    const user = await this.userModel.findOne({
-      where: { id: userId },
-      relations: ['deviceTokens'],
-    });
-    if (!user) {
+    const userExists = await this.userModel.exist({ where: { id: userId } });
+    if (!userExists) {
       throw new NotFoundException('User not found');
     }
 
-    const tokensToRemove = user.deviceTokens.filter(
-      (token) => token.deviceType === deviceType,
-    );
-    if (tokensToRemove.length === 0) {
+    const result = token
+      ? await this.deviceTokenModel.delete({ user: { id: userId }, token })
+      : await this.deviceTokenModel.delete({
+          user: { id: userId },
+          deviceType: deviceType as DeviceType,
+        });
+
+    if (!result.affected) {
       throw new NotFoundException('No tokens found for this device type');
     }
 
-    for (const token of tokensToRemove) {
-      await this.deviceTokenModel.remove(token);
-    }
-
     return {
-      message:
-        'All device tokens for the specified type were unregistered successfully',
+      message: token
+        ? 'Device token was unregistered successfully'
+        : 'All device tokens for the specified type were unregistered successfully',
     };
   }
 
