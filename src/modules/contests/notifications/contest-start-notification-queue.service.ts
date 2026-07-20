@@ -115,6 +115,7 @@ export class ContestStartNotificationQueueService {
     let totalSkipped = 0;
     let totalSuccess = 0;
     let totalNoTokens = 0;
+    let totalRejected = 0;
     let totalErrors = 0;
 
     while (true) {
@@ -163,23 +164,29 @@ export class ContestStartNotificationQueueService {
                 data.contestName,
                 user.language,
               );
-              const hadTokens = await this.sendPushNotifications(
+              const { hadTokens, delivered } = await this.sendPushNotifications(
                 user,
                 push.title,
                 push.body,
               );
-              return { user, ok: true, hadTokens };
+              return { user, ok: true, hadTokens, delivered };
             } catch (error) {
               this.logger.error(
                 `Failed to process contest start notification for user ${user.id}`,
                 error?.stack ?? error?.message ?? String(error),
               );
-              return { user, ok: false, hadTokens: false };
+              return { user, ok: false, hadTokens: false, delivered: false };
             }
           }),
         );
 
-        const completed = results.filter((result) => result.ok);
+        // Mark a user notified only once that is actually true: either the
+        // push was delivered, or they had no device at all and never could
+        // receive one. A user whose sends FCM rejected stays unmarked, so a
+        // retry can still reach them once a working token exists.
+        const completed = results.filter(
+          (result) => result.ok && (result.delivered || !result.hadTokens),
+        );
         if (completed.length) {
           try {
             await this.userActivityService.logContestOpened({
@@ -211,11 +218,16 @@ export class ContestStartNotificationQueueService {
         }
 
         totalProcessed += batch.length;
-        totalSuccess += completed.filter((result) => result.hadTokens).length;
-        totalNoTokens += completed.filter(
-          (result) => !result.hadTokens,
+        // "pushed" counts deliveries FCM accepted, not attempts: counting
+        // attempts is what hid a 15% reach behind a "3355 success" log line.
+        totalSuccess += results.filter((result) => result.delivered).length;
+        totalNoTokens += results.filter(
+          (result) => result.ok && !result.hadTokens,
         ).length;
-        totalErrors += results.length - completed.length;
+        totalRejected += results.filter(
+          (result) => result.ok && result.hadTokens && !result.delivered,
+        ).length;
+        totalErrors += results.filter((result) => !result.ok).length;
 
         if (i + this.notificationBatchSize < eligibleUsers.length) {
           await this.sleep(50);
@@ -230,6 +242,7 @@ export class ContestStartNotificationQueueService {
     this.logger.log(
       `Contest ${data.contestId} start notifications finished: ` +
         `${totalSuccess} pushed, ${totalNoTokens} without device tokens, ` +
+        `${totalRejected} rejected by FCM (left unmarked for retry), ` +
         `${totalErrors} errors, ${totalSkipped} already notified, ${totalProcessed} processed`,
     );
   }
@@ -260,17 +273,22 @@ export class ContestStartNotificationQueueService {
     return users.filter((user) => !alreadyNotifiedUserIds.has(user.id));
   }
 
-  /** Returns whether the user had any device tokens to push to. */
+  /**
+   * `hadTokens` says whether there was anywhere to send; `delivered` says
+   * whether FCM actually accepted at least one. The two must stay separate:
+   * the caller marks a user as notified, and marking someone whose sends were
+   * all rejected would strand them on a retry with no way back.
+   */
   private async sendPushNotifications(
     user: UserEntity,
     title: string,
     body: string,
-  ): Promise<boolean> {
+  ): Promise<{ hadTokens: boolean; delivered: boolean }> {
     if (!user.deviceTokens?.length) {
-      return false;
+      return { hadTokens: false, delivered: false };
     }
 
-    await Promise.all(
+    const results = await Promise.all(
       user.deviceTokens.map(async (deviceToken) => {
         const result = await this.firebaseService.sendNotification(
           deviceToken.token,
@@ -281,9 +299,11 @@ export class ContestStartNotificationQueueService {
         if (!result.success && result.isInvalidToken) {
           await this.deviceTokenRepository.remove(deviceToken);
         }
+        return result.success;
       }),
     );
-    return true;
+
+    return { hadTokens: true, delivered: results.some(Boolean) };
   }
 
   private getContestStartJobId(contestId: number) {
