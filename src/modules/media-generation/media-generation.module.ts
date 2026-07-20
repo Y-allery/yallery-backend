@@ -17,6 +17,8 @@ import { RunpodOutputExtractor } from 'src/modules/media-generation/infrastructu
 import { RunpodPayloadBuilder } from 'src/modules/media-generation/infrastructure/providers/runpod/runpod-payload.builder';
 import { RunpodTimeoutPolicyService } from 'src/modules/media-generation/infrastructure/providers/runpod/runpod-timeout-policy.service';
 import { MediaGenerationController } from 'src/modules/media-generation/api/media-generation.controller';
+import { UserProcessGenerationController } from 'src/modules/media-generation/api/user-process-generation.controller';
+import { MediaGenerationTasksService } from 'src/modules/media-generation/application/tasks/media-generation-tasks.service';
 import {
   MEDIA_AUDIO_GENERATION_QUEUE,
   MEDIA_IMAGE_EDIT_GENERATION_QUEUE,
@@ -107,13 +109,14 @@ const mediaGenerationQueueOptions = {
     UserActivityModule,
     PartnershipActivityModule,
   ],
-  controllers: [MediaGenerationController],
+  controllers: [MediaGenerationController, UserProcessGenerationController],
   providers: [
     GeneratedPostFactory,
     ContestMediaGenerationResolverService,
     MediaAISettingsService,
     MediaGenerationBalanceService,
     MediaGenerationEnqueueService,
+    MediaGenerationTasksService,
     MediaGenerationExecutionService,
     MediaGenerationFinalizeService,
     MediaGenerationGuardsService,
