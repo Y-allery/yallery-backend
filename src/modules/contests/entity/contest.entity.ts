@@ -32,7 +32,7 @@ export class ContestEntity {
   @Column()
   imageUrl: string;
 
-  @Column()
+  @Column({ type: 'text' })
   description: string;
 
   @Column({ nullable: true })

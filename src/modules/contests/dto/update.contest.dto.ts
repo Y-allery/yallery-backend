@@ -37,7 +37,7 @@ export class UpdateContestDto {
 
   @IsString()
   @MinLength(5)
-  @MaxLength(500)
+  @MaxLength(5000)
   @IsOptional()
   @ApiPropertyOptional({
     default: 'Update description here',
