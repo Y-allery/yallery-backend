@@ -45,6 +45,7 @@ describe('UserService.updateTwitterUsername (registration-bonus farming)', () =>
       {} as any, // reportPostRepository
       {} as any, // paymentRepository
       {} as any, // dataSource
+      {} as any, // providerRuntimeConfigService
     );
 
     return { service, userModel, rewardService, notificationGateway };

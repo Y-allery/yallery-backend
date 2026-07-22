@@ -37,6 +37,7 @@ describe('UserService.handleDailyReward (lost-update)', () => {
       {} as any, // 15
       {} as any, // 16
       {} as any, // 17
+      { getNumber: jest.fn(async () => null) } as any, // 18 providerRuntimeConfigService
     );
     jest
       .spyOn(service, 'sendPushNotificationIfEnabled')

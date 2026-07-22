@@ -138,6 +138,10 @@ const mediaGenerationQueueOptions = {
     RunpodPayloadBuilder,
     RunpodTimeoutPolicyService,
   ],
-  exports: [MediaProviderRegistryService, MediaRouteResolverService],
+  exports: [
+    MediaProviderRegistryService,
+    MediaRouteResolverService,
+    MediaGenerationEnqueueService,
+  ],
 })
 export class MediaGenerationModule {}
