@@ -71,6 +71,15 @@ interface TelegramUpdate {
  * only AFTER a confirmed successful delivery — a delivery failure (bad chat
  * id, Telegram outage) must not itself consume the cooldown, or the outage
  * it was reporting goes silent for the next 10 minutes too.
+ *
+ * Self-service authorization: an unauthorized /start is recorded as a
+ * "pending request" (in-memory, chat id + Telegram username) and pings the
+ * ops chat with a ready-to-paste `/authorize` command — so a new person can
+ * be granted access from inside the chat itself, without ever asking an
+ * engineer to touch the DB. `/pending` lists open requests, `/authorize <id
+ * or @username>` grants, `/revoke <id>` removes (refuses to drop the last
+ * remaining chat or the caller's own access, so nobody can lock themselves
+ * out via the bot).
  */
 @Injectable()
 export class OpsBotService {
@@ -78,9 +87,15 @@ export class OpsBotService {
   private static readonly ALERT_COOLDOWN_MS = 10 * 60 * 1000;
   /** Defensive cap so an unbounded key space (shouldn't happen) can't leak memory. */
   private static readonly MAX_TRACKED_KEYS = 500;
+  private static readonly MAX_PENDING_REQUESTS = 200;
+  private static readonly PENDING_REQUEST_TTL_MS = 24 * 60 * 60 * 1000;
 
   private readonly lastSentAt = new Map<string, number>();
   private readonly suppressedCount = new Map<string, number>();
+  private readonly pendingAccessRequests = new Map<
+    string,
+    { username?: string; firstName?: string; requestedAt: number }
+  >();
 
   constructor(
     @InjectRepository(PostEntity)
@@ -126,6 +141,10 @@ export class OpsBotService {
           `from=@${from?.username ?? '?'} (${from?.first_name ?? 'unknown'}, id=${from?.id ?? '?'}) — ` +
           `add ${incomingChatId} to TELEGRAM_OPS_AUTHORIZED_CHAT_IDS to allow`,
       );
+      if (incomingChatId) {
+        this.recordPendingAccessRequest(incomingChatId, from);
+        await this.notifyAccessRequest(incomingChatId, from);
+      }
       // Don't leak any signal (menu, stats) to an unauthorized chat, but a
       // pressed button must still stop its loading spinner.
       if (update.callback_query) {
@@ -161,10 +180,203 @@ export class OpsBotService {
     return authorized.has(chatId);
   }
 
+  private recordPendingAccessRequest(chatId: string, from?: TelegramFrom): void {
+    this.sweepPendingIfOversized();
+    this.pendingAccessRequests.set(chatId, {
+      username: from?.username,
+      firstName: from?.first_name,
+      requestedAt: Date.now(),
+    });
+  }
+
+  /** Cheap insurance against key-space growth if this ever gets spammed. */
+  private sweepPendingIfOversized(): void {
+    if (this.pendingAccessRequests.size < OpsBotService.MAX_PENDING_REQUESTS) {
+      return;
+    }
+    const entries = [...this.pendingAccessRequests.entries()].sort(
+      (a, b) => a[1].requestedAt - b[1].requestedAt,
+    );
+    const toDrop = entries.slice(
+      0,
+      entries.length - OpsBotService.MAX_PENDING_REQUESTS + 1,
+    );
+    for (const [id] of toDrop) this.pendingAccessRequests.delete(id);
+  }
+
+  private expireStalePendingRequests(): void {
+    const cutoff = Date.now() - OpsBotService.PENDING_REQUEST_TTL_MS;
+    for (const [id, req] of this.pendingAccessRequests) {
+      if (req.requestedAt < cutoff) this.pendingAccessRequests.delete(id);
+    }
+  }
+
+  /**
+   * Pings the ops chat with a ready-to-paste `/authorize` command. Reuses the
+   * same debounce machinery as the alert methods (keyed per requesting chat)
+   * so someone mashing /start doesn't flood the ops chat with duplicates.
+   */
+  private async notifyAccessRequest(
+    chatId: string,
+    from?: TelegramFrom,
+  ): Promise<void> {
+    const who = from?.username
+      ? `@${from.username}`
+      : (from?.first_name ?? 'unknown');
+    await this.attemptDebouncedSend(`access-request:${chatId}`, (suppressed) =>
+      [
+        '🔐 <b>Запит на доступ до ops-бота</b>',
+        `Від: ${who}`,
+        `chat_id: <code>${chatId}</code>`,
+        '',
+        `Дозволити: <code>/authorize ${from?.username ? '@' + from.username : chatId}</code>`,
+        suppressed > 0
+          ? `(+${suppressed} повторних спроб за останні 10 хв)`
+          : null,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    );
+  }
+
+  private resolveTargetChatId(arg: string): string | null {
+    if (/^-?\d+$/.test(arg)) return arg;
+    if (arg.startsWith('@')) {
+      const username = arg.slice(1).toLowerCase();
+      for (const [id, req] of this.pendingAccessRequests) {
+        if (req.username?.toLowerCase() === username) return id;
+      }
+    }
+    return null;
+  }
+
   private async handleCommand(chatId: string, text: string): Promise<void> {
     if (text === '/start' || text === '/menu') {
       await this.sendMenu(chatId);
+      return;
     }
+    if (text === '/pending') {
+      await this.sendPendingRequests(chatId);
+      return;
+    }
+    if (text === '/authorize' || text.startsWith('/authorize ')) {
+      await this.handleAuthorizeCommand(chatId, text);
+      return;
+    }
+    if (text === '/revoke' || text.startsWith('/revoke ')) {
+      await this.handleRevokeCommand(chatId, text);
+      return;
+    }
+  }
+
+  private async sendPendingRequests(chatId: string): Promise<void> {
+    this.expireStalePendingRequests();
+    if (this.pendingAccessRequests.size === 0) {
+      await this.telegram.sendMessage(
+        chatId,
+        'Немає нещодавніх запитів на доступ.',
+      );
+      return;
+    }
+
+    const lines = ['<b>Очікують авторизації:</b>', ''];
+    for (const [id, req] of this.pendingAccessRequests) {
+      const who = req.username
+        ? `@${req.username}`
+        : (req.firstName ?? 'unknown');
+      const minsAgo = Math.round((Date.now() - req.requestedAt) / 60000);
+      lines.push(`• ${who} — id <code>${id}</code> — ${minsAgo} хв тому`);
+    }
+    lines.push('', 'Дозволити: /authorize <id або @username>');
+    await this.telegram.sendMessage(chatId, lines.join('\n'));
+  }
+
+  private async handleAuthorizeCommand(
+    chatId: string,
+    text: string,
+  ): Promise<void> {
+    const arg = text.split(/\s+/)[1];
+    if (!arg) {
+      await this.telegram.sendMessage(
+        chatId,
+        'Формат: /authorize <chat_id> або /authorize @username\n' +
+          '(@username працює лише якщо ця людина вже писала /start — перевір /pending)',
+      );
+      return;
+    }
+
+    const resolved = this.resolveTargetChatId(arg);
+    if (!resolved) {
+      await this.telegram.sendMessage(
+        chatId,
+        `Не знайшов недавній запит від ${arg}. Хай спочатку напише /start боту, тоді перевір /pending.`,
+      );
+      return;
+    }
+
+    const current = await this.authorizedChatIds();
+    if (current.has(resolved)) {
+      await this.telegram.sendMessage(chatId, `${resolved} вже авторизований.`);
+      return;
+    }
+
+    current.add(resolved);
+    await this.providerRuntimeConfigService.updateSetting(
+      'TELEGRAM_OPS_AUTHORIZED_CHAT_IDS',
+      { value: [...current].join(',') },
+    );
+    this.pendingAccessRequests.delete(resolved);
+
+    await this.telegram.sendMessage(
+      chatId,
+      `✅ Авторизовано ${resolved}.\nАвторизовані чати: ${[...current].join(', ')}`,
+    );
+    // Best-effort welcome ping — the new chat may not exist or may have
+    // blocked the bot; that must never fail the authorize command itself.
+    await this.telegram.sendMessage(
+      resolved,
+      '✅ Тобі надали доступ до Yallery Ops. Напиши /start.',
+    );
+  }
+
+  private async handleRevokeCommand(chatId: string, text: string): Promise<void> {
+    const arg = text.split(/\s+/)[1];
+    if (!arg || !/^-?\d+$/.test(arg)) {
+      await this.telegram.sendMessage(chatId, 'Формат: /revoke <chat_id>');
+      return;
+    }
+    if (arg === chatId) {
+      await this.telegram.sendMessage(
+        chatId,
+        'Не можу відкликати власний доступ через бота — онови ' +
+          'TELEGRAM_OPS_AUTHORIZED_CHAT_IDS вручну, якщо це справді потрібно.',
+      );
+      return;
+    }
+
+    const current = await this.authorizedChatIds();
+    if (!current.has(arg)) {
+      await this.telegram.sendMessage(chatId, `${arg} і так не авторизований.`);
+      return;
+    }
+
+    current.delete(arg);
+    if (current.size === 0) {
+      await this.telegram.sendMessage(
+        chatId,
+        'Не можу видалити останній авторизований чат — це заблокує доступ усім.',
+      );
+      return;
+    }
+
+    await this.providerRuntimeConfigService.updateSetting(
+      'TELEGRAM_OPS_AUTHORIZED_CHAT_IDS',
+      { value: [...current].join(',') },
+    );
+    await this.telegram.sendMessage(
+      chatId,
+      `Відкликано доступ у ${arg}.\nАвторизовані чати: ${[...current].join(', ')}`,
+    );
   }
 
   private async sendMenu(chatId: string): Promise<void> {

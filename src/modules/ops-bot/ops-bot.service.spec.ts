@@ -21,7 +21,11 @@ describe('OpsBotService', () => {
     purchases = [] as any[],
     charges = [] as any[],
     usage = { image: {}, video: {} },
+    configOverrides = {} as Record<string, any>,
   }: any = {}) => {
+    // Cloned per test so a test that authorizes/revokes a chat can never
+    // leak that mutation into the next test's starting state.
+    const config: Record<string, any> = { ...CONFIG, ...configOverrides };
     const postRepository = {};
     const chargeRepository = {
       createQueryBuilder: jest.fn(() => {
@@ -43,8 +47,12 @@ describe('OpsBotService', () => {
       getRewardPointsOrDefault: jest.fn(async (_t: any, def: number) => def),
     };
     const providerRuntimeConfigService = {
-      getString: jest.fn(async (key: string) => CONFIG[key] ?? null),
+      getString: jest.fn(async (key: string) => config[key] ?? null),
       getNumber: jest.fn(async () => undefined),
+      updateSetting: jest.fn(async (key: string, dto: any) => {
+        config[key] = String(dto.value);
+        return { key, value: dto.value };
+      }),
     };
     const aiUsageCollector = { collect: jest.fn(async () => usage) };
     const telegram = {
@@ -63,19 +71,29 @@ describe('OpsBotService', () => {
       aiUsageCollector as any,
       telegram as any,
     );
-    return { service, telegram, rewardService, paymentRepository };
+    return { service, telegram, rewardService, paymentRepository, config, providerRuntimeConfigService };
   };
 
   describe('chat authorization', () => {
-    it('ignores /start from a chat that is not the configured ops chat', async () => {
+    it('serves no menu to a chat that is not the configured ops chat', async () => {
       const { service, telegram } = makeService();
 
       await service.handleUpdate({
         update_id: 1,
-        message: { message_id: 1, text: '/start', chat: { id: 999 } },
+        message: {
+          message_id: 1,
+          text: '/start',
+          chat: { id: 999 },
+          from: { id: 999, username: 'stranger' },
+        },
       } as any);
 
+      // No menu to the stranger; the only send is the access-request ping to
+      // the ops chat (111), never to 999.
       expect(telegram.sendMessageWithKeyboard).not.toHaveBeenCalled();
+      for (const call of telegram.sendMessage.mock.calls as any[][]) {
+        expect(call[0]).not.toBe('999');
+      }
     });
 
     it('answers the callback query (stops the spinner) but leaks no stats to an unauthorized chat', async () => {
@@ -87,11 +105,15 @@ describe('OpsBotService', () => {
           id: 'cb-1',
           data: 'stats:yep',
           message: { chat: { id: 999 } },
+          from: { id: 999, username: 'stranger' },
         },
       } as any);
 
       expect(telegram.answerCallbackQuery).toHaveBeenCalledWith('cb-1');
-      expect(telegram.sendMessage).not.toHaveBeenCalled();
+      // Nothing is ever sent to the unauthorized chat itself.
+      for (const call of telegram.sendMessage.mock.calls as any[][]) {
+        expect(call[0]).not.toBe('999');
+      }
     });
 
     it('serves the menu to the configured ops chat', async () => {
@@ -128,6 +150,122 @@ describe('OpsBotService', () => {
       } as any);
 
       expect(telegram.sendMessageWithKeyboard).not.toHaveBeenCalled();
+    });
+
+    it('honours a multi-id TELEGRAM_OPS_AUTHORIZED_CHAT_IDS list', async () => {
+      const { service, telegram } = makeService({
+        configOverrides: { TELEGRAM_OPS_AUTHORIZED_CHAT_IDS: '111, 222 ,333' },
+      });
+
+      await service.handleUpdate({
+        update_id: 5,
+        message: { message_id: 1, text: '/start', chat: { id: 222 } },
+      } as any);
+
+      expect(telegram.sendMessageWithKeyboard).toHaveBeenCalledWith(
+        '222',
+        expect.any(String),
+        expect.any(Array),
+      );
+    });
+  });
+
+  describe('self-service authorization', () => {
+    const startFrom = (service: any, chatId: number, from: any) =>
+      service.handleUpdate({
+        update_id: chatId,
+        message: {
+          message_id: 1,
+          text: '/start',
+          chat: { id: chatId },
+          from,
+        },
+      });
+
+    const cmd = (service: any, chatId: number, text: string) =>
+      service.handleUpdate({
+        update_id: chatId,
+        message: { message_id: 1, text, chat: { id: chatId }, from: { id: chatId } },
+      });
+
+    it('pings the ops chat with a ready /authorize command on an unauthorized /start', async () => {
+      const { service, telegram } = makeService();
+
+      await startFrom(service, 777, { id: 777, username: 'newguy', first_name: 'New' });
+
+      const pings = (telegram.sendMessage.mock.calls as any[][]).filter(
+        (c) => c[0] === '111',
+      );
+      expect(pings.length).toBeGreaterThan(0);
+      expect(pings[0][1]).toContain('/authorize @newguy');
+      expect(pings[0][1]).toContain('777');
+    });
+
+    it('authorizes by chat_id and persists the merged list', async () => {
+      const { service, telegram, config } = makeService();
+
+      await startFrom(service, 777, { id: 777, username: 'newguy' });
+      telegram.sendMessage.mockClear();
+
+      await cmd(service, 111, '/authorize 777');
+
+      expect(config.TELEGRAM_OPS_AUTHORIZED_CHAT_IDS).toBe('111,777');
+      // The newly-authorized chat now actually gets the menu.
+      await startFrom(service, 777, { id: 777 });
+      expect(telegram.sendMessageWithKeyboard).toHaveBeenCalledWith(
+        '777',
+        expect.any(String),
+        expect.any(Array),
+      );
+    });
+
+    it('authorizes by @username when that user has a pending request', async () => {
+      const { service, config } = makeService();
+
+      await startFrom(service, 888, { id: 888, username: 'Alice' });
+      // Case-insensitive match on the stored username.
+      await cmd(service, 111, '/authorize @alice');
+
+      expect(config.TELEGRAM_OPS_AUTHORIZED_CHAT_IDS).toContain('888');
+    });
+
+    it('refuses an @username with no pending request instead of inventing an id', async () => {
+      const { service, telegram, config } = makeService();
+
+      await cmd(service, 111, '/authorize @ghost');
+
+      expect(config.TELEGRAM_OPS_AUTHORIZED_CHAT_IDS).toBeUndefined();
+      expect(telegram.sendMessage).toHaveBeenCalledWith(
+        '111',
+        expect.stringContaining('@ghost'),
+      );
+    });
+
+    it('lists pending requests via /pending', async () => {
+      const { service, telegram } = makeService();
+
+      await startFrom(service, 777, { id: 777, username: 'newguy' });
+      telegram.sendMessage.mockClear();
+
+      await cmd(service, 111, '/pending');
+
+      const msg = (telegram.sendMessage.mock.calls as any[][])[0][1];
+      expect(msg).toContain('@newguy');
+      expect(msg).toContain('777');
+    });
+
+    it('revokes a chat but refuses to drop the last one or the caller', async () => {
+      const { service, telegram, config } = makeService({
+        configOverrides: { TELEGRAM_OPS_AUTHORIZED_CHAT_IDS: '111,777' },
+      });
+
+      // Caller cannot revoke themselves.
+      await cmd(service, 111, '/revoke 111');
+      expect(config.TELEGRAM_OPS_AUTHORIZED_CHAT_IDS).toBe('111,777');
+
+      // Revoking the other id works and persists.
+      await cmd(service, 111, '/revoke 777');
+      expect(config.TELEGRAM_OPS_AUTHORIZED_CHAT_IDS).toBe('111');
     });
   });
 
