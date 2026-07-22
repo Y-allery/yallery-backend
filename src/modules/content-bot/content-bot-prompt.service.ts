@@ -31,6 +31,24 @@ export class ContentBotPromptService {
 
   async generate(briefs: PromptBrief[]): Promise<Array<string | null>> {
     if (briefs.length === 0) return [];
+    try {
+      return await this.generateOrThrow(briefs);
+    } catch (error) {
+      // Covers OpenAI API errors AND a broken/undecryptable OPENAI_API_KEY row
+      // (ProviderRuntimeConfigService throws rather than returning null on a
+      // decrypt failure) — either way, degrade to the static bank, don't 500.
+      this.logger.warn(
+        `prompt generation failed, falling back to static bank: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return briefs.map(() => null);
+    }
+  }
+
+  private async generateOrThrow(
+    briefs: PromptBrief[],
+  ): Promise<Array<string | null>> {
     const openai = await this.createClient();
     if (!openai) {
       this.logger.warn('OPENAI_API_KEY not set — using static prompt fallback');
@@ -42,37 +60,28 @@ export class ContentBotPromptService {
         'CONTENT_BOT_OPENAI_MODEL',
       )) || ContentBotPromptService.DEFAULT_MODEL;
 
-    try {
-      const response = await openai.chat.completions.create({
-        model,
-        temperature: 0.95,
-        max_tokens: 1800,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: this.systemPrompt(briefs.length) },
-          { role: 'user', content: this.userPrompt(briefs) },
-        ],
-      });
+    const response = await openai.chat.completions.create({
+      model,
+      temperature: 0.95,
+      max_tokens: 1800,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: this.systemPrompt(briefs.length) },
+        { role: 'user', content: this.userPrompt(briefs) },
+      ],
+    });
 
-      const raw = response.choices[0]?.message?.content?.trim();
-      if (!raw) return briefs.map(() => null);
+    const raw = response.choices[0]?.message?.content?.trim();
+    if (!raw) return briefs.map(() => null);
 
-      const parsed = JSON.parse(raw) as { prompts?: unknown };
-      const prompts = Array.isArray(parsed.prompts) ? parsed.prompts : [];
-      return briefs.map((_, i) => {
-        const value = prompts[i];
-        return typeof value === 'string' && value.trim().length > 0
-          ? value.trim()
-          : null;
-      });
-    } catch (error) {
-      this.logger.warn(
-        `prompt generation failed, falling back to static bank: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-      return briefs.map(() => null);
-    }
+    const parsed = JSON.parse(raw) as { prompts?: unknown };
+    const prompts = Array.isArray(parsed.prompts) ? parsed.prompts : [];
+    return briefs.map((_, i) => {
+      const value = prompts[i];
+      return typeof value === 'string' && value.trim().length > 0
+        ? value.trim()
+        : null;
+    });
   }
 
   private systemPrompt(count: number): string {
