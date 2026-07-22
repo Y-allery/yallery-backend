@@ -8,7 +8,8 @@ export type ProviderSettingGroup =
   | 'runpod_toggles'
   | 'runpod_timeouts'
   | 'media_defaults'
-  | 'content_bot';
+  | 'content_bot'
+  | 'ops';
 
 export type ProviderSettingValueType =
   | 'secret'
@@ -489,6 +490,39 @@ export const PROVIDER_SETTING_DEFINITIONS: ProviderSettingDefinition[] = [
     isSecret: false,
     validationKind: 'none',
     defaultValue: 'gpt-4o-mini',
+  },
+  {
+    key: 'TELEGRAM_OPS_BOT_TOKEN',
+    provider: 'app',
+    group: 'ops',
+    label: 'Telegram ops bot token',
+    description:
+      'Bot token for the dedicated internal ops bot (separate from the user-facing login/referral bot). Get it from @BotFather.',
+    type: 'secret',
+    isSecret: true,
+    validationKind: 'none',
+  },
+  {
+    key: 'TELEGRAM_OPS_CHAT_ID',
+    provider: 'app',
+    group: 'ops',
+    label: 'Telegram ops chat id',
+    description:
+      'Single chat that receives everything: backend errors, RunPod failures, generation/purchase stats, and the content-bot digest. String because group/channel ids are negative.',
+    type: 'string',
+    isSecret: false,
+    validationKind: 'none',
+  },
+  {
+    key: 'TELEGRAM_OPS_WEBHOOK_SECRET',
+    provider: 'app',
+    group: 'ops',
+    label: 'Telegram ops webhook secret',
+    description:
+      'Shared secret passed to Telegram setWebhook; Telegram echoes it back on every call so the webhook endpoint can reject spoofed requests. Any random string.',
+    type: 'secret',
+    isSecret: true,
+    validationKind: 'none',
   },
 ];
 

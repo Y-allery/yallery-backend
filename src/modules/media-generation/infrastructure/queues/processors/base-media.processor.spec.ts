@@ -1,13 +1,15 @@
 import { BaseMediaProcessor } from './base-media.processor';
 import { NotificationGateway } from 'src/modules/notifications/notification.gateway';
 import { MediaGenerationBalanceService } from 'src/modules/media-generation/application/balance/media-generation-balance.service';
+import { OpsBotService } from 'src/modules/ops-bot/ops-bot.service';
 
 class TestMediaProcessor extends BaseMediaProcessor {
   constructor(
     notificationGateway: NotificationGateway,
     balanceService: MediaGenerationBalanceService,
+    opsBotService: OpsBotService,
   ) {
-    super(notificationGateway, 'image_edit', balanceService);
+    super(notificationGateway, 'image_edit', balanceService, opsBotService);
   }
 
   async process() {
@@ -30,12 +32,18 @@ describe('BaseMediaProcessor', () => {
       refund: jest.fn(),
     }) as unknown as MediaGenerationBalanceService;
 
+  const createOpsBot = () =>
+    ({
+      notifyRunpodFailure: jest.fn(async () => {}),
+    }) as unknown as OpsBotService;
+
   it('emits mediaGenerationError and refunds the charge after final failed attempt', async () => {
     const notificationGateway = createGateway();
     const balanceService = createBalanceService();
     const processor = new TestMediaProcessor(
       notificationGateway,
       balanceService,
+      createOpsBot(),
     );
 
     await processor.fail(
@@ -71,6 +79,7 @@ describe('BaseMediaProcessor', () => {
     const processor = new TestMediaProcessor(
       notificationGateway,
       balanceService,
+      createOpsBot(),
     );
 
     await processor.fail(

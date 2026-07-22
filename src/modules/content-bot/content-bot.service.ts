@@ -111,9 +111,15 @@ export class ContentBotService {
         )) ?? 0.6,
       ),
     );
-    const tgChatId = await this.providerRuntimeConfigService.getString(
-      'CONTENT_BOT_TG_CHAT_ID',
-    );
+    // Falls back to the shared ops chat so the digest lands in one place with
+    // everything else, without requiring a second chat id to be configured.
+    const tgChatId =
+      (await this.providerRuntimeConfigService.getString(
+        'CONTENT_BOT_TG_CHAT_ID',
+      )) ||
+      (await this.providerRuntimeConfigService.getString(
+        'TELEGRAM_OPS_CHAT_ID',
+      ));
     const maxDailyItems = Math.max(
       0,
       Math.floor(

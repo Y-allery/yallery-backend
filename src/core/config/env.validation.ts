@@ -41,6 +41,17 @@ export class EnvironmentVariables {
   @IsString()
   SETTINGS_ENCRYPTION_KEY?: string;
 
+  /**
+   * Shared secret between the in-process Sentry hook and the ops-bot
+   * internal-notify endpoint. Deliberately a plain env var, not an
+   * admin-configurable DB setting: it's an implementation detail nobody
+   * should ever need to rotate via the admin panel, and instrument.ts runs
+   * before Nest's DI graph exists, so it can't read DB-backed config anyway.
+   */
+  @IsOptional()
+  @IsString()
+  OPS_INTERNAL_NOTIFY_SECRET?: string;
+
   // Session
   @IsString()
   SESSION_SECRET: string;

@@ -31,6 +31,7 @@ import { MediaProxyModule } from 'src/modules/media-proxy/media-proxy.module';
 import { ProviderSettingsModule } from 'src/modules/provider-settings/provider-settings.module';
 import { TranslationsModule } from 'src/modules/translations/translations.module';
 import { ContentBotModule } from 'src/modules/content-bot/content-bot.module';
+import { OpsBotModule } from 'src/modules/ops-bot/ops-bot.module';
 
 @Module({
   imports: [
@@ -91,6 +92,7 @@ import { ContentBotModule } from 'src/modules/content-bot/content-bot.module';
     MediaProxyModule,
     TranslationsModule,
     ContentBotModule,
+    OpsBotModule,
   ],
   providers: [
     {

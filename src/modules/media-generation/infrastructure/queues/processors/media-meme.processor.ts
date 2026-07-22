@@ -8,6 +8,7 @@ import { MediaGenerationFinalizeService } from 'src/modules/media-generation/app
 import { MediaGenerationBalanceService } from 'src/modules/media-generation/application/balance/media-generation-balance.service';
 import { BaseMediaProcessor } from './base-media.processor';
 import { MemeNotificationPresenter } from 'src/modules/media-generation/infrastructure/queues/presenters/meme-notification.presenter';
+import { OpsBotService } from 'src/modules/ops-bot/ops-bot.service';
 
 type MediaMemeJobData = {
   request: MemeGenerationRequest;
@@ -26,8 +27,9 @@ export class MediaMemeProcessor extends BaseMediaProcessor {
     private readonly mediaGenerationFinalizeService: MediaGenerationFinalizeService,
     notificationGateway: NotificationGateway,
     mediaGenerationBalanceService: MediaGenerationBalanceService,
+    opsBotService: OpsBotService,
   ) {
-    super(notificationGateway, 'meme', mediaGenerationBalanceService);
+    super(notificationGateway, 'meme', mediaGenerationBalanceService, opsBotService);
   }
 
   async process(job: Job<MediaMemeJobData>) {
