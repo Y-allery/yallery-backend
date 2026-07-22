@@ -67,6 +67,39 @@ export const RUNPOD_MEDIA_ROUTE_CATALOG: MediaRouteCatalogEntry[] = [
     defaultStatusTimeoutMs: 1200000,
   },
   {
+    // Battery candidate C (2026-07-24 t2i upgrade night): Qwen-Image-2512, undistilled
+    // 50-step/cfg4.0 checkpoint. Dark by default (RUNPOD_QWEN_IMAGE_2512_ENABLED=false) --
+    // see workers/out/t2i-battery-2026-07-24/RUNBOOK.md for the morning flip.
+    routeType: 'promptImage',
+    aiService: 'qwen_image_2512',
+    capability: MediaCapability.IMAGE_GENERATE,
+    provider: MediaProvider.RUNPOD,
+    dispatch: MediaDispatch.BULLMQ_QUEUE,
+    queueName: MEDIA_PROMPT_IMAGE_GENERATION_QUEUE,
+    endpointConfigKey: 'RUNPOD_QWEN_IMAGE_2512_ENDPOINT_ID',
+    apiKeyConfigKey: 'RUNPOD_VIDEO_API_KEY',
+    enabledConfigKey: 'RUNPOD_QWEN_IMAGE_2512_ENABLED',
+    statusTimeoutConfigKey: 'RUNPOD_QWEN_IMAGE_2512_STATUS_TIMEOUT_MS',
+    statusTimeoutLabel: 'Qwen Image 2512 Status Timeout',
+    defaultStatusTimeoutMs: 1200000,
+  },
+  {
+    // Battery candidate D (2026-07-24 t2i upgrade night): Z-Image-Turbo (Tongyi/Alibaba,
+    // 6B, Apache-2.0). Dark by default (RUNPOD_Z_IMAGE_TURBO_ENABLED=false).
+    routeType: 'promptImage',
+    aiService: 'z_image_turbo',
+    capability: MediaCapability.IMAGE_GENERATE,
+    provider: MediaProvider.RUNPOD,
+    dispatch: MediaDispatch.BULLMQ_QUEUE,
+    queueName: MEDIA_PROMPT_IMAGE_GENERATION_QUEUE,
+    endpointConfigKey: 'RUNPOD_Z_IMAGE_TURBO_ENDPOINT_ID',
+    apiKeyConfigKey: 'RUNPOD_VIDEO_API_KEY',
+    enabledConfigKey: 'RUNPOD_Z_IMAGE_TURBO_ENABLED',
+    statusTimeoutConfigKey: 'RUNPOD_Z_IMAGE_TURBO_STATUS_TIMEOUT_MS',
+    statusTimeoutLabel: 'Z-Image Turbo Status Timeout',
+    defaultStatusTimeoutMs: 1200000,
+  },
+  {
     routeType: 'promptImage',
     aiService: 'sdxl',
     capability: MediaCapability.IMAGE_GENERATE,

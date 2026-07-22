@@ -42,6 +42,11 @@ export class RunpodPayloadBuilder {
           return_data_uri: true,
         };
       case 'qwen_image':
+      // 2026-07-24 t2i battery candidates C/D: same worker payload shape as qwen_image
+      // (prompt/style/width/height/num_images/output_format/return_base64/return_data_uri).
+      // Dark by default via provider-settings (see media-route.catalog.ts).
+      case 'qwen_image_2512':
+      case 'z_image_turbo':
         return {
           prompt,
           style,

@@ -140,6 +140,26 @@ export const PROVIDER_SETTING_DEFINITIONS: ProviderSettingDefinition[] = [
     validationKind: 'runpod_serverless_endpoint',
   },
   {
+    // 2026-07-24 t2i battery candidate C. See workers/out/t2i-battery-2026-07-24/RUNBOOK.md.
+    key: 'RUNPOD_QWEN_IMAGE_2512_ENDPOINT_ID',
+    provider: 'runpod',
+    group: 'runpod_private_endpoints',
+    label: 'Qwen Image 2512 (t2i) Endpoint — account #2',
+    type: 'string',
+    isSecret: false,
+    validationKind: 'runpod_serverless_endpoint',
+  },
+  {
+    // 2026-07-24 t2i battery candidate D. See workers/out/t2i-battery-2026-07-24/RUNBOOK.md.
+    key: 'RUNPOD_Z_IMAGE_TURBO_ENDPOINT_ID',
+    provider: 'runpod',
+    group: 'runpod_private_endpoints',
+    label: 'Z-Image Turbo (t2i) Endpoint — account #2',
+    type: 'string',
+    isSecret: false,
+    validationKind: 'runpod_serverless_endpoint',
+  },
+  {
     key: 'RUNPOD_SDXL_ENDPOINT_ID',
     provider: 'runpod',
     group: 'runpod_private_endpoints',
@@ -257,6 +277,30 @@ export const PROVIDER_SETTING_DEFINITIONS: ProviderSettingDefinition[] = [
     isSecret: false,
     validationKind: 'none',
     defaultValue: 'true',
+  },
+  {
+    // 2026-07-24 t2i battery candidate C. Dark by default -- flip only after the morning
+    // battery pick. See workers/out/t2i-battery-2026-07-24/RUNBOOK.md.
+    key: 'RUNPOD_QWEN_IMAGE_2512_ENABLED',
+    provider: 'runpod',
+    group: 'runpod_toggles',
+    label: 'Qwen Image 2512 (t2i) Enabled',
+    type: 'boolean',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: 'false',
+  },
+  {
+    // 2026-07-24 t2i battery candidate D. Dark by default -- flip only after the morning
+    // battery pick. See workers/out/t2i-battery-2026-07-24/RUNBOOK.md.
+    key: 'RUNPOD_Z_IMAGE_TURBO_ENABLED',
+    provider: 'runpod',
+    group: 'runpod_toggles',
+    label: 'Z-Image Turbo (t2i) Enabled',
+    type: 'boolean',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: 'false',
   },
   {
     key: 'DEFAULT_PROMPT_IMAGE_AI_SERVICE',

@@ -15,7 +15,9 @@ describe('RunpodTimeoutPolicyService', () => {
   };
 
   it('declares explicit timeout settings for every RunPod route (all are async/polled)', () => {
-    expect(RUNPOD_MEDIA_ROUTE_CATALOG).toHaveLength(10);
+    // 12 = 10 pre-existing routes + qwen_image_2512 + z_image_turbo (2026-07-24 t2i battery
+    // candidates C/D, dark by default via provider-settings, see media-route.catalog.ts).
+    expect(RUNPOD_MEDIA_ROUTE_CATALOG).toHaveLength(12);
 
     for (const route of RUNPOD_MEDIA_ROUTE_CATALOG) {
       expect(route.statusTimeoutConfigKey).toBeTruthy();
