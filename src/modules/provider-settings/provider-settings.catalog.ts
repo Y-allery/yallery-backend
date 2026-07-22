@@ -514,6 +514,17 @@ export const PROVIDER_SETTING_DEFINITIONS: ProviderSettingDefinition[] = [
     validationKind: 'none',
   },
   {
+    key: 'TELEGRAM_OPS_AUTHORIZED_CHAT_IDS',
+    provider: 'app',
+    group: 'ops',
+    label: 'Telegram ops authorized chat ids',
+    description:
+      'Comma-separated chat ids allowed to use /start and the inline-button stats. Falls back to TELEGRAM_OPS_CHAT_ID if unset. Deliberately separate from TELEGRAM_OPS_CHAT_ID (that one is where outbound alerts go) — someone can look up stats without being paged on every prod error.',
+    type: 'string',
+    isSecret: false,
+    validationKind: 'none',
+  },
+  {
     key: 'TELEGRAM_OPS_WEBHOOK_SECRET',
     provider: 'app',
     group: 'ops',

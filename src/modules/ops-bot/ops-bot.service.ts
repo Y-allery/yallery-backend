@@ -26,17 +26,25 @@ const FALLBACK_REWARD_POINTS: Record<string, number> = {
 /** Kyiv is UTC+2 (EET) / UTC+3 (EEST) — the ops team's actual calendar day. */
 const OPS_TIMEZONE = 'Europe/Kyiv';
 
+interface TelegramFrom {
+  id: number;
+  username?: string;
+  first_name?: string;
+}
+
 interface TelegramUpdate {
   update_id: number;
   message?: {
     message_id: number;
     text?: string;
     chat: { id: number };
+    from?: TelegramFrom;
   };
   callback_query?: {
     id: string;
     data?: string;
     message?: { chat: { id: number } };
+    from?: TelegramFrom;
   };
 }
 
@@ -47,9 +55,15 @@ interface TelegramUpdate {
  * on-demand stats via inline buttons. The content-bot digest also reuses
  * TelegramService (same underlying bot token) so it all lands in one chat.
  *
- * Only the configured TELEGRAM_OPS_CHAT_ID may drive commands/buttons — the
- * webhook's secret_token proves an update came from Telegram, not which chat
- * it's from, so every inbound handler re-checks the chat id itself.
+ * Only chats in TELEGRAM_OPS_AUTHORIZED_CHAT_IDS (comma-separated; falls back
+ * to the single TELEGRAM_OPS_CHAT_ID if unset) may drive commands/buttons —
+ * the webhook's secret_token proves an update came from Telegram, not which
+ * chat it's from, so every inbound handler re-checks the chat id itself. This
+ * is deliberately a SEPARATE list from TELEGRAM_OPS_CHAT_ID, which is where
+ * outbound alerts (backend errors, RunPod failures) are sent — someone can be
+ * allowed to look up stats without also being paged on every prod incident.
+ * An unauthorized attempt is logged (chat id + Telegram username, never
+ * replied to) so a new person to authorize can be identified from the logs.
  *
  * Alert methods are DEBOUNCED per fingerprint so a systemic failure (e.g. a
  * broken API key failing every job for hours) sends one alert plus a
@@ -104,8 +118,14 @@ export class OpsBotService {
       : update.callback_query?.message
         ? String(update.callback_query.message.chat.id)
         : null;
+    const from = update.message?.from ?? update.callback_query?.from;
 
     if (!incomingChatId || !(await this.isAuthorizedChat(incomingChatId))) {
+      this.logger.warn(
+        `Unauthorized ops-bot chat attempt: chatId=${incomingChatId} ` +
+          `from=@${from?.username ?? '?'} (${from?.first_name ?? 'unknown'}, id=${from?.id ?? '?'}) — ` +
+          `add ${incomingChatId} to TELEGRAM_OPS_AUTHORIZED_CHAT_IDS to allow`,
+      );
       // Don't leak any signal (menu, stats) to an unauthorized chat, but a
       // pressed button must still stop its loading spinner.
       if (update.callback_query) {
@@ -123,10 +143,22 @@ export class OpsBotService {
     }
   }
 
+  private async authorizedChatIds(): Promise<Set<string>> {
+    const list = await this.providerRuntimeConfigService.getString(
+      'TELEGRAM_OPS_AUTHORIZED_CHAT_IDS',
+    );
+    const primary = await this.chatId();
+    const ids = (list ?? primary ?? '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+    return new Set(ids);
+  }
+
   private async isAuthorizedChat(chatId: string): Promise<boolean> {
-    const configured = await this.chatId();
-    // Fail closed: an unconfigured chat id authorizes nobody, not everybody.
-    return Boolean(configured) && configured === chatId;
+    const authorized = await this.authorizedChatIds();
+    // Fail closed: an empty list authorizes nobody, not everybody.
+    return authorized.has(chatId);
   }
 
   private async handleCommand(chatId: string, text: string): Promise<void> {
