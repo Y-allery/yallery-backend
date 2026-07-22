@@ -49,6 +49,21 @@ export class ContentBotController {
     return this.bot.publishDuePaced();
   }
 
+  @Post('generate-now')
+  @ApiOperation({
+    summary:
+      'Manually run a generate window (mirrors the 08/13/18h cron) — for ' +
+      'catching up a day whose cron window passed before the bot was enabled',
+  })
+  async generateNow(@Query('count') count?: string) {
+    const cfg = await this.bot.loadConfig();
+    await this.bot.planDay(); // self-heal if today has no real (non-preview) plan yet
+    const n = count
+      ? Math.max(1, Math.min(Number(count), cfg.maxDailyItems))
+      : Math.max(1, Math.ceil(cfg.dailyPosts / 3));
+    return this.bot.generateBatch(n);
+  }
+
   @Get('status')
   @ApiOperation({ summary: 'Content bot status + config + today plan' })
   async status() {
