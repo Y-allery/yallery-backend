@@ -8,6 +8,7 @@ import { MediaGenerationFinalizeService } from 'src/modules/media-generation/app
 import { MediaGenerationBalanceService } from 'src/modules/media-generation/application/balance/media-generation-balance.service';
 import { BaseMediaProcessor } from './base-media.processor';
 import { VideoNotificationPresenter } from 'src/modules/media-generation/infrastructure/queues/presenters/video-notification.presenter';
+import { OpsBotService } from 'src/modules/ops-bot/ops-bot.service';
 
 type MediaTextVideoJobData = {
   request: TextVideoGenerationRequest;
@@ -26,8 +27,9 @@ export class MediaTextVideoProcessor extends BaseMediaProcessor {
     private readonly mediaGenerationFinalizeService: MediaGenerationFinalizeService,
     notificationGateway: NotificationGateway,
     mediaGenerationBalanceService: MediaGenerationBalanceService,
+    opsBotService: OpsBotService,
   ) {
-    super(notificationGateway, 'video', mediaGenerationBalanceService);
+    super(notificationGateway, 'video', mediaGenerationBalanceService, opsBotService);
   }
 
   async process(job: Job<MediaTextVideoJobData>) {

@@ -7,7 +7,9 @@ export type ProviderSettingGroup =
   | 'runpod_public_endpoints'
   | 'runpod_toggles'
   | 'runpod_timeouts'
-  | 'media_defaults';
+  | 'media_defaults'
+  | 'content_bot'
+  | 'ops';
 
 export type ProviderSettingValueType =
   | 'secret'
@@ -407,6 +409,120 @@ export const PROVIDER_SETTING_DEFINITIONS: ProviderSettingDefinition[] = [
     isSecret: false,
     validationKind: 'none',
     defaultValue: '2000',
+  },
+  {
+    key: 'CONTENT_BOT_ENABLED',
+    provider: 'app',
+    group: 'content_bot',
+    label: 'Content bot enabled',
+    description:
+      'Master kill-switch for the automated content bot. Off by default; crons no-op while off. The preview endpoint works regardless.',
+    type: 'boolean',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: 'false',
+  },
+  {
+    key: 'CONTENT_BOT_USER_ID',
+    provider: 'app',
+    group: 'content_bot',
+    label: 'Content bot user id',
+    description:
+      'User id the bot posts as. Set automatically on first ensure-user; also read by metrics/reward quarantine filters.',
+    type: 'number',
+    isSecret: false,
+    validationKind: 'none',
+  },
+  {
+    key: 'CONTENT_BOT_DAILY_POSTS',
+    provider: 'app',
+    group: 'content_bot',
+    label: 'Content bot daily posts',
+    description: 'Target number of posts the bot publishes per day.',
+    type: 'number',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: '10',
+  },
+  {
+    key: 'CONTENT_BOT_VIDEO_SHARE',
+    provider: 'app',
+    group: 'content_bot',
+    label: 'Content bot video share (0..1)',
+    description:
+      'Fraction of daily items that are video (rest are images). Clamped to [0,1].',
+    type: 'number',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: '0.6',
+  },
+  {
+    key: 'CONTENT_BOT_TG_CHAT_ID',
+    provider: 'app',
+    group: 'content_bot',
+    label: 'Content bot Telegram chat id',
+    description:
+      'Chat id for the daily digest. String because channel/supergroup ids are negative.',
+    type: 'string',
+    isSecret: false,
+    validationKind: 'none',
+  },
+  {
+    key: 'CONTENT_BOT_MAX_DAILY_ITEMS',
+    provider: 'app',
+    group: 'content_bot',
+    label: 'Content bot max daily items (hard cap)',
+    description:
+      'Hard safety cap on generations per day, independent of daily-posts target.',
+    type: 'number',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: '50',
+  },
+  {
+    key: 'CONTENT_BOT_OPENAI_MODEL',
+    provider: 'app',
+    group: 'content_bot',
+    label: 'Content bot prompt-writer model',
+    description:
+      'OpenAI model used to write the daily prompts. Falls back to the static prompt bank if unset or on error.',
+    type: 'string',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: 'gpt-4o-mini',
+  },
+  {
+    key: 'TELEGRAM_OPS_BOT_TOKEN',
+    provider: 'app',
+    group: 'ops',
+    label: 'Telegram ops bot token',
+    description:
+      'Bot token for the dedicated internal ops bot (separate from the user-facing login/referral bot). Get it from @BotFather.',
+    type: 'secret',
+    isSecret: true,
+    validationKind: 'none',
+  },
+  {
+    key: 'TELEGRAM_OPS_CHAT_ID',
+    provider: 'app',
+    group: 'ops',
+    label: 'Telegram ops chat id',
+    description:
+      'Single chat that receives everything: backend errors, RunPod failures, generation/purchase stats, and the content-bot digest. String because group/channel ids are negative.',
+    type: 'string',
+    isSecret: false,
+    validationKind: 'none',
+  },
+  {
+    key: 'TELEGRAM_OPS_WEBHOOK_SECRET',
+    provider: 'app',
+    group: 'ops',
+    label: 'Telegram ops webhook secret',
+    description:
+      'Shared secret passed to Telegram setWebhook; Telegram echoes it back on every call so the webhook endpoint can reject spoofed requests. Any random string.',
+    type: 'secret',
+    isSecret: true,
+    validationKind: 'none',
   },
 ];
 

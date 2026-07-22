@@ -1,9 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, Repository } from 'typeorm';
+import {
+  Between,
+  FindOptionsWhere,
+  Not,
+  Repository,
+  SelectQueryBuilder,
+} from 'typeorm';
 import { LikeEntity } from 'src/modules/engagement/likes/entities/like.entity';
 import { PostEntity } from 'src/modules/posts/entities/post.entity';
 import { UserEntity } from 'src/modules/users/entities/user.entity';
+import { ProviderRuntimeConfigService } from 'src/modules/provider-settings/provider-runtime-config.service';
 
 @Injectable()
 export class PostMetricsCollector {
@@ -14,9 +21,20 @@ export class PostMetricsCollector {
     private readonly userRepository: Repository<UserEntity>,
     @InjectRepository(LikeEntity)
     private readonly likeRepository: Repository<LikeEntity>,
+    private readonly providerRuntimeConfigService: ProviderRuntimeConfigService,
   ) {}
 
   async collect(periodStart: Date, periodEnd: Date) {
+    // The content bot must not inflate any product KPI. All counts below exclude
+    // it; when no bot is configured the filters are a no-op.
+    const botId = await this.getBotId();
+    const userFilter: FindOptionsWhere<UserEntity> =
+      botId != null ? { id: Not(botId) } : {};
+    const postAuthorFilter: FindOptionsWhere<PostEntity> =
+      botId != null ? { user: { id: Not(botId) } } : {};
+    const likeAuthorFilter: FindOptionsWhere<LikeEntity> =
+      botId != null ? { user: { id: Not(botId) } } : {};
+
     const [
       newUsers,
       totalUsers,
@@ -32,32 +50,40 @@ export class PostMetricsCollector {
       this.userRepository.count({
         where: {
           createdAt: Between(periodStart, periodEnd),
+          ...userFilter,
         },
       }),
-      this.userRepository.count(),
+      this.userRepository.count({ where: userFilter }),
       this.postRepository.count({
         where: {
           createdAt: Between(periodStart, periodEnd),
+          ...postAuthorFilter,
         },
       }),
-      this.countNewImagePosts(periodStart, periodEnd),
-      this.countNewVideoPosts(periodStart, periodEnd),
-      this.postRepository.count(),
-      this.countTotalImagePosts(),
-      this.countTotalVideoPosts(),
+      this.countNewImagePosts(periodStart, periodEnd, botId),
+      this.countNewVideoPosts(periodStart, periodEnd, botId),
+      this.postRepository.count({ where: postAuthorFilter }),
+      this.countTotalImagePosts(botId),
+      this.countTotalVideoPosts(botId),
       this.likeRepository.count({
         where: {
           createdAt: Between(periodStart, periodEnd),
+          ...likeAuthorFilter,
         },
       }),
-      this.likeRepository.count(),
+      this.likeRepository.count({ where: likeAuthorFilter }),
     ]);
 
-    const activeUsers = await this.countActiveUsers(periodStart, periodEnd);
+    const activeUsers = await this.countActiveUsers(
+      periodStart,
+      periodEnd,
+      botId,
+    );
     const newContestPosts = await this.postRepository.count({
       where: {
         createdAt: Between(periodStart, periodEnd),
         contest: { id: Between(1, Number.MAX_SAFE_INTEGER) } as any,
+        ...postAuthorFilter,
       } as any,
     });
     const newRegularPosts = newPosts - newContestPosts;
@@ -65,7 +91,7 @@ export class PostMetricsCollector {
       newPosts > 0 ? Number((newLikes / newPosts).toFixed(2)) : 0;
     const postsPerUserAvg7D =
       activeUsers > 0 ? Number((newPosts / activeUsers).toFixed(2)) : 0;
-    const topTags7D = await this.getTopTags(periodStart, periodEnd);
+    const topTags7D = await this.getTopTags(periodStart, periodEnd, botId);
 
     return {
       newUsers,
@@ -87,77 +113,124 @@ export class PostMetricsCollector {
     };
   }
 
-  private countNewImagePosts(periodStart: Date, periodEnd: Date) {
-    return this.postRepository
-      .createQueryBuilder('p')
-      .where('p.createdAt >= :start AND p.createdAt < :end', {
-        start: periodStart,
-        end: periodEnd,
-      })
-      .andWhere('p.imageUrl IS NOT NULL AND p.imageUrl != :empty', {
-        empty: '',
-      })
-      .getCount();
+  private async getBotId(): Promise<number | null> {
+    const raw = await this.providerRuntimeConfigService.getNumber(
+      'CONTENT_BOT_USER_ID',
+    );
+    return typeof raw === 'number' && Number.isFinite(raw) ? raw : null;
   }
 
-  private countNewVideoPosts(periodStart: Date, periodEnd: Date) {
-    return this.postRepository
-      .createQueryBuilder('p')
-      .where('p.createdAt >= :start AND p.createdAt < :end', {
-        start: periodStart,
-        end: periodEnd,
-      })
-      .andWhere('p.videoUrl IS NOT NULL AND p.videoUrl != :empty', {
-        empty: '',
-      })
-      .getCount();
+  private excludeBot<T>(
+    qb: SelectQueryBuilder<T>,
+    botId: number | null,
+    alias = 'p',
+  ): SelectQueryBuilder<T> {
+    if (botId != null) {
+      qb.andWhere(`${alias}.userId != :botId`, { botId });
+    }
+    return qb;
   }
 
-  private countTotalImagePosts() {
-    return this.postRepository
-      .createQueryBuilder('p')
-      .where('p.imageUrl IS NOT NULL AND p.imageUrl != :empty', {
-        empty: '',
-      })
-      .getCount();
+  private countNewImagePosts(
+    periodStart: Date,
+    periodEnd: Date,
+    botId: number | null,
+  ) {
+    return this.excludeBot(
+      this.postRepository
+        .createQueryBuilder('p')
+        .where('p.createdAt >= :start AND p.createdAt < :end', {
+          start: periodStart,
+          end: periodEnd,
+        })
+        .andWhere('p.imageUrl IS NOT NULL AND p.imageUrl != :empty', {
+          empty: '',
+        }),
+      botId,
+    ).getCount();
   }
 
-  private countTotalVideoPosts() {
-    return this.postRepository
-      .createQueryBuilder('p')
-      .where('p.videoUrl IS NOT NULL AND p.videoUrl != :empty', {
-        empty: '',
-      })
-      .getCount();
+  private countNewVideoPosts(
+    periodStart: Date,
+    periodEnd: Date,
+    botId: number | null,
+  ) {
+    return this.excludeBot(
+      this.postRepository
+        .createQueryBuilder('p')
+        .where('p.createdAt >= :start AND p.createdAt < :end', {
+          start: periodStart,
+          end: periodEnd,
+        })
+        .andWhere('p.videoUrl IS NOT NULL AND p.videoUrl != :empty', {
+          empty: '',
+        }),
+      botId,
+    ).getCount();
   }
 
-  private async countActiveUsers(periodStart: Date, periodEnd: Date) {
-    const activeUsersRaw = await this.postRepository
-      .createQueryBuilder('p')
-      .select('COUNT(DISTINCT p.userId)', 'cnt')
-      .where('p.createdAt >= :start AND p.createdAt < :end', {
-        start: periodStart,
-        end: periodEnd,
-      })
-      .getRawOne();
+  private countTotalImagePosts(botId: number | null) {
+    return this.excludeBot(
+      this.postRepository
+        .createQueryBuilder('p')
+        .where('p.imageUrl IS NOT NULL AND p.imageUrl != :empty', {
+          empty: '',
+        }),
+      botId,
+    ).getCount();
+  }
+
+  private countTotalVideoPosts(botId: number | null) {
+    return this.excludeBot(
+      this.postRepository
+        .createQueryBuilder('p')
+        .where('p.videoUrl IS NOT NULL AND p.videoUrl != :empty', {
+          empty: '',
+        }),
+      botId,
+    ).getCount();
+  }
+
+  private async countActiveUsers(
+    periodStart: Date,
+    periodEnd: Date,
+    botId: number | null,
+  ) {
+    const activeUsersRaw = await this.excludeBot(
+      this.postRepository
+        .createQueryBuilder('p')
+        .select('COUNT(DISTINCT p.userId)', 'cnt')
+        .where('p.createdAt >= :start AND p.createdAt < :end', {
+          start: periodStart,
+          end: periodEnd,
+        }),
+      botId,
+    ).getRawOne();
 
     return Number(activeUsersRaw?.cnt || 0);
   }
 
-  private async getTopTags(periodStart: Date, periodEnd: Date) {
-    const rawTopTags = await this.postRepository
-      .createQueryBuilder('p')
-      .leftJoin('p.tag', 't')
-      .leftJoin('p.likes', 'l')
-      .select('t.id', 'tagId')
-      .addSelect('t.name', 'name')
-      .addSelect('COUNT(DISTINCT p.id)', 'posts')
-      .addSelect('COUNT(DISTINCT l.id)', 'likes')
-      .where('p.createdAt >= :start AND p.createdAt < :end', {
-        start: periodStart,
-        end: periodEnd,
-      })
-      .andWhere('t.id IS NOT NULL')
+  private async getTopTags(
+    periodStart: Date,
+    periodEnd: Date,
+    botId: number | null,
+  ) {
+    const rawTopTags = await this.excludeBot(
+      this.postRepository
+        .createQueryBuilder('p')
+        .leftJoin('p.tag', 't')
+        .leftJoin('p.likes', 'l')
+        .select('t.id', 'tagId')
+        .addSelect('t.name', 'name')
+        .addSelect('COUNT(DISTINCT p.id)', 'posts')
+        .addSelect('COUNT(DISTINCT l.id)', 'likes')
+        .where('p.createdAt >= :start AND p.createdAt < :end', {
+          start: periodStart,
+          end: periodEnd,
+        })
+        .andWhere('t.id IS NOT NULL'),
+      botId,
+    )
       .groupBy('t.id')
       .addGroupBy('t.name')
       .orderBy('COUNT(DISTINCT p.id)', 'DESC')

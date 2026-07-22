@@ -8,6 +8,7 @@ import { BaseMediaProcessor } from './base-media.processor';
 import { MediaGenerationFinalizeService } from 'src/modules/media-generation/application/finalize/media-generation-finalize.service';
 import { MediaGenerationBalanceService } from 'src/modules/media-generation/application/balance/media-generation-balance.service';
 import { ImageNotificationPresenter } from 'src/modules/media-generation/infrastructure/queues/presenters/image-notification.presenter';
+import { OpsBotService } from 'src/modules/ops-bot/ops-bot.service';
 
 type MediaEditImageJobData = {
   request: EditImageGenerationRequest;
@@ -26,8 +27,9 @@ export class MediaEditImageProcessor extends BaseMediaProcessor {
     private readonly mediaGenerationFinalizeService: MediaGenerationFinalizeService,
     notificationGateway: NotificationGateway,
     mediaGenerationBalanceService: MediaGenerationBalanceService,
+    opsBotService: OpsBotService,
   ) {
-    super(notificationGateway, 'image_edit', mediaGenerationBalanceService);
+    super(notificationGateway, 'image_edit', mediaGenerationBalanceService, opsBotService);
   }
 
   async process(job: Job<MediaEditImageJobData>) {

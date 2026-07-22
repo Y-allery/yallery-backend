@@ -63,6 +63,7 @@ describe('UserService.useReferralCode (double referral bonus)', () => {
       {} as any, // 15 reportPostRepository
       {} as any, // 16 paymentRepository
       dataSource as any, // 17 dataSource
+      {} as any, // 18 providerRuntimeConfigService
     );
 
     return { service, increment, dataSource };

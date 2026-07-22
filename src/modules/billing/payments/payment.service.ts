@@ -144,6 +144,8 @@ export class PaymentService {
                 amount,
                 currency,
                 status: 'completed',
+                isTest,
+                pointsCredited: pointsToAdd,
               });
 
               await manager

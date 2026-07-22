@@ -32,6 +32,7 @@ import { RewardTypeEnum } from 'src/modules/billing/rewards/types/reward-type.en
 import { ContestTypeEnum } from 'src/modules/contests/types/contest.status.enum';
 import { UserActivityQueryService } from 'src/modules/engagement/user-activity/services/user-activity-query.service';
 import { UserNotificationTypeEnum } from 'src/modules/notifications/types/user-notification-type.enum';
+import { ProviderRuntimeConfigService } from 'src/modules/provider-settings/provider-runtime-config.service';
 
 @Injectable()
 export class UserService {
@@ -67,6 +68,7 @@ export class UserService {
     private readonly paymentRepository: Repository<PaymentEntity>,
 
     private readonly dataSource: DataSource,
+    private readonly providerRuntimeConfigService: ProviderRuntimeConfigService,
   ) {}
 
   async generateReferralCode(userId: number): Promise<string> {
@@ -357,11 +359,19 @@ export class UserService {
     // just a real login — so the cohort is broader than "users who logged in
     // today". Tightening that to a real last-login signal is a separate product
     // decision and is intentionally left unchanged here.
-    const usersToUpdate = await this.userModel
+    // The content bot's updatedAt bumps on every post it writes, so it would
+    // otherwise collect the daily reward + push. Exclude it (no-op if unset).
+    const botId = await this.providerRuntimeConfigService.getNumber(
+      'CONTENT_BOT_USER_ID',
+    );
+    const dailyRewardQuery = this.userModel
       .createQueryBuilder('user')
       .select(['user.id'])
-      .where('user.updatedAt >= :todayStart', { todayStart })
-      .getMany();
+      .where('user.updatedAt >= :todayStart', { todayStart });
+    if (typeof botId === 'number' && Number.isFinite(botId)) {
+      dailyRewardQuery.andWhere('user.id != :botId', { botId });
+    }
+    const usersToUpdate = await dailyRewardQuery.getMany();
 
     const userIds = usersToUpdate.map((user) => user.id);
     if (userIds.length === 0) {

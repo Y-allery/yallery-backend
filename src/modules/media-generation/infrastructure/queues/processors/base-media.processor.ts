@@ -5,12 +5,14 @@ import {
   NotificationGateway,
 } from 'src/modules/notifications/notification.gateway';
 import { MediaGenerationBalanceService } from 'src/modules/media-generation/application/balance/media-generation-balance.service';
+import { OpsBotService } from 'src/modules/ops-bot/ops-bot.service';
 
 export abstract class BaseMediaProcessor extends WorkerHost {
   constructor(
     protected readonly notificationGateway: NotificationGateway,
     private readonly mediaGenerationErrorType: MediaGenerationErrorType,
     private readonly mediaGenerationBalanceService: MediaGenerationBalanceService,
+    private readonly opsBotService: OpsBotService,
   ) {
     super();
   }
@@ -79,6 +81,16 @@ export abstract class BaseMediaProcessor extends WorkerHost {
         refundError,
       );
     }
+
+    // Fire-and-forget: an ops alert must never affect generation processing.
+    this.opsBotService
+      .notifyRunpodFailure({
+        aiService: aiService || 'unknown',
+        jobId: job.id?.toString(),
+        userId,
+        message: err.message,
+      })
+      .catch(() => {});
 
     if (!userId) {
       console.error(

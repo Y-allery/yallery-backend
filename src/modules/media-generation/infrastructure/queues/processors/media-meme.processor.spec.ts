@@ -14,6 +14,7 @@ describe('MediaMemeProcessor', () => {
       {} as any,
       notificationGateway,
       balanceService as any,
+      { notifyRunpodFailure: jest.fn(async () => {}) } as any,
     );
 
     await processor.onFailed(

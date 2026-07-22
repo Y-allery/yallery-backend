@@ -54,6 +54,7 @@ import { MediaGenerationFinalizeService } from 'src/modules/media-generation/app
 import { MediaGenerationGuardsService } from 'src/modules/media-generation/application/guards/media-generation-guards.service';
 import { MediaGenerationPricingService } from 'src/modules/media-generation/application/pricing/media-generation-pricing.service';
 import { PartnershipActivityModule } from 'src/modules/partnership-activity/partnership-activity.module';
+import { OpsBotModule } from 'src/modules/ops-bot/ops-bot.module';
 
 const mediaGenerationQueueOptions = {
   streams: {
@@ -108,6 +109,7 @@ const mediaGenerationQueueOptions = {
     NotificationModule,
     UserActivityModule,
     PartnershipActivityModule,
+    OpsBotModule,
   ],
   controllers: [MediaGenerationController, UserProcessGenerationController],
   providers: [
@@ -138,6 +140,10 @@ const mediaGenerationQueueOptions = {
     RunpodPayloadBuilder,
     RunpodTimeoutPolicyService,
   ],
-  exports: [MediaProviderRegistryService, MediaRouteResolverService],
+  exports: [
+    MediaProviderRegistryService,
+    MediaRouteResolverService,
+    MediaGenerationEnqueueService,
+  ],
 })
 export class MediaGenerationModule {}

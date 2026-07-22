@@ -37,6 +37,7 @@ describe('UserService device tokens', () => {
       {} as any, // 15
       {} as any, // 16
       {} as any, // 17
+      {} as any, // 18 providerRuntimeConfigService
     );
 
     return { service, userModel, deviceTokenModel };

@@ -8,6 +8,7 @@ import { MediaGenerationFinalizeService } from 'src/modules/media-generation/app
 import { MediaGenerationBalanceService } from 'src/modules/media-generation/application/balance/media-generation-balance.service';
 import { BaseMediaProcessor } from './base-media.processor';
 import { AudioNotificationPresenter } from 'src/modules/media-generation/infrastructure/queues/presenters/audio-notification.presenter';
+import { OpsBotService } from 'src/modules/ops-bot/ops-bot.service';
 
 type MediaAudioJobData = {
   request: AudioGenerationRequest;
@@ -26,8 +27,9 @@ export class MediaAudioProcessor extends BaseMediaProcessor {
     private readonly mediaGenerationFinalizeService: MediaGenerationFinalizeService,
     notificationGateway: NotificationGateway,
     mediaGenerationBalanceService: MediaGenerationBalanceService,
+    opsBotService: OpsBotService,
   ) {
-    super(notificationGateway, 'audio', mediaGenerationBalanceService);
+    super(notificationGateway, 'audio', mediaGenerationBalanceService, opsBotService);
   }
 
   async process(job: Job<MediaAudioJobData>) {
