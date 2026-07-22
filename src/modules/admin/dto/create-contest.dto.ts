@@ -47,7 +47,7 @@ export class CreateContestDto {
 
   @IsString()
   @MinLength(5)
-  @MaxLength(500)
+  @MaxLength(5000)
   @ApiProperty({
     default: `Create AI-generated images that creatively integrate Dominos Pizza into everyday settings. Open to all digital artists and AI enthusiasts. Show us your unique vision of Domino's in daily life!`,
     type: String,
