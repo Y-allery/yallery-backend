@@ -43,6 +43,9 @@ export class ContentBotController {
   @Post('publish-now')
   @ApiOperation({ summary: 'Run a paced publish tick manually' })
   async publishNow() {
+    // Mirror the cron pairing (content-bot.cron.ts publish()) so a manual
+    // trigger sees the same up-to-date plan statuses the cron would.
+    await this.bot.reconcileGenerating();
     return this.bot.publishDuePaced();
   }
 
