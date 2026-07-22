@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { MoreThanOrEqual, Repository } from 'typeorm';
 import { PostEntity } from 'src/modules/posts/entities/post.entity';
 import { MediaGenerationChargeEntity } from 'src/modules/media-generation/persistence/entities/media-generation-charge.entity';
+import { MediaAISettingsEntity } from 'src/modules/media-generation/persistence/entities/media-ai-settings.entity';
 import { PaymentEntity } from 'src/modules/billing/payments/entities/payment.entity';
 import { RewardService } from 'src/modules/billing/rewards/reward.service';
 import { RewardTypeEnum } from 'src/modules/billing/rewards/types/reward-type.enum';
@@ -74,6 +75,8 @@ export class OpsBotService {
     private readonly chargeRepository: Repository<MediaGenerationChargeEntity>,
     @InjectRepository(PaymentEntity)
     private readonly paymentRepository: Repository<PaymentEntity>,
+    @InjectRepository(MediaAISettingsEntity)
+    private readonly mediaAiSettingsRepository: Repository<MediaAISettingsEntity>,
     private readonly rewardService: RewardService,
     private readonly providerRuntimeConfigService: ProviderRuntimeConfigService,
     private readonly aiUsageCollector: AIUsageMetricsCollector,
@@ -191,8 +194,14 @@ export class OpsBotService {
       this.failedGenerationsByService(start, botId),
     ]);
 
+    const displayNames = await this.aiServiceDisplayNames();
     const lines = ['📊 <b>Генерація сьогодні</b>', ''];
     const succeeded = this.mergeUsageCounts(usage.image, usage.video);
+    const succeededByName = this.relabelAndMerge(succeeded, displayNames);
+    const failedByName = this.relabelAndMerge(
+      Object.fromEntries(failures.map((f) => [f.aiService, f.count])),
+      displayNames,
+    );
     const totalSucceeded = Object.values(succeeded).reduce(
       (s, v) => s + v,
       0,
@@ -203,17 +212,49 @@ export class OpsBotService {
     lines.push(`❌ Провалено: ${totalFailed}`);
     lines.push('');
     lines.push('<b>По моделях (успішно):</b>');
-    for (const [service, count] of Object.entries(succeeded)) {
-      if (count > 0) lines.push(`  ${service}: ${count}`);
+    for (const [label, count] of Object.entries(succeededByName)) {
+      if (count > 0) lines.push(`  ${label}: ${count}`);
     }
     if (failures.length > 0) {
       lines.push('');
       lines.push('<b>По моделях (провалено):</b>');
-      for (const f of failures) {
-        lines.push(`  ${f.aiService}: ${f.count}`);
+      for (const [label, count] of Object.entries(failedByName)) {
+        lines.push(`  ${label}: ${count}`);
       }
     }
     return lines.join('\n');
+  }
+
+  /**
+   * aiService -> media_ai_settings.name, so ops stats read as "YEngine",
+   * never the raw internal key (e.g. "p_video_image") that means nothing to
+   * whoever is reading the Telegram digest.
+   */
+  private async aiServiceDisplayNames(): Promise<Record<string, string>> {
+    const rows = await this.mediaAiSettingsRepository.find({
+      select: { aiService: true, name: true },
+    });
+    const map: Record<string, string> = {};
+    for (const row of rows) map[row.aiService] = row.name;
+    return map;
+  }
+
+  /**
+   * Relabels raw aiService keys to their display name, SUMMING counts when
+   * multiple aiServices share one name (e.g. p_video_text and p_video_image
+   * are both sold to users as "YEngine") — otherwise they'd show as two
+   * separate, confusingly-duplicate lines instead of one merged total.
+   */
+  private relabelAndMerge(
+    counts: Record<string, number>,
+    displayNames: Record<string, string>,
+  ): Record<string, number> {
+    const merged: Record<string, number> = {};
+    for (const [aiService, count] of Object.entries(counts)) {
+      const label = displayNames[aiService] ?? aiService;
+      merged[label] = (merged[label] ?? 0) + count;
+    }
+    return merged;
   }
 
   /** Sums newPosts per aiService; on a (currently nonexistent) key collision

@@ -37,6 +37,7 @@ describe('OpsBotService', () => {
       }),
     };
     const paymentRepository = { find: jest.fn(async () => purchases) };
+    const mediaAiSettingsRepository = { find: jest.fn(async () => []) };
     const rewardService = {
       getRewardPoints: jest.fn(async () => 5000),
       getRewardPointsOrDefault: jest.fn(async (_t: any, def: number) => def),
@@ -56,6 +57,7 @@ describe('OpsBotService', () => {
       postRepository as any,
       chargeRepository as any,
       paymentRepository as any,
+      mediaAiSettingsRepository as any,
       rewardService as any,
       providerRuntimeConfigService as any,
       aiUsageCollector as any,
@@ -114,6 +116,7 @@ describe('OpsBotService', () => {
         {} as any,
         {} as any,
         {} as any,
+        {} as any,
         { getString: jest.fn(async () => null), getNumber: jest.fn(async () => undefined) } as any,
         { collect: jest.fn() } as any,
         telegram as any,
@@ -167,6 +170,7 @@ describe('OpsBotService', () => {
         sendMessage: jest.fn(async () => true),
       };
       const service = new OpsBotService(
+        {} as any,
         {} as any,
         {} as any,
         {} as any,
