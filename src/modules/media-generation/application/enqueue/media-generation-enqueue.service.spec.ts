@@ -60,7 +60,7 @@ describe('MediaGenerationEnqueueService', () => {
 
     const job = await service.enqueuePromptImageGeneration(
       {
-        aiService: 'sdxl',
+        aiService: 'krea2_turbo',
         prompt: 'hello',
         imageQuantity: 1,
         orientation: 'square',
@@ -72,13 +72,17 @@ describe('MediaGenerationEnqueueService', () => {
     expect(job).toEqual({ id: 'job-1' });
 
     expect(mediaGenerationBalanceService.reserve).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: 55, amount: 10, aiService: 'sdxl' }),
-    );
-    expect(queueAdd).toHaveBeenCalledWith(
-      'sdxl',
       expect.objectContaining({
         userId: 55,
-        aiService: 'sdxl',
+        amount: 10,
+        aiService: 'krea2_turbo',
+      }),
+    );
+    expect(queueAdd).toHaveBeenCalledWith(
+      'krea2_turbo',
+      expect.objectContaining({
+        userId: 55,
+        aiService: 'krea2_turbo',
         chargeId: expect.any(String),
         request: expect.objectContaining({
           prompt: 'enhanced prompt',
@@ -108,7 +112,7 @@ describe('MediaGenerationEnqueueService', () => {
     await expect(
       service.enqueuePromptImageGeneration(
         {
-          aiService: 'sdxl',
+          aiService: 'krea2_turbo',
           prompt: 'hello',
           imageQuantity: 1,
           orientation: 'square',

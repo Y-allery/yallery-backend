@@ -33,8 +33,8 @@ describe('AISettingsMapper', () => {
   it('preserves legacy and camelCase response aliases', () => {
     const result = mapper.format({
       id: 10,
-      aiService: 'sdxl_lora_generation',
-      name: 'SDXL LoRA',
+      aiService: 'krea2_lora_generation',
+      name: 'Krea 2 LoRA',
       description: 'Fine-tune image generation',
       provider: 'runpod',
       capability: 'image_generate',
@@ -47,8 +47,8 @@ describe('AISettingsMapper', () => {
 
     expect(result).toMatchObject({
       id: 10,
-      ai_service: 'sdxl_lora_generation',
-      aiService: 'sdxl_lora_generation',
+      ai_service: 'krea2_lora_generation',
+      aiService: 'krea2_lora_generation',
       type: 'finetune',
       category: 'finetune',
       is_active: true,

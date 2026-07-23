@@ -70,7 +70,7 @@ describe('ContestMediaGenerationResolverService', () => {
     } = createService();
     contestRepository.findOne.mockResolvedValue(fineTuneContest);
     mediaAISettingsRepository.findOne.mockResolvedValue({
-      aiService: 'sdxl_lora_generation',
+      aiService: 'krea2_lora_generation',
       capability: 'image_generate',
       isActive: true,
     });
@@ -78,7 +78,11 @@ describe('ContestMediaGenerationResolverService', () => {
       loraKey: 'codex_ft_key',
       loraUrl: 'https://example.com/lora.safetensors',
       triggerWord: 'fallback_trigger',
+      modelFamily: 'krea2',
       status: 'ready',
+      loraSha256: 'a'.repeat(64),
+      loraStep: 1000,
+      inferenceModel: 'krea/Krea-2-Turbo',
       generationDefaults: { loraScale: 0.7 },
     });
 
@@ -89,16 +93,19 @@ describe('ContestMediaGenerationResolverService', () => {
       orientation: 'vertical',
     });
 
-    expect(result.aiService).toBe('sdxl_lora_generation');
+    expect(result.aiService).toBe('krea2_lora_generation');
     expect(result.providerSettings).toMatchObject({
       loraKey: 'codex_ft_key',
       loraUrl: 'https://example.com/lora.safetensors',
       triggerWord: 'codex_ft',
       loraScale: 0.85,
+      loraSha256: 'a'.repeat(64),
+      loraStep: 1000,
+      inferenceModel: 'krea/Krea-2-Turbo',
     });
   });
 
-  it('rejects a ready Krea 2 LoRA from the SDXL contest route', async () => {
+  it('rejects a legacy SDXL LoRA from the Krea 2 contest route', async () => {
     const {
       service,
       contestRepository,
@@ -107,17 +114,19 @@ describe('ContestMediaGenerationResolverService', () => {
     } = createService();
     contestRepository.findOne.mockResolvedValue(fineTuneContest);
     mediaAISettingsRepository.findOne.mockResolvedValue({
-      aiService: 'sdxl_lora_generation',
+      aiService: 'krea2_lora_generation',
       capability: 'image_generate',
       isActive: true,
     });
     aiFinetuneRepository.findOne.mockResolvedValue({
       loraKey: 'codex_ft_key',
-      loraUrl: 'https://example.com/krea2-lora.safetensors',
-      triggerWord: 'xoob_character',
-      modelFamily: 'krea2',
+      loraUrl: 'https://example.com/legacy.safetensors',
+      triggerWord: 'legacy_character',
+      modelFamily: 'sdxl',
       status: 'ready',
-      generationDefaults: { loraScale: 0.9 },
+      loraSha256: 'b'.repeat(64),
+      loraStep: 800,
+      inferenceModel: 'stabilityai/stable-diffusion-xl-base-1.0',
     });
 
     await expect(
@@ -130,11 +139,11 @@ describe('ContestMediaGenerationResolverService', () => {
     ).rejects.toThrow(BadRequestException);
 
     expect(aiFinetuneRepository.findOne).toHaveBeenCalledWith({
-      where: { loraKey: 'codex_ft_key', modelFamily: 'sdxl' },
+      where: { loraKey: 'codex_ft_key', modelFamily: 'krea2' },
     });
   });
 
-  it('uses SDXL as the fallback prompt model for standard contests', async () => {
+  it('uses Krea 2 Turbo as the retired-SDXL fallback for standard contests', async () => {
     const {
       service,
       contestRepository,
@@ -148,7 +157,7 @@ describe('ContestMediaGenerationResolverService', () => {
     });
     contestFlowMetadataRepository.count.mockResolvedValue(0);
     mediaAISettingsRepository.findOne.mockResolvedValue({
-      aiService: 'sdxl',
+      aiService: 'krea2_turbo',
       capability: 'image_generate',
       isActive: true,
     });
@@ -162,11 +171,11 @@ describe('ContestMediaGenerationResolverService', () => {
 
     expect(mediaAISettingsRepository.findOne).toHaveBeenCalledWith({
       where: {
-        aiService: 'sdxl',
+        aiService: 'krea2_turbo',
         capability: 'image_generate',
         isActive: true,
       },
     });
-    expect(result.aiService).toBe('sdxl');
+    expect(result.aiService).toBe('krea2_turbo');
   });
 });

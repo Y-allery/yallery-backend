@@ -71,7 +71,14 @@ describe('OpsBotService', () => {
       aiUsageCollector as any,
       telegram as any,
     );
-    return { service, telegram, rewardService, paymentRepository, config, providerRuntimeConfigService };
+    return {
+      service,
+      telegram,
+      rewardService,
+      paymentRepository,
+      config,
+      providerRuntimeConfigService,
+    };
   };
 
   describe('chat authorization', () => {
@@ -139,7 +146,10 @@ describe('OpsBotService', () => {
         {} as any,
         {} as any,
         {} as any,
-        { getString: jest.fn(async () => null), getNumber: jest.fn(async () => undefined) } as any,
+        {
+          getString: jest.fn(async () => null),
+          getNumber: jest.fn(async () => undefined),
+        } as any,
         { collect: jest.fn() } as any,
         telegram as any,
       );
@@ -185,13 +195,22 @@ describe('OpsBotService', () => {
     const cmd = (service: any, chatId: number, text: string) =>
       service.handleUpdate({
         update_id: chatId,
-        message: { message_id: 1, text, chat: { id: chatId }, from: { id: chatId } },
+        message: {
+          message_id: 1,
+          text,
+          chat: { id: chatId },
+          from: { id: chatId },
+        },
       });
 
     it('pings the ops chat with a ready /authorize command on an unauthorized /start', async () => {
       const { service, telegram } = makeService();
 
-      await startFrom(service, 777, { id: 777, username: 'newguy', first_name: 'New' });
+      await startFrom(service, 777, {
+        id: 777,
+        username: 'newguy',
+        first_name: 'New',
+      });
 
       const pings = (telegram.sendMessage.mock.calls as any[][]).filter(
         (c) => c[0] === '111',
@@ -313,13 +332,22 @@ describe('OpsBotService', () => {
         {} as any,
         {} as any,
         {} as any,
-        { getString: jest.fn(async () => null), getNumber: jest.fn(async () => undefined) } as any,
+        {
+          getString: jest.fn(async () => null),
+          getNumber: jest.fn(async () => undefined),
+        } as any,
         {} as any,
         telegram as any,
       );
 
-      await service.notifyRunpodFailure({ aiService: 'sdxl', message: 'x' });
-      await service.notifyRunpodFailure({ aiService: 'sdxl', message: 'y' });
+      await service.notifyRunpodFailure({
+        aiService: 'krea2_turbo',
+        message: 'x',
+      });
+      await service.notifyRunpodFailure({
+        aiService: 'krea2_turbo',
+        message: 'y',
+      });
 
       expect(telegram.sendMessage).not.toHaveBeenCalled();
     });
@@ -327,8 +355,14 @@ describe('OpsBotService', () => {
     it('fingerprints backend errors on the caller-supplied fingerprint, not the raw text', async () => {
       const { service, telegram } = makeService({ telegramSendResult: true });
 
-      await service.notifyBackendError('Cannot find user 111', 'NotFoundException');
-      await service.notifyBackendError('Cannot find user 222', 'NotFoundException');
+      await service.notifyBackendError(
+        'Cannot find user 111',
+        'NotFoundException',
+      );
+      await service.notifyBackendError(
+        'Cannot find user 222',
+        'NotFoundException',
+      );
 
       // Same fingerprint, different message text -> still debounced as one bug.
       expect(telegram.sendMessage).toHaveBeenCalledTimes(1);
@@ -339,8 +373,18 @@ describe('OpsBotService', () => {
     it('sums the amount frozen at credit time, not a live recompute', async () => {
       const { service, rewardService } = makeService({
         purchases: [
-          { productId: '5000yeps', pointsCredited: 5000, currency: 'USD', amount: 4.99 },
-          { productId: '15000yeps', pointsCredited: 15000, currency: 'USD', amount: 9.99 },
+          {
+            productId: '5000yeps',
+            pointsCredited: 5000,
+            currency: 'USD',
+            amount: 4.99,
+          },
+          {
+            productId: '15000yeps',
+            pointsCredited: 15000,
+            currency: 'USD',
+            amount: 9.99,
+          },
         ],
       });
 
@@ -355,10 +399,17 @@ describe('OpsBotService', () => {
     it('falls back to the live reward config for legacy rows with no pointsCredited, and never throws', async () => {
       const { service, rewardService } = makeService({
         purchases: [
-          { productId: '5000yeps', pointsCredited: null, currency: 'USD', amount: 4.99 },
+          {
+            productId: '5000yeps',
+            pointsCredited: null,
+            currency: 'USD',
+            amount: 4.99,
+          },
         ],
       });
-      rewardService.getRewardPointsOrDefault = jest.fn(async (_t: any, _def: number) => 5000);
+      rewardService.getRewardPointsOrDefault = jest.fn(
+        async (_t: any, _def: number) => 5000,
+      );
 
       const text = await service.formatYepStats();
 

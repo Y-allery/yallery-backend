@@ -51,7 +51,7 @@ describe('MediaRouteResolverService', () => {
     const service = createService({
       RUNPOD_API_KEY: 'key',
       RUNPOD_MMAUDIO_ENDPOINT_ID: 'mmaudio-endpoint',
-      RUNPOD_SDXL_ENDPOINT_ID: 'sdxl-endpoint',
+      RUNPOD_KREA2_TURBO_ENDPOINT_ID: 'krea2-endpoint',
     });
 
     await expect(service.describeRoutes()).resolves.toHaveLength(2);

@@ -23,7 +23,7 @@ import {
 @Injectable()
 export class ContestMediaGenerationResolverService {
   /** Fallback when DEFAULT_PROMPT_IMAGE_CONTEST_AI_SERVICE is not configured. */
-  private readonly defaultPromptImageContestAiService = 'sdxl';
+  private readonly defaultPromptImageContestAiService = 'krea2_turbo';
 
   constructor(
     @InjectRepository(ContestEntity)
@@ -65,7 +65,7 @@ export class ContestMediaGenerationResolverService {
     const { width, height } = getPromptImageDimensions(aiService, orientation);
 
     if (contest.contestType !== ContestTypeEnum.FINE_TUNE) {
-      if (aiService === 'sdxl_lora_generation') {
+      if (aiService === 'krea2_lora_generation') {
         throw new BadRequestException(
           `Contest ${contest.id} is linked to ${aiService} but is not marked as a fine-tune contest.`,
         );
@@ -80,7 +80,7 @@ export class ContestMediaGenerationResolverService {
       };
     }
 
-    if (aiService !== 'sdxl_lora_generation') {
+    if (aiService !== 'krea2_lora_generation') {
       throw new BadRequestException(
         `Contest ${contest.id} is marked as fine-tune but is linked to ${aiService}.`,
       );
@@ -101,7 +101,7 @@ export class ContestMediaGenerationResolverService {
     const loraScale =
       Number(contest.fineTuneStrength) ||
       fineTune.generationDefaults?.loraScale ||
-      0.8;
+      0.9;
 
     return {
       ...request,
@@ -114,6 +114,9 @@ export class ContestMediaGenerationResolverService {
         loraKey: fineTune.loraKey,
         loraScale,
         loraUrl: fineTune.loraUrl,
+        loraSha256: fineTune.loraSha256,
+        loraStep: fineTune.loraStep,
+        inferenceModel: fineTune.inferenceModel,
         triggerWord,
         contestType: contest.contestType,
       },
@@ -220,7 +223,7 @@ export class ContestMediaGenerationResolverService {
 
     if (contest.contestType === ContestTypeEnum.FINE_TUNE) {
       return this.getMediaAiSettingByAiService(
-        'sdxl_lora_generation',
+        'krea2_lora_generation',
         expectedCapability,
       );
     }
@@ -285,9 +288,9 @@ export class ContestMediaGenerationResolverService {
     }
 
     const requestedAiService = aiService?.trim();
-    if (requestedAiService && requestedAiService !== 'sdxl_lora_generation') {
+    if (requestedAiService && requestedAiService !== 'krea2_lora_generation') {
       throw new BadRequestException(
-        'Fine-tune contests only accept sdxl_lora_generation prompt image generations.',
+        'Fine-tune contests only accept krea2_lora_generation prompt image generations.',
       );
     }
   }
@@ -296,7 +299,7 @@ export class ContestMediaGenerationResolverService {
     loraKey: string,
   ): Promise<AIFinetuneEntity> {
     const fineTune = await this.aiFinetuneRepository.findOne({
-      where: { loraKey, modelFamily: 'sdxl' },
+      where: { loraKey, modelFamily: 'krea2' },
     });
 
     if (!fineTune) {
@@ -306,9 +309,12 @@ export class ContestMediaGenerationResolverService {
     }
 
     if (
-      (fineTune.modelFamily ?? 'sdxl') !== 'sdxl' ||
+      (fineTune.modelFamily ?? 'krea2') !== 'krea2' ||
       fineTune.status !== 'ready' ||
-      !fineTune.loraUrl
+      !fineTune.loraUrl ||
+      !fineTune.loraSha256 ||
+      !fineTune.loraStep ||
+      fineTune.inferenceModel !== 'krea/Krea-2-Turbo'
     ) {
       throw new BadRequestException(
         `Fine-tune "${loraKey}" is not ready for generation.`,

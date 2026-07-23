@@ -866,22 +866,22 @@ export class ContestService {
         const explicitSetting = await this.getActiveMediaAiSettingById(
           params.mediaAiSettingId,
         );
-        if (explicitSetting.aiService !== 'sdxl_lora_generation') {
+        if (explicitSetting.aiService !== 'krea2_lora_generation') {
           throw new BadRequestException(
-            'Fine-tune contests must use the sdxl_lora_generation media model.',
+            'Fine-tune contests must use the krea2_lora_generation media model.',
           );
         }
         return explicitSetting;
       }
 
-      return this.getActiveMediaAiSettingByAiService('sdxl_lora_generation');
+      return this.getActiveMediaAiSettingByAiService('krea2_lora_generation');
     }
 
     if (params.mediaAiSettingId != null) {
       const explicitSetting = await this.getActiveMediaAiSettingById(
         params.mediaAiSettingId,
       );
-      if (explicitSetting.aiService === 'sdxl_lora_generation') {
+      if (explicitSetting.aiService === 'krea2_lora_generation') {
         throw new BadRequestException(
           `${explicitSetting.aiService} requires fineTuneToken to be configured.`,
         );
@@ -934,7 +934,7 @@ export class ContestService {
     fineTuneToken: string | null,
     mediaAiService: string | null,
   ): ContestTypeEnum {
-    return fineTuneToken || mediaAiService === 'sdxl_lora_generation'
+    return fineTuneToken || mediaAiService === 'krea2_lora_generation'
       ? ContestTypeEnum.FINE_TUNE
       : ContestTypeEnum.DEFAULT;
   }
@@ -964,14 +964,17 @@ export class ContestService {
     fineTuneId: number,
   ): Promise<AIFinetuneEntity> {
     const fineTune = await this.aiFinetuneRepository.findOne({
-      where: { id: fineTuneId, modelFamily: 'sdxl' },
+      where: { id: fineTuneId, modelFamily: 'krea2' },
     });
 
     if (
       !fineTune ||
-      (fineTune.modelFamily ?? 'sdxl') !== 'sdxl' ||
+      (fineTune.modelFamily ?? 'krea2') !== 'krea2' ||
       fineTune.status !== 'ready' ||
-      !fineTune.loraUrl
+      !fineTune.loraUrl ||
+      !fineTune.loraSha256 ||
+      !fineTune.loraStep ||
+      fineTune.inferenceModel !== 'krea/Krea-2-Turbo'
     ) {
       throw new BadRequestException(
         'Fine-tune contests require a ready LoRA training profile.',
@@ -992,14 +995,17 @@ export class ContestService {
     }
 
     const fineTune = await this.aiFinetuneRepository.findOne({
-      where: { loraKey, modelFamily: 'sdxl' },
+      where: { loraKey, modelFamily: 'krea2' },
     });
 
     if (
       !fineTune ||
-      (fineTune.modelFamily ?? 'sdxl') !== 'sdxl' ||
+      (fineTune.modelFamily ?? 'krea2') !== 'krea2' ||
       fineTune.status !== 'ready' ||
-      !fineTune.loraUrl
+      !fineTune.loraUrl ||
+      !fineTune.loraSha256 ||
+      !fineTune.loraStep ||
+      fineTune.inferenceModel !== 'krea/Krea-2-Turbo'
     ) {
       throw new BadRequestException(
         'Fine-tune contests require a ready LoRA training profile.',

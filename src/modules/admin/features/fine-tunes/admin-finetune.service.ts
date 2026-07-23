@@ -27,21 +27,10 @@ const MODEL_TRAINING_DEFAULTS: Record<
   AIFinetuneModelFamily,
   Required<NonNullable<AIFinetuneEntity['trainingSettings']>>
 > = {
-  sdxl: {
-    resolution: 512,
-    maxTrainSteps: 800,
-    rank: 4,
-    trainBatchSize: 1,
-    gradientAccumulationSteps: 4,
-    learningRate: '1e-4',
-    mixedPrecision: 'fp16',
-    seed: 42,
-    enableRandomFlip: false,
-  },
   krea2: {
     resolution: 1024,
-    maxTrainSteps: 1000,
-    rank: 32,
+    maxTrainSteps: 1200,
+    rank: 16,
     trainBatchSize: 1,
     gradientAccumulationSteps: 1,
     learningRate: '3e-4',
@@ -125,7 +114,7 @@ export class AdminFineTuneService {
   async createFineTune(dto: CreateAIFinetuneDto) {
     const name = dto.name?.trim();
     const triggerWord = this.loraKeyService.normalize(dto.triggerWord, 80);
-    const modelFamily = dto.modelFamily ?? 'sdxl';
+    const modelFamily = dto.modelFamily ?? 'krea2';
     const baseModel =
       dto.baseModel?.trim() ?? AI_FINETUNE_DEFAULT_BASE_MODELS[modelFamily];
     const className = this.loraKeyService.normalize(
@@ -172,7 +161,7 @@ export class AdminFineTuneService {
         dto.training?.enableRandomFlip ?? defaults.enableRandomFlip,
     };
     const generationDefaults = {
-      loraScale: dto.generationDefaults?.loraScale ?? 0.8,
+      loraScale: dto.generationDefaults?.loraScale ?? 0.9,
     };
 
     const entity = this.aiFinetuneRepository.create({
@@ -194,6 +183,9 @@ export class AdminFineTuneService {
         await this.runpodFineTuneClient.getEndpointId(modelFamily),
       runpodJobId: null,
       loraUrl: null,
+      loraSha256: null,
+      loraStep: null,
+      inferenceModel: null,
       errorMessage: null,
       rawOutput: null,
     });
@@ -211,15 +203,12 @@ export class AdminFineTuneService {
   }
 
   private async queueFineTuneTraining(item: AIFinetuneEntity) {
-    const modelFamily = item.modelFamily ?? 'sdxl';
+    const modelFamily = item.modelFamily ?? 'krea2';
     const sourceImages = item.datasetImages.filter((image) => image.url);
-    const datasetImages =
-      modelFamily === 'krea2'
-        ? sourceImages.map((image) => ({
-            url: image.url,
-            ...(image.caption ? { caption: image.caption } : {}),
-          }))
-        : sourceImages.map((image) => image.url);
+    const datasetImages = sourceImages.map((image) => ({
+      url: image.url,
+      ...(image.caption ? { caption: image.caption } : {}),
+    }));
 
     if (datasetImages.length < 10) {
       throw new BadRequestException('At least 10 dataset images are required');
@@ -228,21 +217,18 @@ export class AdminFineTuneService {
     const hasPerImageCaptions = sourceImages.some((image) =>
       Boolean(image.caption),
     );
-    const loraScale = item.generationDefaults?.loraScale ?? 0.8;
+    const loraScale = item.generationDefaults?.loraScale ?? 0.9;
     const job = await this.runpodFineTuneClient.submitJob(modelFamily, {
       name: item.name,
       triggerWord: item.triggerWord,
       loraKey: item.loraKey,
       className: item.className,
       modelFamily,
-      ...(modelFamily === 'krea2' ? { baseModel: item.baseModel } : {}),
+      baseModel: item.baseModel,
       datasetImages,
-      captionMode:
-        modelFamily === 'krea2' && hasPerImageCaptions
-          ? 'per_image'
-          : 'template',
+      captionMode: hasPerImageCaptions ? 'per_image' : 'template',
       ...(item.trainingSettings || {}),
-      ...(modelFamily === 'krea2' ? { defaultLoraScale: loraScale } : {}),
+      defaultLoraScale: loraScale,
       loraScale,
     });
 
@@ -263,7 +249,7 @@ export class AdminFineTuneService {
       return item;
     }
 
-    const modelFamily = item.modelFamily ?? 'sdxl';
+    const modelFamily = item.modelFamily ?? 'krea2';
     const job = await this.runpodFineTuneClient.getJobStatus(
       modelFamily,
       item.runpodEndpointId,
@@ -285,6 +271,13 @@ export class AdminFineTuneService {
       } else {
         item.status = 'ready';
         item.loraUrl = output.loraUrl || item.loraUrl;
+        item.loraSha256 =
+          this.parseLoraSha256(output.loraSha256) || item.loraSha256;
+        item.loraStep =
+          this.parsePositiveInteger(output.loraStep) || item.loraStep;
+        item.inferenceModel =
+          this.parseNonEmptyString(output.inferenceModel) ||
+          item.inferenceModel;
         item.errorMessage = null;
       }
     }
@@ -323,7 +316,7 @@ export class AdminFineTuneService {
     item: AIFinetuneEntity,
     output: Record<string, unknown>,
   ): string | null {
-    const expectedFamily = item.modelFamily ?? 'sdxl';
+    const expectedFamily = item.modelFamily ?? 'krea2';
     const outputFamily = String(
       output.modelFamily ?? output.model_family ?? '',
     ).trim();
@@ -339,24 +332,29 @@ export class AdminFineTuneService {
     if (outputFamily && outputFamily !== expectedFamily) {
       return `RunPod returned a ${outputFamily} artifact for a ${expectedFamily} fine-tune`;
     }
-    if (
-      outputBaseModel &&
-      outputBaseModel !== item.baseModel &&
-      !(expectedFamily === 'sdxl' && outputBaseModel === '/app/model')
-    ) {
+    if (outputBaseModel && outputBaseModel !== item.baseModel) {
       return `RunPod returned baseModel "${outputBaseModel}", expected "${item.baseModel}"`;
     }
 
-    // Legacy SDXL workers predate compatibility metadata. Krea jobs are new,
-    // so require an explicit handshake before exposing the LoRA as reusable.
-    if (expectedFamily === 'krea2' && !outputFamily) {
+    if (!outputFamily) {
       return 'RunPod Krea 2 artifact is missing modelFamily compatibility metadata';
     }
-    if (expectedFamily === 'krea2' && !outputBaseModel) {
+    if (!outputBaseModel) {
       return 'RunPod Krea 2 artifact is missing baseModel compatibility metadata';
     }
-    if (expectedFamily === 'krea2' && !output.loraUrl) {
+    if (!output.loraUrl) {
       return 'RunPod completed without a LoRA artifact URL';
+    }
+    if (!this.parseLoraSha256(output.loraSha256)) {
+      return 'RunPod Krea 2 artifact is missing a valid loraSha256';
+    }
+    if (!this.parsePositiveInteger(output.loraStep)) {
+      return 'RunPod Krea 2 artifact is missing a valid loraStep';
+    }
+    if (
+      this.parseNonEmptyString(output.inferenceModel) !== 'krea/Krea-2-Turbo'
+    ) {
+      return 'RunPod Krea 2 artifact is not validated for krea/Krea-2-Turbo';
     }
 
     return null;
@@ -366,10 +364,6 @@ export class AdminFineTuneService {
     modelFamily: AIFinetuneModelFamily,
     output: Record<string, unknown>,
   ): string | null {
-    if (modelFamily !== 'krea2') {
-      return null;
-    }
-
     const outputStatus = String(output.status ?? '')
       .trim()
       .toLowerCase();
@@ -409,5 +403,20 @@ export class AdminFineTuneService {
     return detail
       ? `RunPod Krea 2 validation failed: ${detail}`
       : 'RunPod Krea 2 validation failed';
+  }
+
+  private parseLoraSha256(value: unknown): string | null {
+    const normalized = this.parseNonEmptyString(value)?.toLowerCase();
+    return normalized && /^[a-f0-9]{64}$/.test(normalized) ? normalized : null;
+  }
+
+  private parsePositiveInteger(value: unknown): number | null {
+    const normalized = Number(value);
+    return Number.isInteger(normalized) && normalized > 0 ? normalized : null;
+  }
+
+  private parseNonEmptyString(value: unknown): string | null {
+    const normalized = typeof value === 'string' ? value.trim() : '';
+    return normalized || null;
   }
 }

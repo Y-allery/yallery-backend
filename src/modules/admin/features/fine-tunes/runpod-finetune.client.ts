@@ -8,13 +8,9 @@ const RUNPOD_FINETUNE_CONFIG: Record<
   AIFinetuneModelFamily,
   { endpointKey: string; apiKey: string }
 > = {
-  sdxl: {
-    endpointKey: 'RUNPOD_SDXL_LORA_FINETUNE_ENDPOINT_ID',
-    apiKey: 'RUNPOD_API_KEY',
-  },
   krea2: {
     endpointKey: 'RUNPOD_KREA2_LORA_FINETUNE_ENDPOINT_ID',
-    apiKey: 'RUNPOD_KREA2_LORA_FINETUNE_API_KEY',
+    apiKey: 'RUNPOD_API_KEY',
   },
 };
 
@@ -24,7 +20,7 @@ export class RunpodFineTuneClient {
     private readonly providerRuntimeConfigService: ProviderRuntimeConfigService,
   ) {}
 
-  async getEndpointId(modelFamily: AIFinetuneModelFamily = 'sdxl') {
+  async getEndpointId(modelFamily: AIFinetuneModelFamily = 'krea2') {
     const { endpointKey } = RUNPOD_FINETUNE_CONFIG[modelFamily];
     const endpointId =
       await this.providerRuntimeConfigService.getString(endpointKey);
