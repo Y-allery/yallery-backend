@@ -240,6 +240,89 @@ describe('AdminFineTuneService', () => {
         'missing modelFamily compatibility metadata',
       );
     });
+
+    it.each([
+      [
+        'the worker reports ready_with_validation_error',
+        {
+          status: 'ready_with_validation_error',
+          validation: { status: 'passed' },
+        },
+        'RunPod Krea 2 validation failed',
+      ],
+      [
+        'validation reports failed',
+        {
+          status: 'ready',
+          validation: { status: 'failed', error: 'bad checkpoint' },
+        },
+        'bad checkpoint',
+      ],
+      [
+        'validation reports error',
+        {
+          status: 'ready',
+          validation: { status: 'error', error: 'validator crashed' },
+        },
+        'validator crashed',
+      ],
+      [
+        'the worker returns an explicit validationError',
+        {
+          status: 'ready',
+          validation: { status: 'passed' },
+          validationError: 'validation upload failed',
+        },
+        'validation upload failed',
+      ],
+    ])(
+      'quarantines a completed Krea 2 artifact when %s',
+      async (_description, validationOutput, expectedError) => {
+        const { service, repository, runpodClient } = createService();
+        const item = activeItem(10, {
+          modelFamily: 'krea2',
+          baseModel: 'krea/Krea-2-Raw',
+        });
+        repository.findOne.mockResolvedValue(item);
+        runpodClient.getJobStatus.mockResolvedValue({
+          id: 'job-10',
+          status: 'COMPLETED',
+          output: {
+            loraUrl: 'https://cdn.test/xoob-krea2.safetensors',
+            modelFamily: 'krea2',
+            baseModel: 'krea/Krea-2-Raw',
+            ...validationOutput,
+          },
+        });
+
+        const result = await service.getFineTuneStatus(10);
+
+        expect(result.status).toBe('failed');
+        expect(result.loraUrl).toBeNull();
+        expect(result.errorMessage).toContain(expectedError);
+      },
+    );
+
+    it('keeps legacy SDXL completion semantics when validation metadata is present', async () => {
+      const { service, repository, runpodClient } = createService();
+      const item = activeItem(11);
+      repository.findOne.mockResolvedValue(item);
+      runpodClient.getJobStatus.mockResolvedValue({
+        id: 'job-11',
+        status: 'COMPLETED',
+        output: {
+          status: 'ready_with_validation_error',
+          validation: { status: 'failed', error: 'legacy validation error' },
+          loraUrl: 'https://cdn.test/legacy-sdxl.safetensors',
+        },
+      });
+
+      const result = await service.getFineTuneStatus(11);
+
+      expect(result.status).toBe('ready');
+      expect(result.loraUrl).toBe('https://cdn.test/legacy-sdxl.safetensors');
+      expect(result.errorMessage).toBeNull();
+    });
   });
 
   describe('createFineTune', () => {
@@ -304,6 +387,9 @@ describe('AdminFineTuneService', () => {
         triggerWord: 'xoob_character',
         modelFamily: 'krea2',
         datasetImages,
+        generationDefaults: {
+          loraScale: 0.9,
+        },
       });
 
       expect(deps.runpodClient.getEndpointId).toHaveBeenCalledWith('krea2');
@@ -321,6 +407,9 @@ describe('AdminFineTuneService', () => {
             mixedPrecision: 'bf16',
             seed: 0,
             enableRandomFlip: false,
+          },
+          generationDefaults: {
+            loraScale: 0.9,
           },
         }),
       );
@@ -345,7 +434,8 @@ describe('AdminFineTuneService', () => {
         mixedPrecision: 'bf16',
         seed: 0,
         enableRandomFlip: false,
-        loraScale: 0.8,
+        defaultLoraScale: 0.9,
+        loraScale: 0.9,
       });
     });
 

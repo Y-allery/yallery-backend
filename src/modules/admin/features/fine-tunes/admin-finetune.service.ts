@@ -228,6 +228,7 @@ export class AdminFineTuneService {
     const hasPerImageCaptions = sourceImages.some((image) =>
       Boolean(image.caption),
     );
+    const loraScale = item.generationDefaults?.loraScale ?? 0.8;
     const job = await this.runpodFineTuneClient.submitJob(modelFamily, {
       name: item.name,
       triggerWord: item.triggerWord,
@@ -241,7 +242,8 @@ export class AdminFineTuneService {
           ? 'per_image'
           : 'template',
       ...(item.trainingSettings || {}),
-      loraScale: item.generationDefaults?.loraScale ?? 0.8,
+      ...(modelFamily === 'krea2' ? { defaultLoraScale: loraScale } : {}),
+      loraScale,
     });
 
     item.status = this.mapRunpodStatusToFineTuneStatus(job.status);
@@ -328,6 +330,11 @@ export class AdminFineTuneService {
     const outputBaseModel = String(
       output.baseModel ?? output.base_model ?? '',
     ).trim();
+    const validationError = this.getKreaValidationError(expectedFamily, output);
+
+    if (validationError) {
+      return validationError;
+    }
 
     if (outputFamily && outputFamily !== expectedFamily) {
       return `RunPod returned a ${outputFamily} artifact for a ${expectedFamily} fine-tune`;
@@ -353,5 +360,54 @@ export class AdminFineTuneService {
     }
 
     return null;
+  }
+
+  private getKreaValidationError(
+    modelFamily: AIFinetuneModelFamily,
+    output: Record<string, unknown>,
+  ): string | null {
+    if (modelFamily !== 'krea2') {
+      return null;
+    }
+
+    const outputStatus = String(output.status ?? '')
+      .trim()
+      .toLowerCase();
+    const validation =
+      output.validation &&
+      typeof output.validation === 'object' &&
+      !Array.isArray(output.validation)
+        ? (output.validation as Record<string, unknown>)
+        : {};
+    const validationStatus = String(validation.status ?? '')
+      .trim()
+      .toLowerCase();
+    const explicitValidationError =
+      output.validationError ?? output.validation_error;
+    const hasExplicitValidationError =
+      explicitValidationError !== undefined &&
+      explicitValidationError !== null &&
+      explicitValidationError !== false &&
+      String(explicitValidationError).trim() !== '';
+
+    if (
+      outputStatus !== 'ready_with_validation_error' &&
+      !['failed', 'error'].includes(validationStatus) &&
+      !hasExplicitValidationError
+    ) {
+      return null;
+    }
+
+    const detailValue =
+      explicitValidationError ??
+      validation.validationError ??
+      validation.validation_error ??
+      validation.error;
+    const detail =
+      typeof detailValue === 'string' ? detailValue.trim() : undefined;
+
+    return detail
+      ? `RunPod Krea 2 validation failed: ${detail}`
+      : 'RunPod Krea 2 validation failed';
   }
 }
