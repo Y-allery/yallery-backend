@@ -142,11 +142,12 @@ export class RunpodPayloadBuilder {
       audio: true,
       tier: 'quality',
       seed: request.seed ?? randomVideoSeed(),
-      // Measured 2026-07-22 (15-generation battery, zero regressions, ~0s cost): stage2_sigmas
-      // stops stage2 re-noise from overwriting ~91% of stage1's motion trajectory; decode_noise
-      // removes the "plastic" look; cas_amount:0 avoids over-sharpening fast-motion frames
-      // (CAS is spatial-only and can't fix the temporal artifacts it amplifies).
-      stage2_sigmas: [0.6, 0.35, 0],
+      // Measured 2026-07-22 (15-generation battery, zero regressions, ~0s cost): decode_noise
+      // removes the "plastic" look; cas_amount:0 avoids over-sharpening fast-motion frames (CAS
+      // is spatial-only and can't fix the temporal artifacts it amplifies). NOTE: the worker's
+      // stage2_sigmas override only takes effect on tier:"fast" (handler.py gates it on
+      // `tier == "fast"`) — since we always request tier:"quality", it would be a silent no-op
+      // here, so it's deliberately omitted rather than shipped as dead weight.
       decode_noise: 0.05,
       cas_amount: 0,
     };

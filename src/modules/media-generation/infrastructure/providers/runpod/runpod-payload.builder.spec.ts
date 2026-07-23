@@ -72,7 +72,6 @@ describe('RunpodPayloadBuilder', () => {
       audio: true,
       tier: 'quality',
       seed: 123456,
-      stage2_sigmas: [0.6, 0.35, 0],
       decode_noise: 0.05,
       cas_amount: 0,
     });
