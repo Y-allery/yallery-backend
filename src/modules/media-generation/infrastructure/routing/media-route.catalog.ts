@@ -85,7 +85,9 @@ export const RUNPOD_MEDIA_ROUTE_CATALOG: MediaRouteCatalogEntry[] = [
   },
   {
     // Battery candidate D (2026-07-24 t2i upgrade night): Z-Image-Turbo (Tongyi/Alibaba,
-    // 6B, Apache-2.0). Dark by default (RUNPOD_Z_IMAGE_TURBO_ENABLED=false).
+    // 6B, Apache-2.0). Production capacity is on the main RunPod account, so this route
+    // intentionally uses the default RUNPOD_API_KEY. Dark by default until the runtime
+    // provider settings are flipped.
     routeType: 'promptImage',
     aiService: 'z_image_turbo',
     capability: MediaCapability.IMAGE_GENERATE,
@@ -93,7 +95,6 @@ export const RUNPOD_MEDIA_ROUTE_CATALOG: MediaRouteCatalogEntry[] = [
     dispatch: MediaDispatch.BULLMQ_QUEUE,
     queueName: MEDIA_PROMPT_IMAGE_GENERATION_QUEUE,
     endpointConfigKey: 'RUNPOD_Z_IMAGE_TURBO_ENDPOINT_ID',
-    apiKeyConfigKey: 'RUNPOD_VIDEO_API_KEY',
     enabledConfigKey: 'RUNPOD_Z_IMAGE_TURBO_ENABLED',
     statusTimeoutConfigKey: 'RUNPOD_Z_IMAGE_TURBO_STATUS_TIMEOUT_MS',
     statusTimeoutLabel: 'Z-Image Turbo Status Timeout',

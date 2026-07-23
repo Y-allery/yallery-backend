@@ -155,7 +155,7 @@ export const PROVIDER_SETTING_DEFINITIONS: ProviderSettingDefinition[] = [
     key: 'RUNPOD_Z_IMAGE_TURBO_ENDPOINT_ID',
     provider: 'runpod',
     group: 'runpod_private_endpoints',
-    label: 'Z-Image Turbo (t2i) Endpoint — account #2',
+    label: 'Z-Image Turbo (t2i) Endpoint — main account',
     type: 'string',
     isSecret: false,
     validationKind: 'runpod_serverless_endpoint',
