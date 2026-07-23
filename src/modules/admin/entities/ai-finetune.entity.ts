@@ -8,8 +8,20 @@ export type AIFinetuneStatus =
   | 'ready'
   | 'failed';
 
+export const AI_FINETUNE_MODEL_FAMILIES = ['sdxl', 'krea2'] as const;
+export type AIFinetuneModelFamily = (typeof AI_FINETUNE_MODEL_FAMILIES)[number];
+
+export const AI_FINETUNE_DEFAULT_BASE_MODELS: Record<
+  AIFinetuneModelFamily,
+  string
+> = {
+  sdxl: 'stabilityai/stable-diffusion-xl-base-1.0',
+  krea2: 'krea/Krea-2-Raw',
+};
+
 export interface AIFinetuneDatasetImage {
   url: string;
+  caption?: string;
   publicId?: string;
   width?: number;
   height?: number;
@@ -26,6 +38,7 @@ export interface AIFinetuneTrainingSettings {
   learningRate?: string;
   mixedPrecision?: string;
   seed?: number;
+  enableRandomFlip?: boolean;
 }
 
 export interface AIFinetuneGenerationDefaults {
@@ -35,6 +48,7 @@ export interface AIFinetuneGenerationDefaults {
 @Entity('ai_finetunes')
 @Index('IDX_ai_finetunes_loraKey', ['loraKey'], { unique: true })
 @Index('IDX_ai_finetunes_status', ['status'])
+@Index('IDX_ai_finetunes_modelFamily', ['modelFamily'])
 export class AIFinetuneEntity extends TimeStampEntity {
   @Column({ type: 'varchar', length: 160 })
   name: string;
@@ -47,6 +61,16 @@ export class AIFinetuneEntity extends TimeStampEntity {
 
   @Column({ type: 'varchar', length: 80, default: 'character' })
   className: string;
+
+  @Column({ type: 'varchar', length: 32, default: 'sdxl' })
+  modelFamily: AIFinetuneModelFamily;
+
+  @Column({
+    type: 'varchar',
+    length: 255,
+    default: AI_FINETUNE_DEFAULT_BASE_MODELS.sdxl,
+  })
+  baseModel: string;
 
   @Column({ type: 'varchar', length: 40, default: 'pending' })
   status: AIFinetuneStatus;

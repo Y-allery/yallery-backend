@@ -98,6 +98,42 @@ describe('ContestMediaGenerationResolverService', () => {
     });
   });
 
+  it('rejects a ready Krea 2 LoRA from the SDXL contest route', async () => {
+    const {
+      service,
+      contestRepository,
+      mediaAISettingsRepository,
+      aiFinetuneRepository,
+    } = createService();
+    contestRepository.findOne.mockResolvedValue(fineTuneContest);
+    mediaAISettingsRepository.findOne.mockResolvedValue({
+      aiService: 'sdxl_lora_generation',
+      capability: 'image_generate',
+      isActive: true,
+    });
+    aiFinetuneRepository.findOne.mockResolvedValue({
+      loraKey: 'codex_ft_key',
+      loraUrl: 'https://example.com/krea2-lora.safetensors',
+      triggerWord: 'xoob_character',
+      modelFamily: 'krea2',
+      status: 'ready',
+      generationDefaults: { loraScale: 0.9 },
+    });
+
+    await expect(
+      service.resolvePromptImageRequest({
+        contestId: fineTuneContest.id,
+        prompt: 'test',
+        imageQuantity: 1,
+        orientation: 'vertical',
+      }),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(aiFinetuneRepository.findOne).toHaveBeenCalledWith({
+      where: { loraKey: 'codex_ft_key', modelFamily: 'sdxl' },
+    });
+  });
+
   it('uses SDXL as the fallback prompt model for standard contests', async () => {
     const {
       service,

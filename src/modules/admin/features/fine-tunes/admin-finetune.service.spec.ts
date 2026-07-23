@@ -7,7 +7,7 @@ describe('AdminFineTuneService', () => {
       find: jest.fn().mockResolvedValue([]),
       findOne: jest.fn(),
       save: jest.fn().mockImplementation(async (item) => item),
-      create: jest.fn(),
+      create: jest.fn().mockImplementation((item) => item),
     };
     const loraKeyService = {
       normalize: jest.fn(),
@@ -23,12 +23,14 @@ describe('AdminFineTuneService', () => {
       loraKeyService as any,
       runpodClient as any,
     );
-    return { service, repository, runpodClient };
+    return { service, repository, loraKeyService, runpodClient };
   };
 
   const activeItem = (id: number, overrides = {}) => ({
     id,
     status: 'training',
+    modelFamily: 'sdxl',
+    baseModel: 'stabilityai/stable-diffusion-xl-base-1.0',
     runpodEndpointId: 'ep-1',
     runpodJobId: `job-${id}`,
     loraUrl: null,
@@ -36,6 +38,11 @@ describe('AdminFineTuneService', () => {
     rawOutput: null,
     ...overrides,
   });
+
+  const datasetImages = Array.from({ length: 10 }, (_, index) => ({
+    url: `https://cdn.test/${index}.png`,
+    caption: `xoob_character scene ${index}`,
+  }));
 
   describe('getFineTunes', () => {
     it('is a pure read: one find, no RunPod calls, no writes', async () => {
@@ -171,10 +178,193 @@ describe('AdminFineTuneService', () => {
 
       const result = await service.getFineTuneStatus(7);
 
-      expect(runpodClient.getJobStatus).toHaveBeenCalledWith('ep-1', 'job-7');
+      expect(runpodClient.getJobStatus).toHaveBeenCalledWith(
+        'sdxl',
+        'ep-1',
+        'job-7',
+      );
       expect(repository.save).toHaveBeenCalledWith(item);
       expect(result.status).toBe('failed');
       expect(result.errorMessage).toBe('oom');
+    });
+
+    it('accepts a Krea 2 artifact only when worker compatibility metadata matches', async () => {
+      const { service, repository, runpodClient } = createService();
+      const item = activeItem(8, {
+        modelFamily: 'krea2',
+        baseModel: 'krea/Krea-2-Raw',
+      });
+      repository.findOne.mockResolvedValue(item);
+      runpodClient.getJobStatus.mockResolvedValue({
+        id: 'job-8',
+        status: 'COMPLETED',
+        output: {
+          loraUrl: 'https://cdn.test/xoob-krea2.safetensors',
+          modelFamily: 'krea2',
+          baseModel: 'krea/Krea-2-Raw',
+        },
+      });
+
+      const result = await service.getFineTuneStatus(8);
+
+      expect(runpodClient.getJobStatus).toHaveBeenCalledWith(
+        'krea2',
+        'ep-1',
+        'job-8',
+      );
+      expect(result.status).toBe('ready');
+      expect(result.loraUrl).toBe('https://cdn.test/xoob-krea2.safetensors');
+      expect(result.errorMessage).toBeNull();
+    });
+
+    it('quarantines a completed Krea 2 artifact without compatibility metadata', async () => {
+      const { service, repository, runpodClient } = createService();
+      const item = activeItem(9, {
+        modelFamily: 'krea2',
+        baseModel: 'krea/Krea-2-Raw',
+      });
+      repository.findOne.mockResolvedValue(item);
+      runpodClient.getJobStatus.mockResolvedValue({
+        id: 'job-9',
+        status: 'COMPLETED',
+        output: {
+          loraUrl: 'https://cdn.test/untyped.safetensors',
+        },
+      });
+
+      const result = await service.getFineTuneStatus(9);
+
+      expect(result.status).toBe('failed');
+      expect(result.loraUrl).toBeNull();
+      expect(result.errorMessage).toContain(
+        'missing modelFamily compatibility metadata',
+      );
+    });
+  });
+
+  describe('createFineTune', () => {
+    const configureCreationMocks = (deps: ReturnType<typeof createService>) => {
+      deps.loraKeyService.normalize.mockImplementation((value: string) =>
+        value?.trim(),
+      );
+      deps.loraKeyService.generateUnique.mockResolvedValue('xoob-character');
+      deps.repository.findOne.mockResolvedValue(null);
+      deps.runpodClient.getEndpointId.mockResolvedValue('trainer-endpoint');
+      deps.runpodClient.submitJob.mockResolvedValue({
+        id: 'job-new',
+        status: 'IN_QUEUE',
+      });
+    };
+
+    it('keeps legacy requests on SDXL with the existing defaults and URL payload', async () => {
+      const deps = createService();
+      configureCreationMocks(deps);
+
+      const result = await deps.service.createFineTune({
+        name: 'XOOB legacy',
+        triggerWord: 'xoob_character',
+        datasetImages,
+      });
+
+      expect(deps.runpodClient.getEndpointId).toHaveBeenCalledWith('sdxl');
+      expect(deps.repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelFamily: 'sdxl',
+          baseModel: 'stabilityai/stable-diffusion-xl-base-1.0',
+          trainingSettings: {
+            resolution: 512,
+            maxTrainSteps: 800,
+            rank: 4,
+            trainBatchSize: 1,
+            gradientAccumulationSteps: 4,
+            learningRate: '1e-4',
+            mixedPrecision: 'fp16',
+            seed: 42,
+            enableRandomFlip: false,
+          },
+        }),
+      );
+      expect(deps.runpodClient.submitJob).toHaveBeenCalledWith(
+        'sdxl',
+        expect.objectContaining({
+          modelFamily: 'sdxl',
+          datasetImages: datasetImages.map((image) => image.url),
+          captionMode: 'template',
+        }),
+      );
+      expect(result.status).toBe('queued');
+    });
+
+    it('uses Krea-2-Raw defaults and preserves per-image captions', async () => {
+      const deps = createService();
+      configureCreationMocks(deps);
+
+      await deps.service.createFineTune({
+        name: 'XOOB Krea 2',
+        triggerWord: 'xoob_character',
+        modelFamily: 'krea2',
+        datasetImages,
+      });
+
+      expect(deps.runpodClient.getEndpointId).toHaveBeenCalledWith('krea2');
+      expect(deps.repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelFamily: 'krea2',
+          baseModel: 'krea/Krea-2-Raw',
+          trainingSettings: {
+            resolution: 1024,
+            maxTrainSteps: 1000,
+            rank: 32,
+            trainBatchSize: 1,
+            gradientAccumulationSteps: 1,
+            learningRate: '3e-4',
+            mixedPrecision: 'bf16',
+            seed: 0,
+            enableRandomFlip: false,
+          },
+        }),
+      );
+      expect(deps.runpodClient.submitJob).toHaveBeenCalledWith('krea2', {
+        name: 'XOOB Krea 2',
+        triggerWord: 'xoob_character',
+        loraKey: 'xoob-character',
+        className: 'character',
+        modelFamily: 'krea2',
+        baseModel: 'krea/Krea-2-Raw',
+        datasetImages: datasetImages.map((image) => ({
+          url: image.url,
+          caption: image.caption,
+        })),
+        captionMode: 'per_image',
+        resolution: 1024,
+        maxTrainSteps: 1000,
+        rank: 32,
+        trainBatchSize: 1,
+        gradientAccumulationSteps: 1,
+        learningRate: '3e-4',
+        mixedPrecision: 'bf16',
+        seed: 0,
+        enableRandomFlip: false,
+        loraScale: 0.8,
+      });
+    });
+
+    it('rejects a base model from another architecture family before queuing', async () => {
+      const deps = createService();
+      configureCreationMocks(deps);
+
+      await expect(
+        deps.service.createFineTune({
+          name: 'Wrong base',
+          triggerWord: 'xoob_character',
+          modelFamily: 'krea2',
+          baseModel: 'stabilityai/stable-diffusion-xl-base-1.0',
+          datasetImages,
+        }),
+      ).rejects.toThrow('is not compatible with modelFamily "krea2"');
+
+      expect(deps.runpodClient.getEndpointId).not.toHaveBeenCalled();
+      expect(deps.runpodClient.submitJob).not.toHaveBeenCalled();
     });
   });
 });

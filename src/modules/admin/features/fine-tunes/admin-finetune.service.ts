@@ -9,7 +9,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { CreateAIFinetuneDto } from 'src/modules/admin/dto/create-ai-finetune.dto';
 import {
+  AI_FINETUNE_DEFAULT_BASE_MODELS,
   AIFinetuneEntity,
+  AIFinetuneModelFamily,
   AIFinetuneStatus,
 } from 'src/modules/admin/entities/ai-finetune.entity';
 import { LoraKeyService } from './lora-key.service';
@@ -21,6 +23,33 @@ import { RunpodFineTuneClient } from './runpod-finetune.client';
 
 const ACTIVE_STATUSES: AIFinetuneStatus[] = ['pending', 'queued', 'training'];
 const REFRESH_CONCURRENCY = 3;
+const MODEL_TRAINING_DEFAULTS: Record<
+  AIFinetuneModelFamily,
+  Required<NonNullable<AIFinetuneEntity['trainingSettings']>>
+> = {
+  sdxl: {
+    resolution: 512,
+    maxTrainSteps: 800,
+    rank: 4,
+    trainBatchSize: 1,
+    gradientAccumulationSteps: 4,
+    learningRate: '1e-4',
+    mixedPrecision: 'fp16',
+    seed: 42,
+    enableRandomFlip: false,
+  },
+  krea2: {
+    resolution: 1024,
+    maxTrainSteps: 1000,
+    rank: 32,
+    trainBatchSize: 1,
+    gradientAccumulationSteps: 1,
+    learningRate: '3e-4',
+    mixedPrecision: 'bf16',
+    seed: 0,
+    enableRandomFlip: false,
+  },
+};
 
 @Injectable()
 export class AdminFineTuneService {
@@ -96,6 +125,9 @@ export class AdminFineTuneService {
   async createFineTune(dto: CreateAIFinetuneDto) {
     const name = dto.name?.trim();
     const triggerWord = this.loraKeyService.normalize(dto.triggerWord, 80);
+    const modelFamily = dto.modelFamily ?? 'sdxl';
+    const baseModel =
+      dto.baseModel?.trim() ?? AI_FINETUNE_DEFAULT_BASE_MODELS[modelFamily];
     const className = this.loraKeyService.normalize(
       dto.className || 'character',
       80,
@@ -107,6 +139,7 @@ export class AdminFineTuneService {
     if (!triggerWord) {
       throw new BadRequestException('triggerWord is required');
     }
+    this.assertCompatibleBaseModel(modelFamily, baseModel);
 
     const loraKey = dto.loraKey
       ? this.loraKeyService.normalize(dto.loraKey, 100)
@@ -123,15 +156,20 @@ export class AdminFineTuneService {
       throw new BadRequestException(`loraKey "${loraKey}" already exists`);
     }
 
+    const defaults = MODEL_TRAINING_DEFAULTS[modelFamily];
     const trainingSettings = {
-      resolution: dto.training?.resolution ?? 512,
-      maxTrainSteps: dto.training?.maxTrainSteps ?? 800,
-      rank: dto.training?.rank ?? 4,
-      trainBatchSize: dto.training?.trainBatchSize ?? 1,
-      gradientAccumulationSteps: dto.training?.gradientAccumulationSteps ?? 4,
-      learningRate: dto.training?.learningRate ?? '1e-4',
-      mixedPrecision: dto.training?.mixedPrecision ?? 'fp16',
-      seed: dto.training?.seed ?? 42,
+      resolution: dto.training?.resolution ?? defaults.resolution,
+      maxTrainSteps: dto.training?.maxTrainSteps ?? defaults.maxTrainSteps,
+      rank: dto.training?.rank ?? defaults.rank,
+      trainBatchSize: dto.training?.trainBatchSize ?? defaults.trainBatchSize,
+      gradientAccumulationSteps:
+        dto.training?.gradientAccumulationSteps ??
+        defaults.gradientAccumulationSteps,
+      learningRate: dto.training?.learningRate ?? defaults.learningRate,
+      mixedPrecision: dto.training?.mixedPrecision ?? defaults.mixedPrecision,
+      seed: dto.training?.seed ?? defaults.seed,
+      enableRandomFlip:
+        dto.training?.enableRandomFlip ?? defaults.enableRandomFlip,
     };
     const generationDefaults = {
       loraScale: dto.generationDefaults?.loraScale ?? 0.8,
@@ -142,12 +180,18 @@ export class AdminFineTuneService {
       triggerWord,
       loraKey,
       className,
+      modelFamily,
+      baseModel,
       status: 'pending',
-      datasetImages: dto.datasetImages,
+      datasetImages: dto.datasetImages.map((image) => ({
+        ...image,
+        caption: image.caption?.trim() || undefined,
+      })),
       datasetImageCount: dto.datasetImages.length,
       trainingSettings,
       generationDefaults,
-      runpodEndpointId: await this.runpodFineTuneClient.getEndpointId(),
+      runpodEndpointId:
+        await this.runpodFineTuneClient.getEndpointId(modelFamily),
       runpodJobId: null,
       loraUrl: null,
       errorMessage: null,
@@ -167,21 +211,35 @@ export class AdminFineTuneService {
   }
 
   private async queueFineTuneTraining(item: AIFinetuneEntity) {
-    const datasetImages = item.datasetImages
-      .map((image) => image.url)
-      .filter(Boolean);
+    const modelFamily = item.modelFamily ?? 'sdxl';
+    const sourceImages = item.datasetImages.filter((image) => image.url);
+    const datasetImages =
+      modelFamily === 'krea2'
+        ? sourceImages.map((image) => ({
+            url: image.url,
+            ...(image.caption ? { caption: image.caption } : {}),
+          }))
+        : sourceImages.map((image) => image.url);
 
     if (datasetImages.length < 10) {
       throw new BadRequestException('At least 10 dataset images are required');
     }
 
-    const job = await this.runpodFineTuneClient.submitJob({
+    const hasPerImageCaptions = sourceImages.some((image) =>
+      Boolean(image.caption),
+    );
+    const job = await this.runpodFineTuneClient.submitJob(modelFamily, {
       name: item.name,
       triggerWord: item.triggerWord,
       loraKey: item.loraKey,
       className: item.className,
+      modelFamily,
+      ...(modelFamily === 'krea2' ? { baseModel: item.baseModel } : {}),
       datasetImages,
-      captionMode: 'template',
+      captionMode:
+        modelFamily === 'krea2' && hasPerImageCaptions
+          ? 'per_image'
+          : 'template',
       ...(item.trainingSettings || {}),
       loraScale: item.generationDefaults?.loraScale ?? 0.8,
     });
@@ -203,7 +261,9 @@ export class AdminFineTuneService {
       return item;
     }
 
+    const modelFamily = item.modelFamily ?? 'sdxl';
     const job = await this.runpodFineTuneClient.getJobStatus(
+      modelFamily,
       item.runpodEndpointId,
       item.runpodJobId,
     );
@@ -212,9 +272,19 @@ export class AdminFineTuneService {
 
     if (job.status === 'COMPLETED') {
       const output = job.output || {};
-      item.status = 'ready';
-      item.loraUrl = output.loraUrl || item.loraUrl;
-      item.errorMessage = null;
+      const compatibilityError = this.getArtifactCompatibilityError(
+        item,
+        output,
+      );
+      if (compatibilityError) {
+        item.status = 'failed';
+        item.loraUrl = null;
+        item.errorMessage = compatibilityError;
+      } else {
+        item.status = 'ready';
+        item.loraUrl = output.loraUrl || item.loraUrl;
+        item.errorMessage = null;
+      }
     }
 
     if (['FAILED', 'CANCELLED', 'TIMED_OUT'].includes(job.status)) {
@@ -233,5 +303,55 @@ export class AdminFineTuneService {
     status: RunpodJobStatus,
   ): AIFinetuneStatus {
     return mapRunpodStatusToFineTuneStatus(status);
+  }
+
+  private assertCompatibleBaseModel(
+    modelFamily: AIFinetuneModelFamily,
+    baseModel: string,
+  ): void {
+    const supportedBaseModel = AI_FINETUNE_DEFAULT_BASE_MODELS[modelFamily];
+    if (baseModel !== supportedBaseModel) {
+      throw new BadRequestException(
+        `baseModel "${baseModel}" is not compatible with modelFamily "${modelFamily}". Expected "${supportedBaseModel}".`,
+      );
+    }
+  }
+
+  private getArtifactCompatibilityError(
+    item: AIFinetuneEntity,
+    output: Record<string, unknown>,
+  ): string | null {
+    const expectedFamily = item.modelFamily ?? 'sdxl';
+    const outputFamily = String(
+      output.modelFamily ?? output.model_family ?? '',
+    ).trim();
+    const outputBaseModel = String(
+      output.baseModel ?? output.base_model ?? '',
+    ).trim();
+
+    if (outputFamily && outputFamily !== expectedFamily) {
+      return `RunPod returned a ${outputFamily} artifact for a ${expectedFamily} fine-tune`;
+    }
+    if (
+      outputBaseModel &&
+      outputBaseModel !== item.baseModel &&
+      !(expectedFamily === 'sdxl' && outputBaseModel === '/app/model')
+    ) {
+      return `RunPod returned baseModel "${outputBaseModel}", expected "${item.baseModel}"`;
+    }
+
+    // Legacy SDXL workers predate compatibility metadata. Krea jobs are new,
+    // so require an explicit handshake before exposing the LoRA as reusable.
+    if (expectedFamily === 'krea2' && !outputFamily) {
+      return 'RunPod Krea 2 artifact is missing modelFamily compatibility metadata';
+    }
+    if (expectedFamily === 'krea2' && !outputBaseModel) {
+      return 'RunPod Krea 2 artifact is missing baseModel compatibility metadata';
+    }
+    if (expectedFamily === 'krea2' && !output.loraUrl) {
+      return 'RunPod completed without a LoRA artifact URL';
+    }
+
+    return null;
   }
 }
