@@ -744,31 +744,65 @@ export class ContestFlowService {
     adminUserId?: number | null,
     reason?: string | null,
   ) {
-    await this.flowMetadataRepository.update(
-      { contestId },
-      {
-        lifecycleStatus: ContestLifecycleStatus.COMPLETED,
-        reviewStatus: ContestReviewStatus.NO_WINNER,
-      },
-    );
+    await this.dataSource.transaction(async (manager) => {
+      const contestRepository = manager.getRepository(ContestEntity);
+      const metadataRepository = manager.getRepository(
+        ContestFlowMetadataEntity,
+      );
+      const reviewActionRepository = manager.getRepository(
+        ContestReviewActionEntity,
+      );
 
-    await this.contestRepository.update(contestId, {
-      status: ContestStatusEnum.CLOSED,
-      isApproved: true,
-      winner: null,
-      postWinner: null,
+      // Serialize this exact contest transition. A concurrent retry waits for
+      // the first request to commit and then observes its NO_WINNER action.
+      const contest = await contestRepository.findOne({
+        where: { id: contestId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!contest) {
+        throw new NotFoundException('Contest not found');
+      }
+
+      await metadataRepository.findOne({
+        where: { contestId },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      await metadataRepository.update(
+        { contestId },
+        {
+          lifecycleStatus: ContestLifecycleStatus.COMPLETED,
+          reviewStatus: ContestReviewStatus.NO_WINNER,
+        },
+      );
+
+      await contestRepository.update(contestId, {
+        status: ContestStatusEnum.CLOSED,
+        isApproved: true,
+        winner: null,
+        postWinner: null,
+      });
+
+      const existingAction = await reviewActionRepository.findOne({
+        where: {
+          contestId,
+          actionType: ContestReviewActionType.NO_WINNER,
+        },
+      });
+
+      if (!existingAction) {
+        await reviewActionRepository.save(
+          reviewActionRepository.create({
+            contestId,
+            candidateId: null,
+            adminUserId: adminUserId ?? null,
+            actionType: ContestReviewActionType.NO_WINNER,
+            reason: reason ?? null,
+            metadata: null,
+          }),
+        );
+      }
     });
-
-    await this.reviewActionRepository.save(
-      this.reviewActionRepository.create({
-        contestId,
-        candidateId: null,
-        adminUserId: adminUserId ?? null,
-        actionType: ContestReviewActionType.NO_WINNER,
-        reason: reason ?? null,
-        metadata: null,
-      }),
-    );
 
     return {
       success: true,
