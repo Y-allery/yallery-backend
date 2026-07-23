@@ -51,6 +51,7 @@ describe('PaymentService.processWebhook (Adapty double-credit)', () => {
       emitProfileUpdate: jest.fn(async () => undefined),
     };
     const rewardService = { getRewardPoints: jest.fn(async () => 5000) };
+    const opsBotService = { notifyBackendError: jest.fn(async () => undefined) };
 
     const service = new PaymentService(
       configService as any,
@@ -58,6 +59,7 @@ describe('PaymentService.processWebhook (Adapty double-credit)', () => {
       paymentRepository as any,
       notificationGateway as any,
       rewardService as any,
+      opsBotService as any,
     );
 
     return {
@@ -66,6 +68,7 @@ describe('PaymentService.processWebhook (Adapty double-credit)', () => {
       insert: insertImpl,
       increment,
       notificationGateway,
+      opsBotService,
     };
   };
 
@@ -99,7 +102,7 @@ describe('PaymentService.processWebhook (Adapty double-credit)', () => {
   });
 
   it('refuses to credit a purchase that has no stable transaction id', async () => {
-    const { service, transaction, increment } = createService();
+    const { service, transaction, increment, opsBotService } = createService();
 
     await service.processWebhook(
       purchasePayload({ transaction_id: undefined, original_transaction_id: undefined }),
@@ -107,6 +110,66 @@ describe('PaymentService.processWebhook (Adapty double-credit)', () => {
 
     expect(transaction).not.toHaveBeenCalled();
     expect(increment).not.toHaveBeenCalled();
+    expect(opsBotService.notifyBackendError).toHaveBeenCalledWith(
+      expect.any(String),
+      'payment:no-transaction-id',
+    );
+  });
+
+  it('alerts ops-bot (and still drops) when the user cannot be found', async () => {
+    const { service, transaction, opsBotService } = createService({
+      user: null,
+    });
+
+    await service.processWebhook(purchasePayload());
+
+    expect(transaction).not.toHaveBeenCalled();
+    expect(opsBotService.notifyBackendError).toHaveBeenCalledWith(
+      expect.any(String),
+      'payment:user-not-found',
+    );
+  });
+
+  it('alerts ops-bot on an unrecognized productId', async () => {
+    const { service, transaction, opsBotService } = createService();
+
+    await service.processWebhook(
+      purchasePayload({ vendor_product_id: 'mystery_sku' }),
+    );
+
+    expect(transaction).not.toHaveBeenCalled();
+    expect(opsBotService.notifyBackendError).toHaveBeenCalledWith(
+      expect.any(String),
+      'payment:unknown-product-id',
+    );
+  });
+
+  it('alerts ops-bot on an unhandled event type (still ACKs 200 to Adapty)', async () => {
+    const { service, transaction, opsBotService } = createService();
+
+    await service.processWebhook(
+      purchasePayload({}, { event_type: 'subscription_renewed' }),
+    );
+
+    expect(transaction).not.toHaveBeenCalled();
+    expect(opsBotService.notifyBackendError).toHaveBeenCalledWith(
+      expect.any(String),
+      'payment:unhandled-event-type:subscription_renewed',
+    );
+  });
+
+  it('alerts ops-bot but still credits points when no price field is parsable', async () => {
+    const { service, increment, opsBotService } = createService();
+
+    await service.processWebhook(
+      purchasePayload({ price_local: undefined, price_usd: undefined }),
+    );
+
+    expect(increment).toHaveBeenCalledWith({ id: 7 }, 'points', 5000);
+    expect(opsBotService.notifyBackendError).toHaveBeenCalledWith(
+      expect.any(String),
+      'payment:unparseable-price',
+    );
   });
 
   it('rethrows a genuine DB failure so the controller returns 500 and Adapty retries', async () => {

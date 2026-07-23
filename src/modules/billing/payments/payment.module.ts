@@ -6,6 +6,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { PaymentEntity } from './entities/payment.entity';
 import { NotificationModule } from 'src/modules/notifications/notification.module';
 import { RewardModule } from 'src/modules/billing/rewards/reward.module';
+import { OpsBotModule } from 'src/modules/ops-bot/ops-bot.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { RewardModule } from 'src/modules/billing/rewards/reward.module';
     TypeOrmModule.forFeature([PaymentEntity]),
     NotificationModule,
     RewardModule,
+    OpsBotModule,
   ],
   providers: [PaymentService],
   controllers: [PaymentController],

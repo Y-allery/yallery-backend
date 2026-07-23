@@ -8,6 +8,7 @@ import { UserEntity } from 'src/modules/users/entities/user.entity';
 import { NotificationGateway } from 'src/modules/notifications/notification.gateway';
 import { RewardService } from 'src/modules/billing/rewards/reward.service';
 import { RewardTypeEnum } from 'src/modules/billing/rewards/types/reward-type.enum';
+import { OpsBotService } from 'src/modules/ops-bot/ops-bot.service';
 
 type AdaptyWebhookMeta = {
   method?: string;
@@ -32,6 +33,7 @@ export class PaymentService {
     private readonly paymentRepository: Repository<PaymentEntity>,
     private readonly notificationGateway: NotificationGateway,
     private readonly rewardService: RewardService,
+    private readonly opsBotService: OpsBotService,
   ) {}
 
   private isDevVerboseWebhookLogging(): boolean {
@@ -71,6 +73,10 @@ export class PaymentService {
 
       if (!profileId || !eventType) {
         this.logger.warn(`⚠️ Missing profileId or eventType. profileId: ${profileId}, eventType: ${eventType}`);
+        await this.opsBotService.notifyBackendError(
+          `Adapty webhook missing profileId or eventType (profileId=${profileId}, eventType=${eventType}) — this ACKs 200, Adapty will not retry.`,
+          'payment:missing-profile-or-event',
+        );
         return;
       }
 
@@ -78,6 +84,10 @@ export class PaymentService {
 
       if (!user) {
         this.logger.warn(`⚠️ User not found with id: ${profileId}`);
+        await this.opsBotService.notifyBackendError(
+          `Adapty webhook for unknown user id ${profileId} (event ${eventType}) — purchase silently dropped, this ACKs 200, Adapty will not retry.`,
+          'payment:user-not-found',
+        );
         return;
       }
 
@@ -93,6 +103,10 @@ export class PaymentService {
           
           if (!productId) {
             this.logger.warn(`⚠️ Missing productId in event_properties`);
+            await this.opsBotService.notifyBackendError(
+              `Adapty webhook purchase for user ${profileId} has no vendor_product_id — silently dropped, this ACKs 200, Adapty will not retry.`,
+              'payment:missing-product-id',
+            );
             return;
           }
 
@@ -100,6 +114,10 @@ export class PaymentService {
 
           if (pointsToAdd === null) {
             this.logger.error(`❌ Unknown productId: ${productId}`);
+            await this.opsBotService.notifyBackendError(
+              `Adapty webhook purchase for user ${profileId}: unrecognized productId "${productId}" — silently dropped, this ACKs 200, Adapty will not retry. Add it to productPointsMap if it's a real SKU.`,
+              'payment:unknown-product-id',
+            );
             return;
           }
 
@@ -134,6 +152,10 @@ export class PaymentService {
             this.logger.error(
               `❌ Purchase for user ${profileId} (product ${productId}) has no transaction id — refusing to credit without an idempotency key`,
             );
+            await this.opsBotService.notifyBackendError(
+              `Adapty webhook purchase for user ${profileId} (product ${productId}) has no transaction id — refused to credit, silently dropped, this ACKs 200, Adapty will not retry.`,
+              'payment:no-transaction-id',
+            );
             return;
           }
 
@@ -160,6 +182,10 @@ export class PaymentService {
           } else {
             this.logger.error(
               `❌ No parsable price for transaction ${paymentIntentId} (product ${productId}) — storing amount=0, investigate this payload`,
+            );
+            await this.opsBotService.notifyBackendError(
+              `Adapty webhook purchase for user ${profileId} (product ${productId}, transaction ${paymentIntentId}) has no parsable price_local/price_usd — points WILL still be credited, but amount was stored as 0. Check the raw payload shape.`,
+              'payment:unparseable-price',
             );
             amount = 0;
             currency = eventProperties?.currency || 'USD';
@@ -215,6 +241,10 @@ export class PaymentService {
 
         default:
           this.logger.warn(`⚠️ Unhandled event type: ${eventType}`);
+          await this.opsBotService.notifyBackendError(
+            `Adapty webhook: unhandled event type "${eventType}" for user ${profileId} — silently ignored, this ACKs 200, Adapty will not retry. If this represents a real purchase (e.g. a subscription event), it needs a handler.`,
+            `payment:unhandled-event-type:${eventType}`,
+          );
       }
     } catch (error) {
       this.logger.error('❌ Error processing webhook:', error);
