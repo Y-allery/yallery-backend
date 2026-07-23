@@ -51,7 +51,7 @@ export class ContentBotService {
   /** Points are the spend currency; keep the bot far above any single cost. */
   private static readonly POINTS_TARGET = 2_000_000;
   private static readonly POINTS_MIN = 200_000;
-  private static readonly IMAGE_AI = 'qwen_image';
+  private static readonly IMAGE_AI = 'z_image_turbo';
   private static readonly VIDEO_AI = 'p_video_text';
   private static readonly VIDEO_DURATION = 5;
   /** Cap drafts published per publish tick, so pacing can't burst. */

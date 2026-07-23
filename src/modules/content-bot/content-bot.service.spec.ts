@@ -176,6 +176,11 @@ describe('ContentBotService publishing safety', () => {
     const created = planRepository.create.mock.calls.map(([r]: any) => r);
     expect(created.length).toBeGreaterThan(0);
     expect(created.every((r: any) => r.isPreview === true)).toBe(true);
+    const imageRows = created.filter((r: any) => r.mediaKind === 'image');
+    expect(imageRows.length).toBeGreaterThan(0);
+    expect(
+      imageRows.every((r: any) => r.aiService === 'z_image_turbo'),
+    ).toBe(true);
     // Generation was attempted, but nothing was ever published.
     expect(
       enqueueService.enqueuePromptImageGeneration.mock.calls.length +

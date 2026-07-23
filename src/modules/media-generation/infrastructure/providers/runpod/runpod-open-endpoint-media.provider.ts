@@ -56,7 +56,7 @@ export class RunpodOpenEndpointMediaProvider
   ): Promise<PromptImageGenerationResult> {
     const endpointId =
       await this.endpoints.getEndpointIdForPromptImageRequest(request);
-    // Per-route API key: qwen_image lives on the second RunPod account.
+    // Per-route API key: selected image routes can live on the second RunPod account.
     const apiKeyConfigKey = this.endpoints.getApiKeyConfigKey(
       request.aiService,
       'promptImage',
