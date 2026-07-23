@@ -15,6 +15,7 @@ import {
   PROVIDER_SETTING_DEFINITIONS,
   ProviderSettingDefinition,
 } from './provider-settings.catalog';
+import { RUNPOD_MEDIA_ROUTE_CATALOG } from 'src/modules/media-generation/infrastructure/routing/media-route.catalog';
 import {
   decryptProviderSettingValue,
   encryptProviderSettingValue,
@@ -214,14 +215,18 @@ export class ProviderRuntimeConfigService {
     key: string,
     endpointId: string,
   ) {
-    const apiKey = await this.getString('RUNPOD_API_KEY');
+    const route = RUNPOD_MEDIA_ROUTE_CATALOG.find(
+      (entry) => entry.endpointConfigKey === key,
+    );
+    const apiKeyConfigKey = route?.apiKeyConfigKey ?? 'RUNPOD_API_KEY';
+    const apiKey = await this.getString(apiKeyConfigKey);
 
     if (!apiKey) {
       return {
         key,
         ok: false,
         status: 'missing_api_key',
-        message: 'RUNPOD_API_KEY is not configured',
+        message: `${apiKeyConfigKey} is not configured`,
       };
     }
 

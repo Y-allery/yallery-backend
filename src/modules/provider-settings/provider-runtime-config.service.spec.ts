@@ -196,4 +196,37 @@ describe('ProviderRuntimeConfigService', () => {
       }),
     );
   });
+
+  it('validates cross-account endpoints with the route-specific API key', async () => {
+    (axios.get as jest.Mock).mockResolvedValueOnce({
+      data: {
+        id: 'z-image-endpoint',
+        name: 'z-image-turbo-prod',
+        workersMax: 3,
+        idleTimeout: 5,
+      },
+    });
+    const { service } = createService({
+      RUNPOD_API_KEY: 'main-runpod-key',
+      RUNPOD_VIDEO_API_KEY: 'video-runpod-key',
+      RUNPOD_Z_IMAGE_TURBO_ENDPOINT_ID: 'z-image-endpoint',
+    });
+
+    await expect(
+      service.validateSetting('RUNPOD_Z_IMAGE_TURBO_ENDPOINT_ID'),
+    ).resolves.toMatchObject({
+      ok: true,
+      status: 'valid',
+      details: {
+        id: 'z-image-endpoint',
+        name: 'z-image-turbo-prod',
+      },
+    });
+    expect(axios.get).toHaveBeenCalledWith(
+      'https://rest.runpod.io/v1/endpoints/z-image-endpoint',
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer video-runpod-key' },
+      }),
+    );
+  });
 });
