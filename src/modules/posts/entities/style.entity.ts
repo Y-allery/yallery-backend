@@ -6,7 +6,7 @@ export interface StyleModelOverride {
   keywords?: string[];
 }
 
-/** Per-`aiService` overrides, e.g. { sdxl: { keywords: [...] }, flux2_klein: { positive: '...' } }. */
+/** Per-`aiService` overrides, e.g. { krea2_turbo: { keywords: [...] }, flux2_klein: { positive: '...' } }. */
 export type StyleModelOverrides = Record<string, StyleModelOverride>;
 
 @Entity('styles')
@@ -35,7 +35,7 @@ export class StyleEntity {
   @Column({ type: 'text', nullable: true })
   negativeTemplate: string | null;
 
-  /** Discrete tag tokens for tag/weighted models (SDXL). */
+  /** Discrete visual-style tokens for image generation models. */
   @Column({ type: 'json', nullable: true })
   keywords: string[] | null;
 

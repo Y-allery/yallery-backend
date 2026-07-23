@@ -18,7 +18,7 @@ describe('GeneratedPostFactory', () => {
 
     const post = await factory.createPromptImagePost(
       {
-        aiService: 'sdxl_lora_generation',
+        aiService: 'krea2_lora_generation',
         prompt: 'raw prompt',
         resolvedPrompt: 'resolved prompt',
         translatedPrompt: 'translated prompt',
@@ -45,7 +45,7 @@ describe('GeneratedPostFactory', () => {
       generationParams: {
         prompt: 'raw prompt',
         resolvedPrompt: 'resolved prompt',
-        aiService: 'sdxl_lora_generation',
+        aiService: 'krea2_lora_generation',
         loraKey: 'demo-key',
         triggerWord: 'demo',
       },

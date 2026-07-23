@@ -921,16 +921,16 @@ export class ContestFlowService {
       if (
         params.mediaKind !== 'image' ||
         params.capability !== 'image_generate' ||
-        params.aiService !== 'sdxl_lora_generation'
+        params.aiService !== 'krea2_lora_generation'
       ) {
         throw new BadRequestException(
-          'Fine-tune contests only accept SDXL LoRA image generations.',
+          'Fine-tune contests only accept Krea 2 LoRA image generations.',
         );
       }
       return;
     }
 
-    if (params.aiService === 'sdxl_lora_generation') {
+    if (params.aiService === 'krea2_lora_generation') {
       throw new BadRequestException(
         'Fine-tune generation models can only be used in fine-tune contests.',
       );

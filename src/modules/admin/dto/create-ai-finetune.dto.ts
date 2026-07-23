@@ -61,21 +61,21 @@ export class AIFinetuneDatasetImageDto {
 }
 
 export class CreateAIFinetuneTrainingDto {
-  @ApiPropertyOptional({ default: 512 })
+  @ApiPropertyOptional({ default: 1024 })
   @IsOptional()
   @IsInt()
   @Min(512)
   @Max(1024)
   resolution?: number;
 
-  @ApiPropertyOptional({ default: 800 })
+  @ApiPropertyOptional({ default: 1200 })
   @IsOptional()
   @IsInt()
   @Min(1)
   @Max(10000)
   maxTrainSteps?: number;
 
-  @ApiPropertyOptional({ default: 4 })
+  @ApiPropertyOptional({ default: 16 })
   @IsOptional()
   @IsInt()
   @Min(1)
@@ -89,24 +89,24 @@ export class CreateAIFinetuneTrainingDto {
   @Max(8)
   trainBatchSize?: number;
 
-  @ApiPropertyOptional({ default: 4 })
+  @ApiPropertyOptional({ default: 1 })
   @IsOptional()
   @IsInt()
   @Min(1)
   @Max(32)
   gradientAccumulationSteps?: number;
 
-  @ApiPropertyOptional({ default: '1e-4' })
+  @ApiPropertyOptional({ default: '3e-4' })
   @IsOptional()
   @IsString()
   learningRate?: string;
 
-  @ApiPropertyOptional({ default: 'fp16' })
+  @ApiPropertyOptional({ default: 'bf16' })
   @IsOptional()
   @IsString()
   mixedPrecision?: string;
 
-  @ApiPropertyOptional({ default: 42 })
+  @ApiPropertyOptional({ default: 0 })
   @IsOptional()
   @IsInt()
   seed?: number;
@@ -122,7 +122,7 @@ export class CreateAIFinetuneTrainingDto {
 }
 
 export class CreateAIFinetuneGenerationDefaultsDto {
-  @ApiPropertyOptional({ default: 0.8 })
+  @ApiPropertyOptional({ default: 0.9 })
   @IsOptional()
   @IsNumber()
   @Min(0)
@@ -141,9 +141,8 @@ export class CreateAIFinetuneDto {
 
   @ApiPropertyOptional({
     enum: AI_FINETUNE_MODEL_FAMILIES,
-    default: 'sdxl',
-    description:
-      'LoRA architecture family. Omitted legacy requests remain SDXL.',
+    default: 'krea2',
+    description: 'LoRA architecture family. Krea 2 is the production family.',
   })
   @IsOptional()
   @IsIn(AI_FINETUNE_MODEL_FAMILIES)

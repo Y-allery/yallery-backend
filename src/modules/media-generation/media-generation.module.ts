@@ -53,6 +53,7 @@ import { MediaGenerationExecutionService } from 'src/modules/media-generation/ap
 import { MediaGenerationFinalizeService } from 'src/modules/media-generation/application/finalize/media-generation-finalize.service';
 import { MediaGenerationGuardsService } from 'src/modules/media-generation/application/guards/media-generation-guards.service';
 import { MediaGenerationPricingService } from 'src/modules/media-generation/application/pricing/media-generation-pricing.service';
+import { KreaContentSafetyService } from 'src/modules/media-generation/application/content-safety/krea-content-safety.service';
 import { PartnershipActivityModule } from 'src/modules/partnership-activity/partnership-activity.module';
 import { OpsBotModule } from 'src/modules/ops-bot/ops-bot.module';
 
@@ -123,6 +124,7 @@ const mediaGenerationQueueOptions = {
     MediaGenerationFinalizeService,
     MediaGenerationGuardsService,
     MediaGenerationPricingService,
+    KreaContentSafetyService,
     MediaProviderRegistryService,
     MediaRouteResolverService,
     MediaTagResolverService,

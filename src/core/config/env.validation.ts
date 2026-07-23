@@ -1,5 +1,11 @@
 import { plainToClass, Transform } from 'class-transformer';
-import { IsString, IsOptional, IsNumber, IsBoolean, validateSync } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsNumber,
+  IsBoolean,
+  validateSync,
+} from 'class-validator';
 
 export class EnvironmentVariables {
   // Database
@@ -57,6 +63,10 @@ export class EnvironmentVariables {
   SESSION_SECRET: string;
 
   // External APIs
+  @IsOptional()
+  @IsString()
+  OPENAI_MODERATION_MODEL?: string;
+
   @IsString()
   TWITTERAPI_IO_API_KEY: string;
 
@@ -163,19 +173,11 @@ export class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
-  RUNPOD_KREA2_LORA_FINETUNE_API_KEY?: string;
-
-  @IsOptional()
-  @IsString()
   RUNPOD_FLUX2_KLEIN_ENDPOINT_ID?: string;
 
   @IsOptional()
   @IsString()
-  RUNPOD_SDXL_ENDPOINT_ID?: string;
-
-  @IsOptional()
-  @IsString()
-  RUNPOD_SDXL_LORA_FINETUNE_ENDPOINT_ID?: string;
+  RUNPOD_KREA2_TURBO_ENDPOINT_ID?: string;
 
   @IsOptional()
   @IsString()
@@ -183,7 +185,7 @@ export class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
-  RUNPOD_SDXL_LORA_GENERATION_ENDPOINT_ID?: string;
+  RUNPOD_KREA2_LORA_GENERATION_ENDPOINT_ID?: string;
 
   @IsOptional()
   @IsString()
@@ -211,11 +213,11 @@ export class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
-  RUNPOD_SDXL_ENABLED?: string;
+  RUNPOD_KREA2_TURBO_ENABLED?: string;
 
   @IsOptional()
   @IsString()
-  RUNPOD_SDXL_LORA_GENERATION_ENABLED?: string;
+  RUNPOD_KREA2_LORA_GENERATION_ENABLED?: string;
 
   @IsOptional()
   @IsString()
@@ -246,12 +248,12 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10))
-  RUNPOD_SDXL_STATUS_TIMEOUT_MS?: number;
+  RUNPOD_KREA2_TURBO_STATUS_TIMEOUT_MS?: number;
 
   @IsOptional()
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10))
-  RUNPOD_SDXL_LORA_GENERATION_STATUS_TIMEOUT_MS?: number;
+  RUNPOD_KREA2_LORA_GENERATION_STATUS_TIMEOUT_MS?: number;
 
   @IsOptional()
   @IsNumber()
@@ -305,12 +307,15 @@ export function validate(config: Record<string, unknown>) {
 
   if (errors.length > 0) {
     const missingVars = errors
-      .map((error) => `${error.property}: ${Object.keys(error.constraints || {}).join(', ')}`)
+      .map(
+        (error) =>
+          `${error.property}: ${Object.keys(error.constraints || {}).join(', ')}`,
+      )
       .join(', ');
-    
+
     throw new Error(
       `Environment validation failed. Missing or invalid variables: ${missingVars}\n` +
-      `Please check your .env file and ensure all required variables are set.`
+        `Please check your .env file and ensure all required variables are set.`,
     );
   }
 

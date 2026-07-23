@@ -77,7 +77,8 @@ This endpoint is intentionally separate from the legacy \`image-generation/ai-se
                   imageUrl: {
                     type: 'string',
                     nullable: true,
-                    example: 'https://yallery-api-prod.org/media/image/upload/octoai_images/style.png',
+                    example:
+                      'https://yallery-api-prod.org/media/image/upload/octoai_images/style.png',
                   },
                 },
               },
@@ -95,7 +96,7 @@ This endpoint is intentionally separate from the legacy \`image-generation/ai-se
     summary: 'Get fine-tune prompt image AI settings',
     description: `Return prompt-image settings for fine-tune contests.
 
-This endpoint intentionally exposes only the active \`sdxl_lora_generation\` model so clients do not need to filter regular image generation models before entering a fine-tune contest flow.`,
+This endpoint intentionally exposes only the active \`krea2_lora_generation\` model so clients do not need to filter regular image generation models before entering a fine-tune contest flow.`,
     responses: {
       success: {
         status: 200,
@@ -109,7 +110,7 @@ This endpoint intentionally exposes only the active \`sdxl_lora_generation\` mod
               properties: {
                 defaultAI: {
                   type: 'string',
-                  example: 'sdxl_lora_generation',
+                  example: 'krea2_lora_generation',
                   nullable: true,
                 },
                 defaultOrientations: {
@@ -126,9 +127,9 @@ This endpoint intentionally exposes only the active \`sdxl_lora_generation\` mod
                 properties: {
                   aiService: {
                     type: 'string',
-                    example: 'sdxl_lora_generation',
+                    example: 'krea2_lora_generation',
                   },
-                  name: { type: 'string', example: 'SDXL LoRA Generation' },
+                  name: { type: 'string', example: 'Krea 2 LoRA Generation' },
                   allowedOrientations: {
                     type: 'array',
                     items: { type: 'string', enum: ['horizontal', 'vertical'] },
@@ -145,7 +146,7 @@ This endpoint intentionally exposes only the active \`sdxl_lora_generation\` mod
                     type: 'string',
                     nullable: true,
                     example:
-                      'Fine-tune contest image generation powered by SDXL LoRA.',
+                      'Fine-tune contest image generation powered by Krea 2 Turbo with a Krea-2-Raw LoRA.',
                   },
                 },
               },
@@ -170,7 +171,8 @@ This endpoint intentionally exposes only the active \`sdxl_lora_generation\` mod
                   imageUrl: {
                     type: 'string',
                     nullable: true,
-                    example: 'https://yallery-api-prod.org/media/image/upload/octoai_images/style.png',
+                    example:
+                      'https://yallery-api-prod.org/media/image/upload/octoai_images/style.png',
                   },
                 },
               },
@@ -246,7 +248,8 @@ This endpoint is separate from the legacy edit flow and reads from the new \`med
                   imageUrl: {
                     type: 'string',
                     nullable: true,
-                    example: 'https://yallery-api-prod.org/media/image/upload/octoai_images/style.png',
+                    example:
+                      'https://yallery-api-prod.org/media/image/upload/octoai_images/style.png',
                   },
                 },
               },
@@ -547,12 +550,12 @@ This endpoint is the new provider-facing abstraction for media generation. It re
 
 **Current routing behavior:**
 - **FLUX.2 Klein**: routed through the configured private RunPod FLUX.2 Klein endpoint
-- **SDXL**: routed through the configured private RunPod SDXL endpoint
+- **Krea 2 Turbo**: routed through the configured private RunPod Krea 2 Turbo endpoint
 
 **What this endpoint does:**
 - Accepts a prompt-driven image generation request
 - Resolves the provider through \`media-generation\`
-- If \`contest_id\` is provided, resolves the contest model on the backend and can switch into SDXL LoRA fine-tune mode automatically
+- If \`contest_id\` is provided, resolves the contest model on the backend and can switch into Krea 2 LoRA fine-tune mode automatically
 - Pushes the request into a dedicated queue
 - Deducts credits before persistence is finalized
 - Saves generated posts with optional contest context
