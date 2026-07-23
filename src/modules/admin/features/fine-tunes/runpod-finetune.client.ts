@@ -1,7 +1,22 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import axios from 'axios';
+import { AIFinetuneModelFamily } from 'src/modules/admin/entities/ai-finetune.entity';
 import { ProviderRuntimeConfigService } from 'src/modules/provider-settings/provider-runtime-config.service';
 import { RunpodJobResponse } from './runpod-finetune.types';
+
+const RUNPOD_FINETUNE_CONFIG: Record<
+  AIFinetuneModelFamily,
+  { endpointKey: string; apiKey: string }
+> = {
+  sdxl: {
+    endpointKey: 'RUNPOD_SDXL_LORA_FINETUNE_ENDPOINT_ID',
+    apiKey: 'RUNPOD_API_KEY',
+  },
+  krea2: {
+    endpointKey: 'RUNPOD_KREA2_LORA_FINETUNE_ENDPOINT_ID',
+    apiKey: 'RUNPOD_KREA2_LORA_FINETUNE_API_KEY',
+  },
+};
 
 @Injectable()
 export class RunpodFineTuneClient {
@@ -9,23 +24,24 @@ export class RunpodFineTuneClient {
     private readonly providerRuntimeConfigService: ProviderRuntimeConfigService,
   ) {}
 
-  async getEndpointId() {
-    const endpointId = await this.providerRuntimeConfigService.getString(
-      'RUNPOD_SDXL_LORA_FINETUNE_ENDPOINT_ID',
-    );
+  async getEndpointId(modelFamily: AIFinetuneModelFamily = 'sdxl') {
+    const { endpointKey } = RUNPOD_FINETUNE_CONFIG[modelFamily];
+    const endpointId =
+      await this.providerRuntimeConfigService.getString(endpointKey);
     if (!endpointId) {
-      throw new BadRequestException(
-        'RUNPOD_SDXL_LORA_FINETUNE_ENDPOINT_ID is not configured',
-      );
+      throw new BadRequestException(`${endpointKey} is not configured`);
     }
     return endpointId;
   }
 
-  async submitJob(input: Record<string, unknown>) {
+  async submitJob(
+    modelFamily: AIFinetuneModelFamily,
+    input: Record<string, unknown>,
+  ) {
     const [endpointId, apiBaseUrl, headers, timeout] = await Promise.all([
-      this.getEndpointId(),
+      this.getEndpointId(modelFamily),
       this.getApiBaseUrl(),
-      this.getHeaders(),
+      this.getHeaders(modelFamily),
       this.getRequestTimeoutMs(),
     ]);
     const response = await axios.post<RunpodJobResponse>(
@@ -40,10 +56,14 @@ export class RunpodFineTuneClient {
     return response.data;
   }
 
-  async getJobStatus(endpointId: string, jobId: string) {
+  async getJobStatus(
+    modelFamily: AIFinetuneModelFamily,
+    endpointId: string,
+    jobId: string,
+  ) {
     const [apiBaseUrl, headers, timeout] = await Promise.all([
       this.getApiBaseUrl(),
-      this.getHeaders(),
+      this.getHeaders(modelFamily),
       this.getRequestTimeoutMs(),
     ]);
     const response = await axios.get<RunpodJobResponse>(
@@ -59,17 +79,18 @@ export class RunpodFineTuneClient {
 
   private async getApiBaseUrl() {
     return (
-      (await this.providerRuntimeConfigService.getString('RUNPOD_API_BASE_URL')) ||
-      'https://api.runpod.ai/v2'
+      (await this.providerRuntimeConfigService.getString(
+        'RUNPOD_API_BASE_URL',
+      )) || 'https://api.runpod.ai/v2'
     );
   }
 
-  private async getHeaders() {
-    const apiKey = await this.providerRuntimeConfigService.getString(
-      'RUNPOD_API_KEY',
-    );
+  private async getHeaders(modelFamily: AIFinetuneModelFamily) {
+    const { apiKey: apiKeyConfigKey } = RUNPOD_FINETUNE_CONFIG[modelFamily];
+    const apiKey =
+      await this.providerRuntimeConfigService.getString(apiKeyConfigKey);
     if (!apiKey) {
-      throw new BadRequestException('RUNPOD_API_KEY is not configured');
+      throw new BadRequestException(`${apiKeyConfigKey} is not configured`);
     }
     return {
       Authorization: `Bearer ${apiKey}`,

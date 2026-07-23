@@ -29,7 +29,7 @@ export class AdminFineTunesController {
   @ApiOperation({
     summary: 'List reusable AI fine-tunes',
     description:
-      'Returns SDXL LoRA fine-tunes that can be attached to fine-tune contests.',
+      'Returns model-aware LoRA fine-tunes and their compatibility metadata.',
   })
   @ApiQuery({
     name: 'status',
@@ -54,9 +54,9 @@ export class AdminFineTunesController {
 
   @Post('finetunes')
   @ApiOperation({
-    summary: 'Create an SDXL LoRA fine-tune job',
+    summary: 'Create a model-aware LoRA fine-tune job',
     description:
-      'Stores the dataset metadata, generates or validates a unique LoRA key, and queues the RunPod trainer worker.',
+      'Stores the dataset metadata, validates model-family compatibility, generates or validates a unique LoRA key, and queues the matching RunPod trainer worker. Requests without modelFamily remain SDXL.',
   })
   async createFineTune(@Body() dto: CreateAIFinetuneDto) {
     return this.adminFineTuneService.createFineTune(dto);

@@ -35,6 +35,8 @@ export interface ProviderSettingDefinition {
   isSecret: boolean;
   validationKind: ProviderSettingValidationKind;
   defaultValue?: string;
+  /** Override for validating an endpoint hosted in a separate RunPod account. */
+  apiKeyConfigKey?: string;
 }
 
 const RUNPOD_STATUS_TIMEOUT_SETTING_DEFINITIONS: ProviderSettingDefinition[] =
@@ -113,6 +115,17 @@ export const PROVIDER_SETTING_DEFINITIONS: ProviderSettingDefinition[] = [
     validationKind: 'none',
   },
   {
+    key: 'RUNPOD_KREA2_LORA_FINETUNE_API_KEY',
+    provider: 'runpod',
+    group: 'runpod_core',
+    label: 'RunPod Krea 2 LoRA Finetune API Key',
+    description:
+      'Dedicated RunPod account key for the isolated Krea 2 LoRA trainer endpoint.',
+    type: 'secret',
+    isSecret: true,
+    validationKind: 'none',
+  },
+  {
     key: 'RUNPOD_API_BASE_URL',
     provider: 'runpod',
     group: 'runpod_core',
@@ -177,6 +190,18 @@ export const PROVIDER_SETTING_DEFINITIONS: ProviderSettingDefinition[] = [
     type: 'string',
     isSecret: false,
     validationKind: 'runpod_serverless_endpoint',
+  },
+  {
+    key: 'RUNPOD_KREA2_LORA_FINETUNE_ENDPOINT_ID',
+    provider: 'runpod',
+    group: 'runpod_private_endpoints',
+    label: 'Krea 2 LoRA Finetune Endpoint',
+    description:
+      'Isolated Krea-2-Raw LoRA training endpoint. Authentication uses the dedicated Krea 2 trainer key.',
+    type: 'string',
+    isSecret: false,
+    validationKind: 'runpod_serverless_endpoint',
+    apiKeyConfigKey: 'RUNPOD_KREA2_LORA_FINETUNE_API_KEY',
   },
   {
     key: 'RUNPOD_SDXL_LORA_GENERATION_ENDPOINT_ID',

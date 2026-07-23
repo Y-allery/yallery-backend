@@ -5,18 +5,34 @@ import {
   IsInt,
   IsNumber,
   IsOptional,
+  IsIn,
+  IsBoolean,
   IsString,
   IsUrl,
   Max,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import {
+  AI_FINETUNE_MODEL_FAMILIES,
+  AIFinetuneModelFamily,
+} from 'src/modules/admin/entities/ai-finetune.entity';
 
 export class AIFinetuneDatasetImageDto {
   @ApiProperty({ description: 'Dataset image URL' })
   @IsUrl({ require_tld: false })
   url: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Caption for this image. Krea 2 jobs preserve these as per-image training captions.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  caption?: string;
 
   @ApiPropertyOptional({ description: 'Storage public id' })
   @IsOptional()
@@ -94,6 +110,15 @@ export class CreateAIFinetuneTrainingDto {
   @IsOptional()
   @IsInt()
   seed?: number;
+
+  @ApiPropertyOptional({
+    default: false,
+    description:
+      'Random horizontal flipping. Keep false for asymmetric characters and logos.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  enableRandomFlip?: boolean;
 }
 
 export class CreateAIFinetuneGenerationDefaultsDto {
@@ -113,6 +138,25 @@ export class CreateAIFinetuneDto {
   @ApiProperty({ example: 'yallery_slurpy' })
   @IsString()
   triggerWord: string;
+
+  @ApiPropertyOptional({
+    enum: AI_FINETUNE_MODEL_FAMILIES,
+    default: 'sdxl',
+    description:
+      'LoRA architecture family. Omitted legacy requests remain SDXL.',
+  })
+  @IsOptional()
+  @IsIn(AI_FINETUNE_MODEL_FAMILIES)
+  modelFamily?: AIFinetuneModelFamily;
+
+  @ApiPropertyOptional({
+    description:
+      'Canonical training base model. It must belong to modelFamily; defaults are selected by the backend.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  baseModel?: string;
 
   @ApiPropertyOptional({
     description:

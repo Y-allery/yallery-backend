@@ -163,6 +163,10 @@ export class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
+  RUNPOD_KREA2_LORA_FINETUNE_API_KEY?: string;
+
+  @IsOptional()
+  @IsString()
   RUNPOD_FLUX2_KLEIN_ENDPOINT_ID?: string;
 
   @IsOptional()
@@ -172,6 +176,10 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   RUNPOD_SDXL_LORA_FINETUNE_ENDPOINT_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  RUNPOD_KREA2_LORA_FINETUNE_ENDPOINT_ID?: string;
 
   @IsOptional()
   @IsString()

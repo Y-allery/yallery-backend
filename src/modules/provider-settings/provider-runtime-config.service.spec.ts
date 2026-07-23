@@ -229,4 +229,37 @@ describe('ProviderRuntimeConfigService', () => {
       }),
     );
   });
+
+  it('validates the Krea 2 trainer endpoint with its dedicated API key', async () => {
+    (axios.get as jest.Mock).mockResolvedValueOnce({
+      data: {
+        id: 'krea-trainer',
+        name: 'krea-2-lora-trainer',
+        workersMax: 1,
+        idleTimeout: 5,
+      },
+    });
+    const { service } = createService({
+      RUNPOD_API_KEY: 'main-runpod-key',
+      RUNPOD_KREA2_LORA_FINETUNE_API_KEY: 'krea-trainer-key',
+      RUNPOD_KREA2_LORA_FINETUNE_ENDPOINT_ID: 'krea-trainer',
+    });
+
+    await expect(
+      service.validateSetting('RUNPOD_KREA2_LORA_FINETUNE_ENDPOINT_ID'),
+    ).resolves.toMatchObject({
+      ok: true,
+      status: 'valid',
+      details: {
+        id: 'krea-trainer',
+        name: 'krea-2-lora-trainer',
+      },
+    });
+    expect(axios.get).toHaveBeenCalledWith(
+      'https://rest.runpod.io/v1/endpoints/krea-trainer',
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer krea-trainer-key' },
+      }),
+    );
+  });
 });

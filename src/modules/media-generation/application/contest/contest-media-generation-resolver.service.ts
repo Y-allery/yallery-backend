@@ -296,7 +296,7 @@ export class ContestMediaGenerationResolverService {
     loraKey: string,
   ): Promise<AIFinetuneEntity> {
     const fineTune = await this.aiFinetuneRepository.findOne({
-      where: { loraKey },
+      where: { loraKey, modelFamily: 'sdxl' },
     });
 
     if (!fineTune) {
@@ -305,7 +305,11 @@ export class ContestMediaGenerationResolverService {
       );
     }
 
-    if (fineTune.status !== 'ready' || !fineTune.loraUrl) {
+    if (
+      (fineTune.modelFamily ?? 'sdxl') !== 'sdxl' ||
+      fineTune.status !== 'ready' ||
+      !fineTune.loraUrl
+    ) {
       throw new BadRequestException(
         `Fine-tune "${loraKey}" is not ready for generation.`,
       );

@@ -218,7 +218,9 @@ export class ProviderRuntimeConfigService {
     const route = RUNPOD_MEDIA_ROUTE_CATALOG.find(
       (entry) => entry.endpointConfigKey === key,
     );
-    const apiKeyConfigKey = route?.apiKeyConfigKey ?? 'RUNPOD_API_KEY';
+    const definition = this.getDefinition(key);
+    const apiKeyConfigKey =
+      definition.apiKeyConfigKey ?? route?.apiKeyConfigKey ?? 'RUNPOD_API_KEY';
     const apiKey = await this.getString(apiKeyConfigKey);
 
     if (!apiKey) {

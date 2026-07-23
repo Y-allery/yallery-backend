@@ -964,10 +964,15 @@ export class ContestService {
     fineTuneId: number,
   ): Promise<AIFinetuneEntity> {
     const fineTune = await this.aiFinetuneRepository.findOne({
-      where: { id: fineTuneId },
+      where: { id: fineTuneId, modelFamily: 'sdxl' },
     });
 
-    if (!fineTune || fineTune.status !== 'ready' || !fineTune.loraUrl) {
+    if (
+      !fineTune ||
+      (fineTune.modelFamily ?? 'sdxl') !== 'sdxl' ||
+      fineTune.status !== 'ready' ||
+      !fineTune.loraUrl
+    ) {
       throw new BadRequestException(
         'Fine-tune contests require a ready LoRA training profile.',
       );
@@ -987,10 +992,15 @@ export class ContestService {
     }
 
     const fineTune = await this.aiFinetuneRepository.findOne({
-      where: { loraKey },
+      where: { loraKey, modelFamily: 'sdxl' },
     });
 
-    if (!fineTune || fineTune.status !== 'ready' || !fineTune.loraUrl) {
+    if (
+      !fineTune ||
+      (fineTune.modelFamily ?? 'sdxl') !== 'sdxl' ||
+      fineTune.status !== 'ready' ||
+      !fineTune.loraUrl
+    ) {
       throw new BadRequestException(
         'Fine-tune contests require a ready LoRA training profile.',
       );
