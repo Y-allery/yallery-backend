@@ -64,7 +64,16 @@ export class MediaAISettingsService {
       this.mediaAISettingsRepository.find({
         where: {
           capability: 'image_generate',
-          aiService: In(['flux2_klein', 'sdxl', 'qwen_image']),
+          aiService: In([
+            'flux2_klein',
+            'sdxl',
+            'qwen_image',
+            // 2026-07-24 t2i battery candidates C/D. Their media_ai_settings rows are
+            // inserted with isActive=false, so adding them here has no effect until an
+            // admin flips isActive post-battery (see workers/out/t2i-battery-2026-07-24/RUNBOOK.md).
+            'qwen_image_2512',
+            'z_image_turbo',
+          ]),
           isActive: true,
         },
         order: {
