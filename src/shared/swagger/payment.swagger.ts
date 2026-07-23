@@ -9,7 +9,7 @@ export const PAYMENT_SWAGGER = {
 - Subscription cancellations
 - Refunds
 
-**Security:** This endpoint uses raw body parsing for webhook signature verification.`,
+**Security:** Verifies the \`Authorization\` header against ADAPTY_WEBHOOK_AUTH_TOKEN(_SANDBOX) (admin provider settings) — the same static value must be set in the Adapty Dashboard under Integrations -> Webhooks, since Adapty has no HMAC signing. Rejects with 401 on a mismatch; accepts (with a warning logged) if no token is configured yet.`,
     responses: {
       success: { status: 200, description: 'Webhook processed successfully' },
       badRequest: { status: 400, description: 'Invalid webhook data' },

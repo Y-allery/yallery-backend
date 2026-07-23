@@ -9,7 +9,8 @@ export type ProviderSettingGroup =
   | 'runpod_timeouts'
   | 'media_defaults'
   | 'content_bot'
-  | 'ops';
+  | 'ops'
+  | 'payments';
 
 export type ProviderSettingValueType =
   | 'secret'
@@ -26,7 +27,7 @@ export type ProviderSettingValidationKind =
 export interface ProviderSettingDefinition {
   key: string;
   /** 'app' covers settings that are not tied to an external provider. */
-  provider: 'openai' | 'runpod' | 'app';
+  provider: 'openai' | 'runpod' | 'app' | 'adapty';
   group: ProviderSettingGroup;
   label: string;
   description?: string;
@@ -575,6 +576,28 @@ export const PROVIDER_SETTING_DEFINITIONS: ProviderSettingDefinition[] = [
     label: 'Telegram ops webhook secret',
     description:
       'Shared secret passed to Telegram setWebhook; Telegram echoes it back on every call so the webhook endpoint can reject spoofed requests. Any random string.',
+    type: 'secret',
+    isSecret: true,
+    validationKind: 'none',
+  },
+  {
+    key: 'ADAPTY_WEBHOOK_AUTH_TOKEN',
+    provider: 'adapty',
+    group: 'payments',
+    label: 'Adapty webhook Authorization token (production)',
+    description:
+      'Must match EXACTLY the "Authorization header value for production endpoint" configured in the Adapty Dashboard (Integrations -> Webhooks) — Adapty has no HMAC signing, this static value sent back verbatim as the Authorization header is its only webhook auth mechanism. Unset = the webhook accepts unauthenticated requests (logged as a warning on every call); set this AND the matching Adapty Dashboard field together, not just one side.',
+    type: 'secret',
+    isSecret: true,
+    validationKind: 'none',
+  },
+  {
+    key: 'ADAPTY_WEBHOOK_AUTH_TOKEN_SANDBOX',
+    provider: 'adapty',
+    group: 'payments',
+    label: 'Adapty webhook Authorization token (sandbox)',
+    description:
+      'Same idea as ADAPTY_WEBHOOK_AUTH_TOKEN but for the "sandbox endpoint" field in the Adapty Dashboard, if sandbox/test purchases are also delivered to this same webhook URL. Optional — a request is accepted if it matches either configured token.',
     type: 'secret',
     isSecret: true,
     validationKind: 'none',
