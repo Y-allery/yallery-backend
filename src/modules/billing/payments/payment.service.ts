@@ -103,7 +103,21 @@ export class PaymentService {
             return;
           }
 
-          const isTest = parsedData.is_sandbox === true || parsedData.environment === 'sandbox' || parsedData.test === true;
+          // Adapty nests transaction/price/environment fields under
+          // event_properties, NOT top-level on the webhook body (confirmed
+          // against a real captured payload, 2026-06-17 prod log) — reading
+          // the top-level path here meant paymentIntentId was ALWAYS null
+          // (silently rejecting every purchase past the idempotency guard
+          // below), isTest never detected a real sandbox purchase, and amount
+          // always fell back to the points value instead of the real price.
+          // Top-level keys are kept as a defensive fallback only.
+          const isTest =
+            String(
+              eventProperties?.environment ?? parsedData.environment ?? '',
+            ).toLowerCase() === 'sandbox' ||
+            eventProperties?.is_sandbox === true ||
+            parsedData.is_sandbox === true ||
+            parsedData.test === true;
 
           // Idempotency key: a stable provider id is REQUIRED. Without one we
           // cannot dedupe Adapty's at-least-once retries, so we refuse to credit
@@ -111,7 +125,11 @@ export class PaymentService {
           // column but allows multiple NULLs, so null-id events would bypass
           // dedup entirely — hence the hard reject here.)
           const paymentIntentId =
-            parsedData.transaction_id || parsedData.payment_intent_id || null;
+            eventProperties?.transaction_id ||
+            eventProperties?.original_transaction_id ||
+            parsedData.transaction_id ||
+            parsedData.payment_intent_id ||
+            null;
           if (!paymentIntentId) {
             this.logger.error(
               `❌ Purchase for user ${profileId} (product ${productId}) has no transaction id — refusing to credit without an idempotency key`,
@@ -119,10 +137,33 @@ export class PaymentService {
             return;
           }
 
-          const rawAmount =
-            eventProperties?.price ?? eventProperties?.amount ?? pointsToAdd;
-          const amount = typeof rawAmount === 'number' ? rawAmount : pointsToAdd;
-          const currency = eventProperties?.currency || 'USD';
+          // price_local is the amount in `currency`; price_usd is Adapty's
+          // USD-normalized figure and must be paired with 'USD' explicitly
+          // (not eventProperties.currency, which names the LOCAL currency).
+          // Legacy price/amount keys are a defensive fallback only — never
+          // fall back to pointsToAdd for a money field: that silently stored
+          // e.g. "5000 UAH" for a real 249.99 UAH purchase for months.
+          const priceLocal = Number(
+            eventProperties?.price_local ??
+              eventProperties?.price ??
+              eventProperties?.amount,
+          );
+          const priceUsd = Number(eventProperties?.price_usd);
+          let amount: number;
+          let currency: string;
+          if (Number.isFinite(priceLocal)) {
+            amount = priceLocal;
+            currency = eventProperties?.currency || 'USD';
+          } else if (Number.isFinite(priceUsd)) {
+            amount = priceUsd;
+            currency = 'USD';
+          } else {
+            this.logger.error(
+              `❌ No parsable price for transaction ${paymentIntentId} (product ${productId}) — storing amount=0, investigate this payload`,
+            );
+            amount = 0;
+            currency = eventProperties?.currency || 'USD';
+          }
 
           if (verbose) {
             this.logger.log(`💰 [Adapty webhook] isTest=${isTest} environment=${parsedData.environment ?? null}`);

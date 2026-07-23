@@ -6,18 +6,29 @@ import { PaymentService } from './payment.service';
  * inserted, with no transaction, a null-able dedup key, and a swallowed catch —
  * so at-least-once retries minted points repeatedly. Crediting must now be
  * idempotency-first and atomic.
+ *
+ * Payload shape below matches a REAL captured Adapty webhook body (prod log,
+ * 2026-06-17): transaction_id/price_local/price_usd/environment all live
+ * under event_properties, never top-level — an earlier version of this file
+ * (and the code) assumed top-level and silently broke every purchase.
  */
 describe('PaymentService.processWebhook (Adapty double-credit)', () => {
-  const purchasePayload = (overrides: Record<string, any> = {}) =>
+  const purchasePayload = (
+    eventPropertiesOverrides: Record<string, any> = {},
+    overrides: Record<string, any> = {},
+  ) =>
     Buffer.from(
       JSON.stringify({
         customer_user_id: 7,
         event_type: 'non_subscription_purchase',
-        transaction_id: 'txn_abc',
         event_properties: {
           vendor_product_id: '5000yeps',
-          price: 4.99,
-          currency: 'USD',
+          transaction_id: 'GPA.txn-abc',
+          currency: 'UAH',
+          price_local: 249.99,
+          price_usd: 5.58,
+          environment: 'Production',
+          ...eventPropertiesOverrides,
         },
         ...overrides,
       }),
@@ -91,7 +102,7 @@ describe('PaymentService.processWebhook (Adapty double-credit)', () => {
     const { service, transaction, increment } = createService();
 
     await service.processWebhook(
-      purchasePayload({ transaction_id: undefined, payment_intent_id: undefined }),
+      purchasePayload({ transaction_id: undefined, original_transaction_id: undefined }),
     );
 
     expect(transaction).not.toHaveBeenCalled();
@@ -107,5 +118,54 @@ describe('PaymentService.processWebhook (Adapty double-credit)', () => {
     await expect(service.processWebhook(purchasePayload())).rejects.toThrow(
       'connection lost',
     );
+  });
+
+  it('stores the real price_local/currency, never the points value, as amount', async () => {
+    const { service, insert } = createService();
+
+    // 249.99 UAH purchase crediting 5000 points — the two must never collide.
+    await service.processWebhook(purchasePayload());
+
+    expect(insert).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: 249.99, currency: 'UAH', pointsCredited: 5000 }),
+    );
+  });
+
+  it('falls back to price_usd (paired with currency USD) when price_local is missing', async () => {
+    const { service, insert } = createService();
+
+    await service.processWebhook(
+      purchasePayload({ price_local: undefined, currency: 'UAH', price_usd: 5.58 }),
+    );
+
+    expect(insert).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: 5.58, currency: 'USD' }),
+    );
+  });
+
+  it('stores amount=0 (never the points value) and logs an error when no price field is parsable', async () => {
+    const { service, insert } = createService();
+
+    await service.processWebhook(
+      purchasePayload({ price_local: undefined, price_usd: undefined }),
+    );
+
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ amount: 0 }));
+  });
+
+  it('flags a sandbox purchase via the nested event_properties.environment field', async () => {
+    const { service, insert } = createService();
+
+    await service.processWebhook(purchasePayload({ environment: 'Sandbox' }));
+
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ isTest: true }));
+  });
+
+  it('does not flag a real production purchase as test', async () => {
+    const { service, insert } = createService();
+
+    await service.processWebhook(purchasePayload());
+
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ isTest: false }));
   });
 });
