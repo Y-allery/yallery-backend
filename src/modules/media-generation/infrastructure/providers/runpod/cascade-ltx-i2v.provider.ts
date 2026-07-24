@@ -38,7 +38,7 @@ export class CascadeLtxI2vProviderError extends Error {
 
 /**
  * Dedicated cascade adapter. It never participates in the public provider
- * router and always sends the already-built `enhance:false` I2V payload.
+ * router and always sends the already-built I2V payload (enhance:true since 2026-07-24 — the worker's motion-director enhancer measurably unfreezes subject motion; see workers/out/crf-battery-2026-07-24/RESULTS.md).
  */
 @Injectable()
 export class CascadeLtxI2vProvider implements TextVideoI2vProviderPort {

@@ -517,7 +517,7 @@ describe('TextVideoPipelineService.runOrResume', () => {
       width: 1280,
       height: 704,
       frames: 121,
-      enhance: false,
+      enhance: true,
       cas_amount: 0,
     });
     expect(payload.image_b64).toBe(harness.canonicalPng.toString('base64'));
