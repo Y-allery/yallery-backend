@@ -18,6 +18,17 @@ export class GeneratedPostFactory {
     private readonly postRepository: Repository<PostEntity>,
   ) {}
 
+  findById(postId: number): Promise<PostEntity | null> {
+    return this.postRepository.findOne({ where: { id: postId } });
+  }
+
+  findByGenerationTaskId(generationTaskId: string): Promise<PostEntity | null> {
+    if (!/^[A-Za-z0-9_-]{8,64}$/.test(generationTaskId)) {
+      throw new Error('GENERATION_TASK_ID_INVALID');
+    }
+    return this.postRepository.findOne({ where: { generationTaskId } });
+  }
+
   async createPromptImagePost(
     request: ResolvedPromptImageGenerationRequest,
     userId: number,
@@ -138,8 +149,10 @@ export class GeneratedPostFactory {
     videoUrl: string,
     previewImageUrl: string | null,
     tag: TagEntity | null,
+    generationTaskId: string | null = null,
   ): Promise<PostEntity> {
     const post = this.postRepository.create({
+      generationTaskId,
       user: { id: userId },
       imageUrl: null,
       videoUrl,
@@ -164,6 +177,57 @@ export class GeneratedPostFactory {
     });
 
     return await this.postRepository.save(post);
+  }
+
+  async createVideoPostOnce(
+    generationTaskId: string,
+    generationParams: {
+      prompt: string;
+      aiService: string;
+      orientation: MediaOrientation;
+      duration: number;
+      seed?: number | null;
+      contestId?: number | null;
+      sourceImageUrl?: string;
+      width?: number | null;
+      height?: number | null;
+      hasAudio?: boolean | null;
+    },
+    userId: number,
+    videoUrl: string,
+    previewImageUrl: string | null,
+    tag: TagEntity | null,
+  ): Promise<PostEntity> {
+    if (!/^[A-Za-z0-9_-]{8,64}$/.test(generationTaskId)) {
+      throw new Error('GENERATION_TASK_ID_INVALID');
+    }
+    const existing = await this.postRepository.findOne({
+      where: { generationTaskId },
+    });
+    if (existing) {
+      return existing;
+    }
+    try {
+      return await this.createVideoPost(
+        generationParams,
+        userId,
+        videoUrl,
+        previewImageUrl,
+        tag,
+        generationTaskId,
+      );
+    } catch (error) {
+      if (!isUniqueConstraintError(error)) {
+        throw error;
+      }
+      const adopted = await this.postRepository.findOne({
+        where: { generationTaskId },
+      });
+      if (!adopted) {
+        throw new Error('GENERATION_POST_ADOPTION_FAILED');
+      }
+      return adopted;
+    }
   }
 
   async createMemePost(
@@ -209,4 +273,17 @@ export class GeneratedPostFactory {
 
     return await this.postRepository.save(post);
   }
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+  const candidate = error as { code?: unknown; errno?: unknown };
+  return (
+    candidate.code === 'ER_DUP_ENTRY' ||
+    candidate.code === 'SQLITE_CONSTRAINT' ||
+    candidate.code === '23505' ||
+    candidate.errno === 1062
+  );
 }

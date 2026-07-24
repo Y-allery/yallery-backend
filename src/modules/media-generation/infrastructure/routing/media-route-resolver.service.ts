@@ -95,7 +95,9 @@ export class MediaRouteResolverService {
     }
 
     const [apiKey, endpointId] = await Promise.all([
-      this.providerRuntimeConfigService.getString('RUNPOD_API_KEY'),
+      this.providerRuntimeConfigService.getString(
+        entry.apiKeyConfigKey ?? 'RUNPOD_API_KEY',
+      ),
       this.providerRuntimeConfigService.getString(entry.endpointConfigKey),
     ]);
 

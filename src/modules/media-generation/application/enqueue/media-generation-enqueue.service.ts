@@ -250,6 +250,11 @@ export class MediaGenerationEnqueueService {
     request: TextVideoGenerationRequest,
     userId: number,
   ) {
+    // This direct DB read is the global control-plane boundary: each new job
+    // snapshots one mode and keeps it for all BullMQ retries. COMEBACK therefore
+    // changes new work without mutating already queued/in-flight generations.
+    const ltxTextPipelineMode =
+      await this.providerRuntimeConfigService.getLtxTextPipelineModeFresh();
     const totalCost =
       await this.mediaGenerationGuardsService.assertUserCanGenerateVideos(
         request,
@@ -287,6 +292,7 @@ export class MediaGenerationEnqueueService {
           userId,
           aiService: queuedRequest.aiService,
           chargeId: chargeKey,
+          ltxTextPipelineMode,
         },
         { ...this.defaultJobOptions, jobId: taskId },
       );

@@ -2,6 +2,7 @@ import { BaseMediaProcessor } from './base-media.processor';
 import { NotificationGateway } from 'src/modules/notifications/notification.gateway';
 import { MediaGenerationBalanceService } from 'src/modules/media-generation/application/balance/media-generation-balance.service';
 import { OpsBotService } from 'src/modules/ops-bot/ops-bot.service';
+import { FailedGenerationHandlingOptions } from './base-media.processor';
 
 class TestMediaProcessor extends BaseMediaProcessor {
   constructor(
@@ -16,8 +17,13 @@ class TestMediaProcessor extends BaseMediaProcessor {
     return null;
   }
 
-  fail(job: any, err: Error, messagePrefix = 'Generation failed') {
-    return this.handleFailedGeneration(job, err, messagePrefix);
+  fail(
+    job: any,
+    err: Error,
+    messagePrefix = 'Generation failed',
+    options?: FailedGenerationHandlingOptions,
+  ) {
+    return this.handleFailedGeneration(job, err, messagePrefix, options);
   }
 }
 
@@ -98,5 +104,36 @@ describe('BaseMediaProcessor', () => {
 
     expect(balanceService.refund).not.toHaveBeenCalled();
     expect(notificationGateway.sendMediaGenerationError).not.toHaveBeenCalled();
+  });
+
+  it('can suppress the fallback refund while preserving terminal handling', async () => {
+    const notificationGateway = createGateway();
+    const balanceService = createBalanceService();
+    const processor = new TestMediaProcessor(
+      notificationGateway,
+      balanceService,
+      createOpsBot(),
+    );
+
+    await processor.fail(
+      {
+        id: 'stateful-job-123',
+        attemptsMade: 3,
+        opts: { attempts: 3 },
+        data: {
+          userId: 42,
+          aiService: 'stateful_pipeline',
+          chargeId: 'charge-stateful',
+        },
+      },
+      new Error('durable workflow failure'),
+      'Generation failed',
+      { automaticRefund: false },
+    );
+
+    expect(balanceService.refund).not.toHaveBeenCalled();
+    expect(notificationGateway.sendMediaGenerationError).toHaveBeenCalledTimes(
+      1,
+    );
   });
 });

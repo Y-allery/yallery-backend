@@ -1,4 +1,13 @@
 import { RUNPOD_MEDIA_ROUTE_CATALOG } from 'src/modules/media-generation/infrastructure/routing/media-route.catalog';
+import {
+  DEFAULT_LTX_TEXT_PIPELINE_MODE,
+  LTX_TEXT_PIPELINE_MODES,
+  LTX_TEXT_PIPELINE_MODE_SETTING_KEY,
+} from 'src/modules/media-generation/domain/contracts/ltx-text-pipeline-mode.contract';
+import {
+  TEXT_VIDEO_CASCADE_DEFAULTS,
+  TEXT_VIDEO_CASCADE_SETTING_KEYS,
+} from 'src/modules/media-generation/domain/contracts/text-video-cascade-settings.contract';
 
 export type ProviderSettingGroup =
   | 'openai'
@@ -7,6 +16,7 @@ export type ProviderSettingGroup =
   | 'runpod_public_endpoints'
   | 'runpod_toggles'
   | 'runpod_timeouts'
+  | 'pruna'
   | 'media_defaults'
   | 'content_bot'
   | 'ops'
@@ -27,7 +37,7 @@ export type ProviderSettingValidationKind =
 export interface ProviderSettingDefinition {
   key: string;
   /** 'app' covers settings that are not tied to an external provider. */
-  provider: 'openai' | 'runpod' | 'app' | 'adapty';
+  provider: 'openai' | 'runpod' | 'pruna' | 'app' | 'adapty';
   group: ProviderSettingGroup;
   label: string;
   description?: string;
@@ -35,6 +45,8 @@ export interface ProviderSettingDefinition {
   isSecret: boolean;
   validationKind: ProviderSettingValidationKind;
   defaultValue?: string;
+  /** Optional allow-list applied to normalized non-secret string values. */
+  allowedValues?: readonly string[];
   /** Override for validating an endpoint hosted in a separate RunPod account. */
   apiKeyConfigKey?: string;
 }
@@ -255,6 +267,259 @@ export const PROVIDER_SETTING_DEFINITIONS: ProviderSettingDefinition[] = [
     type: 'string',
     isSecret: false,
     validationKind: 'runpod_public_endpoint',
+  },
+  {
+    key: LTX_TEXT_PIPELINE_MODE_SETTING_KEY,
+    provider: 'app',
+    group: 'media_defaults',
+    label: 'LTX text pipeline mode',
+    description:
+      'Global enqueue-time mode for text-to-video. Native is the safe default; cascade is fail-closed until its workflow is explicitly wired. Existing jobs retain their snapshotted mode.',
+    type: 'string',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: DEFAULT_LTX_TEXT_PIPELINE_MODE,
+    allowedValues: LTX_TEXT_PIPELINE_MODES,
+  },
+  {
+    key: TEXT_VIDEO_CASCADE_SETTING_KEYS.enabled,
+    provider: 'app',
+    group: 'media_defaults',
+    label: 'LTX text cascade readiness switch',
+    description:
+      'Defense-in-depth switch. False by default; mode=cascade still fails closed unless this and every private-store/QC dependency are configured.',
+    type: 'boolean',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: String(TEXT_VIDEO_CASCADE_DEFAULTS.enabled),
+  },
+  {
+    key: TEXT_VIDEO_CASCADE_SETTING_KEYS.pipelineConfigVersion,
+    provider: 'app',
+    group: 'media_defaults',
+    label: 'LTX text cascade config version',
+    type: 'string',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: TEXT_VIDEO_CASCADE_DEFAULTS.pipelineConfigVersion,
+  },
+  {
+    key: TEXT_VIDEO_CASCADE_SETTING_KEYS.promptCompilerVersion,
+    provider: 'app',
+    group: 'media_defaults',
+    label: 'LTX text cascade prompt compiler version',
+    type: 'string',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: TEXT_VIDEO_CASCADE_DEFAULTS.promptCompilerVersion,
+  },
+  {
+    key: TEXT_VIDEO_CASCADE_SETTING_KEYS.stillQcEnabled,
+    provider: 'app',
+    group: 'media_defaults',
+    label: 'LTX text cascade still QC enabled',
+    type: 'boolean',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: String(TEXT_VIDEO_CASCADE_DEFAULTS.stillQcEnabled),
+  },
+  {
+    key: TEXT_VIDEO_CASCADE_SETTING_KEYS.stillQcPolicyVersion,
+    provider: 'app',
+    group: 'media_defaults',
+    label: 'LTX text cascade still QC policy version',
+    type: 'string',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: TEXT_VIDEO_CASCADE_DEFAULTS.stillQcPolicyVersion,
+  },
+  {
+    key: TEXT_VIDEO_CASCADE_SETTING_KEYS.videoQcEnabled,
+    provider: 'app',
+    group: 'media_defaults',
+    label: 'LTX text cascade video QC enabled',
+    type: 'boolean',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: String(TEXT_VIDEO_CASCADE_DEFAULTS.videoQcEnabled),
+  },
+  {
+    key: TEXT_VIDEO_CASCADE_SETTING_KEYS.videoQcPolicyVersion,
+    provider: 'app',
+    group: 'media_defaults',
+    label: 'LTX text cascade video QC policy version',
+    type: 'string',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: TEXT_VIDEO_CASCADE_DEFAULTS.videoQcPolicyVersion,
+  },
+  {
+    key: TEXT_VIDEO_CASCADE_SETTING_KEYS.artifactTtlMs,
+    provider: 'app',
+    group: 'media_defaults',
+    label: 'LTX text cascade private artifact TTL (ms)',
+    type: 'number',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: String(TEXT_VIDEO_CASCADE_DEFAULTS.artifactTtlMs),
+  },
+  {
+    key: TEXT_VIDEO_CASCADE_SETTING_KEYS.stillPollIntervalMs,
+    provider: 'pruna',
+    group: 'pruna',
+    label: 'Pruna still poll interval (ms)',
+    type: 'number',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: String(TEXT_VIDEO_CASCADE_DEFAULTS.stillPollIntervalMs),
+  },
+  {
+    key: TEXT_VIDEO_CASCADE_SETTING_KEYS.stillTotalTimeoutMs,
+    provider: 'pruna',
+    group: 'pruna',
+    label: 'Pruna still total timeout (ms)',
+    type: 'number',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: String(TEXT_VIDEO_CASCADE_DEFAULTS.stillTotalTimeoutMs),
+  },
+  {
+    key: TEXT_VIDEO_CASCADE_SETTING_KEYS.i2vPollIntervalMs,
+    provider: 'runpod',
+    group: 'runpod_timeouts',
+    label: 'LTX cascade I2V poll interval (ms)',
+    type: 'number',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: String(TEXT_VIDEO_CASCADE_DEFAULTS.i2vPollIntervalMs),
+  },
+  {
+    key: TEXT_VIDEO_CASCADE_SETTING_KEYS.i2vTotalTimeoutMs,
+    provider: 'runpod',
+    group: 'runpod_timeouts',
+    label: 'LTX cascade I2V total timeout (ms)',
+    type: 'number',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: String(TEXT_VIDEO_CASCADE_DEFAULTS.i2vTotalTimeoutMs),
+  },
+  {
+    key: TEXT_VIDEO_CASCADE_SETTING_KEYS.cascadeRunpodEndpointId,
+    provider: 'runpod',
+    group: 'runpod_private_endpoints',
+    label: 'LTX text cascade I2V endpoint',
+    description:
+      'Dedicated cascade-only endpoint. It must not equal the native P-Video endpoint; each workflow snapshots this ID before dispatch.',
+    type: 'string',
+    isSecret: false,
+    validationKind: 'runpod_serverless_endpoint',
+    apiKeyConfigKey: TEXT_VIDEO_CASCADE_SETTING_KEYS.cascadeRunpodApiKey,
+  },
+  {
+    key: TEXT_VIDEO_CASCADE_SETTING_KEYS.cascadeRunpodApiKey,
+    provider: 'runpod',
+    group: 'runpod_core',
+    label: 'LTX text cascade RunPod API key',
+    description:
+      'Dedicated credential reference for the isolated cascade endpoint. It never falls back to the native video key.',
+    type: 'secret',
+    isSecret: true,
+    validationKind: 'none',
+  },
+  {
+    key: TEXT_VIDEO_CASCADE_SETTING_KEYS.prunaApiKey,
+    provider: 'pruna',
+    group: 'pruna',
+    label: 'Pruna API key',
+    type: 'secret',
+    isSecret: true,
+    validationKind: 'none',
+  },
+  {
+    key: TEXT_VIDEO_CASCADE_SETTING_KEYS.prunaApiBaseUrl,
+    provider: 'pruna',
+    group: 'pruna',
+    label: 'Pruna API base URL',
+    type: 'string',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: TEXT_VIDEO_CASCADE_DEFAULTS.prunaApiBaseUrl,
+    allowedValues: [TEXT_VIDEO_CASCADE_DEFAULTS.prunaApiBaseUrl],
+  },
+  {
+    key: TEXT_VIDEO_CASCADE_SETTING_KEYS.prunaEnabled,
+    provider: 'pruna',
+    group: 'pruna',
+    label: 'Pruna P-Image enabled for internal cascade',
+    type: 'boolean',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: String(TEXT_VIDEO_CASCADE_DEFAULTS.prunaEnabled),
+  },
+  {
+    key: TEXT_VIDEO_CASCADE_SETTING_KEYS.prunaModel,
+    provider: 'pruna',
+    group: 'pruna',
+    label: 'Pruna still model',
+    type: 'string',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: TEXT_VIDEO_CASCADE_DEFAULTS.prunaModel,
+    allowedValues: [TEXT_VIDEO_CASCADE_DEFAULTS.prunaModel],
+  },
+  {
+    key: TEXT_VIDEO_CASCADE_SETTING_KEYS.prunaSubmitTimeoutMs,
+    provider: 'pruna',
+    group: 'pruna',
+    label: 'Pruna P-Image submit timeout (ms)',
+    type: 'number',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: String(TEXT_VIDEO_CASCADE_DEFAULTS.prunaSubmitTimeoutMs),
+  },
+  {
+    key: TEXT_VIDEO_CASCADE_SETTING_KEYS.prunaStatusRequestTimeoutMs,
+    provider: 'pruna',
+    group: 'pruna',
+    label: 'Pruna P-Image status request timeout (ms)',
+    type: 'number',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: String(
+      TEXT_VIDEO_CASCADE_DEFAULTS.prunaStatusRequestTimeoutMs,
+    ),
+  },
+  {
+    key: TEXT_VIDEO_CASCADE_SETTING_KEYS.prunaDownloadTimeoutMs,
+    provider: 'pruna',
+    group: 'pruna',
+    label: 'Pruna P-Image download timeout (ms)',
+    type: 'number',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: String(TEXT_VIDEO_CASCADE_DEFAULTS.prunaDownloadTimeoutMs),
+  },
+  {
+    key: TEXT_VIDEO_CASCADE_SETTING_KEYS.prunaMaxSourceBytes,
+    provider: 'pruna',
+    group: 'pruna',
+    label: 'Pruna P-Image maximum JPEG bytes',
+    type: 'number',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: String(TEXT_VIDEO_CASCADE_DEFAULTS.prunaMaxSourceBytes),
+  },
+  {
+    key: TEXT_VIDEO_CASCADE_SETTING_KEYS.prunaAllowedDownloadHosts,
+    provider: 'pruna',
+    group: 'pruna',
+    label: 'Pruna exact allowed delivery hosts',
+    description:
+      'Comma-separated exact HTTPS hosts. Empty by default; wildcards and IP literals are rejected by the client.',
+    type: 'string',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: '',
   },
   {
     key: 'WS_ACK_DELIVERY_ENABLED',

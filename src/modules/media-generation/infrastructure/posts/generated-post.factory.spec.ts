@@ -5,6 +5,7 @@ describe('GeneratedPostFactory', () => {
     const postRepository = {
       create: jest.fn((value) => value),
       save: jest.fn(async (value) => ({ id: 123, ...value })),
+      findOne: jest.fn(async () => null),
     };
 
     return {
@@ -119,5 +120,68 @@ describe('GeneratedPostFactory', () => {
       height: 720,
     });
     expect(post.hasAudio).toBe(true);
+  });
+
+  it('adopts the existing post for a repeated generation task', async () => {
+    const { factory, postRepository } = createFactory();
+    const existing = {
+      id: 321,
+      generationTaskId: 'task_12345678',
+      videoUrl: 'https://cdn.test/existing.mp4',
+    };
+    postRepository.findOne.mockResolvedValueOnce(existing);
+
+    await expect(
+      factory.createVideoPostOnce(
+        'task_12345678',
+        {
+          aiService: 'p_video_text',
+          prompt: 'robot',
+          orientation: 'horizontal',
+          duration: 5,
+        },
+        55,
+        'https://cdn.test/new.mp4',
+        null,
+        null,
+      ),
+    ).resolves.toBe(existing);
+
+    expect(postRepository.findOne).toHaveBeenCalledWith({
+      where: { generationTaskId: 'task_12345678' },
+    });
+    expect(postRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('adopts a concurrent winner after a unique-key collision', async () => {
+    const { factory, postRepository } = createFactory();
+    const existing = {
+      id: 321,
+      generationTaskId: 'task_12345678',
+      videoUrl: 'https://cdn.test/existing.mp4',
+    };
+    postRepository.findOne
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(existing);
+    postRepository.save.mockRejectedValueOnce({ code: '23505' });
+
+    await expect(
+      factory.createVideoPostOnce(
+        'task_12345678',
+        {
+          aiService: 'p_video_text',
+          prompt: 'robot',
+          orientation: 'horizontal',
+          duration: 5,
+        },
+        55,
+        'https://cdn.test/new.mp4',
+        null,
+        null,
+      ),
+    ).resolves.toBe(existing);
+
+    expect(postRepository.save).toHaveBeenCalledTimes(1);
+    expect(postRepository.findOne).toHaveBeenCalledTimes(2);
   });
 });

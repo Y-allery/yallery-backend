@@ -23,6 +23,20 @@ describe('ProviderRuntimeConfigService', () => {
         rows.set(row.key, row);
         return row;
       }),
+      upsert: jest.fn(
+        async (partial: Partial<ProviderRuntimeSettingEntity>) => {
+          const row =
+            rows.get(partial.key!) ?? new ProviderRuntimeSettingEntity();
+          Object.assign(row, partial);
+          if (!row.id) {
+            row.id = nextId++;
+            row.createdAt = new Date();
+          }
+          row.updatedAt = new Date();
+          rows.set(row.key, row);
+          return { identifiers: [{ id: row.id }] };
+        },
+      ),
       delete: jest.fn(async ({ key }) => {
         rows.delete(key);
         return { affected: 1 };
@@ -149,6 +163,53 @@ describe('ProviderRuntimeConfigService', () => {
     expect(await service.getString('RUNPOD_P_VIDEO_ENDPOINT_ID')).toBe(
       'p-video',
     );
+  });
+
+  it('fresh reads observe a shared DB switch while the local hot cache remains stale', async () => {
+    const { service, rows } = createService({});
+
+    // Instance A caches the catalog default after observing no DB row.
+    expect(await service.getString('LTX_TEXT_PIPELINE_MODE')).toBe('native');
+
+    // Simulate another backend instance atomically writing the shared row.
+    const row = new ProviderRuntimeSettingEntity();
+    row.key = 'LTX_TEXT_PIPELINE_MODE';
+    row.isSecret = false;
+    row.valuePlain = 'cascade';
+    rows.set(row.key, row);
+
+    expect(await service.getString('LTX_TEXT_PIPELINE_MODE')).toBe('native');
+    await expect(service.getLtxTextPipelineModeFresh()).resolves.toBe(
+      'cascade',
+    );
+  });
+
+  it('atomically upserts a typed LTX mode and is idempotent', async () => {
+    const { service, rows, repository } = createService({});
+
+    await service.setLtxTextPipelineModeAtomically('native');
+    await service.setLtxTextPipelineModeAtomically('native');
+
+    expect(repository.upsert).toHaveBeenCalledTimes(2);
+    expect(rows.get('LTX_TEXT_PIPELINE_MODE')).toMatchObject({
+      key: 'LTX_TEXT_PIPELINE_MODE',
+      provider: 'app',
+      valuePlain: 'native',
+      valueEncrypted: null,
+      isSecret: false,
+    });
+    await expect(service.getLtxTextPipelineModeFresh()).resolves.toBe('native');
+  });
+
+  it('rejects unsupported LTX modes before persisting them', async () => {
+    const { service, repository } = createService({});
+
+    await expect(
+      service.updateSetting('LTX_TEXT_PIPELINE_MODE', {
+        value: 'hybrid',
+      }),
+    ).rejects.toThrow('LTX_TEXT_PIPELINE_MODE must be one of: native, cascade');
+    expect(repository.save).not.toHaveBeenCalled();
   });
 
   it('validates p-video as a public endpoint without control-plane lookup', async () => {

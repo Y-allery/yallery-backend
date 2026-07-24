@@ -36,6 +36,29 @@ describe('MediaGenerationFinalizeService', () => {
           generationParams: { aiService: 'p_video_text' },
         }),
       ),
+      createVideoPostOnce: jest.fn(
+        async (
+          _generationTaskId,
+          _params,
+          _userId,
+          videoUrl,
+          previewImageUrl,
+        ) => ({
+          id: 12,
+          imageUrl: null,
+          videoUrl,
+          previewImageUrl,
+          generationParams: { aiService: 'p_video_text' },
+        }),
+      ),
+      findById: jest.fn(async () => ({
+        id: 12,
+        imageUrl: null,
+        videoUrl: 'https://cdn.test/adopted-video.mp4',
+        previewImageUrl: 'https://cdn.test/adopted-preview.jpg',
+        generationParams: { aiService: 'p_video_text' },
+      })),
+      findByGenerationTaskId: jest.fn(async () => null),
       createMemePost: jest.fn(
         async (_request, _meme, _userId, videoUrl, previewImageUrl) => ({
           id: 11,
@@ -109,6 +132,7 @@ describe('MediaGenerationFinalizeService', () => {
     };
     const userActivityService = {
       logMediaGenerationSpent: jest.fn(),
+      logMediaGenerationSpentOnce: jest.fn(),
     };
     const partnershipActivityLogger = {
       logOnceForUser: jest.fn(),
@@ -271,6 +295,153 @@ describe('MediaGenerationFinalizeService', () => {
       null,
     );
     expect(partnershipActivityLogger.logOnceForUser).not.toHaveBeenCalled();
+  });
+
+  it('finalizes an accepted cascade artifact without executing generation again', async () => {
+    const {
+      service,
+      generatedPostFactory,
+      mediaGenerationExecutionService,
+      userActivityService,
+    } = createService();
+    const request = {
+      aiService: 'p_video_text',
+      prompt: 'robot',
+      orientation: 'horizontal',
+      duration: 5,
+    } as const;
+    const acceptedResult = {
+      videoUrl: 'https://cdn.test/cascade-video.mp4',
+      previewImageUrl: 'https://cdn.test/cascade-preview.jpg',
+      width: 1280,
+      height: 704,
+      hasAudio: true,
+      rawOutput: { provider: 'runpod', jobId: 'runpod_job_12345678' },
+    };
+
+    await expect(
+      service.finalizeAcceptedTextVideoGeneration(
+        'task_12345678',
+        request,
+        55,
+        acceptedResult,
+      ),
+    ).resolves.toMatchObject({
+      data: [{ id: 12, videoUrl: acceptedResult.videoUrl }],
+      rawOutput: acceptedResult.rawOutput,
+    });
+
+    expect(
+      mediaGenerationExecutionService.generateTextVideos,
+    ).not.toHaveBeenCalled();
+    expect(generatedPostFactory.createVideoPost).not.toHaveBeenCalled();
+    expect(generatedPostFactory.createVideoPostOnce).toHaveBeenCalledWith(
+      'task_12345678',
+      expect.objectContaining({
+        prompt: 'robot',
+        width: 1280,
+        height: 704,
+        hasAudio: true,
+      }),
+      55,
+      acceptedResult.videoUrl,
+      acceptedResult.previewImageUrl,
+      null,
+    );
+    expect(
+      userActivityService.logMediaGenerationSpentOnce,
+    ).toHaveBeenCalledWith(
+      'task_12345678',
+      expect.objectContaining({
+        userId: 55,
+        postId: 12,
+        mode: 'text_to_video',
+      }),
+    );
+    expect(userActivityService.logMediaGenerationSpent).not.toHaveBeenCalled();
+  });
+
+  it('reconciles a committed task post before requiring provider output', async () => {
+    const {
+      service,
+      contestFlowService,
+      generatedPostFactory,
+      mediaGenerationExecutionService,
+      userActivityService,
+    } = createService();
+    generatedPostFactory.findByGenerationTaskId.mockResolvedValueOnce({
+      id: 12,
+      generationTaskId: 'task_12345678',
+      user: { id: 55 },
+      videoUrl: 'https://cdn.test/cascade-video.mp4',
+      previewImageUrl: 'https://cdn.test/cascade-preview.jpg',
+      imageUrl: null,
+      hasAudio: true,
+      generationParams: {
+        prompt: 'robot',
+        aiService: 'p_video_text',
+        orientation: 'horizontal',
+        duration: 5,
+        seed: null,
+        width: 1280,
+        height: 704,
+      },
+    });
+
+    await expect(
+      service.reconcileAcceptedTextVideoGeneration(
+        'task_12345678',
+        {
+          aiService: 'p_video_text',
+          prompt: 'robot',
+          orientation: 'horizontal',
+          duration: 5,
+        },
+        55,
+      ),
+    ).resolves.toMatchObject({
+      data: [{ id: 12, videoUrl: 'https://cdn.test/cascade-video.mp4' }],
+    });
+
+    expect(
+      mediaGenerationExecutionService.generateTextVideos,
+    ).not.toHaveBeenCalled();
+    expect(contestFlowService.completeGenerationPosts).toHaveBeenCalledTimes(1);
+    expect(
+      userActivityService.logMediaGenerationSpentOnce,
+    ).toHaveBeenCalledTimes(1);
+  });
+
+  it('loads a completed cascade post without generation or writes', async () => {
+    const {
+      service,
+      generatedPostFactory,
+      mediaGenerationExecutionService,
+      userActivityService,
+    } = createService();
+
+    await expect(
+      service.loadFinalizedTextVideoGeneration(12, null),
+    ).resolves.toMatchObject({
+      data: [
+        {
+          id: 12,
+          videoUrl: 'https://cdn.test/adopted-video.mp4',
+        },
+      ],
+      rawOutput: { adopted: true },
+    });
+
+    expect(generatedPostFactory.findById).toHaveBeenCalledWith(12);
+    expect(
+      mediaGenerationExecutionService.generateTextVideos,
+    ).not.toHaveBeenCalled();
+    expect(generatedPostFactory.createVideoPost).not.toHaveBeenCalled();
+    expect(generatedPostFactory.createVideoPostOnce).not.toHaveBeenCalled();
+    expect(userActivityService.logMediaGenerationSpent).not.toHaveBeenCalled();
+    expect(
+      userActivityService.logMediaGenerationSpentOnce,
+    ).not.toHaveBeenCalled();
   });
 
   it('uses provider eager preview for image-to-video posts', async () => {

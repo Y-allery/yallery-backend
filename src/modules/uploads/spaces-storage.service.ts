@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
@@ -8,12 +9,12 @@ import {
 } from '@aws-sdk/client-s3';
 import axios from 'axios';
 import { spawn } from 'child_process';
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import { Readable } from 'stream';
-import { UploadedVideoAsset } from './upload.types';
+import { StagedPrivateVideoAsset, UploadedVideoAsset } from './upload.types';
 
 const IMAGE_FOLDER = 'octoai_images';
 const VIDEO_FOLDER = 'octoai_videos';
@@ -57,11 +58,52 @@ interface FetchedMedia {
   contentType: string;
 }
 
+interface CascadeVideoAssetManifest {
+  version: 1;
+  videoKey: string;
+  previewKey: string | null;
+  byteLength: number;
+  width: number | null;
+  height: number | null;
+  hasAudio: boolean | null;
+  sourceSha256: string;
+}
+
+interface StagedPrivateVideoManifest {
+  version: 1;
+  privateArtifactRef: string;
+  videoKey: string;
+  previewKey: string | null;
+  byteLength: number;
+  sourceSha256: string;
+  width: number | null;
+  height: number | null;
+  hasAudio: boolean | null;
+}
+
 export interface ObjectStream {
   stream: Readable;
   /** Size in bytes when the storage layer reports it. */
   contentLength: number | null;
   contentType: string | null;
+}
+
+export interface PrivateImmutableObjectWrite {
+  key: string;
+  body: Buffer;
+  contentType: string;
+  byteLength: number;
+  sha256: string;
+  metadata: Readonly<Record<string, string>>;
+  maxBytes: number;
+}
+
+export interface PrivateStoredObject {
+  body: Buffer;
+  contentType: string | null;
+  contentLength: number | null;
+  cacheControl: string | null;
+  metadata: Readonly<Record<string, string>>;
 }
 
 /** Thrown when a download exceeds the byte cap — callers map it to an HTTP 413 instead of a 500. */
@@ -136,13 +178,363 @@ export class SpacesStorageService {
   async uploadVideoAssetFromSource(
     source: string,
   ): Promise<UploadedVideoAsset> {
+    return (await this.storeVideoAssetFromSource(source, randomUUID())).asset;
+  }
+
+  /**
+   * Cascade-only durable materialization. The opaque key yields deterministic
+   * object names plus a private commit manifest written last. A retry after the
+   * manifest commit performs no provider download, ffmpeg work or object PUT.
+   * A crash before commit may repeat work but can only overwrite the same keys,
+   * never create a second public asset.
+   */
+  async uploadVideoAssetFromSourceOnce(
+    source: string,
+    idempotencyKey: string,
+  ): Promise<UploadedVideoAsset> {
+    assertVideoIdempotencyKey(idempotencyKey);
+    const assetId = createHash('sha256')
+      .update(`ltx-cascade-video:${idempotencyKey}`)
+      .digest('hex');
+    const adopted = await this.readCascadeVideoManifest(assetId);
+    if (adopted) {
+      return adopted;
+    }
+    const stored = await this.storeVideoAssetFromSource(
+      source,
+      `cascade/${assetId}`,
+    );
+    await this.putPrivateObject(
+      `${VIDEO_FOLDER}/cascade/${assetId}.json`,
+      Buffer.from(JSON.stringify(stored.manifest), 'utf8'),
+      'application/json',
+    );
+    return stored.asset;
+  }
+
+  /**
+   * Cascade-only quarantine. The RunPod result is accepted only as an inline
+   * MP4 and is stored without an ACL. A private manifest is the commit marker,
+   * so retries either adopt the exact same bytes or fail closed.
+   */
+  async stagePrivateVideoFromDataOnce(
+    source: string,
+    idempotencyKey: string,
+  ): Promise<StagedPrivateVideoAsset> {
+    assertVideoIdempotencyKey(idempotencyKey);
+    assertStrictMp4DataUri(source);
+    const assetId = createHash('sha256')
+      .update(`ltx-cascade-stage:${idempotencyKey}`)
+      .digest('hex');
+    const privateArtifactRef = `video_stage_${assetId}`;
+    const media = await this.fetchMedia(source, 'video/mp4');
+    if (media.contentType !== 'video/mp4' || media.buffer.byteLength === 0) {
+      throw new Error('VIDEO_STAGE_SOURCE_INVALID');
+    }
+    const sourceSha256 = createHash('sha256')
+      .update(media.buffer)
+      .digest('hex');
+
+    const adopted = await this.readStagedPrivateVideo(privateArtifactRef);
+    if (adopted) {
+      if (
+        adopted.sourceSha256 !== sourceSha256 ||
+        adopted.byteLength !== media.buffer.byteLength
+      ) {
+        throw new Error('VIDEO_STAGE_IDEMPOTENCY_MISMATCH');
+      }
+      return adopted;
+    }
+
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'media-stage-'));
+    const videoPath = path.join(tempDir, 'source.mp4');
+    const previewPath = path.join(tempDir, 'preview.jpg');
+    const videoKey = `${VIDEO_FOLDER}/quarantine/${assetId}.mp4`;
+    const previewKey = `${VIDEO_FOLDER}/quarantine/${assetId}_preview.jpg`;
+    const manifestKey = `${VIDEO_FOLDER}/quarantine/${assetId}.json`;
+
+    try {
+      await fs.writeFile(videoPath, media.buffer);
+      const metadata = await this.probeVideo(videoPath);
+      const previewBuffer = await this.extractPreviewFrame(
+        videoPath,
+        previewPath,
+      );
+      await this.putPrivateObject(videoKey, media.buffer, 'video/mp4');
+      if (previewBuffer) {
+        await this.putPrivateObject(previewKey, previewBuffer, 'image/jpeg');
+      }
+      const manifest: StagedPrivateVideoManifest = {
+        version: 1,
+        privateArtifactRef,
+        videoKey,
+        previewKey: previewBuffer ? previewKey : null,
+        byteLength: media.buffer.byteLength,
+        sourceSha256,
+        width: metadata.width,
+        height: metadata.height,
+        hasAudio: metadata.hasAudio,
+      };
+      await this.putPrivateObject(
+        manifestKey,
+        Buffer.from(JSON.stringify(manifest), 'utf8'),
+        'application/json',
+      );
+      const committed = await this.readStagedPrivateVideo(privateArtifactRef);
+      if (!committed) {
+        throw new Error('VIDEO_STAGE_COMMIT_MISSING');
+      }
+      return committed;
+    } finally {
+      media.buffer.fill(0);
+      await fs
+        .rm(tempDir, { recursive: true, force: true })
+        .catch(() => undefined);
+    }
+  }
+
+  async loadStagedPrivateVideo(
+    privateArtifactRef: string,
+    expectedSha256: string,
+  ): Promise<StagedPrivateVideoAsset> {
+    assertSha256(expectedSha256);
+    const staged = await this.readStagedPrivateVideo(privateArtifactRef);
+    if (!staged) {
+      throw new Error('VIDEO_STAGE_NOT_FOUND');
+    }
+    if (staged.sourceSha256 !== expectedSha256) {
+      throw new Error('VIDEO_STAGE_HASH_MISMATCH');
+    }
+    return staged;
+  }
+
+  async loadStagedPrivateVideoBytes(
+    privateArtifactRef: string,
+    expectedSha256: string,
+  ): Promise<Buffer> {
+    assertSha256(expectedSha256);
+    const manifest =
+      await this.readStagedPrivateVideoManifest(privateArtifactRef);
+    if (!manifest || manifest.sourceSha256 !== expectedSha256) {
+      throw new Error('VIDEO_STAGE_HASH_MISMATCH');
+    }
+    const bytes = await this.getPrivateObjectBuffer(
+      manifest.videoKey,
+      this.maxObjectBytes(),
+    );
+    if (
+      bytes.byteLength !== manifest.byteLength ||
+      createHash('sha256').update(bytes).digest('hex') !== expectedSha256
+    ) {
+      bytes.fill(0);
+      throw new Error('VIDEO_STAGE_HASH_MISMATCH');
+    }
+    return bytes;
+  }
+
+  /**
+   * Publishes only a previously committed private stage and only after its
+   * exact SHA is supplied by the caller (the persisted, QC-accepted SHA).
+   */
+  async publishStagedVideoOnce(
+    privateArtifactRef: string,
+    expectedSha256: string,
+    idempotencyKey: string,
+  ): Promise<UploadedVideoAsset> {
+    assertSha256(expectedSha256);
+    assertVideoIdempotencyKey(idempotencyKey);
+    const assetId = createHash('sha256')
+      .update(`ltx-cascade-publish:${idempotencyKey}`)
+      .digest('hex');
+    const adopted = await this.readCascadeVideoManifest(
+      assetId,
+      expectedSha256,
+    );
+    if (adopted) {
+      return adopted;
+    }
+    const staged = await this.loadStagedPrivateVideo(
+      privateArtifactRef,
+      expectedSha256,
+    );
+    const stageManifest =
+      await this.readStagedPrivateVideoManifest(privateArtifactRef);
+    if (!stageManifest) {
+      throw new Error('VIDEO_STAGE_NOT_FOUND');
+    }
+
+    const videoBytes = await this.getPrivateObjectBuffer(
+      stageManifest.videoKey,
+      this.maxObjectBytes(),
+    );
+    try {
+      if (
+        videoBytes.byteLength !== staged.byteLength ||
+        createHash('sha256').update(videoBytes).digest('hex') !== expectedSha256
+      ) {
+        throw new Error('VIDEO_STAGE_HASH_MISMATCH');
+      }
+      const videoKey = `${VIDEO_FOLDER}/cascade/${assetId}.mp4`;
+      const previewKey = stageManifest.previewKey
+        ? `${VIDEO_FOLDER}/cascade/${assetId}_preview.jpg`
+        : null;
+      await this.putObject(videoKey, videoBytes, 'video/mp4');
+      if (stageManifest.previewKey && previewKey) {
+        const previewBytes = await this.getPrivateObjectBuffer(
+          stageManifest.previewKey,
+          16 * 1024 * 1024,
+        );
+        try {
+          await this.putObject(previewKey, previewBytes, 'image/jpeg');
+        } finally {
+          previewBytes.fill(0);
+        }
+      }
+      const manifest: CascadeVideoAssetManifest = {
+        version: 1,
+        videoKey,
+        previewKey,
+        byteLength: staged.byteLength,
+        width: staged.width,
+        height: staged.height,
+        hasAudio: staged.hasAudio,
+        sourceSha256: expectedSha256,
+      };
+      await this.putPrivateObject(
+        `${VIDEO_FOLDER}/cascade/${assetId}.json`,
+        Buffer.from(JSON.stringify(manifest), 'utf8'),
+        'application/json',
+      );
+      const published = await this.readCascadeVideoManifest(
+        assetId,
+        expectedSha256,
+      );
+      if (!published) {
+        throw new Error('VIDEO_ASSET_COMMIT_MISSING');
+      }
+      return published;
+    } finally {
+      videoBytes.fill(0);
+    }
+  }
+
+  /** Idempotent private-stage deletion. Missing objects count as success. */
+  async deleteStagedPrivateVideo(privateArtifactRef: string): Promise<void> {
+    const manifest =
+      await this.readStagedPrivateVideoManifest(privateArtifactRef);
+    if (!manifest) {
+      return;
+    }
+    const assetId = parseStagedVideoRef(privateArtifactRef);
+    const manifestKey = `${VIDEO_FOLDER}/quarantine/${assetId}.json`;
+    for (const key of [manifest.videoKey, manifest.previewKey, manifestKey]) {
+      if (!key) continue;
+      await this.getClient().send(
+        new DeleteObjectCommand({
+          Bucket: this.configService.get<string>('SPACES_BUCKET'),
+          Key: key,
+        }),
+      );
+    }
+  }
+
+  /**
+   * Atomically creates a private immutable checkpoint or adopts the exact
+   * object already committed at the same key. The conditional PUT prevents a
+   * concurrent writer from overwriting different bytes. Every success is
+   * followed by a full read-back and metadata/hash comparison.
+   */
+  async putPrivateImmutableObjectOnce(
+    write: Readonly<PrivateImmutableObjectWrite>,
+  ): Promise<void> {
+    assertPrivateImmutableWrite(write, this.maxObjectBytes());
+
+    let committedOrAlreadyExists = false;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        await this.getClient().send(
+          new PutObjectCommand({
+            Bucket: this.configService.get<string>('SPACES_BUCKET'),
+            Key: write.key,
+            Body: write.body,
+            ContentType: write.contentType,
+            CacheControl: 'private, no-store, max-age=0',
+            Metadata: { ...write.metadata },
+            IfNoneMatch: '*',
+          }),
+        );
+        committedOrAlreadyExists = true;
+        break;
+      } catch (error) {
+        if (isPreconditionFailed(error)) {
+          committedOrAlreadyExists = true;
+          break;
+        }
+        if (isConditionalWriteConflict(error) && attempt < 2) {
+          continue;
+        }
+        throw error;
+      }
+    }
+    if (!committedOrAlreadyExists) {
+      throw new Error('PRIVATE_OBJECT_CONDITIONAL_WRITE_FAILED');
+    }
+
+    const stored = await this.readPrivateImmutableObject(
+      write.key,
+      write.maxBytes,
+    );
+    try {
+      if (
+        stored.contentType !== write.contentType ||
+        stored.contentLength !== write.byteLength ||
+        stored.cacheControl !== 'private, no-store, max-age=0' ||
+        !sameStringRecord(stored.metadata, write.metadata) ||
+        stored.body.byteLength !== write.byteLength ||
+        createHash('sha256').update(stored.body).digest('hex') !==
+          write.sha256 ||
+        !stored.body.equals(write.body)
+      ) {
+        throw new Error('PRIVATE_OBJECT_IMMUTABILITY_MISMATCH');
+      }
+    } finally {
+      stored.body.fill(0);
+    }
+  }
+
+  async readPrivateImmutableObject(
+    key: string,
+    maxBytes: number,
+  ): Promise<PrivateStoredObject> {
+    assertPrivateObjectKey(key);
+    assertPrivateReadLimit(maxBytes, this.maxObjectBytes());
+    return this.getPrivateObjectRecord(key, maxBytes);
+  }
+
+  /** Idempotent deletion for an exact private checkpoint key. */
+  async deletePrivateImmutableObject(key: string): Promise<void> {
+    assertPrivateObjectKey(key);
+    await this.getClient().send(
+      new DeleteObjectCommand({
+        Bucket: this.configService.get<string>('SPACES_BUCKET'),
+        Key: key,
+      }),
+    );
+  }
+
+  private async storeVideoAssetFromSource(
+    source: string,
+    assetId: string,
+  ): Promise<{
+    asset: UploadedVideoAsset;
+    manifest: CascadeVideoAssetManifest;
+  }> {
     const media = await this.fetchMedia(source, 'video/mp4');
     const contentType = media.contentType.startsWith('video/')
       ? media.contentType
       : 'video/mp4';
     const extension = EXTENSION_BY_MIME[contentType] ?? 'mp4';
 
-    const assetId = randomUUID();
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'media-upload-'));
     const videoPath = path.join(tempDir, `source.${extension}`);
     const previewPath = path.join(tempDir, 'preview.jpg');
@@ -171,18 +563,207 @@ export class SpacesStorageService {
         );
       }
 
-      return {
+      const sourceSha256 = createHash('sha256')
+        .update(media.buffer)
+        .digest('hex');
+      const asset: UploadedVideoAsset = {
         videoUrl: this.publicMediaUrl(videoKey, 'video'),
         previewImageUrl,
         width: metadata.width,
         height: metadata.height,
         hasAudio: metadata.hasAudio,
+        sourceSha256,
+      };
+      return {
+        asset,
+        manifest: {
+          version: 1,
+          videoKey,
+          previewKey: previewImageUrl
+            ? `${VIDEO_FOLDER}/${assetId}_preview.jpg`
+            : null,
+          byteLength: media.buffer.byteLength,
+          width: metadata.width,
+          height: metadata.height,
+          hasAudio: metadata.hasAudio,
+          sourceSha256,
+        },
       };
     } finally {
       await fs
         .rm(tempDir, { recursive: true, force: true })
         .catch(() => undefined);
     }
+  }
+
+  private async readCascadeVideoManifest(
+    assetId: string,
+    expectedSha256?: string,
+  ): Promise<UploadedVideoAsset | null> {
+    const manifestKey = `${VIDEO_FOLDER}/cascade/${assetId}.json`;
+    if (!(await this.objectExists(manifestKey))) {
+      return null;
+    }
+    const bytes = await this.getPrivateObjectBuffer(manifestKey, 16 * 1024);
+    let manifest: CascadeVideoAssetManifest;
+    try {
+      manifest = JSON.parse(
+        bytes.toString('utf8'),
+      ) as CascadeVideoAssetManifest;
+    } catch {
+      throw new Error('VIDEO_ASSET_MANIFEST_INVALID');
+    }
+    const expectedVideoPrefix = `${VIDEO_FOLDER}/cascade/${assetId}.`;
+    const expectedPreviewKey = `${VIDEO_FOLDER}/cascade/${assetId}_preview.jpg`;
+    if (
+      !manifest ||
+      manifest.version !== 1 ||
+      typeof manifest.videoKey !== 'string' ||
+      !manifest.videoKey.startsWith(expectedVideoPrefix) ||
+      manifest.videoKey.includes('..') ||
+      (manifest.previewKey !== null &&
+        manifest.previewKey !== expectedPreviewKey) ||
+      !Number.isSafeInteger(manifest.byteLength) ||
+      manifest.byteLength <= 0 ||
+      manifest.byteLength > this.maxObjectBytes() ||
+      !isNullablePositiveInteger(manifest.width) ||
+      !isNullablePositiveInteger(manifest.height) ||
+      (manifest.hasAudio !== null && typeof manifest.hasAudio !== 'boolean') ||
+      !/^[a-f0-9]{64}$/.test(manifest.sourceSha256)
+    ) {
+      throw new Error('VIDEO_ASSET_MANIFEST_INVALID');
+    }
+    if (
+      !(await this.objectExists(manifest.videoKey)) ||
+      (manifest.previewKey !== null &&
+        !(await this.objectExists(manifest.previewKey)))
+    ) {
+      throw new Error('VIDEO_ASSET_MANIFEST_INCOMPLETE');
+    }
+    if (
+      expectedSha256 !== undefined &&
+      manifest.sourceSha256 !== expectedSha256
+    ) {
+      throw new Error('VIDEO_ASSET_HASH_MISMATCH');
+    }
+    const publishedBytes = await this.getPrivateObjectBuffer(
+      manifest.videoKey,
+      this.maxObjectBytes(),
+    );
+    try {
+      if (
+        publishedBytes.byteLength !== manifest.byteLength ||
+        createHash('sha256').update(publishedBytes).digest('hex') !==
+          manifest.sourceSha256
+      ) {
+        throw new Error('VIDEO_ASSET_HASH_MISMATCH');
+      }
+    } finally {
+      publishedBytes.fill(0);
+    }
+    return {
+      videoUrl: this.publicMediaUrl(manifest.videoKey, 'video'),
+      previewImageUrl: manifest.previewKey
+        ? this.publicMediaUrl(manifest.previewKey, 'image')
+        : null,
+      width: manifest.width,
+      height: manifest.height,
+      hasAudio: manifest.hasAudio,
+      sourceSha256: manifest.sourceSha256,
+    };
+  }
+
+  private async readStagedPrivateVideo(
+    privateArtifactRef: string,
+  ): Promise<StagedPrivateVideoAsset | null> {
+    const manifest =
+      await this.readStagedPrivateVideoManifest(privateArtifactRef);
+    if (!manifest) {
+      return null;
+    }
+    if (
+      !(await this.objectExists(manifest.videoKey)) ||
+      (manifest.previewKey !== null &&
+        !(await this.objectExists(manifest.previewKey)))
+    ) {
+      throw new Error('VIDEO_STAGE_MANIFEST_INCOMPLETE');
+    }
+    const videoBytes = await this.getPrivateObjectBuffer(
+      manifest.videoKey,
+      this.maxObjectBytes(),
+    );
+    try {
+      if (
+        videoBytes.byteLength !== manifest.byteLength ||
+        createHash('sha256').update(videoBytes).digest('hex') !==
+          manifest.sourceSha256
+      ) {
+        throw new Error('VIDEO_STAGE_HASH_MISMATCH');
+      }
+    } finally {
+      videoBytes.fill(0);
+    }
+    return {
+      privateArtifactRef: manifest.privateArtifactRef,
+      byteLength: manifest.byteLength,
+      sourceSha256: manifest.sourceSha256,
+      width: manifest.width,
+      height: manifest.height,
+      hasAudio: manifest.hasAudio,
+    };
+  }
+
+  private async readStagedPrivateVideoManifest(
+    privateArtifactRef: string,
+  ): Promise<StagedPrivateVideoManifest | null> {
+    const assetId = parseStagedVideoRef(privateArtifactRef);
+    const manifestKey = `${VIDEO_FOLDER}/quarantine/${assetId}.json`;
+    if (!(await this.objectExists(manifestKey))) {
+      return null;
+    }
+    const bytes = await this.getPrivateObjectBuffer(manifestKey, 16 * 1024);
+    let manifest: StagedPrivateVideoManifest;
+    try {
+      manifest = JSON.parse(
+        bytes.toString('utf8'),
+      ) as StagedPrivateVideoManifest;
+    } catch {
+      throw new Error('VIDEO_STAGE_MANIFEST_INVALID');
+    } finally {
+      bytes.fill(0);
+    }
+    const expectedVideoKey = `${VIDEO_FOLDER}/quarantine/${assetId}.mp4`;
+    const expectedPreviewKey = `${VIDEO_FOLDER}/quarantine/${assetId}_preview.jpg`;
+    const exactKeys = [
+      'byteLength',
+      'hasAudio',
+      'height',
+      'previewKey',
+      'privateArtifactRef',
+      'sourceSha256',
+      'version',
+      'videoKey',
+      'width',
+    ];
+    if (
+      !manifest ||
+      Object.keys(manifest).sort().join(',') !== exactKeys.sort().join(',') ||
+      manifest.version !== 1 ||
+      manifest.privateArtifactRef !== privateArtifactRef ||
+      manifest.videoKey !== expectedVideoKey ||
+      (manifest.previewKey !== null &&
+        manifest.previewKey !== expectedPreviewKey) ||
+      !Number.isSafeInteger(manifest.byteLength) ||
+      manifest.byteLength <= 0 ||
+      manifest.byteLength > this.maxObjectBytes() ||
+      !/^[a-f0-9]{64}$/.test(manifest.sourceSha256) ||
+      !isNullablePositiveInteger(manifest.width) ||
+      !isNullablePositiveInteger(manifest.height) ||
+      (manifest.hasAudio !== null && typeof manifest.hasAudio !== 'boolean')
+    ) {
+      throw new Error('VIDEO_STAGE_MANIFEST_INVALID');
+    }
+    return manifest;
   }
 
   /**
@@ -275,7 +856,9 @@ export class SpacesStorageService {
   }
 
   private maxObjectBytes(): number {
-    const raw = Number(this.configService.get<string>('MEDIA_MAX_OBJECT_BYTES'));
+    const raw = Number(
+      this.configService.get<string>('MEDIA_MAX_OBJECT_BYTES'),
+    );
     return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_MAX_OBJECT_BYTES;
   }
 
@@ -305,6 +888,67 @@ export class SpacesStorageService {
         CacheControl: CACHE_CONTROL,
       }),
     );
+  }
+
+  private async putPrivateObject(
+    key: string,
+    body: Buffer,
+    contentType: string,
+  ): Promise<void> {
+    await this.getClient().send(
+      new PutObjectCommand({
+        Bucket: this.configService.get<string>('SPACES_BUCKET'),
+        Key: key,
+        Body: body,
+        ContentType: contentType,
+      }),
+    );
+  }
+
+  private async getPrivateObjectBuffer(
+    key: string,
+    maxBytes: number,
+  ): Promise<Buffer> {
+    return (await this.getPrivateObjectRecord(key, maxBytes)).body;
+  }
+
+  private async getPrivateObjectRecord(
+    key: string,
+    maxBytes: number,
+  ): Promise<PrivateStoredObject> {
+    const response = await this.getClient().send(
+      new GetObjectCommand({
+        Bucket: this.configService.get<string>('SPACES_BUCKET'),
+        Key: key,
+      }),
+    );
+    if (
+      typeof response.ContentLength === 'number' &&
+      response.ContentLength > maxBytes
+    ) {
+      throw new ObjectTooLargeError(key, maxBytes);
+    }
+    const body = response.Body as
+      | { transformToByteArray?: () => Promise<Uint8Array> }
+      | undefined;
+    if (!body?.transformToByteArray) {
+      throw new Error('OBJECT_BODY_UNAVAILABLE');
+    }
+    const bytes = Buffer.from(await body.transformToByteArray());
+    if (bytes.byteLength > maxBytes) {
+      bytes.fill(0);
+      throw new ObjectTooLargeError(key, maxBytes);
+    }
+    return {
+      body: bytes,
+      contentType: response.ContentType ?? null,
+      contentLength:
+        typeof response.ContentLength === 'number'
+          ? response.ContentLength
+          : bytes.byteLength,
+      cacheControl: response.CacheControl ?? null,
+      metadata: Object.freeze({ ...(response.Metadata ?? {}) }),
+    };
   }
 
   private getClient(): S3Client {
@@ -487,4 +1131,150 @@ export class SpacesStorageService {
       });
     });
   }
+}
+
+function isNullablePositiveInteger(value: unknown): value is number | null {
+  return value === null || (Number.isSafeInteger(value) && Number(value) > 0);
+}
+
+function assertVideoIdempotencyKey(value: string): void {
+  if (!/^[A-Za-z0-9:_-]{8,384}$/.test(value)) {
+    throw new Error('VIDEO_ASSET_IDEMPOTENCY_KEY_INVALID');
+  }
+}
+
+function assertSha256(value: string): void {
+  if (!/^[a-f0-9]{64}$/.test(value)) {
+    throw new Error('VIDEO_ASSET_SHA256_INVALID');
+  }
+}
+
+function assertStrictMp4DataUri(value: string): void {
+  const prefix = 'data:video/mp4;base64,';
+  if (
+    typeof value !== 'string' ||
+    !value.startsWith(prefix) ||
+    value.length === prefix.length
+  ) {
+    throw new Error('VIDEO_STAGE_SOURCE_INVALID');
+  }
+  const payload = value.slice(prefix.length);
+  if (
+    payload.length % 4 !== 0 ||
+    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(
+      payload,
+    )
+  ) {
+    throw new Error('VIDEO_STAGE_SOURCE_INVALID');
+  }
+}
+
+function parseStagedVideoRef(privateArtifactRef: string): string {
+  const match = /^video_stage_([a-f0-9]{64})$/.exec(privateArtifactRef);
+  if (!match) {
+    throw new Error('VIDEO_STAGE_REF_INVALID');
+  }
+  return match[1];
+}
+
+function assertPrivateImmutableWrite(
+  write: Readonly<PrivateImmutableObjectWrite>,
+  configuredMaxBytes: number,
+): void {
+  assertPrivateObjectKey(write?.key);
+  assertPrivateReadLimit(write?.maxBytes, configuredMaxBytes);
+  if (
+    !Buffer.isBuffer(write?.body) ||
+    !Number.isSafeInteger(write.byteLength) ||
+    write.byteLength <= 0 ||
+    write.byteLength > write.maxBytes ||
+    write.body.byteLength !== write.byteLength ||
+    !/^[a-f0-9]{64}$/.test(write.sha256) ||
+    createHash('sha256').update(write.body).digest('hex') !== write.sha256 ||
+    !/^[a-z0-9][a-z0-9.+-]{0,63}\/[a-z0-9][a-z0-9.+-]{0,63}$/.test(
+      write.contentType,
+    ) ||
+    !isSafePrivateMetadata(write.metadata)
+  ) {
+    throw new Error('PRIVATE_OBJECT_WRITE_INVALID');
+  }
+}
+
+function assertPrivateObjectKey(key: string): void {
+  if (
+    typeof key !== 'string' ||
+    key.length < 16 ||
+    key.length > 900 ||
+    !key.startsWith('private/') ||
+    key.endsWith('/') ||
+    key.includes('//') ||
+    key.split('/').includes('..') ||
+    !/^[A-Za-z0-9._/-]+$/.test(key)
+  ) {
+    throw new Error('PRIVATE_OBJECT_KEY_INVALID');
+  }
+}
+
+function assertPrivateReadLimit(
+  maxBytes: number,
+  configuredMaxBytes: number,
+): void {
+  if (
+    !Number.isSafeInteger(maxBytes) ||
+    maxBytes <= 0 ||
+    maxBytes > configuredMaxBytes
+  ) {
+    throw new Error('PRIVATE_OBJECT_LIMIT_INVALID');
+  }
+}
+
+function isSafePrivateMetadata(
+  metadata: Readonly<Record<string, string>>,
+): boolean {
+  const entries =
+    metadata && typeof metadata === 'object' ? Object.entries(metadata) : [];
+  return (
+    entries.length > 0 &&
+    entries.length <= 16 &&
+    entries.every(
+      ([key, value]) =>
+        /^[a-z][a-z0-9-]{0,63}$/.test(key) &&
+        typeof value === 'string' &&
+        value.length > 0 &&
+        value.length <= 512 &&
+        /^[\x20-\x7e]+$/.test(value),
+    )
+  );
+}
+
+function sameStringRecord(
+  actual: Readonly<Record<string, string>>,
+  expected: Readonly<Record<string, string>>,
+): boolean {
+  const actualEntries = Object.entries(actual).sort(([left], [right]) =>
+    left.localeCompare(right),
+  );
+  const expectedEntries = Object.entries(expected).sort(([left], [right]) =>
+    left.localeCompare(right),
+  );
+  return JSON.stringify(actualEntries) === JSON.stringify(expectedEntries);
+}
+
+function isPreconditionFailed(error: unknown): boolean {
+  return (
+    storageHttpStatus(error) === 412 ||
+    (error instanceof Error && error.name === 'PreconditionFailed')
+  );
+}
+
+function isConditionalWriteConflict(error: unknown): boolean {
+  return (
+    storageHttpStatus(error) === 409 ||
+    (error instanceof Error && error.name === 'ConditionalRequestConflict')
+  );
+}
+
+function storageHttpStatus(error: unknown): number | undefined {
+  return (error as { $metadata?: { httpStatusCode?: number } })?.$metadata
+    ?.httpStatusCode;
 }

@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsNumber,
   IsBoolean,
+  IsIn,
   validateSync,
 } from 'class-validator';
 
@@ -170,6 +171,66 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   RUNPOD_VIDEO_API_KEY?: string;
+
+  @IsOptional()
+  @IsIn(['native', 'cascade'])
+  LTX_TEXT_PIPELINE_MODE?: 'native' | 'cascade';
+
+  @IsOptional()
+  @IsString()
+  LTX_TEXT_CASCADE_ENABLED?: string;
+
+  @IsOptional()
+  @IsString()
+  LTX_TEXT_CASCADE_CONFIG_VERSION?: string;
+
+  @IsOptional()
+  @IsString()
+  LTX_TEXT_CASCADE_PROMPT_COMPILER_VERSION?: string;
+
+  @IsOptional()
+  @IsString()
+  LTX_TEXT_CASCADE_STILL_QC_ENABLED?: string;
+
+  @IsOptional()
+  @IsString()
+  LTX_TEXT_CASCADE_STILL_QC_POLICY_VERSION?: string;
+
+  @IsOptional()
+  @IsString()
+  LTX_TEXT_CASCADE_VIDEO_QC_ENABLED?: string;
+
+  @IsOptional()
+  @IsString()
+  LTX_TEXT_CASCADE_VIDEO_QC_POLICY_VERSION?: string;
+
+  @IsOptional()
+  @IsString()
+  LTX_TEXT_CASCADE_RUNPOD_ENDPOINT_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  LTX_TEXT_CASCADE_RUNPOD_API_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  PRUNA_API_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  PRUNA_API_BASE_URL?: string;
+
+  @IsOptional()
+  @IsString()
+  PRUNA_P_IMAGE_ENABLED?: string;
+
+  @IsOptional()
+  @IsString()
+  PRUNA_P_IMAGE_MODEL?: string;
+
+  @IsOptional()
+  @IsString()
+  PRUNA_P_IMAGE_ALLOWED_DOWNLOAD_HOSTS?: string;
 
   @IsOptional()
   @IsString()

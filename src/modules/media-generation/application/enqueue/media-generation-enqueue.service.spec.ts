@@ -1,7 +1,16 @@
 import { MediaGenerationEnqueueService } from 'src/modules/media-generation/application/enqueue/media-generation-enqueue.service';
 
 describe('MediaGenerationEnqueueService', () => {
-  const createService = (queueAdd = jest.fn()) => {
+  const createService = (
+    queueAdd = jest.fn(),
+    {
+      textVideoQueueAdd = jest.fn(),
+      ltxTextPipelineMode = 'native',
+    }: {
+      textVideoQueueAdd?: jest.Mock;
+      ltxTextPipelineMode?: 'native' | 'cascade';
+    } = {},
+  ) => {
     const contestMediaGenerationResolverService = {
       resolvePromptImageRequest: jest.fn(async (request) => request),
     };
@@ -20,6 +29,7 @@ describe('MediaGenerationEnqueueService', () => {
     };
     const mediaGenerationGuardsService = {
       assertUserCanGeneratePromptImages: jest.fn(async () => 10),
+      assertUserCanGenerateVideos: jest.fn(async () => 20),
     };
     const mediaGenerationBalanceService = {
       reserve: jest.fn(),
@@ -28,6 +38,15 @@ describe('MediaGenerationEnqueueService', () => {
     };
     const queue = {
       add: queueAdd,
+    };
+    const textVideoQueue = {
+      add: textVideoQueueAdd,
+    };
+    const providerRuntimeConfigService = {
+      getString: jest.fn().mockResolvedValue(null),
+      getLtxTextPipelineModeFresh: jest
+        .fn()
+        .mockResolvedValue(ltxTextPipelineMode),
     };
 
     const service = new MediaGenerationEnqueueService(
@@ -40,9 +59,9 @@ describe('MediaGenerationEnqueueService', () => {
       {} as any,
       {} as any,
       {} as any,
+      textVideoQueue as any,
       {} as any,
-      {} as any,
-      { getString: jest.fn().mockResolvedValue(null) } as any,
+      providerRuntimeConfigService as any,
     );
 
     return {
@@ -50,6 +69,8 @@ describe('MediaGenerationEnqueueService', () => {
       contestFlowService,
       mediaGenerationBalanceService,
       queueAdd,
+      textVideoQueueAdd,
+      providerRuntimeConfigService,
     };
   };
 
@@ -126,5 +147,78 @@ describe('MediaGenerationEnqueueService', () => {
       expect.any(String),
     );
     expect(contestFlowService.markSubmissionFailed).toHaveBeenCalledWith(77);
+  });
+
+  it('fresh-reads and snapshots the LTX text pipeline mode into a new BullMQ job', async () => {
+    const textVideoQueueAdd = jest.fn(async () => ({ id: 'video-job-1' }));
+    const {
+      service,
+      providerRuntimeConfigService,
+      mediaGenerationBalanceService,
+    } = createService(jest.fn(), {
+      textVideoQueueAdd,
+      ltxTextPipelineMode: 'cascade',
+    });
+
+    await service.enqueueTextVideoGeneration(
+      {
+        aiService: 'p_video_text',
+        prompt: 'one dancer under stage lights',
+        orientation: 'portrait',
+        duration: 5,
+      } as any,
+      55,
+    );
+
+    expect(
+      providerRuntimeConfigService.getLtxTextPipelineModeFresh,
+    ).toHaveBeenCalledTimes(1);
+    expect(textVideoQueueAdd).toHaveBeenCalledWith(
+      'p_video_text',
+      expect.objectContaining({
+        userId: 55,
+        aiService: 'p_video_text',
+        ltxTextPipelineMode: 'cascade',
+        request: expect.objectContaining({
+          prompt: 'one dancer under stage lights',
+          contestSubmissionId: 77,
+        }),
+      }),
+      expect.objectContaining({ jobId: expect.any(String) }),
+    );
+    expect(mediaGenerationBalanceService.reserve).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 55,
+        amount: 20,
+        aiService: 'p_video_text',
+      }),
+    );
+  });
+
+  it('does not reserve or enqueue when the fresh LTX mode snapshot cannot be read', async () => {
+    const textVideoQueueAdd = jest.fn();
+    const {
+      service,
+      providerRuntimeConfigService,
+      mediaGenerationBalanceService,
+    } = createService(jest.fn(), { textVideoQueueAdd });
+    providerRuntimeConfigService.getLtxTextPipelineModeFresh.mockRejectedValueOnce(
+      new Error('shared config unavailable'),
+    );
+
+    await expect(
+      service.enqueueTextVideoGeneration(
+        {
+          aiService: 'p_video_text',
+          prompt: 'a waterfall',
+          orientation: 'landscape',
+          duration: 5,
+        } as any,
+        55,
+      ),
+    ).rejects.toThrow('shared config unavailable');
+
+    expect(mediaGenerationBalanceService.reserve).not.toHaveBeenCalled();
+    expect(textVideoQueueAdd).not.toHaveBeenCalled();
   });
 });
