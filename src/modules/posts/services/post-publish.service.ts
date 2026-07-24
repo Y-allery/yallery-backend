@@ -12,6 +12,7 @@ import * as sharp from 'sharp';
 import { Repository } from 'typeorm';
 import { TagService } from 'src/modules/catalog/tags/tag.service';
 import { ContestService } from 'src/modules/contests/contest.service';
+import { ContestFlowService } from 'src/modules/contests/contest-flow.service';
 import { NotificationGateway } from 'src/modules/notifications/notification.gateway';
 import { RewardService } from 'src/modules/billing/rewards/reward.service';
 import { RewardTypeEnum } from 'src/modules/billing/rewards/types/reward-type.enum';
@@ -26,6 +27,7 @@ export class PostPublishService {
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
     private readonly contestService: ContestService,
+    private readonly contestFlowService: ContestFlowService,
     private readonly tagService: TagService,
     @Inject(forwardRef(() => NotificationGateway))
     private readonly notificationGateway: NotificationGateway,
@@ -87,6 +89,12 @@ export class PostPublishService {
 
       if (post.contest) {
         await this.contestService.participateInContest(post.contest.id, userId);
+        // Generation leaves the submission as GENERATED; publishing is what
+        // turns it into a competing entry.
+        await this.contestFlowService.markSubmissionPublishedForPost(
+          post.id,
+          userId,
+        );
       }
 
       await this.tagService.checkAndSubscribeToTag(user, post.tag.id);

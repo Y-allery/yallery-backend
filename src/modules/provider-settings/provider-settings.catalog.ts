@@ -8,6 +8,10 @@ import {
   TEXT_VIDEO_CASCADE_DEFAULTS,
   TEXT_VIDEO_CASCADE_SETTING_KEYS,
 } from 'src/modules/media-generation/domain/contracts/text-video-cascade-settings.contract';
+import {
+  REFERRAL_REWARD_DEFAULTS,
+  REFERRAL_REWARD_SETTING_KEYS,
+} from 'src/modules/users/referral/referral-reward.contract';
 
 export type ProviderSettingGroup =
   | 'openai'
@@ -20,7 +24,8 @@ export type ProviderSettingGroup =
   | 'media_defaults'
   | 'content_bot'
   | 'ops'
-  | 'payments';
+  | 'payments'
+  | 'referrals';
 
 export type ProviderSettingValueType =
   | 'secret'
@@ -822,6 +827,53 @@ export const PROVIDER_SETTING_DEFINITIONS: ProviderSettingDefinition[] = [
     defaultValue: 'gpt-4o-mini',
   },
   {
+    key: 'CONTENT_BOT_LIKES_ENABLED',
+    provider: 'app',
+    group: 'content_bot',
+    label: 'Content bot likes enabled',
+    description:
+      "Lets the bot like other users' recent posts (real like path: points, activity, push). Off by default; also requires CONTENT_BOT_ENABLED.",
+    type: 'boolean',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: 'false',
+  },
+  {
+    key: 'CONTENT_BOT_LIKES_PER_TICK',
+    provider: 'app',
+    group: 'content_bot',
+    label: 'Content bot likes per tick',
+    description:
+      'Likes per 10-minute tick. There is no daily cap by design, so this is the pacing lever for pushes and like writes. Clamped to 200.',
+    type: 'number',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: '50',
+  },
+  {
+    key: 'CONTENT_BOT_LIKE_MAX_POST_AGE_HOURS',
+    provider: 'app',
+    group: 'content_bot',
+    label: 'Content bot like max post age (hours)',
+    description:
+      'Only posts newer than this are likeable. Also bounded by CONTENT_BOT_LIKES_START_AT, so raising it can never backfill pre-feature posts.',
+    type: 'number',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: '48',
+  },
+  {
+    key: 'CONTENT_BOT_LIKES_START_AT',
+    provider: 'app',
+    group: 'content_bot',
+    label: 'Content bot likes start timestamp',
+    description:
+      'ISO timestamp stamped automatically on the first like tick; posts created before it are never liked. Clear it only to intentionally re-baseline.',
+    type: 'string',
+    isSecret: false,
+    validationKind: 'none',
+  },
+  {
     key: 'TELEGRAM_OPS_BOT_TOKEN',
     provider: 'app',
     group: 'ops',
@@ -886,6 +938,30 @@ export const PROVIDER_SETTING_DEFINITIONS: ProviderSettingDefinition[] = [
     type: 'secret',
     isSecret: true,
     validationKind: 'none',
+  },
+  {
+    key: REFERRAL_REWARD_SETTING_KEYS.dailyCap,
+    provider: 'app',
+    group: 'referrals',
+    label: 'Referral reward daily cap',
+    description:
+      'How many referrals per calendar day can still earn the REFERRAL_REWARD points for one referrer. Redemptions above the cap still credit the invited user; the referrer gets nothing for them. 0 turns referrer rewards off. Tunable here so a farm can be shut down without a deploy.',
+    type: 'number',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: String(REFERRAL_REWARD_DEFAULTS.dailyCap),
+  },
+  {
+    key: REFERRAL_REWARD_SETTING_KEYS.lifetimeCap,
+    provider: 'app',
+    group: 'referrals',
+    label: 'Referral reward lifetime cap',
+    description:
+      'Total referrals one referrer can ever be rewarded for. Counts referrals already paid plus those waiting for the invited user to generate; capped ones do not count.',
+    type: 'number',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: String(REFERRAL_REWARD_DEFAULTS.lifetimeCap),
   },
 ];
 

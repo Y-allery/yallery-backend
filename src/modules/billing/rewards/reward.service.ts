@@ -11,6 +11,21 @@ import { NotificationGateway } from 'src/modules/notifications/notification.gate
 
 @Injectable()
 export class RewardService {
+  /**
+   * Reward amounts are admin-edited perhaps a few times a year but read on
+   * every like (twice: LIKE_SPEND + LIKE_EARN), so they were two MySQL round
+   * trips on the hottest write path in the app. Cached per process and
+   * invalidated on the admin update path, so a change is live immediately for
+   * the node that served it and at most one TTL late everywhere else.
+   */
+  private static readonly REWARD_POINTS_CACHE_TTL_MS = 60000;
+
+  /** `points: null` caches "no active reward row", which is a hit too. */
+  private readonly rewardPointsCache = new Map<
+    RewardTypeEnum,
+    { points: number | null; expiresAt: number }
+  >();
+
   private readonly excludedRewardTypes = [
     RewardTypeEnum.PAYMENT_5000,
     RewardTypeEnum.PAYMENT_15000,
@@ -163,18 +178,52 @@ export class RewardService {
       reward.isActive = updateDto.is_active;
     }
 
-    return this.rewardRepository.save(reward);
+    const saved = await this.rewardRepository.save(reward);
+    // Admin edit path: drop the cached amount so the change takes effect now
+    // rather than at the end of the TTL.
+    this.invalidateRewardPointsCache(rewardType);
+    return saved;
   }
 
+  /**
+   * Cached read. The cache key is the reward type only: the entry stores what
+   * the database holds, so a caller's `defaultValue` still applies exactly
+   * when there is no active row — different defaults for the same type stay
+   * correct.
+   */
   async getRewardPointsOrDefault(
     rewardType: RewardTypeEnum,
     defaultValue: number,
   ): Promise<number> {
-    try {
-      return await this.getRewardPoints(rewardType);
-    } catch (error) {
-      return defaultValue;
+    const cached = this.rewardPointsCache.get(rewardType);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.points ?? defaultValue;
     }
+
+    let points: number | null;
+    try {
+      points = await this.getRewardPoints(rewardType);
+    } catch (error) {
+      // Missing or inactive row. Cached as well, otherwise an unconfigured
+      // reward type keeps hitting MySQL on every like.
+      points = null;
+    }
+
+    this.rewardPointsCache.set(rewardType, {
+      points,
+      expiresAt: Date.now() + RewardService.REWARD_POINTS_CACHE_TTL_MS,
+    });
+
+    return points ?? defaultValue;
+  }
+
+  /** Drops one type (or everything) from the reward-points cache. */
+  invalidateRewardPointsCache(rewardType?: RewardTypeEnum): void {
+    if (rewardType) {
+      this.rewardPointsCache.delete(rewardType);
+      return;
+    }
+    this.rewardPointsCache.clear();
   }
 
   /**

@@ -10,7 +10,15 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { ApiBody, ApiOperation, ApiResponse, ApiTags, ApiQuery, ApiParam } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+  ApiQuery,
+  ApiParam,
+} from '@nestjs/swagger';
 import { AUTH_SWAGGER } from 'src/shared/swagger';
 import { Response } from 'express';
 import { join } from 'path';
@@ -28,6 +36,9 @@ import {
 import { sendHtmlResponse } from 'src/shared/helpers/send.html.response.func';
 import { NotificationGateway } from 'src/modules/notifications/notification.gateway';
 import { AuthGuard } from '@nestjs/passport';
+import { JwtAuthGuard } from './guards/jwt.auth.guard';
+import { RateLimit, RateLimitGuard } from 'src/core/guards/rate-limit.guard';
+import { AuthenticatedRequest } from './types/auth.user.interface';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -136,6 +147,32 @@ export class AuthController {
   @ApiResponse(AUTH_SWAGGER.resendEmail.responses.badRequest)
   async resendEmail(@Body('email') email: string) {
     return this.authService.resendVerificationEmail(email);
+  }
+
+  @Post('resend-verification')
+  @UseGuards(JwtAuthGuard, RateLimitGuard)
+  // Mail is expensive and abusable; a handful per hour covers "it never
+  // arrived, try again" without turning the endpoint into a spam cannon.
+  @RateLimit({
+    limit: 5,
+    windowMs: 3600000,
+    keyPrefix: 'auth-resend-verification',
+  })
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Resend the verification email for the signed-in user',
+    description:
+      'Regenerates the verification token and queues a new verification email. Safe to call after a registration whose email never arrived. Returns 200 without sending when the address is already verified.',
+  })
+  @ApiResponse({ status: 200, description: 'Verification email queued' })
+  @ApiResponse({
+    status: 400,
+    description: 'Account has no verifiable email address',
+  })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  @ApiResponse({ status: 429, description: 'Too many resend requests' })
+  async resendVerification(@Req() req: AuthenticatedRequest) {
+    return this.authService.resendVerification(req.user.id);
   }
 
   @Get('verify-email')

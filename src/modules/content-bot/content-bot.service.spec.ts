@@ -61,6 +61,8 @@ describe('ContentBotService publishing safety', () => {
       generate: jest.fn(async (briefs: any[]) => briefs.map(() => null)),
     };
 
+    const likeService = { createLike: jest.fn(async () => 'success') };
+
     const service = new ContentBotService(
       planRepository as any,
       postRepository as any,
@@ -71,6 +73,7 @@ describe('ContentBotService publishing safety', () => {
       enqueueService as any,
       telegramService as any,
       promptService as any,
+      likeService as any,
     );
     // Pin pacing to a full day so the budget is deterministic (target vs cap).
     jest.spyOn(service as any, 'dayFraction').mockReturnValue(1);

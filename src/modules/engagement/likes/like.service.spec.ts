@@ -45,10 +45,6 @@ describe('LikeService.createLike (double-spend race)', () => {
     const likeRepository = { findOne: jest.fn() };
     const postRepository = { findOne: jest.fn(async () => post) };
     const userRepository = { findOne: jest.fn(async () => user) };
-    const notificationGateway = { emitProfileUpdate: jest.fn(async () => undefined) };
-    const userService = {
-      sendPushNotificationIfEnabled: jest.fn(async () => undefined),
-    };
     const userActivityService = {
       logLikeReceived: jest.fn(async () => undefined),
       logLikeSpent: jest.fn(async () => undefined),
@@ -56,15 +52,17 @@ describe('LikeService.createLike (double-spend race)', () => {
     const rewardService = {
       getRewardPointsOrDefault: jest.fn(async (_type: any, def: number) => def),
     };
+    const likeNotificationQueueService = {
+      enqueueLikeNotification: jest.fn(async () => undefined),
+    };
 
     const service = new LikeService(
       likeRepository as any,
       postRepository as any,
       userRepository as any,
-      notificationGateway as any,
-      userService as any,
       userActivityService as any,
       rewardService as any,
+      likeNotificationQueueService as any,
       dataSource as any,
     );
 
@@ -73,8 +71,7 @@ describe('LikeService.createLike (double-spend race)', () => {
       saveImpl,
       execute,
       increment,
-      notificationGateway,
-      userService,
+      likeNotificationQueueService,
       userActivityService,
     };
   };
@@ -133,8 +130,8 @@ describe('LikeService.createLike (double-spend race)', () => {
     );
   });
 
-  it('logs both activities and fires pushes/profile emits for both users', async () => {
-    const { service, userActivityService, userService, notificationGateway } =
+  it('logs both activities and queues the push/profile fan-out', async () => {
+    const { service, userActivityService, likeNotificationQueueService } =
       createService();
 
     await service.createLike({ postId: 20 } as any, 10);
@@ -145,40 +142,34 @@ describe('LikeService.createLike (double-spend race)', () => {
     expect(userActivityService.logLikeSpent).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 10, pointsDelta: -15 }),
     );
-    expect(userService.sendPushNotificationIfEnabled).toHaveBeenCalledTimes(2);
-    expect(notificationGateway.emitProfileUpdate).toHaveBeenCalledWith('10');
-    expect(notificationGateway.emitProfileUpdate).toHaveBeenCalledWith('30');
+    expect(
+      likeNotificationQueueService.enqueueLikeNotification,
+    ).toHaveBeenCalledWith({ postOwnerId: 30, likerId: 10, postId: 20 });
   });
 
-  it('still succeeds when a push notification fails after commit', async () => {
-    const { service, userService, notificationGateway } = createService();
-    userService.sendPushNotificationIfEnabled.mockRejectedValue(
-      new Error('FCM down'),
+  it('never queues notifications for a rejected like', async () => {
+    const { service, likeNotificationQueueService } = createService({
+      spendAffected: 0,
+    });
+
+    await expect(service.createLike({ postId: 20 } as any, 10)).rejects.toThrow(
+      'does not have enough points',
     );
-    const logError = jest
-      .spyOn((service as any).logger, 'error')
-      .mockImplementation(() => undefined);
+    expect(
+      likeNotificationQueueService.enqueueLikeNotification,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('still succeeds when the notification queue is unreachable', async () => {
+    const { service, likeNotificationQueueService } = createService();
+    // The queue service swallows Redis failures itself; reject anyway to prove
+    // the committed like can never be reported as a failure.
+    likeNotificationQueueService.enqueueLikeNotification.mockRejectedValue(
+      new Error('redis down'),
+    );
 
     await expect(service.createLike({ postId: 20 } as any, 10)).resolves.toBe(
       'success',
     );
-    // Remaining side effects still ran despite the push failure.
-    expect(notificationGateway.emitProfileUpdate).toHaveBeenCalledTimes(2);
-    expect(logError).toHaveBeenCalled();
-  });
-
-  it('still succeeds when a profile emit fails after commit', async () => {
-    const { service, notificationGateway } = createService();
-    notificationGateway.emitProfileUpdate.mockRejectedValue(
-      new Error('socket down'),
-    );
-    const logError = jest
-      .spyOn((service as any).logger, 'error')
-      .mockImplementation(() => undefined);
-
-    await expect(service.createLike({ postId: 20 } as any, 10)).resolves.toBe(
-      'success',
-    );
-    expect(logError).toHaveBeenCalled();
   });
 });

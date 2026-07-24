@@ -776,7 +776,22 @@ export class NotificationGateway {
     return this.getUserRoomSize(userId) > 0;
   }
 
+  /**
+   * No-ops for users with no socket attached. Building the payload costs five
+   * queries — two of them unbounded COUNTs — and it ran unconditionally, so
+   * every like rebuilt two whole profiles even when both users were offline
+   * and the emit went nowhere.
+   *
+   * Room membership is process-local. That is exact while the API runs as a
+   * single node; the day it is scaled out, this check has to move to an
+   * adapter-aware lookup (`fetchSockets`) or updates will be dropped for users
+   * whose socket lives on another node.
+   */
   async emitProfileUpdate(userId: string) {
+    if (!this.isUserConnected(userId)) {
+      return;
+    }
+
     const updatedProfile = await this.userService.getUserProfile(
       Number(userId),
     );

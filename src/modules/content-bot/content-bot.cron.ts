@@ -59,6 +59,26 @@ export class ContentBotCron {
     });
   }
 
+  /**
+   * Like recent posts by other users. Runs on the same 10-minute beat as the
+   * publisher and takes a bounded batch per tick — that pacing, not a daily cap,
+   * is what keeps the resulting pushes and like writes smooth.
+   */
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  async likeRecentPosts(): Promise<void> {
+    await this.locked('contentbot:likes:lock', 600, async () => {
+      const cfg = await this.bot.loadConfig();
+      if (!cfg.enabled) return; // master kill-switch still wins
+      const res = await this.bot.likeRecentPosts();
+      if (res.liked > 0 || res.failed > 0) {
+        this.logger.log(
+          `likes: ${res.liked} liked, ${res.skipped} skipped, ${res.failed} failed` +
+            (res.reason ? ` (${res.reason})` : ''),
+        );
+      }
+    });
+  }
+
   /** Evening Telegram digest of the day's output. */
   @Cron('0 21 * * *')
   async digest(): Promise<void> {

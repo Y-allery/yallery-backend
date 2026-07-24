@@ -1,7 +1,8 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app/app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { ValidationPipe } from '@nestjs/common';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { areDevToolsEnabled } from './core/config/environment';
 import * as bodyParser from 'body-parser';
 import * as compression from 'compression';
 import { HeartbeatIoAdapter } from './core/websocket/heartbeat-io.adapter';
@@ -16,6 +17,12 @@ let redisClient: ReturnType<typeof createClient>;
 const SWAGGER_AUTH_SCHEME = 'bearer';
 const SWAGGER_DEV_USER_ID = 125;
 
+/**
+ * Pre-authorises the Swagger UI as a known admin so local API poking needs no
+ * login. The token carries no expiry and is signed with the real JWT_SECRET,
+ * while swagger-ui-init.js — where swagger-ui inlines authAction — is served
+ * unauthenticated. Never call this outside development.
+ */
 function createSwaggerDevToken(): string {
   return jwt.sign(
     { sub: SWAGGER_DEV_USER_ID },
@@ -23,7 +30,44 @@ function createSwaggerDevToken(): string {
   );
 }
 
+function setupSwagger(app: INestApplication): void {
+  const config = new DocumentBuilder()
+    .setTitle('Y-app API')
+    .setDescription('API for y-allery application')
+    .setVersion('1.0')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+      },
+      SWAGGER_AUTH_SCHEME,
+    )
+    .addSecurityRequirements(SWAGGER_AUTH_SCHEME)
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true,
+      authAction: {
+        [SWAGGER_AUTH_SCHEME]: {
+          name: SWAGGER_AUTH_SCHEME,
+          schema: {
+            type: 'http',
+            in: 'header',
+            scheme: 'bearer',
+            bearerFormat: 'JWT',
+          },
+          value: createSwaggerDevToken(),
+        },
+      },
+    },
+  });
+}
+
 async function bootstrap() {
+  const devToolsEnabled = areDevToolsEnabled();
   const app = await NestFactory.create(AppModule);
   app.useWebSocketAdapter(new HeartbeatIoAdapter(app));
   const expressApp = app.getHttpAdapter().getInstance();
@@ -68,37 +112,12 @@ async function bootstrap() {
     client: redisClient,
     prefix: 'myapp_sess:',
   });
-  const config = new DocumentBuilder()
-    .setTitle('Y-app API')
-    .setDescription('API for y-allery application')
-    .setVersion('1.0')
-    .addBearerAuth({
-      type: 'http',
-      scheme: 'bearer',
-      bearerFormat: 'JWT',
-    }, SWAGGER_AUTH_SCHEME)
-    .addSecurityRequirements(SWAGGER_AUTH_SCHEME)
-    .build();
-
-  const document = SwaggerModule.createDocument(app, config);
-  const swaggerToken = createSwaggerDevToken();
-  SwaggerModule.setup('api', app, document, {
-    swaggerOptions: {
-      persistAuthorization: true,
-      authAction: {
-        [SWAGGER_AUTH_SCHEME]: {
-          name: SWAGGER_AUTH_SCHEME,
-          schema: {
-            type: 'http',
-            in: 'header',
-            scheme: 'bearer',
-            bearerFormat: 'JWT',
-          },
-          value: swaggerToken,
-        },
-      },
-    },
-  });
+  // /api and its swagger-ui-init.js are public; the latter embeds a live admin
+  // token, so neither the docs nor the token may exist unless dev tooling is
+  // explicitly switched on (the live droplet runs with NODE_ENV=dev).
+  if (devToolsEnabled) {
+    setupSwagger(app);
+  }
 
   app.use('/payment/webhook', (req, res, next) => {
     console.log('🔔 ===== WEBHOOK REQUEST RECEIVED =====');
@@ -160,7 +179,9 @@ async function bootstrap() {
   try {
   await app.listen(port, '0.0.0.0');
   console.log(`🚀 Application is running on: http://0.0.0.0:${port}`);
-  console.log(`📚 Swagger documentation: http://0.0.0.0:${port}/api`);
+  if (devToolsEnabled) {
+    console.log(`📚 Swagger documentation: http://0.0.0.0:${port}/api`);
+  }
   console.log(`⏰ Cron jobs are enabled and will run every 10 minutes`);
   } catch (error) {
     console.error(`❌ Failed to start server on port ${port}:`, error);

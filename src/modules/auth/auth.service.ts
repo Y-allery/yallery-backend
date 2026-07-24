@@ -16,6 +16,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { MailService } from 'src/integrations/mail/mail.service';
+import { MailQueueService } from 'src/integrations/mail/queue/mail-queue.service';
 import { v4 as uuidv4 } from 'uuid';
 import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
@@ -46,6 +47,7 @@ export class AuthService {
   constructor(
     private readonly userService: UserService,
     private readonly mailService: MailService,
+    private readonly mailQueueService: MailQueueService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly rewardService: RewardService,
@@ -143,6 +145,8 @@ export class AuthService {
     const newUser = await this.createUser(dto);
     const verificationToken = this.generateVerificationToken();
     newUser.verificationToken = verificationToken;
+    // Persisted before the mail is queued: a token that only ever existed in
+    // the job payload would verify nothing if the row write failed.
     await this.userRepository.save(newUser);
 
     // Link to partnership if referral data provided
@@ -227,17 +231,90 @@ export class AuthService {
     const accessToken = await this.generateAccessToken(newUser);
     const refreshToken = await this.generateRefreshToken(newUser);
 
-    const verifyUrl = `${process.env.HOME_URL}/auth/verify-email?token=${verificationToken}`;
-    await this.mailService.sendEmailVerify(
+    // Queued, not sent inline: SendGrid erroring or throttling used to fail
+    // the request after the account row was already committed, leaving the
+    // caller with a 500 and an account they could neither verify nor resend
+    // to. The queue retries; registration never fails on mail.
+    await this.enqueueVerificationEmail(
+      newUser.id,
       dto.email,
-      'Verify Your Email',
-      verifyUrl,
+      verificationToken,
     );
+
     return {
       user: this.excludeSensitiveFields(newUser),
       accessToken,
       refreshToken,
     };
+  }
+
+  /**
+   * Re-issues the verification token and queues a fresh email. The token is
+   * regenerated rather than reused: when the original mail never left, the
+   * user has no way to tell, and a new token invalidates any link that leaked
+   * with the failed send.
+   */
+  async resendVerification(userId: number): Promise<{ message: string }> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user || user.isDeleted) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.emailVerified) {
+      return { message: 'Email is already verified' };
+    }
+
+    const queued = await this.reissueVerificationEmail(user);
+
+    return {
+      message: queued
+        ? 'Verification email queued'
+        : 'Verification email could not be queued, please try again later',
+    };
+  }
+
+  /**
+   * Regenerates the token, persists it, then queues the mail — in that order,
+   * so the link in the email can never be one the database does not know.
+   */
+  private async reissueVerificationEmail(user: UserEntity): Promise<boolean> {
+    if (!user.email || user.email.includes('@telegram.local')) {
+      throw new BadRequestException(
+        'This account has no email address to verify',
+      );
+    }
+
+    const verificationToken = this.generateVerificationToken();
+    user.verificationToken = verificationToken;
+    await this.userRepository.save(user);
+
+    return this.enqueueVerificationEmail(
+      user.id,
+      user.email,
+      verificationToken,
+    );
+  }
+
+  private async enqueueVerificationEmail(
+    userId: number,
+    email: string,
+    verificationToken: string,
+  ): Promise<boolean> {
+    const verifyUrl = `${process.env.HOME_URL}/auth/verify-email?token=${verificationToken}`;
+    const queued = await this.mailQueueService.enqueueEmailVerification({
+      userId,
+      email,
+      subject: 'Verify Your Email',
+      verifyUrl,
+    });
+
+    if (!queued) {
+      this.logger.error(
+        `Verification email for user ${userId} was not queued; the user must use /auth/resend-verification`,
+      );
+    }
+
+    return queued;
   }
 
   async verifyEmail(token: string): Promise<UserEntity | null> {
@@ -989,21 +1066,23 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
+  /**
+   * Legacy unauthenticated resend. Kept for clients already calling it, but it
+   * now goes through the same queued path as /auth/resend-verification: an
+   * unknown address used to dereference `undefined` and answer 500, and the
+   * inline send failed the request after the new token was already stored.
+   */
   async resendVerificationEmail(email: string): Promise<{ message: string }> {
     const user = await this.userService.findByEmail(email);
+    if (!user || user.isDeleted) {
+      throw new NotFoundException('User not found');
+    }
 
-    const newVerificationToken = this.generateVerificationToken();
-    user.verificationToken = newVerificationToken;
+    if (user.emailVerified) {
+      return { message: 'Email is already verified' };
+    }
 
-    await this.userService.saveUser(user);
-
-    const verifyUrl = `${process.env.HOME_URL}/auth/verify-email?token=${newVerificationToken}`;
-
-    await this.mailService.sendEmailVerify(
-      email,
-      'Resend Email Verification',
-      verifyUrl,
-    );
+    await this.reissueVerificationEmail(user);
 
     return {
       message: 'Verification email has been resent.',

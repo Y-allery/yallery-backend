@@ -32,6 +32,7 @@ describe('PostPublishService.share (daily-reward TOCTOU)', () => {
       {} as any, // postRepository
       userRepository as any, // userRepository
       {} as any, // contestService
+      {} as any, // contestFlowService
       {} as any, // tagService
       notificationGateway as any, // notificationGateway
       rewardService as any, // rewardService

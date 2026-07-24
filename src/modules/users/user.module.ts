@@ -18,6 +18,7 @@ import { ReportPostEntity } from 'src/modules/posts/entities/report.post.entity'
 import { PaymentEntity } from 'src/modules/billing/payments/entities/payment.entity';
 import { RewardModule } from 'src/modules/billing/rewards/reward.module';
 import { UserActivityModule } from 'src/modules/engagement/user-activity/user-activity.module';
+import { ReferralRewardSettlementService } from './referral/referral-reward-settlement.service';
 
 @Module({
   imports: [
@@ -40,7 +41,7 @@ import { UserActivityModule } from 'src/modules/engagement/user-activity/user-ac
     RewardModule,
     UserActivityModule,
   ],
-  providers: [UserService],
+  providers: [UserService, ReferralRewardSettlementService],
   exports: [UserService],
   controllers: [UserController],
 })

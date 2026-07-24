@@ -2,7 +2,6 @@ import {
   BadRequestException,
   HttpException,
   Injectable,
-  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
@@ -11,17 +10,13 @@ import { CreateLikeDto } from './dto/create.like.dto';
 import { PostEntity } from 'src/modules/posts/entities/post.entity';
 import { UserEntity } from 'src/modules/users/entities/user.entity';
 import { Repository, DataSource } from 'typeorm';
-import { NotificationGateway } from 'src/modules/notifications/notification.gateway';
-import { UserService } from 'src/modules/users/user.service';
 import { RewardService } from 'src/modules/billing/rewards/reward.service';
 import { RewardTypeEnum } from 'src/modules/billing/rewards/types/reward-type.enum';
 import { UserActivityService } from 'src/modules/engagement/user-activity/services/user-activity.service';
-import { UserNotificationTypeEnum } from 'src/modules/notifications/types/user-notification-type.enum';
+import { LikeNotificationQueueService } from './notifications/like-notification-queue.service';
 
 @Injectable()
 export class LikeService {
-  private readonly logger = new Logger(LikeService.name);
-
   constructor(
     @InjectRepository(LikeEntity)
     private readonly likeRepository: Repository<LikeEntity>,
@@ -29,10 +24,9 @@ export class LikeService {
     private readonly postRepository: Repository<PostEntity>,
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
-    private readonly notificationGateway: NotificationGateway,
-    private readonly userService: UserService,
     private readonly userActivityService: UserActivityService,
     private readonly rewardService: RewardService,
+    private readonly likeNotificationQueueService: LikeNotificationQueueService,
     @InjectDataSource()
     private readonly dataSource: DataSource,
   ) {}
@@ -119,34 +113,6 @@ export class LikeService {
           previewUrl: post.imageUrl ?? post.previewImageUrl ?? null,
         }),
       ]);
-
-      // Best-effort side effects: the like is already committed, so an FCM or
-      // socket failure must not fail the request.
-      const sideEffects = await Promise.allSettled([
-        this.userService.sendPushNotificationIfEnabled(
-          post.user.id,
-          UserNotificationTypeEnum.LIKE_EARN,
-        ),
-        this.userService.sendPushNotificationIfEnabled(
-          user.id,
-          UserNotificationTypeEnum.LIKE_SPEND,
-        ),
-        this.notificationGateway.emitProfileUpdate(user.id.toString()),
-        this.notificationGateway.emitProfileUpdate(post.user.id.toString()),
-      ]);
-      for (const result of sideEffects) {
-        if (result.status === 'rejected') {
-          // These no longer fail the request, so this log is the only signal
-          // that push/socket delivery is broken — it must reach the Nest
-          // logger and Sentry, not raw stdout.
-          this.logger.error(
-            `createLike post-commit side effect failed: ${result.reason?.message ?? result.reason}`,
-            result.reason?.stack,
-          );
-        }
-      }
-
-      return 'success';
     } catch (error) {
       // Preserve intentional HTTP errors (already-liked, insufficient points)
       // with their original status; wrap anything else as a 400 (prior behavior).
@@ -155,6 +121,21 @@ export class LikeService {
       }
       throw new BadRequestException(error.message);
     }
+
+    // Post-commit fan-out (2 pushes + 2 profile rebuilds) is queued instead of
+    // awaited: inline it added up to four serialized FCM round trips to every
+    // like request. Deliberately outside the catch above and swallowed on top
+    // of the queue service's own handling — the like is committed, and no
+    // notification problem may turn it into an error response.
+    await this.likeNotificationQueueService
+      .enqueueLikeNotification({
+        postOwnerId: post.user.id,
+        likerId: user.id,
+        postId: post.id,
+      })
+      .catch(() => undefined);
+
+    return 'success';
   }
 
   /** MySQL duplicate-key (ER_DUP_ENTRY / 1062) on the likes unique index. */
