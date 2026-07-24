@@ -20,6 +20,11 @@ import {
   decryptProviderSettingValue,
   encryptProviderSettingValue,
 } from './provider-settings.crypto';
+import {
+  LtxTextPipelineMode,
+  LTX_TEXT_PIPELINE_MODE_SETTING_KEY,
+  parseLtxTextPipelineMode,
+} from 'src/modules/media-generation/domain/contracts/ltx-text-pipeline-mode.contract';
 
 type ProviderSettingSource = 'db' | 'env' | 'default' | 'none';
 
@@ -163,6 +168,57 @@ export class ProviderRuntimeConfigService {
     const definition = this.getDefinition(key);
     const resolved = await this.resolveDefinitionValue(definition);
     return resolved.value;
+  }
+
+  /**
+   * Reads the shared DB row directly and intentionally neither consumes nor
+   * mutates the process-local 30-second cache. Use this at enqueue boundaries
+   * where every backend instance must observe a global control-plane switch.
+   */
+  async getStringFresh(key: string): Promise<string | null> {
+    const definition = this.getDefinition(key);
+    const row = await this.providerSettingsRepository.findOne({
+      where: { key: definition.key },
+    });
+    const resolved = await this.resolveDefinitionValue(definition, row);
+    return resolved.value;
+  }
+
+  async getLtxTextPipelineModeFresh(): Promise<LtxTextPipelineMode> {
+    return parseLtxTextPipelineMode(
+      await this.getStringFresh(LTX_TEXT_PIPELINE_MODE_SETTING_KEY),
+    );
+  }
+
+  /**
+   * One INSERT ... ON DUPLICATE KEY UPDATE statement against the unique key.
+   * This is deliberately separate from the general admin update path so the
+   * emergency command has a single atomic write and cannot touch any secret.
+   */
+  async setLtxTextPipelineModeAtomically(
+    mode: LtxTextPipelineMode,
+    updatedById?: number | null,
+  ): Promise<void> {
+    const definition = this.getDefinition(LTX_TEXT_PIPELINE_MODE_SETTING_KEY);
+    const normalizedValue = this.normalizeValue(definition, mode);
+
+    await this.providerSettingsRepository.upsert(
+      {
+        key: definition.key,
+        provider: definition.provider,
+        group: definition.group,
+        label: definition.label,
+        type: definition.type,
+        validationKind: definition.validationKind,
+        isSecret: false,
+        valueEncrypted: null,
+        valuePlain: normalizedValue,
+        source: 'db',
+        updatedById: updatedById ?? null,
+      },
+      ['key'],
+    );
+    this.invalidateSettingRow(definition.key);
   }
 
   async getNumber(key: string, fallback?: number): Promise<number | undefined> {
@@ -460,7 +516,17 @@ export class ProviderRuntimeConfigService {
       return String(numericValue);
     }
 
-    return String(value).trim();
+    const normalized = String(value).trim();
+    if (
+      definition.allowedValues &&
+      !definition.allowedValues.includes(normalized)
+    ) {
+      throw new BadRequestException(
+        `${definition.key} must be one of: ${definition.allowedValues.join(', ')}`,
+      );
+    }
+
+    return normalized;
   }
 
   private formatPlainValue(

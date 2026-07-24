@@ -136,6 +136,21 @@ export class MediaGenerationGuardsService {
       );
     }
 
+    const route =
+      'imageUrl' in request
+        ? await this.mediaRouteResolverService.resolveImageVideoRoute(
+            request.aiService,
+          )
+        : await this.mediaRouteResolverService.resolveTextVideoRoute(
+            request.aiService,
+          );
+
+    if (!route) {
+      throw new BadRequestException(
+        `No video generation route configured for ${request.aiService}.`,
+      );
+    }
+
     const user = await this.getRequiredUser(userId);
     const totalCost = await this.mediaGenerationPricingService.getVideoCost(
       request.aiService,

@@ -7,6 +7,11 @@ import {
 import { MediaGenerationBalanceService } from 'src/modules/media-generation/application/balance/media-generation-balance.service';
 import { OpsBotService } from 'src/modules/ops-bot/ops-bot.service';
 
+export interface FailedGenerationHandlingOptions {
+  forceTerminal?: boolean;
+  automaticRefund?: boolean;
+}
+
 export abstract class BaseMediaProcessor extends WorkerHost {
   constructor(
     protected readonly notificationGateway: NotificationGateway,
@@ -43,7 +48,9 @@ export abstract class BaseMediaProcessor extends WorkerHost {
     job: Job,
     err: Error,
     messagePrefix: string,
+    options: FailedGenerationHandlingOptions = {},
   ) {
+    const { forceTerminal = false, automaticRefund = true } = options;
     const { aiService, userId, chargeId } = job.data;
     const processorName = this.constructor.name;
 
@@ -54,7 +61,7 @@ export abstract class BaseMediaProcessor extends WorkerHost {
       `Job ${job.id} for ${aiService || 'unknown'} failed in ${processorName}: ${err.message} | Attempts: ${attemptsMade}/${maxAttempts}`,
     );
 
-    if (attemptsMade < maxAttempts) {
+    if (!forceTerminal && attemptsMade < maxAttempts) {
       console.log(
         `[${processorName}] Job ${job.id} will be retried (${attemptsMade + 1}/${maxAttempts})`,
       );
@@ -71,15 +78,18 @@ export abstract class BaseMediaProcessor extends WorkerHost {
       }
     }
 
-    // Terminal failure: the credits reserved at enqueue time must be returned.
-    // Idempotent — a charge can only be refunded once.
-    try {
-      await this.mediaGenerationBalanceService.refund(chargeId);
-    } catch (refundError) {
-      console.error(
-        `[${processorName}] Failed to refund charge ${chargeId} for job ${job.id}:`,
-        refundError,
-      );
+    if (automaticRefund) {
+      // Most media pipelines do not have their own durable settlement ledger.
+      // Stateful pipelines can suppress this fallback and refund only after
+      // their persisted workflow explicitly authorizes it.
+      try {
+        await this.mediaGenerationBalanceService.refund(chargeId);
+      } catch (refundError) {
+        console.error(
+          `[${processorName}] Failed to refund charge ${chargeId} for job ${job.id}:`,
+          refundError,
+        );
+      }
     }
 
     // Fire-and-forget: an ops alert must never affect generation processing.

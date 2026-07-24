@@ -12,6 +12,7 @@ import { getUserActivityDescriptor } from 'src/modules/engagement/user-activity/
 
 type CreateUserActivityInput = {
   userId: number;
+  idempotencyKey?: string | null;
   actorUserId?: number | null;
   type: UserActivityType;
   pointsDelta?: number;
@@ -28,12 +29,15 @@ export class UserActivityService {
     private readonly userActivityRepository: Repository<UserActivityEntity>,
   ) {}
 
-  async createActivity(input: CreateUserActivityInput): Promise<UserActivityEntity> {
+  async createActivity(
+    input: CreateUserActivityInput,
+  ): Promise<UserActivityEntity> {
     const descriptor = getUserActivityDescriptor(input.type);
     const payload = input.payload ?? null;
     const pointsDelta = Number(input.pointsDelta ?? 0);
 
     const entity = this.userActivityRepository.create({
+      idempotencyKey: input.idempotencyKey ?? null,
       user: { id: input.userId },
       actorUser: input.actorUserId ? { id: input.actorUserId } : null,
       type: input.type,
@@ -51,6 +55,34 @@ export class UserActivityService {
     });
 
     return await this.userActivityRepository.save(entity);
+  }
+
+  async createActivityOnce(
+    input: CreateUserActivityInput & { idempotencyKey: string },
+  ): Promise<UserActivityEntity> {
+    if (!/^[A-Za-z0-9:_-]{8,128}$/.test(input.idempotencyKey)) {
+      throw new Error('USER_ACTIVITY_IDEMPOTENCY_KEY_INVALID');
+    }
+    const existing = await this.userActivityRepository.findOne({
+      where: { idempotencyKey: input.idempotencyKey },
+    });
+    if (existing) {
+      return existing;
+    }
+    try {
+      return await this.createActivity(input);
+    } catch (error) {
+      if (!isUniqueConstraintError(error)) {
+        throw error;
+      }
+      const adopted = await this.userActivityRepository.findOne({
+        where: { idempotencyKey: input.idempotencyKey },
+      });
+      if (!adopted) {
+        throw new Error('USER_ACTIVITY_IDEMPOTENCY_ADOPTION_FAILED');
+      }
+      return adopted;
+    }
   }
 
   async createActivities(inputs: CreateUserActivityInput[]): Promise<void> {
@@ -153,6 +185,41 @@ export class UserActivityService {
     });
   }
 
+  async logMediaGenerationSpentOnce(
+    generationTaskId: string,
+    params: {
+      userId: number;
+      pointsDelta: number;
+      mediaType: 'image' | 'video' | 'audio' | 'meme';
+      mode: string;
+      aiService: string;
+      quantity?: number;
+      orientation?: string | null;
+      duration?: number | null;
+      contestId?: number | null;
+      postId?: number | null;
+      previewUrl?: string | null;
+    },
+  ) {
+    return this.createActivityOnce({
+      idempotencyKey: `media_generation:${generationTaskId}`,
+      userId: params.userId,
+      type: USER_ACTIVITY_TYPES.MEDIA_GENERATION_SPENT,
+      pointsDelta: params.pointsDelta,
+      contestId: params.contestId ?? null,
+      postId: params.postId ?? null,
+      previewUrl: params.previewUrl ?? null,
+      payload: {
+        mediaType: params.mediaType,
+        mode: params.mode,
+        aiService: params.aiService,
+        quantity: params.quantity ?? 1,
+        orientation: params.orientation ?? null,
+        duration: params.duration ?? null,
+      },
+    });
+  }
+
   async logContestOpened(params: {
     userIds: number[];
     contestId: number;
@@ -203,4 +270,17 @@ export class UserActivityService {
       },
     });
   }
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+  const candidate = error as { code?: unknown; errno?: unknown };
+  return (
+    candidate.code === 'ER_DUP_ENTRY' ||
+    candidate.code === 'SQLITE_CONSTRAINT' ||
+    candidate.code === '23505' ||
+    candidate.errno === 1062
+  );
 }

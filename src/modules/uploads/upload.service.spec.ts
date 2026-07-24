@@ -16,7 +16,15 @@ const createSpacesStorageMock = (configured: boolean) =>
       height: 1280,
       hasAudio: true,
     })),
-  } as unknown as jest.Mocked<SpacesStorageService>);
+    uploadVideoAssetFromSourceOnce: jest.fn(async () => ({
+      videoUrl: 'https://cdn.spaces/cascade-video.mp4',
+      previewImageUrl: 'https://cdn.spaces/cascade-video_preview.jpg',
+      width: 1280,
+      height: 704,
+      hasAudio: true,
+      sourceSha256: 'a'.repeat(64),
+    })),
+  }) as unknown as jest.Mocked<SpacesStorageService>;
 
 const createService = (spacesConfigured: boolean) => {
   const spacesStorage = createSpacesStorageMock(spacesConfigured);
@@ -56,6 +64,24 @@ describe('UploadService', () => {
       );
     });
 
+    it('uses an explicit idempotency key for cascade video assets', async () => {
+      const { service, spacesStorage } = createService(true);
+
+      await expect(
+        service.uploadVideoAssetByUrlOnce(
+          'https://runpod/out.mp4',
+          'ltx-cascade:endpoint_123:job_12345678',
+        ),
+      ).resolves.toMatchObject({
+        videoUrl: 'https://cdn.spaces/cascade-video.mp4',
+        sourceSha256: 'a'.repeat(64),
+      });
+      expect(spacesStorage.uploadVideoAssetFromSourceOnce).toHaveBeenCalledWith(
+        'https://runpod/out.mp4',
+        'ltx-cascade:endpoint_123:job_12345678',
+      );
+    });
+
     it('uploads image buffers to Spaces', async () => {
       const { service, spacesStorage } = createService(true);
 
@@ -75,7 +101,9 @@ describe('UploadService', () => {
       const buffer = Buffer.from('vid');
       await expect(
         service.uploadVideoByBuffer(buffer, 'video/mp4', 'clip.mp4'),
-      ).resolves.toBe('https://cdn.spaces/media/video/upload/octoai_videos/x.mp4');
+      ).resolves.toBe(
+        'https://cdn.spaces/media/video/upload/octoai_videos/x.mp4',
+      );
       expect(spacesStorage.uploadVideoBuffer).toHaveBeenCalledWith(
         buffer,
         'video/mp4',
@@ -88,12 +116,21 @@ describe('UploadService', () => {
     it.each([
       [
         'uploadByUrl',
-        (service: UploadService) => service.uploadByUrl('https://runpod/out.png'),
+        (service: UploadService) =>
+          service.uploadByUrl('https://runpod/out.png'),
       ],
       [
         'uploadVideoAssetByUrl',
         (service: UploadService) =>
           service.uploadVideoAssetByUrl('https://runpod/out.mp4'),
+      ],
+      [
+        'uploadVideoAssetByUrlOnce',
+        (service: UploadService) =>
+          service.uploadVideoAssetByUrlOnce(
+            'https://runpod/out.mp4',
+            'ltx-cascade:endpoint_123:job_12345678',
+          ),
       ],
       [
         'uploadByBuffer',
@@ -105,12 +142,15 @@ describe('UploadService', () => {
         (service: UploadService) =>
           service.uploadVideoByBuffer(Buffer.from('vid'), 'video/mp4'),
       ],
-    ])('%s fails loudly instead of silently falling back', async (_name, call) => {
-      const { service } = createService(false);
+    ])(
+      '%s fails loudly instead of silently falling back',
+      async (_name, call) => {
+        const { service } = createService(false);
 
-      await expect(call(service)).rejects.toThrow(
-        'Spaces storage is not configured',
-      );
-    });
+        await expect(call(service)).rejects.toThrow(
+          'Spaces storage is not configured',
+        );
+      },
+    );
   });
 });

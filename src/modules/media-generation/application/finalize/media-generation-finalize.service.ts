@@ -17,6 +17,8 @@ import { MediaGenerationGuardsService } from 'src/modules/media-generation/appli
 import { MediaGenerationPricingService } from 'src/modules/media-generation/application/pricing/media-generation-pricing.service';
 import { MediaTagResolverService } from 'src/modules/media-generation/infrastructure/tagging/media-tag-resolver.service';
 import { PartnershipActivityLoggerService } from 'src/modules/partnership-activity/partnership-activity-logger.service';
+import { VideoGenerationResult } from 'src/modules/media-generation/domain/contracts/video-generation-result.contract';
+import { PostEntity } from 'src/modules/posts/entities/post.entity';
 
 @Injectable()
 export class MediaGenerationFinalizeService {
@@ -235,6 +237,82 @@ export class MediaGenerationFinalizeService {
   ) {
     const result =
       await this.mediaGenerationExecutionService.generateTextVideos(request);
+    return this.finalizeTextVideoResult(request, userId, result);
+  }
+
+  async finalizeAcceptedTextVideoGeneration(
+    generationTaskId: string,
+    request: TextVideoGenerationRequest,
+    userId: number,
+    result: VideoGenerationResult,
+  ) {
+    return (await this.reconcileAcceptedTextVideoGeneration(
+      generationTaskId,
+      request,
+      userId,
+      result,
+    ))!;
+  }
+
+  async reconcileAcceptedTextVideoGeneration(
+    generationTaskId: string,
+    request: TextVideoGenerationRequest,
+    userId: number,
+    result?: VideoGenerationResult,
+  ) {
+    const existing =
+      await this.generatedPostFactory.findByGenerationTaskId(generationTaskId);
+    if (!existing && !result) {
+      return null;
+    }
+    if (existing) {
+      assertAdoptedTextVideoPost(existing, request, userId, result);
+      result = {
+        videoUrl: existing.videoUrl!,
+        previewImageUrl: existing.previewImageUrl,
+        width: asNullableNumber(existing.generationParams?.width),
+        height: asNullableNumber(existing.generationParams?.height),
+        hasAudio: existing.hasAudio,
+        rawOutput: { adopted: true },
+      };
+    }
+    return this.finalizeTextVideoResult(
+      request,
+      userId,
+      result!,
+      generationTaskId,
+    );
+  }
+
+  async loadFinalizedTextVideoGeneration(
+    postId: number,
+    contestId?: number | null,
+  ) {
+    const post = await this.generatedPostFactory.findById(postId);
+    if (!post) {
+      throw new Error('FINALIZED_TEXT_VIDEO_POST_NOT_FOUND');
+    }
+    return {
+      data: [
+        {
+          id: post.id,
+          imageUrl: post.imageUrl,
+          videoUrl: post.videoUrl,
+          previewImageUrl: post.previewImageUrl,
+          generationParams: post.generationParams,
+          publishTo: await this.getContestPublishTo(contestId ?? null),
+        },
+      ],
+      rawOutput: { adopted: true },
+    };
+  }
+
+  private async finalizeTextVideoResult(
+    request: TextVideoGenerationRequest,
+    userId: number,
+    result: VideoGenerationResult,
+    generationTaskId?: string,
+  ) {
     const user =
       await this.mediaGenerationGuardsService.getRequiredUser(userId);
     const totalCost = await this.mediaGenerationPricingService.getVideoCost(
@@ -247,29 +325,39 @@ export class MediaGenerationFinalizeService {
       request.prompt,
       request.contestId ?? null,
     );
-    const post = await this.generatedPostFactory.createVideoPost(
-      {
-        prompt: request.prompt,
-        aiService: request.aiService,
-        orientation: request.orientation,
-        duration: request.duration,
-        seed: request.seed ?? null,
-        contestId: request.contestId ?? null,
-        width: result.width ?? null,
-        height: result.height ?? null,
-        hasAudio: result.hasAudio ?? false,
-      },
-      user.id,
-      result.videoUrl,
-      result.previewImageUrl ?? null,
-      resolvedTag,
-    );
+    const generationParams = {
+      prompt: request.prompt,
+      aiService: request.aiService,
+      orientation: request.orientation,
+      duration: request.duration,
+      seed: request.seed ?? null,
+      contestId: request.contestId ?? null,
+      width: result.width ?? null,
+      height: result.height ?? null,
+      hasAudio: result.hasAudio ?? false,
+    };
+    const post = generationTaskId
+      ? await this.generatedPostFactory.createVideoPostOnce(
+          generationTaskId,
+          generationParams,
+          user.id,
+          result.videoUrl,
+          result.previewImageUrl ?? null,
+          resolvedTag,
+        )
+      : await this.generatedPostFactory.createVideoPost(
+          generationParams,
+          user.id,
+          result.videoUrl,
+          result.previewImageUrl ?? null,
+          resolvedTag,
+        );
     const [savedPost] = await this.contestFlowService.completeGenerationPosts(
       request.contestSubmissionId,
       [post],
     );
 
-    await this.userActivityService.logMediaGenerationSpent({
+    const activity = {
       userId: user.id,
       pointsDelta: -totalCost,
       mediaType: 'video',
@@ -285,7 +373,15 @@ export class MediaGenerationFinalizeService {
         post.previewImageUrl ??
         post.videoUrl ??
         null,
-    });
+    } as const;
+    if (generationTaskId) {
+      await this.userActivityService.logMediaGenerationSpentOnce(
+        generationTaskId,
+        activity,
+      );
+    } else {
+      await this.userActivityService.logMediaGenerationSpent(activity);
+    }
 
     return {
       data: [
@@ -449,4 +545,34 @@ export class MediaGenerationFinalizeService {
       postToInstagram: contest?.socialPostSettings?.postToInstagram ?? false,
     };
   }
+}
+
+function assertAdoptedTextVideoPost(
+  post: PostEntity,
+  request: TextVideoGenerationRequest,
+  userId: number,
+  expectedResult?: VideoGenerationResult,
+): void {
+  const params = post.generationParams as Record<string, unknown> | null;
+  const adoptedUserId = Number(post.user?.id);
+  const matches =
+    typeof post.videoUrl === 'string' &&
+    post.videoUrl.length > 0 &&
+    (!Number.isSafeInteger(adoptedUserId) || adoptedUserId === userId) &&
+    params?.prompt === request.prompt &&
+    params?.aiService === request.aiService &&
+    params?.orientation === request.orientation &&
+    Number(params?.duration) === request.duration &&
+    (params?.seed ?? null) === (request.seed ?? null) &&
+    (expectedResult === undefined ||
+      (post.videoUrl === expectedResult.videoUrl &&
+        post.previewImageUrl === (expectedResult.previewImageUrl ?? null)));
+  if (!matches) {
+    throw new Error('FINALIZED_TEXT_VIDEO_POST_INVARIANT_MISMATCH');
+  }
+}
+
+function asNullableNumber(value: unknown): number | null {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
 }

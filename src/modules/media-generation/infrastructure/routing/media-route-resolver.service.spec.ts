@@ -59,7 +59,7 @@ describe('MediaRouteResolverService', () => {
 
   it('does not cross-resolve text and image video routes', async () => {
     const service = createService({
-      RUNPOD_API_KEY: 'key',
+      RUNPOD_VIDEO_API_KEY: 'video-key',
       RUNPOD_P_VIDEO_ENDPOINT_ID: 'p-video-endpoint',
     });
 
@@ -68,6 +68,31 @@ describe('MediaRouteResolverService', () => {
     ).resolves.toBeNull();
     await expect(
       service.resolveImageVideoRoute('p_video_text'),
+    ).resolves.toBeNull();
+  });
+
+  it('resolves video routes with their route-specific API key', async () => {
+    const service = createService({
+      RUNPOD_VIDEO_API_KEY: 'video-key',
+      RUNPOD_P_VIDEO_ENDPOINT_ID: 'p-video-endpoint',
+    });
+
+    await expect(
+      service.resolveTextVideoRoute('p_video_text'),
+    ).resolves.toMatchObject({
+      aiService: 'p_video_text',
+      endpointId: 'p-video-endpoint',
+    });
+  });
+
+  it('does not enable a video route with only the default API key', async () => {
+    const service = createService({
+      RUNPOD_API_KEY: 'main-account-key',
+      RUNPOD_P_VIDEO_ENDPOINT_ID: 'p-video-endpoint',
+    });
+
+    await expect(
+      service.resolveTextVideoRoute('p_video_text'),
     ).resolves.toBeNull();
   });
 });

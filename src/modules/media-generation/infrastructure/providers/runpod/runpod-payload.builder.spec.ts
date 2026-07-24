@@ -55,15 +55,15 @@ describe('RunpodPayloadBuilder', () => {
   });
 
   it('builds LTX text-to-video payload (720 horizontal, 5s, audio on)', () => {
-    expect(
-      builder.buildTextVideoInput({
-        aiService: 'p_video_text',
-        prompt: 'a red dragon over snowy mountains',
-        orientation: 'horizontal',
-        duration: 5,
-        seed: 123456,
-      }),
-    ).toEqual({
+    const payload = builder.buildTextVideoInput({
+      aiService: 'p_video_text',
+      prompt: 'a red dragon over snowy mountains',
+      orientation: 'horizontal',
+      duration: 5,
+      seed: 123456,
+    });
+
+    expect(payload).toEqual({
       prompt: 'a red dragon over snowy mountains',
       width: 1280,
       height: 704,
@@ -72,9 +72,9 @@ describe('RunpodPayloadBuilder', () => {
       audio: true,
       tier: 'quality',
       seed: 123456,
-      decode_noise: 0.05,
       cas_amount: 0,
     });
+    expect(payload).not.toHaveProperty('decode_noise');
   });
 
   it('falls back to a random positive int32 seed when the request has none', () => {
@@ -90,15 +90,16 @@ describe('RunpodPayloadBuilder', () => {
     expect(seed).toBeLessThan(2 ** 31);
   });
 
-  it('maps vertical orientation and 10s duration to LTX dims/frames', () => {
-    expect(
-      builder.buildTextVideoInput({
-        aiService: 'p_video_text',
-        prompt: 'ocean waves at sunset',
-        orientation: 'vertical',
-        duration: 10,
-      }),
-    ).toMatchObject({ width: 704, height: 1280, frames: 240 });
+  it('maps vertical orientation and 10s duration to a valid LTX frame count', () => {
+    const payload = builder.buildTextVideoInput({
+      aiService: 'p_video_text',
+      prompt: 'ocean waves at sunset',
+      orientation: 'vertical',
+      duration: 10,
+    });
+
+    expect(payload).toMatchObject({ width: 704, height: 1280, frames: 241 });
+    expect(payload).not.toHaveProperty('decode_noise');
   });
 
   it('builds LTX image-to-video payload with bare base64 (i2v)', () => {

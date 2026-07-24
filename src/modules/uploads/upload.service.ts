@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { SpacesStorageService } from './spaces-storage.service';
-import { UploadedVideoAsset } from './upload.types';
+import { StagedPrivateVideoAsset, UploadedVideoAsset } from './upload.types';
 
 export { UploadedVideoAsset } from './upload.types';
 
@@ -37,6 +37,68 @@ export class UploadService {
   async uploadVideoAssetByUrl(videoUrl: string): Promise<UploadedVideoAsset> {
     this.assertSpacesConfigured();
     return this.spacesStorage.uploadVideoAssetFromSource(videoUrl);
+  }
+
+  async uploadVideoAssetByUrlOnce(
+    videoUrl: string,
+    idempotencyKey: string,
+  ): Promise<UploadedVideoAsset> {
+    this.assertSpacesConfigured();
+    return this.spacesStorage.uploadVideoAssetFromSourceOnce(
+      videoUrl,
+      idempotencyKey,
+    );
+  }
+
+  async stagePrivateVideoByDataOnce(
+    videoData: string,
+    idempotencyKey: string,
+  ): Promise<StagedPrivateVideoAsset> {
+    this.assertSpacesConfigured();
+    return this.spacesStorage.stagePrivateVideoFromDataOnce(
+      videoData,
+      idempotencyKey,
+    );
+  }
+
+  async loadStagedPrivateVideo(
+    privateArtifactRef: string,
+    expectedSha256: string,
+  ): Promise<StagedPrivateVideoAsset> {
+    this.assertSpacesConfigured();
+    return this.spacesStorage.loadStagedPrivateVideo(
+      privateArtifactRef,
+      expectedSha256,
+    );
+  }
+
+  async loadStagedPrivateVideoBytes(
+    privateArtifactRef: string,
+    expectedSha256: string,
+  ): Promise<Buffer> {
+    this.assertSpacesConfigured();
+    return this.spacesStorage.loadStagedPrivateVideoBytes(
+      privateArtifactRef,
+      expectedSha256,
+    );
+  }
+
+  async publishStagedVideoOnce(
+    privateArtifactRef: string,
+    expectedSha256: string,
+    idempotencyKey: string,
+  ): Promise<UploadedVideoAsset> {
+    this.assertSpacesConfigured();
+    return this.spacesStorage.publishStagedVideoOnce(
+      privateArtifactRef,
+      expectedSha256,
+      idempotencyKey,
+    );
+  }
+
+  async deleteStagedPrivateVideo(privateArtifactRef: string): Promise<void> {
+    this.assertSpacesConfigured();
+    await this.spacesStorage.deleteStagedPrivateVideo(privateArtifactRef);
   }
 
   async uploadByUrl(imageUrl: string): Promise<string> {

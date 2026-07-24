@@ -1,5 +1,12 @@
 import { plainToClass, Transform } from 'class-transformer';
-import { IsString, IsOptional, IsNumber, IsBoolean, validateSync } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsNumber,
+  IsBoolean,
+  IsIn,
+  validateSync,
+} from 'class-validator';
 
 export class EnvironmentVariables {
   // Database
@@ -162,6 +169,66 @@ export class EnvironmentVariables {
   RUNPOD_VIDEO_API_KEY?: string;
 
   @IsOptional()
+  @IsIn(['native', 'cascade'])
+  LTX_TEXT_PIPELINE_MODE?: 'native' | 'cascade';
+
+  @IsOptional()
+  @IsString()
+  LTX_TEXT_CASCADE_ENABLED?: string;
+
+  @IsOptional()
+  @IsString()
+  LTX_TEXT_CASCADE_CONFIG_VERSION?: string;
+
+  @IsOptional()
+  @IsString()
+  LTX_TEXT_CASCADE_PROMPT_COMPILER_VERSION?: string;
+
+  @IsOptional()
+  @IsString()
+  LTX_TEXT_CASCADE_STILL_QC_ENABLED?: string;
+
+  @IsOptional()
+  @IsString()
+  LTX_TEXT_CASCADE_STILL_QC_POLICY_VERSION?: string;
+
+  @IsOptional()
+  @IsString()
+  LTX_TEXT_CASCADE_VIDEO_QC_ENABLED?: string;
+
+  @IsOptional()
+  @IsString()
+  LTX_TEXT_CASCADE_VIDEO_QC_POLICY_VERSION?: string;
+
+  @IsOptional()
+  @IsString()
+  LTX_TEXT_CASCADE_RUNPOD_ENDPOINT_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  LTX_TEXT_CASCADE_RUNPOD_API_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  PRUNA_API_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  PRUNA_API_BASE_URL?: string;
+
+  @IsOptional()
+  @IsString()
+  PRUNA_P_IMAGE_ENABLED?: string;
+
+  @IsOptional()
+  @IsString()
+  PRUNA_P_IMAGE_MODEL?: string;
+
+  @IsOptional()
+  @IsString()
+  PRUNA_P_IMAGE_ALLOWED_DOWNLOAD_HOSTS?: string;
+
+  @IsOptional()
   @IsString()
   RUNPOD_KREA2_LORA_FINETUNE_API_KEY?: string;
 
@@ -305,12 +372,15 @@ export function validate(config: Record<string, unknown>) {
 
   if (errors.length > 0) {
     const missingVars = errors
-      .map((error) => `${error.property}: ${Object.keys(error.constraints || {}).join(', ')}`)
+      .map(
+        (error) =>
+          `${error.property}: ${Object.keys(error.constraints || {}).join(', ')}`,
+      )
       .join(', ');
-    
+
     throw new Error(
       `Environment validation failed. Missing or invalid variables: ${missingVars}\n` +
-      `Please check your .env file and ensure all required variables are set.`
+        `Please check your .env file and ensure all required variables are set.`,
     );
   }
 

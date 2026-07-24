@@ -1,10 +1,4 @@
-import {
-  Column,
-  Entity,
-  Index,
-  JoinColumn,
-  ManyToOne,
-} from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { TimeStampEntity } from 'src/core/database/entities/time-stamp.entity';
 import { UserEntity } from 'src/modules/users/entities/user.entity';
 import { PostEntity } from 'src/modules/posts/entities/post.entity';
@@ -12,8 +6,18 @@ import { ContestEntity } from 'src/modules/contests/entity/contest.entity';
 
 @Entity('user_activities')
 @Index('IDX_user_activities_user_created_at', ['user', 'createdAt'])
-@Index('IDX_user_activities_user_is_read_created_at', ['user', 'isRead', 'createdAt'])
+@Index('IDX_user_activities_user_is_read_created_at', [
+  'user',
+  'isRead',
+  'createdAt',
+])
+@Index('IDX_user_activities_idempotency_key', ['idempotencyKey'], {
+  unique: true,
+})
 export class UserActivityEntity extends TimeStampEntity {
+  @Column({ type: 'varchar', length: 128, nullable: true })
+  idempotencyKey: string | null;
+
   @ManyToOne(() => UserEntity, (user) => user.userActivities, {
     onDelete: 'CASCADE',
   })

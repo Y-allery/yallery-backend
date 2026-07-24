@@ -10,6 +10,10 @@ import { RewardTypeEnum } from 'src/modules/billing/rewards/types/reward-type.en
 import { ProviderRuntimeConfigService } from 'src/modules/provider-settings/provider-runtime-config.service';
 import { AIUsageMetricsCollector } from 'src/modules/admin/features/metrics/collectors/ai-usage.collector';
 import { TelegramService } from 'src/integrations/telegram/telegram.service';
+import {
+  DEFAULT_LTX_TEXT_PIPELINE_MODE,
+  LTX_TEXT_PIPELINE_MODE_SETTING_KEY,
+} from 'src/modules/media-generation/domain/contracts/ltx-text-pipeline-mode.contract';
 
 /** Fallback ONLY for payment rows predating the pointsCredited column. */
 const PRODUCT_ID_TO_REWARD: Record<string, RewardTypeEnum> = {
@@ -180,7 +184,10 @@ export class OpsBotService {
     return authorized.has(chatId);
   }
 
-  private recordPendingAccessRequest(chatId: string, from?: TelegramFrom): void {
+  private recordPendingAccessRequest(
+    chatId: string,
+    from?: TelegramFrom,
+  ): void {
     this.sweepPendingIfOversized();
     this.pendingAccessRequests.set(chatId, {
       username: from?.username,
@@ -251,6 +258,11 @@ export class OpsBotService {
   }
 
   private async handleCommand(chatId: string, text: string): Promise<void> {
+    const normalizedText = text.toLocaleLowerCase('uk-UA');
+    if (normalizedText === '/камбек' || normalizedText === 'камбек') {
+      await this.handleComebackCommand(chatId);
+      return;
+    }
     if (text === '/start' || text === '/menu') {
       await this.sendMenu(chatId);
       return;
@@ -267,6 +279,26 @@ export class OpsBotService {
       await this.handleRevokeCommand(chatId, text);
       return;
     }
+  }
+
+  private async handleComebackCommand(chatId: string): Promise<void> {
+    await this.providerRuntimeConfigService.setLtxTextPipelineModeAtomically(
+      DEFAULT_LTX_TEXT_PIPELINE_MODE,
+    );
+    const verifiedMode =
+      await this.providerRuntimeConfigService.getLtxTextPipelineModeFresh();
+
+    if (verifiedMode !== DEFAULT_LTX_TEXT_PIPELINE_MODE) {
+      this.logger.error(
+        `${LTX_TEXT_PIPELINE_MODE_SETTING_KEY} COMEBACK verification failed`,
+      );
+      throw new Error('LTX_TEXT_PIPELINE_COMEBACK_VERIFICATION_FAILED');
+    }
+
+    await this.telegram.sendMessage(
+      chatId,
+      '✅ LTX text pipeline: native. Камбек підтверджено для всіх нових генерацій; jobs, які вже в черзі або виконуються, не змінено.',
+    );
   }
 
   private async sendPendingRequests(chatId: string): Promise<void> {
@@ -339,7 +371,10 @@ export class OpsBotService {
     );
   }
 
-  private async handleRevokeCommand(chatId: string, text: string): Promise<void> {
+  private async handleRevokeCommand(
+    chatId: string,
+    text: string,
+  ): Promise<void> {
     const arg = text.split(/\s+/)[1];
     if (!arg || !/^-?\d+$/.test(arg)) {
       await this.telegram.sendMessage(chatId, 'Формат: /revoke <chat_id>');
@@ -398,7 +433,10 @@ export class OpsBotService {
   ): Promise<void> {
     if (cq.data === 'stats:gen') {
       await this.telegram.answerCallbackQuery(cq.id);
-      await this.telegram.sendMessage(chatId, await this.formatGenerationStats());
+      await this.telegram.sendMessage(
+        chatId,
+        await this.formatGenerationStats(),
+      );
       return;
     }
     if (cq.data === 'stats:yep') {
@@ -446,10 +484,7 @@ export class OpsBotService {
       Object.fromEntries(failures.map((f) => [f.aiService, f.count])),
       displayNames,
     );
-    const totalSucceeded = Object.values(succeeded).reduce(
-      (s, v) => s + v,
-      0,
-    );
+    const totalSucceeded = Object.values(succeeded).reduce((s, v) => s + v, 0);
     const totalFailed = failures.reduce((s, f) => s + f.count, 0);
 
     lines.push(`✅ Успішно: ${totalSucceeded}`);
@@ -541,7 +576,10 @@ export class OpsBotService {
     const rows = await qb
       .groupBy('c.aiService')
       .getRawMany<{ aiService: string; count: string }>();
-    return rows.map((r) => ({ aiService: r.aiService, count: Number(r.count) }));
+    return rows.map((r) => ({
+      aiService: r.aiService,
+      count: Number(r.count),
+    }));
   }
 
   async formatYepStats(): Promise<string> {
@@ -604,16 +642,18 @@ export class OpsBotService {
     userId?: number | string;
     message: string;
   }): Promise<void> {
-    await this.attemptDebouncedSend(`runpod:${params.aiService}`, (suppressed) =>
-      [
-        '🔴 <b>RunPod: генерація впала</b>',
-        `Модель: ${params.aiService}`,
-        params.jobId ? `Job: ${params.jobId}` : null,
-        `Помилка: ${params.message}`.slice(0, 500),
-        suppressed > 0 ? `(+${suppressed} ще за останні 10 хв)` : null,
-      ]
-        .filter(Boolean)
-        .join('\n'),
+    await this.attemptDebouncedSend(
+      `runpod:${params.aiService}`,
+      (suppressed) =>
+        [
+          '🔴 <b>RunPod: генерація впала</b>',
+          `Модель: ${params.aiService}`,
+          params.jobId ? `Job: ${params.jobId}` : null,
+          `Помилка: ${params.message}`.slice(0, 500),
+          suppressed > 0 ? `(+${suppressed} ще за останні 10 хв)` : null,
+        ]
+          .filter(Boolean)
+          .join('\n'),
     );
   }
 
@@ -660,7 +700,10 @@ export class OpsBotService {
     }
 
     const suppressed = this.takeSuppressed(key);
-    const sent = await this.telegram.sendMessage(chatId, buildMessage(suppressed));
+    const sent = await this.telegram.sendMessage(
+      chatId,
+      buildMessage(suppressed),
+    );
     if (sent) {
       this.markSent(key);
     } else {
@@ -698,7 +741,10 @@ export class OpsBotService {
   private sweepIfOversized(): void {
     if (this.lastSentAt.size < OpsBotService.MAX_TRACKED_KEYS) return;
     const entries = [...this.lastSentAt.entries()].sort((a, b) => a[1] - b[1]);
-    const toDrop = entries.slice(0, entries.length - OpsBotService.MAX_TRACKED_KEYS + 1);
+    const toDrop = entries.slice(
+      0,
+      entries.length - OpsBotService.MAX_TRACKED_KEYS + 1,
+    );
     for (const [key] of toDrop) {
       this.lastSentAt.delete(key);
       this.suppressedCount.delete(key);

@@ -15,6 +15,9 @@ import { ContestEntity } from 'src/modules/contests/entity/contest.entity';
 import { UserActivityEntity } from 'src/modules/engagement/user-activity/entities/user-activity.entity';
 
 @Entity('posts')
+@Index('IDX_posts_generation_task_id', ['generationTaskId'], {
+  unique: true,
+})
 export class PostEntity extends TimeStampEntity {
   @PrimaryGeneratedColumn()
   id: number;
@@ -33,6 +36,13 @@ export class PostEntity extends TimeStampEntity {
   @Column({ type: 'varchar', nullable: true })
   @Index()
   previewImageUrl: string | null;
+
+  /**
+   * Nullable for legacy/native posts. Cascade finalization sets the immutable
+   * Bull task ID so a crash after save can adopt the same post.
+   */
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  generationTaskId: string | null;
 
   @ManyToOne(() => UserEntity, (user) => user.posts, { onDelete: 'CASCADE' })
   @Index()

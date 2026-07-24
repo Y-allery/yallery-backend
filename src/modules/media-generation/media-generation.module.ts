@@ -55,6 +55,41 @@ import { MediaGenerationGuardsService } from 'src/modules/media-generation/appli
 import { MediaGenerationPricingService } from 'src/modules/media-generation/application/pricing/media-generation-pricing.service';
 import { PartnershipActivityModule } from 'src/modules/partnership-activity/partnership-activity.module';
 import { OpsBotModule } from 'src/modules/ops-bot/ops-bot.module';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { MediaTextVideoWorkflowEntity } from 'src/modules/media-generation/persistence/entities/media-text-video-workflow.entity';
+import {
+  TEXT_VIDEO_I2V_PROVIDER,
+  TEXT_VIDEO_PRIVATE_ARTIFACT_STORE,
+  TEXT_VIDEO_STILL_PROVIDER,
+  TEXT_VIDEO_STILL_QC,
+  TEXT_VIDEO_VIDEO_QC,
+  TEXT_VIDEO_WORKFLOW_REPOSITORY,
+  TEXT_VIDEO_WORKFLOW_STATE_MACHINE,
+} from 'src/modules/media-generation/application/text-video/text-video-pipeline.ports';
+import {
+  TextVideoWorkflowRepository,
+  TypeOrmTextVideoWorkflowRepository,
+} from 'src/modules/media-generation/application/text-video/text-video-workflow.repository';
+import { TextVideoWorkflowService } from 'src/modules/media-generation/application/text-video/text-video-workflow.service';
+import { TextVideoCascadeRuntimeConfigService } from 'src/modules/media-generation/application/text-video/text-video-cascade-runtime-config.service';
+import { VerbatimTextVideoPromptCompiler } from 'src/modules/media-generation/application/text-video/text-video-prompt-compiler';
+import {
+  DisabledTextVideoStillQc,
+  DisabledTextVideoVideoQc,
+} from 'src/modules/media-generation/application/text-video/text-video-quality-gates';
+import {
+  TextVideoPipelineClock,
+  TextVideoPipelineService,
+} from 'src/modules/media-generation/application/text-video/text-video-pipeline.service';
+import { PrunaPImageRuntimeClient } from 'src/modules/media-generation/infrastructure/providers/pruna/pruna-p-image-runtime.client';
+import { PrunaStillCanonicalizer } from 'src/modules/media-generation/infrastructure/providers/pruna/pruna-still-canonicalizer';
+import { PrunaPImageStillProvider } from 'src/modules/media-generation/infrastructure/providers/pruna/pruna-p-image-still.provider';
+import { SpacesPrunaStillArtifactStore } from 'src/modules/media-generation/infrastructure/providers/pruna/spaces-pruna-still-artifact.store';
+import { PrunaStillArtifactStore } from 'src/modules/media-generation/infrastructure/providers/pruna/pruna-still-artifact.store';
+import { CascadeLtxI2VPayloadBuilder } from 'src/modules/media-generation/infrastructure/providers/runpod/cascade-ltx-i2v-payload.builder';
+import { CascadeLtxI2vProvider } from 'src/modules/media-generation/infrastructure/providers/runpod/cascade-ltx-i2v.provider';
+import { TextVideoArtifactReaperService } from 'src/modules/media-generation/application/text-video/text-video-artifact-reaper.service';
+import { TextVideoFinalizationRecoveryService } from 'src/modules/media-generation/application/text-video/text-video-finalization-recovery.service';
 
 const mediaGenerationQueueOptions = {
   streams: {
@@ -103,6 +138,7 @@ const mediaGenerationQueueOptions = {
       ContestFlowMetadataEntity,
       PostEntity,
       MemeEntity,
+      MediaTextVideoWorkflowEntity,
     ]),
     UploadModule,
     ContestModule,
@@ -139,6 +175,60 @@ const mediaGenerationQueueOptions = {
     RunpodOutputExtractor,
     RunpodPayloadBuilder,
     RunpodTimeoutPolicyService,
+    TextVideoCascadeRuntimeConfigService,
+    VerbatimTextVideoPromptCompiler,
+    TextVideoPipelineClock,
+    TextVideoPipelineService,
+    TextVideoArtifactReaperService,
+    TextVideoFinalizationRecoveryService,
+    PrunaPImageRuntimeClient,
+    PrunaStillCanonicalizer,
+    SpacesPrunaStillArtifactStore,
+    DisabledTextVideoStillQc,
+    DisabledTextVideoVideoQc,
+    CascadeLtxI2VPayloadBuilder,
+    CascadeLtxI2vProvider,
+    {
+      provide: TEXT_VIDEO_WORKFLOW_REPOSITORY,
+      useFactory: (repository): TextVideoWorkflowRepository =>
+        new TypeOrmTextVideoWorkflowRepository(repository),
+      inject: [getRepositoryToken(MediaTextVideoWorkflowEntity)],
+    },
+    {
+      provide: TEXT_VIDEO_WORKFLOW_STATE_MACHINE,
+      useFactory: (repository: TextVideoWorkflowRepository) =>
+        new TextVideoWorkflowService(repository),
+      inject: [TEXT_VIDEO_WORKFLOW_REPOSITORY],
+    },
+    {
+      provide: TEXT_VIDEO_PRIVATE_ARTIFACT_STORE,
+      useExisting: SpacesPrunaStillArtifactStore,
+    },
+    {
+      provide: TEXT_VIDEO_STILL_PROVIDER,
+      useFactory: (
+        client: PrunaPImageRuntimeClient,
+        canonicalizer: PrunaStillCanonicalizer,
+        artifactStore: PrunaStillArtifactStore,
+      ) => new PrunaPImageStillProvider(client, canonicalizer, artifactStore),
+      inject: [
+        PrunaPImageRuntimeClient,
+        PrunaStillCanonicalizer,
+        TEXT_VIDEO_PRIVATE_ARTIFACT_STORE,
+      ],
+    },
+    {
+      provide: TEXT_VIDEO_STILL_QC,
+      useExisting: DisabledTextVideoStillQc,
+    },
+    {
+      provide: TEXT_VIDEO_VIDEO_QC,
+      useExisting: DisabledTextVideoVideoQc,
+    },
+    {
+      provide: TEXT_VIDEO_I2V_PROVIDER,
+      useExisting: CascadeLtxI2vProvider,
+    },
   ],
   exports: [
     MediaProviderRegistryService,

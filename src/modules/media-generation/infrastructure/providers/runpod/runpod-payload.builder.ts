@@ -142,13 +142,9 @@ export class RunpodPayloadBuilder {
       audio: true,
       tier: 'quality',
       seed: request.seed ?? randomVideoSeed(),
-      // Measured 2026-07-22 (15-generation battery, zero regressions, ~0s cost): decode_noise
-      // removes the "plastic" look; cas_amount:0 avoids over-sharpening fast-motion frames (CAS
-      // is spatial-only and can't fix the temporal artifacts it amplifies). NOTE: the worker's
-      // stage2_sigmas override only takes effect on tier:"fast" (handler.py gates it on
-      // `tier == "fast"`) — since we always request tier:"quality", it would be a silent no-op
-      // here, so it's deliberately omitted rather than shipped as dead weight.
-      decode_noise: 0.05,
+      // CAS is spatial-only and amplified motion artifacts in the fixed July battery.
+      // Do not send decode_noise: the v8.23.1 override is a confirmed no-op, and silently
+      // activating 0.05 after a worker-side wiring fix would be an untested behavior change.
       cas_amount: 0,
     };
   }
@@ -217,7 +213,8 @@ export class RunpodPayloadBuilder {
   }
 
   private framesForDuration(duration: number): number {
-    // LTX validated tiers @24fps: ~5s -> 121 frames, ~10s -> 240. Snap to the nearest tier.
-    return duration >= 8 ? 240 : 121;
+    // LTX video frame counts follow 8k+1: 121 and 241 align the intended ~5s and ~10s
+    // tiers at 24fps. Sending 240 can be truncated to 233 frames by the decoder.
+    return duration >= 8 ? 241 : 121;
   }
 }

@@ -7,6 +7,24 @@ import axios from 'axios';
 import { ProviderRuntimeConfigService } from 'src/modules/provider-settings/provider-runtime-config.service';
 import { RunpodJobResponse } from './runpod-media.types';
 
+const MAX_DECODED_VIDEO_BYTES = 300 * 1024 * 1024;
+const BASE64_EXPANSION_NUMERATOR = 4;
+const BASE64_EXPANSION_DENOMINATOR = 3;
+const JOB_RESPONSE_JSON_HEADROOM_BYTES = 1024 * 1024;
+
+/**
+ * Axios buffers JSON responses before returning them. RunPod may place an
+ * inline base64 MP4 in a completed-job response, so keep the transport cap
+ * large enough for the existing 300 MiB decoded-video ceiling plus base64
+ * expansion and bounded JSON metadata, while rejecting an unbounded response
+ * before it can consume the process heap.
+ */
+export const RUNPOD_JOB_RESPONSE_MAX_BYTES =
+  Math.ceil(
+    (MAX_DECODED_VIDEO_BYTES * BASE64_EXPANSION_NUMERATOR) /
+      BASE64_EXPANSION_DENOMINATOR,
+  ) + JOB_RESPONSE_JSON_HEADROOM_BYTES;
+
 @Injectable()
 export class RunpodMediaClient {
   constructor(
@@ -29,6 +47,7 @@ export class RunpodMediaClient {
       {
         headers,
         timeout,
+        maxContentLength: RUNPOD_JOB_RESPONSE_MAX_BYTES,
       },
     );
 
@@ -111,6 +130,7 @@ export class RunpodMediaClient {
       {
         headers,
         timeout,
+        maxContentLength: RUNPOD_JOB_RESPONSE_MAX_BYTES,
       },
     );
 

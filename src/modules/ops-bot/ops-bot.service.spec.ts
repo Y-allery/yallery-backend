@@ -49,6 +49,12 @@ describe('OpsBotService', () => {
     const providerRuntimeConfigService = {
       getString: jest.fn(async (key: string) => config[key] ?? null),
       getNumber: jest.fn(async () => undefined),
+      getLtxTextPipelineModeFresh: jest.fn(
+        async () => config.LTX_TEXT_PIPELINE_MODE ?? 'native',
+      ),
+      setLtxTextPipelineModeAtomically: jest.fn(async (mode: string) => {
+        config.LTX_TEXT_PIPELINE_MODE = mode;
+      }),
       updateSetting: jest.fn(async (key: string, dto: any) => {
         config[key] = String(dto.value);
         return { key, value: dto.value };
@@ -71,7 +77,14 @@ describe('OpsBotService', () => {
       aiUsageCollector as any,
       telegram as any,
     );
-    return { service, telegram, rewardService, paymentRepository, config, providerRuntimeConfigService };
+    return {
+      service,
+      telegram,
+      rewardService,
+      paymentRepository,
+      config,
+      providerRuntimeConfigService,
+    };
   };
 
   describe('chat authorization', () => {
@@ -139,7 +152,10 @@ describe('OpsBotService', () => {
         {} as any,
         {} as any,
         {} as any,
-        { getString: jest.fn(async () => null), getNumber: jest.fn(async () => undefined) } as any,
+        {
+          getString: jest.fn(async () => null),
+          getNumber: jest.fn(async () => undefined),
+        } as any,
         { collect: jest.fn() } as any,
         telegram as any,
       );
@@ -185,13 +201,22 @@ describe('OpsBotService', () => {
     const cmd = (service: any, chatId: number, text: string) =>
       service.handleUpdate({
         update_id: chatId,
-        message: { message_id: 1, text, chat: { id: chatId }, from: { id: chatId } },
+        message: {
+          message_id: 1,
+          text,
+          chat: { id: chatId },
+          from: { id: chatId },
+        },
       });
 
     it('pings the ops chat with a ready /authorize command on an unauthorized /start', async () => {
       const { service, telegram } = makeService();
 
-      await startFrom(service, 777, { id: 777, username: 'newguy', first_name: 'New' });
+      await startFrom(service, 777, {
+        id: 777,
+        username: 'newguy',
+        first_name: 'New',
+      });
 
       const pings = (telegram.sendMessage.mock.calls as any[][]).filter(
         (c) => c[0] === '111',
@@ -269,6 +294,92 @@ describe('OpsBotService', () => {
     });
   });
 
+  describe('LTX COMEBACK command', () => {
+    const cmd = (service: OpsBotService, chatId: number, text: string) =>
+      service.handleUpdate({
+        update_id: chatId,
+        message: {
+          message_id: 1,
+          text,
+          chat: { id: chatId },
+          from: { id: chatId },
+        },
+      } as any);
+
+    it('does not execute COMEBACK for an unauthorized chat', async () => {
+      const { service, telegram, providerRuntimeConfigService } = makeService({
+        configOverrides: { LTX_TEXT_PIPELINE_MODE: 'cascade' },
+      });
+
+      await cmd(service, 999, '/камбек');
+
+      expect(
+        providerRuntimeConfigService.setLtxTextPipelineModeAtomically,
+      ).not.toHaveBeenCalled();
+      for (const call of telegram.sendMessage.mock.calls as any[][]) {
+        expect(call[0]).not.toBe('999');
+      }
+    });
+
+    it.each(['/камбек', 'камбек'])(
+      'atomically sets and fresh-verifies native for authorized command %s',
+      async (text) => {
+        const { service, telegram, config, providerRuntimeConfigService } =
+          makeService({
+            configOverrides: { LTX_TEXT_PIPELINE_MODE: 'cascade' },
+          });
+
+        await cmd(service, 111, text);
+
+        expect(
+          providerRuntimeConfigService.setLtxTextPipelineModeAtomically,
+        ).toHaveBeenCalledWith('native');
+        expect(
+          providerRuntimeConfigService.getLtxTextPipelineModeFresh,
+        ).toHaveBeenCalledTimes(1);
+        expect(config.LTX_TEXT_PIPELINE_MODE).toBe('native');
+        expect(telegram.sendMessage).toHaveBeenCalledWith(
+          '111',
+          expect.stringContaining('native'),
+        );
+      },
+    );
+
+    it('is idempotent when repeated and never mutates anything except the mode', async () => {
+      const { service, config, providerRuntimeConfigService, telegram } =
+        makeService({
+          configOverrides: {
+            LTX_TEXT_PIPELINE_MODE: 'native',
+            RUNPOD_VIDEO_API_KEY: 'untouched',
+          },
+        });
+
+      await cmd(service, 111, 'камбек');
+      await cmd(service, 111, '/камбек');
+
+      expect(
+        providerRuntimeConfigService.setLtxTextPipelineModeAtomically,
+      ).toHaveBeenCalledTimes(2);
+      expect(config).toMatchObject({
+        LTX_TEXT_PIPELINE_MODE: 'native',
+        RUNPOD_VIDEO_API_KEY: 'untouched',
+      });
+      expect(telegram.sendMessage).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not confirm COMEBACK when the fresh verification is not native', async () => {
+      const { service, telegram, providerRuntimeConfigService } = makeService();
+      providerRuntimeConfigService.getLtxTextPipelineModeFresh.mockResolvedValueOnce(
+        'cascade',
+      );
+
+      await expect(cmd(service, 111, '/камбек')).rejects.toThrow(
+        'LTX_TEXT_PIPELINE_COMEBACK_VERIFICATION_FAILED',
+      );
+      expect(telegram.sendMessage).not.toHaveBeenCalled();
+    });
+  });
+
   describe('debounced alerts commit only on confirmed delivery', () => {
     it('starts the cooldown after a successful send', async () => {
       const { service, telegram } = makeService({ telegramSendResult: true });
@@ -313,7 +424,10 @@ describe('OpsBotService', () => {
         {} as any,
         {} as any,
         {} as any,
-        { getString: jest.fn(async () => null), getNumber: jest.fn(async () => undefined) } as any,
+        {
+          getString: jest.fn(async () => null),
+          getNumber: jest.fn(async () => undefined),
+        } as any,
         {} as any,
         telegram as any,
       );
@@ -327,8 +441,14 @@ describe('OpsBotService', () => {
     it('fingerprints backend errors on the caller-supplied fingerprint, not the raw text', async () => {
       const { service, telegram } = makeService({ telegramSendResult: true });
 
-      await service.notifyBackendError('Cannot find user 111', 'NotFoundException');
-      await service.notifyBackendError('Cannot find user 222', 'NotFoundException');
+      await service.notifyBackendError(
+        'Cannot find user 111',
+        'NotFoundException',
+      );
+      await service.notifyBackendError(
+        'Cannot find user 222',
+        'NotFoundException',
+      );
 
       // Same fingerprint, different message text -> still debounced as one bug.
       expect(telegram.sendMessage).toHaveBeenCalledTimes(1);
@@ -339,8 +459,18 @@ describe('OpsBotService', () => {
     it('sums the amount frozen at credit time, not a live recompute', async () => {
       const { service, rewardService } = makeService({
         purchases: [
-          { productId: '5000yeps', pointsCredited: 5000, currency: 'USD', amount: 4.99 },
-          { productId: '15000yeps', pointsCredited: 15000, currency: 'USD', amount: 9.99 },
+          {
+            productId: '5000yeps',
+            pointsCredited: 5000,
+            currency: 'USD',
+            amount: 4.99,
+          },
+          {
+            productId: '15000yeps',
+            pointsCredited: 15000,
+            currency: 'USD',
+            amount: 9.99,
+          },
         ],
       });
 
@@ -355,10 +485,17 @@ describe('OpsBotService', () => {
     it('falls back to the live reward config for legacy rows with no pointsCredited, and never throws', async () => {
       const { service, rewardService } = makeService({
         purchases: [
-          { productId: '5000yeps', pointsCredited: null, currency: 'USD', amount: 4.99 },
+          {
+            productId: '5000yeps',
+            pointsCredited: null,
+            currency: 'USD',
+            amount: 4.99,
+          },
         ],
       });
-      rewardService.getRewardPointsOrDefault = jest.fn(async (_t: any, _def: number) => 5000);
+      rewardService.getRewardPointsOrDefault = jest.fn(
+        async (_t: any, _def: number) => 5000,
+      );
 
       const text = await service.formatYepStats();
 
