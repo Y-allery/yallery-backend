@@ -78,6 +78,10 @@ import {
   DisabledTextVideoVideoQc,
 } from 'src/modules/media-generation/application/text-video/text-video-quality-gates';
 import {
+  TechnicalTextVideoStillQc,
+  TechnicalTextVideoVideoQc,
+} from 'src/modules/media-generation/application/text-video/technical-text-video-qc';
+import {
   TextVideoPipelineClock,
   TextVideoPipelineService,
 } from 'src/modules/media-generation/application/text-video/text-video-pipeline.service';
@@ -186,6 +190,8 @@ const mediaGenerationQueueOptions = {
     SpacesPrunaStillArtifactStore,
     DisabledTextVideoStillQc,
     DisabledTextVideoVideoQc,
+    TechnicalTextVideoStillQc,
+    TechnicalTextVideoVideoQc,
     CascadeLtxI2VPayloadBuilder,
     CascadeLtxI2vProvider,
     {
@@ -219,11 +225,11 @@ const mediaGenerationQueueOptions = {
     },
     {
       provide: TEXT_VIDEO_STILL_QC,
-      useExisting: DisabledTextVideoStillQc,
+      useExisting: TechnicalTextVideoStillQc,
     },
     {
       provide: TEXT_VIDEO_VIDEO_QC,
-      useExisting: DisabledTextVideoVideoQc,
+      useExisting: TechnicalTextVideoVideoQc,
     },
     {
       provide: TEXT_VIDEO_I2V_PROVIDER,

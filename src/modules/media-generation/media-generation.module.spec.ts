@@ -16,6 +16,10 @@ import { CascadeLtxI2VPayloadBuilder } from './infrastructure/providers/runpod/c
 import { MediaGenerationModule } from './media-generation.module';
 import { TextVideoFinalizationRecoveryService } from './application/text-video/text-video-finalization-recovery.service';
 import { SpacesPrunaStillArtifactStore } from './infrastructure/providers/pruna/spaces-pruna-still-artifact.store';
+import {
+  TechnicalTextVideoStillQc,
+  TechnicalTextVideoVideoQc,
+} from './application/text-video/technical-text-video-qc';
 
 describe('MediaGenerationModule cascade wiring', () => {
   const providers = Reflect.getMetadata(
@@ -48,10 +52,10 @@ describe('MediaGenerationModule cascade wiring', () => {
       useFactory: expect.any(Function),
     });
     expect(providerFor(TEXT_VIDEO_STILL_QC)).toMatchObject({
-      useExisting: expect.any(Function),
+      useExisting: TechnicalTextVideoStillQc,
     });
     expect(providerFor(TEXT_VIDEO_VIDEO_QC)).toMatchObject({
-      useExisting: expect.any(Function),
+      useExisting: TechnicalTextVideoVideoQc,
     });
     expect(providerFor(TEXT_VIDEO_PRIVATE_ARTIFACT_STORE)).toMatchObject({
       useExisting: SpacesPrunaStillArtifactStore,
