@@ -36,7 +36,7 @@ export interface CascadeLtxI2VPayload {
   tier: 'quality';
   seed: number;
   cas_amount: 0;
-  enhance: false;
+  enhance: true;
 }
 
 @Injectable()
@@ -86,7 +86,7 @@ export function buildCascadeLtxI2VPayload(
     tier: 'quality',
     seed: request.seed,
     cas_amount: 0,
-    enhance: false,
+    enhance: true,
   };
 
   const serializedBytes = Buffer.byteLength(

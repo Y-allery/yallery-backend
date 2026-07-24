@@ -18,7 +18,7 @@ const PAYLOAD: CascadeLtxI2VPayload = {
   tier: 'quality',
   seed: 33102,
   cas_amount: 0,
-  enhance: false,
+  enhance: true,
 };
 const INLINE_MP4 = `data:video/mp4;base64,${Buffer.from([
   0, 0, 0, 20, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d,

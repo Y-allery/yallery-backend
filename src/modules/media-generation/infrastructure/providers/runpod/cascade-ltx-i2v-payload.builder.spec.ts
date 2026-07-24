@@ -52,7 +52,7 @@ describe('buildCascadeLtxI2VPayload', () => {
         tier: 'quality',
         seed: 43103,
         cas_amount: 0,
-        enhance: false,
+        enhance: true,
       });
       expect(Object.keys(payload).sort()).toEqual(
         [
