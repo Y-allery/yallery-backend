@@ -27,6 +27,12 @@ export enum ContestSubmissionStatus {
   ACCEPTED = 'accepted',
   ENQUEUED = 'enqueued',
   GENERATING = 'generating',
+  /**
+   * Generation finished and the post exists as an unpublished draft. The entry
+   * only enters the contest once the user explicitly publishes it, which flips
+   * this to PUBLISHED — candidate selection ignores anything but PUBLISHED.
+   */
+  GENERATED = 'generated',
   PUBLISHED = 'published',
   FAILED = 'failed',
 }

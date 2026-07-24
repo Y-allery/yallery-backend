@@ -49,6 +49,15 @@ export class ContentBotController {
     return this.bot.publishDuePaced();
   }
 
+  @Post('like-now')
+  @ApiOperation({
+    summary:
+      'Run one like tick manually (still gated by CONTENT_BOT_LIKES_ENABLED)',
+  })
+  async likeNow() {
+    return this.bot.likeRecentPosts();
+  }
+
   @Post('generate-now')
   @ApiOperation({
     summary:

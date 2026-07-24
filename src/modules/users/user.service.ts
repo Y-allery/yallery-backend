@@ -31,8 +31,31 @@ import { RewardService } from 'src/modules/billing/rewards/reward.service';
 import { RewardTypeEnum } from 'src/modules/billing/rewards/types/reward-type.enum';
 import { ContestTypeEnum } from 'src/modules/contests/types/contest.status.enum';
 import { UserActivityQueryService } from 'src/modules/engagement/user-activity/services/user-activity-query.service';
-import { UserNotificationTypeEnum } from 'src/modules/notifications/types/user-notification-type.enum';
+import { UserActivityEntity } from 'src/modules/engagement/user-activity/entities/user-activity.entity';
+import { USER_ACTIVITY_TYPES } from 'src/modules/engagement/user-activity/types/user-activity.constants';
+import {
+  normalizeEmailIdentity,
+  ReferralRewardState,
+  REFERRAL_REWARDED_STATES,
+  REFERRAL_REWARD_DEFAULTS,
+  REFERRAL_REWARD_SETTING_KEYS,
+  REFERRAL_REWARD_STATES,
+} from './referral/referral-reward.contract';
+import {
+  UserNotificationTypeEnum,
+  isNotificationEnabledByDefault,
+  isPreferenceGatedNotification,
+} from 'src/modules/notifications/types/user-notification-type.enum';
 import { ProviderRuntimeConfigService } from 'src/modules/provider-settings/provider-runtime-config.service';
+
+/** Rows pulled per keyset page of the daily-reward cron. */
+const DAILY_REWARD_USER_BATCH_SIZE = 500;
+/** Pushes in flight at once, matching the admin broadcast processor. */
+const DAILY_REWARD_PUSH_BATCH_SIZE = 10;
+const DAILY_REWARD_BATCH_PAUSE_MS = 50;
+
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 @Injectable()
 export class UserService {
@@ -364,33 +387,71 @@ export class UserService {
     const botId = await this.providerRuntimeConfigService.getNumber(
       'CONTENT_BOT_USER_ID',
     );
-    const dailyRewardQuery = this.userModel
-      .createQueryBuilder('user')
-      .select(['user.id'])
-      .where('user.updatedAt >= :todayStart', { todayStart });
-    if (typeof botId === 'number' && Number.isFinite(botId)) {
-      dailyRewardQuery.andWhere('user.id != :botId', { botId });
+    // Paced instead of one giant pass: the whole eligible cohort used to be
+    // loaded into a single In(...) and every push fired in one Promise.all,
+    // which at collaboration scale saturates the connection pool and blocks the
+    // event loop in one tick. Keyset pagination is safe here even though the
+    // increment below bumps updatedAt (and so keeps rows in the cohort),
+    // because the cursor only ever moves forward: no id is visited twice.
+    let lastId = 0;
+
+    for (;;) {
+      const dailyRewardQuery = this.userModel
+        .createQueryBuilder('user')
+        .select(['user.id'])
+        .where('user.updatedAt >= :todayStart', { todayStart })
+        .andWhere('user.id > :lastId', { lastId })
+        .orderBy('user.id', 'ASC')
+        .take(DAILY_REWARD_USER_BATCH_SIZE);
+      if (typeof botId === 'number' && Number.isFinite(botId)) {
+        dailyRewardQuery.andWhere('user.id != :botId', { botId });
+      }
+      const usersToUpdate = await dailyRewardQuery.getMany();
+
+      const userIds = usersToUpdate.map((user) => user.id);
+      if (userIds.length === 0) {
+        return;
+      }
+      lastId = userIds[userIds.length - 1];
+
+      // Atomic increment (points = points + reward) in a single UPDATE so a
+      // concurrent points change between the SELECT and the write isn't
+      // clobbered — the previous per-user absolute SET used a stale snapshot.
+      await this.userModel.increment(
+        { id: In(userIds) },
+        'points',
+        dailyReward,
+      );
+
+      for (let i = 0; i < userIds.length; i += DAILY_REWARD_PUSH_BATCH_SIZE) {
+        const pushBatch = userIds.slice(i, i + DAILY_REWARD_PUSH_BATCH_SIZE);
+
+        await Promise.all(
+          pushBatch.map((id) =>
+            // One failing user must not abort the run: the reward is already
+            // committed and the remaining users still owe a push.
+            this.sendPushNotificationIfEnabled(
+              id,
+              UserNotificationTypeEnum.DAILY_REWARD,
+            ).catch((error) =>
+              console.error(
+                `❌ Daily reward push failed for user ${id}:`,
+                error?.message,
+              ),
+            ),
+          ),
+        );
+
+        if (i + DAILY_REWARD_PUSH_BATCH_SIZE < userIds.length) {
+          await sleep(DAILY_REWARD_BATCH_PAUSE_MS);
+        }
+      }
+
+      if (userIds.length < DAILY_REWARD_USER_BATCH_SIZE) {
+        return;
+      }
+      await sleep(DAILY_REWARD_BATCH_PAUSE_MS);
     }
-    const usersToUpdate = await dailyRewardQuery.getMany();
-
-    const userIds = usersToUpdate.map((user) => user.id);
-    if (userIds.length === 0) {
-      return;
-    }
-
-    // Atomic increment (points = points + reward) in a single UPDATE so a
-    // concurrent points change between the SELECT and the write isn't clobbered
-    // — the previous per-user absolute SET used a stale snapshot.
-    await this.userModel.increment({ id: In(userIds) }, 'points', dailyReward);
-
-    await Promise.all(
-      userIds.map((id) =>
-        this.sendPushNotificationIfEnabled(
-          id,
-          UserNotificationTypeEnum.DAILY_REWARD,
-        ),
-      ),
-    );
   }
 
   async unblockUserAccount(user_id: number) {
@@ -479,20 +540,23 @@ export class UserService {
       throw new NotFoundException('User not found');
     }
 
-    const preference = user.notificationPreferences.find(
+    const preference = user.notificationPreferences?.find(
       (pref) => pref.activityType === activityType,
     );
 
-    const isLikeNotification =
-      activityType === UserNotificationTypeEnum.LIKE_EARN ||
-      activityType === UserNotificationTypeEnum.LIKE_SPEND;
+    // A missing row means "never touched the toggle", not "opted out" — rows
+    // are only ever written by an explicit opt-in/opt-out, so requiring one
+    // kept LIKE_EARN dark for almost every account. An existing row still wins
+    // in both directions, so opt-outs are preserved.
+    const preferenceAllows =
+      !isPreferenceGatedNotification(activityType) ||
+      (preference
+        ? preference.enabled
+        : isNotificationEnabledByDefault(activityType));
 
     const { title, body } = getNotificationMessage(activityType);
 
-    if (
-      user.notificationsEnabled &&
-      (!isLikeNotification || (preference && preference.enabled))
-    ) {
+    if (user.notificationsEnabled && preferenceAllows) {
       const deviceTokens = await this.deviceTokenModel.find({
         where: { user: { id: userId } },
       });
@@ -684,10 +748,37 @@ export class UserService {
       );
     }
 
+    // The id check above only catches the literal self-referral. Registering a
+    // second account on the same mailbox (gmail dots, "+tag") is the cheapest
+    // way to mint a pair of bonuses, so compare the normalized addresses too.
+    if (
+      referral.user.email &&
+      user.email &&
+      normalizeEmailIdentity(referral.user.email) ===
+        normalizeEmailIdentity(user.email)
+    ) {
+      throw new BadRequestException('You can’t use your own referral code');
+    }
+
     const rewardPoints = await this.rewardService.getRewardPointsOrDefault(
       RewardTypeEnum.REFERRAL_REWARD,
       500,
     );
+
+    // Two independent brakes on farming: the referrer's daily/lifetime cap,
+    // and proof that the invited account is a real user. Neither blocks the
+    // invited user's own bonus — they did nothing wrong.
+    const withinCaps = await this.isReferrerWithinRewardCaps(referral.user.id);
+    const refereeHasGenerated =
+      withinCaps && (await this.hasCompletedMediaGeneration(userId));
+
+    const rewardState: ReferralRewardState = !withinCaps
+      ? REFERRAL_REWARD_STATES.CAPPED
+      : refereeHasGenerated
+        ? REFERRAL_REWARD_STATES.PAID
+        : REFERRAL_REWARD_STATES.PENDING;
+    const payReferrerNow = rewardState === REFERRAL_REWARD_STATES.PAID;
+    const now = new Date();
 
     // The checks above are a fast-fail; the authoritative guards are the two
     // conditional UPDATEs below. They atomically "claim" the code (usedById was
@@ -702,7 +793,12 @@ export class UserService {
         .getRepository(ReferralEntity)
         .createQueryBuilder()
         .update(ReferralEntity)
-        .set({ usedBy: { id: userId } })
+        .set({
+          usedBy: { id: userId },
+          usedAt: now,
+          referrerRewardState: rewardState,
+          referrerRewardedAt: payReferrerNow ? now : null,
+        })
         .where('id = :rid', { rid: referral.id })
         .andWhere('usedById IS NULL')
         .execute();
@@ -724,15 +820,97 @@ export class UserService {
       }
 
       await userRepo.increment({ id: userId }, 'points', rewardPoints);
-      await userRepo.increment(
-        { id: referral.user.id },
-        'points',
-        rewardPoints,
-      );
+      if (payReferrerNow) {
+        await userRepo.increment(
+          { id: referral.user.id },
+          'points',
+          rewardPoints,
+        );
+      }
     });
 
     await this.notificationGateway.emitProfileUpdate(user.id.toString());
-    await this.notificationGateway.emitProfileUpdate(referral.user.id.toString());
+    if (payReferrerNow) {
+      await this.notificationGateway.emitProfileUpdate(
+        referral.user.id.toString(),
+      );
+    }
+  }
+
+  /**
+   * Caps are read from runtime settings (DB overrides env overrides default)
+   * so a farm can be throttled without a deploy. A settings read that fails
+   * falls back to the defaults rather than blocking every redemption.
+   *
+   * Counted are the referrals that already consumed a reward slot — paid ones
+   * and those still waiting on the invited user. Capped ones are not counted,
+   * otherwise a referrer who once went over would stay capped forever.
+   */
+  private async isReferrerWithinRewardCaps(
+    referrerId: number,
+  ): Promise<boolean> {
+    let dailyCap: number = REFERRAL_REWARD_DEFAULTS.dailyCap;
+    let lifetimeCap: number = REFERRAL_REWARD_DEFAULTS.lifetimeCap;
+    try {
+      const [daily, lifetime] = await Promise.all([
+        this.providerRuntimeConfigService.getNumber(
+          REFERRAL_REWARD_SETTING_KEYS.dailyCap,
+          REFERRAL_REWARD_DEFAULTS.dailyCap,
+        ),
+        this.providerRuntimeConfigService.getNumber(
+          REFERRAL_REWARD_SETTING_KEYS.lifetimeCap,
+          REFERRAL_REWARD_DEFAULTS.lifetimeCap,
+        ),
+      ]);
+      dailyCap = daily ?? REFERRAL_REWARD_DEFAULTS.dailyCap;
+      lifetimeCap = lifetime ?? REFERRAL_REWARD_DEFAULTS.lifetimeCap;
+    } catch (error) {
+      console.warn(
+        '[useReferralCode] Failed to read referral caps, using defaults:',
+        error?.message ?? error,
+      );
+    }
+
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+
+    const counts = await this.referralRepository
+      .createQueryBuilder('referral')
+      .select('COUNT(*)', 'lifetimeCount')
+      .addSelect(
+        'SUM(CASE WHEN referral.usedAt >= :dayStart THEN 1 ELSE 0 END)',
+        'dailyCount',
+      )
+      .where('referral.userId = :referrerId', { referrerId })
+      .andWhere('referral.usedById IS NOT NULL')
+      // NULL state = redeemed before this policy shipped; those were paid.
+      .andWhere(
+        '(referral.referrerRewardState IS NULL OR referral.referrerRewardState IN (:...states))',
+        { states: REFERRAL_REWARDED_STATES },
+      )
+      .setParameter('dayStart', dayStart)
+      .getRawOne<{
+        lifetimeCount: string | number;
+        dailyCount: string | null;
+      }>();
+
+    const lifetimeCount = Number(counts?.lifetimeCount ?? 0);
+    const dailyCount = Number(counts?.dailyCount ?? 0);
+
+    return lifetimeCount < lifetimeCap && dailyCount < dailyCap;
+  }
+
+  /**
+   * Proof that an invited account is a user and not a signup: a finished
+   * generation always writes a media_generation_spent activity.
+   */
+  private async hasCompletedMediaGeneration(userId: number): Promise<boolean> {
+    return this.dataSource.getRepository(UserActivityEntity).exist({
+      where: {
+        user: { id: userId },
+        type: USER_ACTIVITY_TYPES.MEDIA_GENERATION_SPENT,
+      },
+    });
   }
   async logReferralActivity(dto: LogReferralActivityDto, userId: number) {
     const partnership = await this.partnerShipRepository.findOne({

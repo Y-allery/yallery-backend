@@ -254,7 +254,9 @@ export class ContestFlowService {
 
     for (let index = 0; index < posts.length; index += 1) {
       const post = posts[index];
-      post.isPublished = true;
+      // Contest generations are drafts like every other generation: the user
+      // publishes them explicitly (PostPublishService.publishPost), which is
+      // what promotes the submission to PUBLISHED and joins the contest.
       post.isSaved = true;
       post.contest = { id: contest.id } as ContestEntity;
       if (!post.tag && contest.tag) {
@@ -265,7 +267,7 @@ export class ContestFlowService {
       if (index === 0) {
         submission.postId = post.id;
         submission.completedAt = completedAt;
-        submission.status = ContestSubmissionStatus.PUBLISHED;
+        submission.status = ContestSubmissionStatus.GENERATED;
         submission.eligibilityStatus =
           ContestSubmissionEligibilityStatus.ELIGIBLE;
         await this.submissionRepository.save(submission);
@@ -279,16 +281,37 @@ export class ContestFlowService {
           completedAt,
           mediaKind: submission.mediaKind,
           aiSettingId: submission.aiSettingId,
-          status: ContestSubmissionStatus.PUBLISHED,
+          status: ContestSubmissionStatus.GENERATED,
           eligibilityStatus: ContestSubmissionEligibilityStatus.ELIGIBLE,
         });
         await this.submissionRepository.save(extraSubmission);
       }
     }
 
-    await this.addContestParticipant(contest.id, submission.userId);
-
     return savedPosts;
+  }
+
+  /**
+   * Promotes a generated draft into a real contest entry. Called from the
+   * explicit publish action; candidate selection only ever looks at PUBLISHED
+   * submissions, so nothing competes until the user opts in.
+   */
+  async markSubmissionPublishedForPost(
+    postId: number,
+    userId: number,
+  ): Promise<void> {
+    const submissions = await this.submissionRepository.find({
+      where: { postId, userId },
+    });
+    const publishedAt = new Date();
+    for (const submission of submissions) {
+      if (submission.status === ContestSubmissionStatus.PUBLISHED) {
+        continue;
+      }
+      submission.status = ContestSubmissionStatus.PUBLISHED;
+      submission.completedAt = submission.completedAt ?? publishedAt;
+      await this.submissionRepository.save(submission);
+    }
   }
 
   async getFlowMetadataByContestIds(

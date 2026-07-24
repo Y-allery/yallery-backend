@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, MoreThanOrEqual, Repository } from 'typeorm';
+import { LikeService } from 'src/modules/engagement/likes/like.service';
 import { ProviderRuntimeConfigService } from 'src/modules/provider-settings/provider-runtime-config.service';
 import { MediaGenerationEnqueueService } from 'src/modules/media-generation/application/enqueue/media-generation-enqueue.service';
 import {
@@ -62,6 +63,15 @@ export class ContentBotService {
   /** Rough per-item GPU cost (USD) for the digest estimate only. */
   private static readonly EST_COST_IMAGE = 0.006;
   private static readonly EST_COST_VIDEO = 0.1;
+  /**
+   * Hard ceiling on likes per tick. There is deliberately NO daily cap on how
+   * many users get liked, so this per-tick bound is the only thing standing
+   * between a mistyped setting and a burst of pushes + like transactions.
+   */
+  private static readonly LIKES_PER_TICK_MAX = 200;
+  /** Like rejections that just mean the candidate row went stale — not errors. */
+  private static readonly EXPECTED_LIKE_REJECTIONS =
+    /already liked|your own post|not found/i;
 
   constructor(
     @InjectRepository(ContentBotPlanEntity)
@@ -78,6 +88,7 @@ export class ContentBotService {
     private readonly enqueueService: MediaGenerationEnqueueService,
     private readonly telegramService: TelegramService,
     private readonly promptService: ContentBotPromptService,
+    private readonly likeService: LikeService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -137,6 +148,36 @@ export class ContentBotService {
       tgChatId,
       maxDailyItems,
     };
+  }
+
+  /** Knobs for the "bot likes other users' posts" tick (own kill-switch). */
+  async loadLikeConfig() {
+    const enabled = await this.providerRuntimeConfigService.getBoolean(
+      'CONTENT_BOT_LIKES_ENABLED',
+      false, // getBoolean's own fallback defaults to TRUE — must pass false.
+    );
+    const perTick = Math.min(
+      ContentBotService.LIKES_PER_TICK_MAX,
+      Math.max(
+        0,
+        Math.floor(
+          (await this.providerRuntimeConfigService.getNumber(
+            'CONTENT_BOT_LIKES_PER_TICK',
+            50,
+          )) ?? 50,
+        ),
+      ),
+    );
+    const maxPostAgeHours = Math.max(
+      1,
+      Math.floor(
+        (await this.providerRuntimeConfigService.getNumber(
+          'CONTENT_BOT_LIKE_MAX_POST_AGE_HOURS',
+          48,
+        )) ?? 48,
+      ),
+    );
+    return { enabled, perTick, maxPostAgeHours };
   }
 
   // ---------------------------------------------------------------------------
@@ -523,6 +564,163 @@ export class ContentBotService {
   }
 
   // ---------------------------------------------------------------------------
+  // Liking other users' posts (paced, real like path)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Likes up to `CONTENT_BOT_LIKES_PER_TICK` recent posts by other users, one
+   * like per post, going through LikeService.createLike — the exact path a real
+   * user's like takes, so points, activity rows and the queued push behave
+   * identically. Pacing is per tick, not per day: the owner wants every new user
+   * to eventually get engagement, so the batch size (not a daily cap) is what
+   * keeps pushes and DB writes smooth.
+   */
+  async likeRecentPosts(): Promise<{
+    liked: number;
+    skipped: number;
+    failed: number;
+    reason: string | null;
+  }> {
+    const empty = { liked: 0, skipped: 0, failed: 0 };
+    const cfg = await this.loadLikeConfig();
+    if (!cfg.enabled) return { ...empty, reason: 'likes disabled' };
+    if (cfg.perTick <= 0) return { ...empty, reason: 'per-tick budget is 0' };
+
+    const botId = await this.ensureBotUser(); // also tops the bot's points up
+    await this.silenceBotPush(botId);
+
+    const since = await this.likeWindowStart(cfg.maxPostAgeHours);
+    const candidates = await this.findLikeCandidates(botId, since, cfg.perTick);
+    if (candidates.length === 0) return { ...empty, reason: 'no candidates' };
+
+    let liked = 0;
+    let skipped = 0;
+    let failed = 0;
+    let reason: string | null = null;
+
+    for (const postId of candidates) {
+      try {
+        await this.likeService.createLike({ postId }, botId);
+        liked++;
+      } catch (error) {
+        const message = this.msg(error);
+        if (/enough points/i.test(message)) {
+          // Every remaining candidate would fail the same way; stop and make the
+          // solvency problem loud instead of logging it 50 times.
+          reason = 'bot out of points';
+          this.logger.error(
+            `like tick aborted: bot ${botId} has insufficient points`,
+          );
+          break;
+        }
+        // Matched on the message, not the exception type: createLike re-wraps
+        // even infrastructure errors as BadRequestException, so the type says
+        // nothing about whether this was a stale candidate or a real problem.
+        if (ContentBotService.EXPECTED_LIKE_REJECTIONS.test(message)) {
+          skipped++;
+          this.logger.warn(`like skipped (post ${postId}): ${message}`);
+        } else {
+          failed++;
+          this.logger.error(`like failed (post ${postId}): ${message}`);
+        }
+      }
+    }
+
+    return { liked, skipped, failed, reason };
+  }
+
+  /**
+   * Published, visible posts by other users that the bot has not liked yet.
+   * The anti-join against the UNIQUE(userId, postId) likes index is what makes
+   * "exactly one like per post" cheap; the ordering prefers authors who got the
+   * fewest bot likes inside the same window, so a handful of prolific posters
+   * cannot absorb every tick.
+   */
+  private async findLikeCandidates(
+    botId: number,
+    since: Date,
+    limit: number,
+  ): Promise<number[]> {
+    // `limit` is already floored/clamped in loadLikeConfig; inlined because the
+    // driver does not bind LIMIT placeholders.
+    const rows: Array<{ postId: number }> = await this.postRepository.query(
+      `SELECT p.id AS postId
+         FROM posts p
+         LEFT JOIN likes bot_like
+           ON bot_like.postId = p.id AND bot_like.userId = ?
+         LEFT JOIN (
+           SELECT liked.userId AS authorId, COUNT(*) AS botLikes
+             FROM likes l
+             INNER JOIN posts liked ON liked.id = l.postId
+            WHERE l.userId = ? AND l.createdAt >= ?
+            GROUP BY liked.userId
+         ) spread ON spread.authorId = p.userId
+        WHERE p.isPublished = 1
+          AND p.isBlocked = 0
+          AND p.isRejected = 0
+          AND p.userId <> ?
+          AND p.createdAt >= ?
+          AND bot_like.id IS NULL
+        ORDER BY COALESCE(spread.botLikes, 0) ASC, p.createdAt DESC
+        LIMIT ${limit}`,
+      [botId, botId, since, botId, since],
+    );
+    return rows.map((row) => Number(row.postId));
+  }
+
+  /**
+   * A LIKE_SPEND push to the bot itself has no reader, so it is suppressed at
+   * the recipient: with notificationsEnabled=false the queued fan-out returns
+   * before it touches device tokens or FCM. Done here rather than by changing
+   * the shared like/notification path, which this module does not own.
+   */
+  private async silenceBotPush(botId: number): Promise<void> {
+    const result = await this.userRepository.update(
+      { id: botId, notificationsEnabled: true },
+      { notificationsEnabled: false },
+    );
+    if (result.affected) {
+      this.logger.log(`silenced push notifications for bot user ${botId}`);
+    }
+  }
+
+  /** Lower bound for likeable posts: never older than the feature's own start. */
+  private async likeWindowStart(maxPostAgeHours: number): Promise<Date> {
+    const ageFloor = new Date(Date.now() - maxPostAgeHours * 3_600_000);
+    const startedAt = await this.ensureLikesStartAt();
+    return startedAt > ageFloor ? startedAt : ageFloor;
+  }
+
+  /**
+   * Stamped once, on the first like tick that runs. Without it, raising
+   * CONTENT_BOT_LIKE_MAX_POST_AGE_HOURS later would backfill likes (and pushes)
+   * across the whole post history in a single tick.
+   */
+  private async ensureLikesStartAt(): Promise<Date> {
+    const raw = await this.providerRuntimeConfigService.getString(
+      'CONTENT_BOT_LIKES_START_AT',
+    );
+    const stored = raw ? new Date(raw) : null;
+    if (stored && !Number.isNaN(stored.getTime())) return stored;
+
+    const now = new Date();
+    try {
+      await this.providerRuntimeConfigService.updateSetting(
+        'CONTENT_BOT_LIKES_START_AT',
+        { value: now.toISOString() },
+        null,
+      );
+    } catch (error) {
+      // A failed write only means the next tick stamps `now` again — the window
+      // can get narrower, never wider, so no backfill can slip through.
+      this.logger.warn(
+        `failed to persist CONTENT_BOT_LIKES_START_AT: ${this.msg(error)}`,
+      );
+    }
+    return now;
+  }
+
+  // ---------------------------------------------------------------------------
   // Telegram digest
   // ---------------------------------------------------------------------------
 
@@ -602,6 +800,7 @@ export class ContentBotService {
 
   async status() {
     const cfg = await this.loadConfig();
+    const likeCfg = await this.loadLikeConfig();
     const planDate = this.todayStr();
     const plans = await this.planRepository.find({ where: { planDate } });
     const byStatus = plans.reduce<Record<string, number>>((acc, p) => {
@@ -618,6 +817,7 @@ export class ContentBotService {
     }
     return {
       config: cfg,
+      likeConfig: likeCfg,
       planDate,
       total: plans.length,
       plan: byStatus,

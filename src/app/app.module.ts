@@ -22,7 +22,10 @@ import { BullBoardModule } from '@bull-board/nestjs';
 import { ExpressAdapter } from '@bull-board/express';
 import { PaymentModule } from 'src/modules/billing/payments/payment.module';
 import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
-import { APP_FILTER } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { areDevToolsEnabled } from 'src/core/config/environment';
+import { buildThrottlerOptions } from 'src/core/config/throttler.config';
 import { RewardModule } from 'src/modules/billing/rewards/reward.module';
 import { MemeModule } from 'src/modules/memes/meme.module';
 import { UserActivityModule } from 'src/modules/engagement/user-activity/user-activity.module';
@@ -32,6 +35,18 @@ import { ProviderSettingsModule } from 'src/modules/provider-settings/provider-s
 import { TranslationsModule } from 'src/modules/translations/translations.module';
 import { ContentBotModule } from 'src/modules/content-bot/content-bot.module';
 import { OpsBotModule } from 'src/modules/ops-bot/ops-bot.module';
+
+/**
+ * The @Module decorator below is evaluated while this file is imported — before
+ * Nest boots and therefore before ConfigModule copies .env into process.env. On
+ * the servers NODE_ENV lives in .env, so without this call the production gate
+ * would read `undefined` and quietly mount dev tooling in production. Loading
+ * twice is harmless: ConfigModule never overwrites variables that the real
+ * process environment already defines.
+ */
+void ConfigModule.forRoot();
+
+const DEV_TOOLS_ENABLED = areDevToolsEnabled();
 
 @Module({
   imports: [
@@ -52,10 +67,17 @@ import { OpsBotModule } from 'src/modules/ops-bot/ops-bot.module';
         },
       }),
     }),
-    BullBoardModule.forRoot({
-      route: '/queues',
-      adapter: ExpressAdapter,
-    }),
+    // Unauthenticated queue dashboard (inspect, retry and delete jobs) — dev
+    // tooling only, so it must not exist as a route in production.
+    ...(DEV_TOOLS_ENABLED
+      ? [
+          BullBoardModule.forRoot({
+            route: '/queues',
+            adapter: ExpressAdapter,
+          }),
+        ]
+      : []),
+    ThrottlerModule.forRoot(buildThrottlerOptions()),
     ConfigModule.forRoot({
       isGlobal: true,
       validate,
@@ -98,6 +120,10 @@ import { OpsBotModule } from 'src/modules/ops-bot/ops-bot.module';
     {
       provide: APP_FILTER,
       useClass: SentryGlobalFilter,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
     },
   ],
 })

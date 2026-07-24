@@ -2,7 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { NotificationPreferenceEntity } from './entity/notification.preferences.entity';
 import { In, Repository } from 'typeorm';
-import { UserNotificationTypeEnum } from './types/user-notification-type.enum';
+import {
+  UserNotificationTypeEnum,
+  isNotificationEnabledByDefault,
+} from './types/user-notification-type.enum';
 import { SupportedLocale } from 'src/modules/translations/translation.catalog';
 import { NOTIFICATION_PREFERENCE_COPY } from './notification-preference-copy';
 
@@ -51,10 +54,17 @@ export class NotificationService {
       NOTIFICATION_PREFERENCE_COPY[locale ?? 'en'] ??
       NOTIFICATION_PREFERENCE_COPY.en;
 
-    return types.map((type) => ({
-      key: type,
-      description: copy[type] ?? NOTIFICATION_PREFERENCE_COPY.en[type],
-      enabled: preferences.some((p) => p.activityType === type && p.enabled),
-    }));
+    return types.map((type) => {
+      // Same resolution the push gate uses: no row means the default, not off.
+      // Reporting a missing row as off would show the settings toggle dark
+      // while LIKE_EARN pushes were actually being delivered.
+      const stored = preferences.find((p) => p.activityType === type);
+
+      return {
+        key: type,
+        description: copy[type] ?? NOTIFICATION_PREFERENCE_COPY.en[type],
+        enabled: stored ? stored.enabled : isNotificationEnabledByDefault(type),
+      };
+    });
   }
 }
