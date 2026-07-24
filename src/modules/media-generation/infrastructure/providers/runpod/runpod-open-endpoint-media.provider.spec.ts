@@ -1,6 +1,7 @@
 import { BadGatewayException } from '@nestjs/common';
 import axios from 'axios';
 import * as sharp from 'sharp';
+import { KreaContentSafetyService } from 'src/modules/media-generation/application/content-safety/krea-content-safety.service';
 import { UploadService } from 'src/modules/uploads/upload.service';
 import { ProviderRuntimeConfigService } from 'src/modules/provider-settings/provider-runtime-config.service';
 import { RunpodEndpointResolver } from './runpod-endpoint.resolver';
@@ -12,7 +13,7 @@ import { RunpodTimeoutPolicyService } from './runpod-timeout-policy.service';
 
 jest.mock('axios');
 
-describe('RunpodOpenEndpointMediaProvider audio generation', () => {
+describe('RunpodOpenEndpointMediaProvider', () => {
   const mockedAxios = axios as jest.Mocked<typeof axios>;
 
   const createProvider = () => {
@@ -23,6 +24,7 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
       RUNPOD_P_VIDEO_ENDPOINT_ID: 'test-p-video-endpoint',
       RUNPOD_WAN22_ANIMATE_MEME_ENDPOINT_ID: 'test-wan-endpoint',
       RUNPOD_QWEN_IMAGE_EDIT_BAKED_ENDPOINT_ID: 'test-qwen-endpoint',
+      RUNPOD_KREA2_TURBO_ENDPOINT_ID: 'test-krea2-endpoint',
       RUNPOD_COMPLETED_OUTPUT_RETRY_COUNT: '0',
       RUNPOD_POLL_INTERVAL_MS: '0',
     };
@@ -44,6 +46,11 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
       })),
     } as unknown as UploadService;
 
+    const contentSafety = {
+      assertPromptAllowed: jest.fn(async () => undefined),
+      assertProviderImagesAllowed: jest.fn(async () => undefined),
+    } as unknown as KreaContentSafetyService;
+
     return {
       provider: new RunpodOpenEndpointMediaProvider(
         new RunpodMediaClient(providerRuntimeConfigService),
@@ -51,14 +58,90 @@ describe('RunpodOpenEndpointMediaProvider audio generation', () => {
         new RunpodOutputExtractor(),
         new RunpodPayloadBuilder(),
         new RunpodTimeoutPolicyService(providerRuntimeConfigService),
+        contentSafety,
         uploadService,
       ),
       uploadService,
+      contentSafety,
     };
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('moderates a Krea prompt before RunPod and provider URLs before permanent upload', async () => {
+    const { provider, uploadService, contentSafety } = createProvider();
+    mockedAxios.post.mockResolvedValueOnce({
+      data: {
+        id: 'krea-job-1',
+        status: 'COMPLETED',
+        output: {
+          images: [
+            {
+              url: 'https://private.runpod.test/generated.png?signature=abc',
+            },
+          ],
+        },
+      },
+    });
+
+    await provider.generatePromptImages({
+      aiService: 'krea2_turbo',
+      prompt: 'a friendly mascot in a forest',
+      width: 768,
+      height: 1344,
+      imageQuantity: 1,
+      orientation: 'vertical',
+    });
+
+    expect(contentSafety.assertPromptAllowed).toHaveBeenCalledWith(
+      'krea2_turbo',
+      'a friendly mascot in a forest',
+    );
+    expect(contentSafety.assertProviderImagesAllowed).toHaveBeenCalledWith(
+      'krea2_turbo',
+      ['https://private.runpod.test/generated.png?signature=abc'],
+    );
+    expect(
+      (contentSafety.assertPromptAllowed as jest.Mock).mock
+        .invocationCallOrder[0],
+    ).toBeLessThan(mockedAxios.post.mock.invocationCallOrder[0]);
+    expect(
+      (contentSafety.assertProviderImagesAllowed as jest.Mock).mock
+        .invocationCallOrder[0],
+    ).toBeLessThan(
+      (uploadService.uploadByUrl as jest.Mock).mock.invocationCallOrder[0],
+    );
+  });
+
+  it('does not permanently upload a Krea image when output moderation rejects it', async () => {
+    const { provider, uploadService, contentSafety } = createProvider();
+    mockedAxios.post.mockResolvedValueOnce({
+      data: {
+        id: 'krea-job-2',
+        status: 'COMPLETED',
+        output: {
+          images: [{ url: 'https://private.runpod.test/rejected.png' }],
+        },
+      },
+    });
+    (
+      contentSafety.assertProviderImagesAllowed as jest.Mock
+    ).mockRejectedValueOnce(new Error('content rejected'));
+
+    await expect(
+      provider.generatePromptImages({
+        aiService: 'krea2_turbo',
+        prompt: 'test',
+        width: 768,
+        height: 1344,
+        imageQuantity: 1,
+        orientation: 'vertical',
+      }),
+    ).rejects.toThrow('content rejected');
+
+    expect(uploadService.uploadByUrl).not.toHaveBeenCalled();
   });
 
   it('uploads RunPod base64 MP4 output through the upload service', async () => {

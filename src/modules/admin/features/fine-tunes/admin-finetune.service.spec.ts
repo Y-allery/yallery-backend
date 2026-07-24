@@ -29,11 +29,14 @@ describe('AdminFineTuneService', () => {
   const activeItem = (id: number, overrides = {}) => ({
     id,
     status: 'training',
-    modelFamily: 'sdxl',
-    baseModel: 'stabilityai/stable-diffusion-xl-base-1.0',
+    modelFamily: 'krea2',
+    baseModel: 'krea/Krea-2-Raw',
     runpodEndpointId: 'ep-1',
     runpodJobId: `job-${id}`,
     loraUrl: null,
+    loraSha256: null,
+    loraStep: null,
+    inferenceModel: null,
     errorMessage: null,
     rawOutput: null,
     ...overrides,
@@ -43,6 +46,16 @@ describe('AdminFineTuneService', () => {
     url: `https://cdn.test/${index}.png`,
     caption: `xoob_character scene ${index}`,
   }));
+  const validKreaOutput = {
+    loraUrl: 'https://cdn.test/xoob-krea2.safetensors',
+    loraSha256: 'a'.repeat(64),
+    loraStep: 1000,
+    inferenceModel: 'krea/Krea-2-Turbo',
+    modelFamily: 'krea2',
+    baseModel: 'krea/Krea-2-Raw',
+    status: 'ready',
+    validation: { status: 'passed' },
+  };
 
   describe('getFineTunes', () => {
     it('is a pure read: one find, no RunPod calls, no writes', async () => {
@@ -82,7 +95,7 @@ describe('AdminFineTuneService', () => {
       runpodClient.getJobStatus.mockResolvedValue({
         id: 'job',
         status: 'COMPLETED',
-        output: { loraUrl: 'https://lora' },
+        output: validKreaOutput,
       });
 
       await service.refreshActiveFineTunes();
@@ -93,7 +106,7 @@ describe('AdminFineTuneService', () => {
       expect(runpodClient.getJobStatus).toHaveBeenCalledTimes(2);
       expect(repository.save).toHaveBeenCalledTimes(2);
       expect(items[0].status).toBe('ready');
-      expect(items[0].loraUrl).toBe('https://lora');
+      expect(items[0].loraUrl).toBe(validKreaOutput.loraUrl);
     });
 
     it('continues the sweep when one refresh fails', async () => {
@@ -179,7 +192,7 @@ describe('AdminFineTuneService', () => {
       const result = await service.getFineTuneStatus(7);
 
       expect(runpodClient.getJobStatus).toHaveBeenCalledWith(
-        'sdxl',
+        'krea2',
         'ep-1',
         'job-7',
       );
@@ -199,9 +212,7 @@ describe('AdminFineTuneService', () => {
         id: 'job-8',
         status: 'COMPLETED',
         output: {
-          loraUrl: 'https://cdn.test/xoob-krea2.safetensors',
-          modelFamily: 'krea2',
-          baseModel: 'krea/Krea-2-Raw',
+          ...validKreaOutput,
         },
       });
 
@@ -214,6 +225,9 @@ describe('AdminFineTuneService', () => {
       );
       expect(result.status).toBe('ready');
       expect(result.loraUrl).toBe('https://cdn.test/xoob-krea2.safetensors');
+      expect(result.loraSha256).toBe('a'.repeat(64));
+      expect(result.loraStep).toBe(1000);
+      expect(result.inferenceModel).toBe('krea/Krea-2-Turbo');
       expect(result.errorMessage).toBeNull();
     });
 
@@ -240,6 +254,88 @@ describe('AdminFineTuneService', () => {
         'missing modelFamily compatibility metadata',
       );
     });
+
+    it.each([
+      [
+        'the worker reports ready_with_validation_error',
+        {
+          status: 'ready_with_validation_error',
+          validation: { status: 'passed' },
+        },
+        'RunPod Krea 2 validation failed',
+      ],
+      [
+        'validation reports failed',
+        {
+          status: 'ready',
+          validation: { status: 'failed', error: 'bad checkpoint' },
+        },
+        'bad checkpoint',
+      ],
+      [
+        'validation reports error',
+        {
+          status: 'ready',
+          validation: { status: 'error', error: 'validator crashed' },
+        },
+        'validator crashed',
+      ],
+      [
+        'the worker returns an explicit validationError',
+        {
+          status: 'ready',
+          validation: { status: 'passed' },
+          validationError: 'validation upload failed',
+        },
+        'validation upload failed',
+      ],
+    ])(
+      'quarantines a completed Krea 2 artifact when %s',
+      async (_description, validationOutput, expectedError) => {
+        const { service, repository, runpodClient } = createService();
+        const item = activeItem(10, {
+          modelFamily: 'krea2',
+          baseModel: 'krea/Krea-2-Raw',
+        });
+        repository.findOne.mockResolvedValue(item);
+        runpodClient.getJobStatus.mockResolvedValue({
+          id: 'job-10',
+          status: 'COMPLETED',
+          output: {
+            ...validKreaOutput,
+            ...validationOutput,
+          },
+        });
+
+        const result = await service.getFineTuneStatus(10);
+
+        expect(result.status).toBe('failed');
+        expect(result.loraUrl).toBeNull();
+        expect(result.errorMessage).toContain(expectedError);
+      },
+    );
+
+    it('quarantines a Krea 2 artifact without integrity metadata', async () => {
+      const { service, repository, runpodClient } = createService();
+      const item = activeItem(11);
+      repository.findOne.mockResolvedValue(item);
+      runpodClient.getJobStatus.mockResolvedValue({
+        id: 'job-11',
+        status: 'COMPLETED',
+        output: {
+          loraUrl: 'https://cdn.test/unverified.safetensors',
+          modelFamily: 'krea2',
+          baseModel: 'krea/Krea-2-Raw',
+          inferenceModel: 'krea/Krea-2-Turbo',
+        },
+      });
+
+      const result = await service.getFineTuneStatus(11);
+
+      expect(result.status).toBe('failed');
+      expect(result.loraUrl).toBeNull();
+      expect(result.errorMessage).toContain('loraSha256');
+    });
   });
 
   describe('createFineTune', () => {
@@ -256,40 +352,42 @@ describe('AdminFineTuneService', () => {
       });
     };
 
-    it('keeps legacy requests on SDXL with the existing defaults and URL payload', async () => {
+    it('defaults omitted modelFamily to the production Krea 2 recipe', async () => {
       const deps = createService();
       configureCreationMocks(deps);
 
       const result = await deps.service.createFineTune({
-        name: 'XOOB legacy',
+        name: 'XOOB default',
         triggerWord: 'xoob_character',
         datasetImages,
       });
 
-      expect(deps.runpodClient.getEndpointId).toHaveBeenCalledWith('sdxl');
+      expect(deps.runpodClient.getEndpointId).toHaveBeenCalledWith('krea2');
       expect(deps.repository.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          modelFamily: 'sdxl',
-          baseModel: 'stabilityai/stable-diffusion-xl-base-1.0',
+          modelFamily: 'krea2',
+          baseModel: 'krea/Krea-2-Raw',
           trainingSettings: {
-            resolution: 512,
-            maxTrainSteps: 800,
-            rank: 4,
+            resolution: 1024,
+            maxTrainSteps: 1200,
+            rank: 16,
             trainBatchSize: 1,
-            gradientAccumulationSteps: 4,
-            learningRate: '1e-4',
-            mixedPrecision: 'fp16',
-            seed: 42,
+            gradientAccumulationSteps: 1,
+            learningRate: '3e-4',
+            mixedPrecision: 'bf16',
+            seed: 0,
             enableRandomFlip: false,
           },
+          generationDefaults: { loraScale: 0.9 },
         }),
       );
       expect(deps.runpodClient.submitJob).toHaveBeenCalledWith(
-        'sdxl',
+        'krea2',
         expect.objectContaining({
-          modelFamily: 'sdxl',
-          datasetImages: datasetImages.map((image) => image.url),
-          captionMode: 'template',
+          modelFamily: 'krea2',
+          datasetImages,
+          captionMode: 'per_image',
+          defaultLoraScale: 0.9,
         }),
       );
       expect(result.status).toBe('queued');
@@ -304,6 +402,9 @@ describe('AdminFineTuneService', () => {
         triggerWord: 'xoob_character',
         modelFamily: 'krea2',
         datasetImages,
+        generationDefaults: {
+          loraScale: 0.9,
+        },
       });
 
       expect(deps.runpodClient.getEndpointId).toHaveBeenCalledWith('krea2');
@@ -313,14 +414,17 @@ describe('AdminFineTuneService', () => {
           baseModel: 'krea/Krea-2-Raw',
           trainingSettings: {
             resolution: 1024,
-            maxTrainSteps: 1000,
-            rank: 32,
+            maxTrainSteps: 1200,
+            rank: 16,
             trainBatchSize: 1,
             gradientAccumulationSteps: 1,
             learningRate: '3e-4',
             mixedPrecision: 'bf16',
             seed: 0,
             enableRandomFlip: false,
+          },
+          generationDefaults: {
+            loraScale: 0.9,
           },
         }),
       );
@@ -337,15 +441,16 @@ describe('AdminFineTuneService', () => {
         })),
         captionMode: 'per_image',
         resolution: 1024,
-        maxTrainSteps: 1000,
-        rank: 32,
+        maxTrainSteps: 1200,
+        rank: 16,
         trainBatchSize: 1,
         gradientAccumulationSteps: 1,
         learningRate: '3e-4',
         mixedPrecision: 'bf16',
         seed: 0,
         enableRandomFlip: false,
-        loraScale: 0.8,
+        defaultLoraScale: 0.9,
+        loraScale: 0.9,
       });
     });
 

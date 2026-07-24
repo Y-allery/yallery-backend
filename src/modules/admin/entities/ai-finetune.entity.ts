@@ -8,14 +8,13 @@ export type AIFinetuneStatus =
   | 'ready'
   | 'failed';
 
-export const AI_FINETUNE_MODEL_FAMILIES = ['sdxl', 'krea2'] as const;
+export const AI_FINETUNE_MODEL_FAMILIES = ['krea2'] as const;
 export type AIFinetuneModelFamily = (typeof AI_FINETUNE_MODEL_FAMILIES)[number];
 
 export const AI_FINETUNE_DEFAULT_BASE_MODELS: Record<
   AIFinetuneModelFamily,
   string
 > = {
-  sdxl: 'stabilityai/stable-diffusion-xl-base-1.0',
   krea2: 'krea/Krea-2-Raw',
 };
 
@@ -62,13 +61,13 @@ export class AIFinetuneEntity extends TimeStampEntity {
   @Column({ type: 'varchar', length: 80, default: 'character' })
   className: string;
 
-  @Column({ type: 'varchar', length: 32, default: 'sdxl' })
+  @Column({ type: 'varchar', length: 32, default: 'krea2' })
   modelFamily: AIFinetuneModelFamily;
 
   @Column({
     type: 'varchar',
     length: 255,
-    default: AI_FINETUNE_DEFAULT_BASE_MODELS.sdxl,
+    default: AI_FINETUNE_DEFAULT_BASE_MODELS.krea2,
   })
   baseModel: string;
 
@@ -95,6 +94,15 @@ export class AIFinetuneEntity extends TimeStampEntity {
 
   @Column({ type: 'text', nullable: true })
   loraUrl: string | null;
+
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  loraSha256: string | null;
+
+  @Column({ type: 'int', nullable: true })
+  loraStep: number | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  inferenceModel: string | null;
 
   @Column({ type: 'text', nullable: true })
   errorMessage: string | null;

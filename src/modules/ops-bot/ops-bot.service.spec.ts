@@ -432,8 +432,14 @@ describe('OpsBotService', () => {
         telegram as any,
       );
 
-      await service.notifyRunpodFailure({ aiService: 'sdxl', message: 'x' });
-      await service.notifyRunpodFailure({ aiService: 'sdxl', message: 'y' });
+      await service.notifyRunpodFailure({
+        aiService: 'krea2_turbo',
+        message: 'x',
+      });
+      await service.notifyRunpodFailure({
+        aiService: 'krea2_turbo',
+        message: 'y',
+      });
 
       expect(telegram.sendMessage).not.toHaveBeenCalled();
     });

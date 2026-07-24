@@ -22,8 +22,8 @@ const createService = (defaultStyleId: string | null) =>
     {
       find: jest.fn().mockResolvedValue([
         {
-          aiService: 'sdxl',
-          name: 'SDXL',
+          aiService: 'krea2_turbo',
+          name: 'Krea 2 Turbo',
           capability: 'image_generate',
           cost: 50,
           isActive: true,

@@ -7,13 +7,17 @@ import { ContestRewardEntity } from './entity/contest-reward.entity';
 import { ContestWinnerCandidateEntity } from './entity/contest-winner-candidate.entity';
 import {
   ContestLifecycleStatus,
+  ContestReviewActionType,
   ContestReviewStatus,
   ContestRewardStatus,
   ContestSubmissionEligibilityStatus,
   ContestWinnerCandidateReviewStatus,
   ContestWinnerCandidateSource,
 } from './types/contest-flow.enums';
-import { ContestTypeEnum } from './types/contest.status.enum';
+import {
+  ContestStatusEnum,
+  ContestTypeEnum,
+} from './types/contest.status.enum';
 
 describe('ContestFlowService review status updates', () => {
   function createService(overrides: Partial<Record<string, any>> = {}) {
@@ -248,6 +252,170 @@ describe('ContestFlowService review status updates', () => {
     expect(userRepository.increment).not.toHaveBeenCalled();
     expect(userRepository.save).not.toHaveBeenCalled();
     expect(rewardRepository.save).not.toHaveBeenCalled();
+  });
+
+  describe('markNoWinner', () => {
+    function createTransactionalNoWinnerService() {
+      const contest = {
+        id: 8,
+        status: ContestStatusEnum.PENDING_REVIEW,
+        isApproved: false,
+        winner: { id: 6 },
+        postWinner: { id: 101 },
+      };
+      const metadata = {
+        contestId: 8,
+        lifecycleStatus: ContestLifecycleStatus.REVIEWING,
+        reviewStatus: ContestReviewStatus.CANDIDATES_READY,
+      };
+      let noWinnerAction: Record<string, unknown> | null = null;
+
+      const contestRepository = {
+        findOne: jest.fn(async () => contest),
+        update: jest.fn(async (_id, patch) => Object.assign(contest, patch)),
+      };
+      const metadataRepository = {
+        findOne: jest.fn(async () => metadata),
+        update: jest.fn(async (_where, patch) =>
+          Object.assign(metadata, patch),
+        ),
+      };
+      const actionRepository = {
+        findOne: jest.fn(async () => noWinnerAction),
+        create: jest.fn((value) => value),
+        save: jest.fn(async (value) => {
+          noWinnerAction = value;
+          return value;
+        }),
+      };
+      const manager = {
+        getRepository: jest.fn((entity) => {
+          const repositories = new Map<any, any>([
+            [ContestEntity, contestRepository],
+            [ContestFlowMetadataEntity, metadataRepository],
+            [ContestReviewActionEntity, actionRepository],
+          ]);
+          return repositories.get(entity);
+        }),
+      };
+      const dataSource = {
+        transaction: jest.fn(async (callback) => {
+          const contestSnapshot = { ...contest };
+          const metadataSnapshot = { ...metadata };
+          const actionSnapshot = noWinnerAction;
+
+          try {
+            return await callback(manager);
+          } catch (error) {
+            Object.assign(contest, contestSnapshot);
+            Object.assign(metadata, metadataSnapshot);
+            noWinnerAction = actionSnapshot;
+            throw error;
+          }
+        }),
+      };
+      const created = createService({ dataSource });
+
+      return {
+        ...created,
+        contest,
+        metadata,
+        contestRepository,
+        metadataRepository,
+        actionRepository,
+        dataSource,
+        getNoWinnerAction: () => noWinnerAction,
+      };
+    }
+
+    it('atomically closes the contest, updates metadata, and records one action', async () => {
+      const {
+        service,
+        contest,
+        metadata,
+        contestRepository,
+        metadataRepository,
+        actionRepository,
+        dataSource,
+        repositories,
+      } = createTransactionalNoWinnerService();
+
+      await service.markNoWinner(8, 125, 'No eligible candidate');
+
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+      expect(contestRepository.findOne).toHaveBeenCalledWith({
+        where: { id: 8 },
+        lock: { mode: 'pessimistic_write' },
+      });
+      expect(metadataRepository.findOne).toHaveBeenCalledWith({
+        where: { contestId: 8 },
+        lock: { mode: 'pessimistic_write' },
+      });
+      expect(contest).toMatchObject({
+        status: ContestStatusEnum.CLOSED,
+        isApproved: true,
+        winner: null,
+        postWinner: null,
+      });
+      expect(metadata).toMatchObject({
+        lifecycleStatus: ContestLifecycleStatus.COMPLETED,
+        reviewStatus: ContestReviewStatus.NO_WINNER,
+      });
+      expect(actionRepository.save).toHaveBeenCalledWith({
+        contestId: 8,
+        candidateId: null,
+        adminUserId: 125,
+        actionType: ContestReviewActionType.NO_WINNER,
+        reason: 'No eligible candidate',
+        metadata: null,
+      });
+      expect(repositories.contestRepository.update).not.toHaveBeenCalled();
+      expect(repositories.flowMetadataRepository.update).not.toHaveBeenCalled();
+      expect(repositories.reviewActionRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('does not create a duplicate action when the same POST is retried', async () => {
+      const { service, actionRepository, dataSource } =
+        createTransactionalNoWinnerService();
+
+      await service.markNoWinner(8, 125, 'No eligible candidate');
+      await service.markNoWinner(8, 125, 'No eligible candidate');
+
+      expect(dataSource.transaction).toHaveBeenCalledTimes(2);
+      expect(actionRepository.findOne).toHaveBeenCalledTimes(2);
+      expect(actionRepository.save).toHaveBeenCalledTimes(1);
+    });
+
+    it('rolls the whole transition back when recording the action fails', async () => {
+      const {
+        service,
+        contest,
+        metadata,
+        actionRepository,
+        dataSource,
+        getNoWinnerAction,
+      } = createTransactionalNoWinnerService();
+      actionRepository.save.mockRejectedValueOnce(new Error('write failed'));
+
+      await expect(
+        service.markNoWinner(8, 125, 'No eligible candidate'),
+      ).rejects.toThrow('write failed');
+
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+      expect(contest).toEqual({
+        id: 8,
+        status: ContestStatusEnum.PENDING_REVIEW,
+        isApproved: false,
+        winner: { id: 6 },
+        postWinner: { id: 101 },
+      });
+      expect(metadata).toEqual({
+        contestId: 8,
+        lifecycleStatus: ContestLifecycleStatus.REVIEWING,
+        reviewStatus: ContestReviewStatus.CANDIDATES_READY,
+      });
+      expect(getNoWinnerAction()).toBeNull();
+    });
   });
 
   describe('getContestSummaries', () => {

@@ -27,7 +27,8 @@ export class CreateStyleDto {
   @ApiPropertyOptional({
     example:
       'dark gothic illustration, dramatic chiaroscuro lighting, ornate detail, muted desaturated palette',
-    description: 'Core positive style descriptor woven into every model prompt.',
+    description:
+      'Core positive style descriptor woven into every model prompt.',
   })
   @IsOptional()
   @IsString()
@@ -43,7 +44,7 @@ export class CreateStyleDto {
 
   @ApiPropertyOptional({
     example: ['gothic', 'dark fantasy', 'ornate'],
-    description: 'Tag tokens used by tag/weighted models (SDXL).',
+    description: 'Visual-style tokens used by image generation models.',
     type: [String],
   })
   @IsOptional()
@@ -53,7 +54,7 @@ export class CreateStyleDto {
 
   @ApiPropertyOptional({
     description:
-      'Per-aiService overrides, e.g. { "sdxl": { "keywords": ["gothic"] }, "flux2_klein": { "positive": "..." } }.',
+      'Per-aiService overrides, e.g. { "krea2_turbo": { "keywords": ["gothic"] }, "flux2_klein": { "positive": "..." } }.',
   })
   @IsOptional()
   @IsObject()
@@ -62,12 +63,18 @@ export class CreateStyleDto {
     { positive?: string; negative?: string; keywords?: string[] }
   >;
 
-  @ApiPropertyOptional({ example: 7, description: 'Recommended CFG (clamped per model).' })
+  @ApiPropertyOptional({
+    example: 7,
+    description: 'Recommended CFG (clamped per model).',
+  })
   @IsOptional()
   @IsNumber()
   recommendedCfg?: number;
 
-  @ApiPropertyOptional({ example: 30, description: 'Recommended steps (clamped per model).' })
+  @ApiPropertyOptional({
+    example: 30,
+    description: 'Recommended steps (clamped per model).',
+  })
   @IsOptional()
   @IsNumber()
   recommendedSteps?: number;

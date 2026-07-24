@@ -56,7 +56,7 @@ export class AdminFineTunesController {
   @ApiOperation({
     summary: 'Create a model-aware LoRA fine-tune job',
     description:
-      'Stores the dataset metadata, validates model-family compatibility, generates or validates a unique LoRA key, and queues the matching RunPod trainer worker. Requests without modelFamily remain SDXL.',
+      'Stores the dataset metadata, validates Krea 2 compatibility, generates or validates a unique LoRA key, and queues the Krea-2-Raw RunPod trainer worker.',
   })
   async createFineTune(@Body() dto: CreateAIFinetuneDto) {
     return this.adminFineTuneService.createFineTune(dto);

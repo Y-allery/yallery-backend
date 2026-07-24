@@ -21,36 +21,82 @@ describe('RunpodPayloadBuilder', () => {
     });
   });
 
-  it('requires LoRA settings for SDXL LoRA generation', () => {
+  it('requires a validated Krea 2 Turbo LoRA artifact', () => {
     expect(() =>
       builder.buildPromptImageInput({
-        aiService: 'sdxl_lora_generation',
+        aiService: 'krea2_lora_generation',
         prompt: 'portrait',
         width: 1024,
         height: 1024,
         imageQuantity: 1,
       } as any),
-    ).toThrow('sdxl_lora_generation requires loraUrl');
+    ).toThrow('Krea 2 Turbo-compatible LoRA artifact');
   });
 
-  it('builds SDXL prompt image payload with raw prompt + style (worker owns steps/cfg)', () => {
+  it('builds fixed-recipe plain Krea 2 Turbo payload with structured style', () => {
     expect(
       builder.buildPromptImageInput({
-        aiService: 'sdxl',
+        aiService: 'krea2_turbo',
         prompt: 'cinematic portrait',
+        style: {
+          name: 'Anime',
+          positive: 'clean cel shading',
+          negative: null,
+          keywords: ['bold line art'],
+        },
         width: 1024,
         height: 1024,
         imageQuantity: 2,
       } as any),
     ).toEqual({
       prompt: 'cinematic portrait',
-      style: undefined,
+      style: {
+        name: 'Anime',
+        positive: 'clean cel shading',
+        negative: null,
+        keywords: ['bold line art'],
+      },
       width: 1024,
       height: 1024,
-      num_images: 2,
-      output_format: 'png',
-      return_base64: true,
-      return_data_uri: true,
+      numImages: 2,
+      numInferenceSteps: 8,
+      guidanceScale: 0,
+      mu: 1.15,
+      outputFormat: 'png',
+      upload: true,
+      returnBase64: false,
+    });
+  });
+
+  it('builds fixed-recipe Krea 2 LoRA payload with integrity metadata', () => {
+    expect(
+      builder.buildPromptImageInput({
+        aiService: 'krea2_lora_generation',
+        prompt: 'xoob_character exploring a forest',
+        width: 768,
+        height: 1344,
+        imageQuantity: 1,
+        providerSettings: {
+          triggerWord: 'xoob_character',
+          loraUrl: 'https://cdn.test/xoob.safetensors',
+          loraKey: 'xoob-krea2',
+          loraScale: 0.9,
+          loraSha256: 'a'.repeat(64),
+          loraStep: 1000,
+          inferenceModel: 'krea/Krea-2-Turbo',
+        },
+      } as any),
+    ).toMatchObject({
+      triggerWord: 'xoob_character',
+      loraKey: 'xoob-krea2',
+      loraScale: 0.9,
+      loraSha256: 'a'.repeat(64),
+      loraStep: 1000,
+      numInferenceSteps: 8,
+      guidanceScale: 0,
+      mu: 1.15,
+      upload: true,
+      returnBase64: false,
     });
   });
 

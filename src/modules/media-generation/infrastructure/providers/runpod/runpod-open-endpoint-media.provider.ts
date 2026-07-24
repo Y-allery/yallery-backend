@@ -16,6 +16,7 @@ import { TextVideoGenerationRequest } from 'src/modules/media-generation/domain/
 import { VideoGenerationResult } from 'src/modules/media-generation/domain/contracts/video-generation-result.contract';
 import { MediaCapability } from 'src/modules/media-generation/domain/enums/media-capability.enum';
 import { MediaProvider } from 'src/modules/media-generation/domain/enums/media-provider.enum';
+import { KreaContentSafetyService } from 'src/modules/media-generation/application/content-safety/krea-content-safety.service';
 import * as sharp from 'sharp';
 import {
   getVideoOutputPreset,
@@ -40,6 +41,7 @@ export class RunpodOpenEndpointMediaProvider
     private readonly extractor: RunpodOutputExtractor,
     private readonly payloadBuilder: RunpodPayloadBuilder,
     private readonly timeoutPolicy: RunpodTimeoutPolicyService,
+    private readonly contentSafety: KreaContentSafetyService,
     private readonly uploadService: UploadService,
   ) {}
 
@@ -54,6 +56,10 @@ export class RunpodOpenEndpointMediaProvider
   async generatePromptImages(
     request: ResolvedPromptImageGenerationRequest,
   ): Promise<PromptImageGenerationResult> {
+    await this.contentSafety.assertPromptAllowed(
+      request.aiService,
+      request.prompt,
+    );
     const endpointId =
       await this.endpoints.getEndpointIdForPromptImageRequest(request);
     // Per-route API key: selected image routes can live on the second RunPod account.
@@ -80,6 +86,10 @@ export class RunpodOpenEndpointMediaProvider
     );
     const providerImageSources = this.extractor.extractImageSources(
       completedJob.output,
+    );
+    await this.contentSafety.assertProviderImagesAllowed(
+      request.aiService,
+      providerImageSources,
     );
     const uploadedImageUrls = await Promise.all(
       providerImageSources.map(async (imageSource) => {

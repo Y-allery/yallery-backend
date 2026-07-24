@@ -57,43 +57,52 @@ export class RunpodPayloadBuilder {
           return_base64: true,
           return_data_uri: true,
         };
-      case 'sdxl':
+      case 'krea2_turbo':
         return {
           prompt,
           style,
           width: request.width,
           height: request.height,
-          num_images: request.imageQuantity,
-          output_format: 'png',
-          return_base64: true,
-          return_data_uri: true,
+          numImages: request.imageQuantity,
+          numInferenceSteps: 8,
+          guidanceScale: 0,
+          mu: 1.15,
+          outputFormat: 'png',
+          upload: true,
+          returnBase64: false,
         };
-      case 'sdxl_lora_generation':
+      case 'krea2_lora_generation':
         if (
           !request.providerSettings?.loraUrl ||
           !request.providerSettings?.loraKey ||
-          !request.providerSettings?.triggerWord
+          !request.providerSettings?.triggerWord ||
+          !request.providerSettings?.loraSha256 ||
+          !request.providerSettings?.loraStep ||
+          request.providerSettings?.inferenceModel !== 'krea/Krea-2-Turbo'
         ) {
           throw new Error(
-            'sdxl_lora_generation requires loraUrl, loraKey and triggerWord provider settings',
+            'krea2_lora_generation requires a Krea 2 Turbo-compatible LoRA artifact',
           );
         }
 
         return {
           prompt,
+          style,
           triggerWord: request.providerSettings.triggerWord,
           loraUrl: request.providerSettings.loraUrl,
           loraKey: request.providerSettings.loraKey,
-          loraScale: request.providerSettings.loraScale ?? 0.8,
+          loraScale: request.providerSettings.loraScale ?? 0.9,
+          loraSha256: request.providerSettings.loraSha256,
+          loraStep: request.providerSettings.loraStep,
           width: request.width,
           height: request.height,
           numImages: request.imageQuantity,
-          negativePrompt: '',
-          numInferenceSteps: 25,
-          guidanceScale: 7,
+          numInferenceSteps: 8,
+          guidanceScale: 0,
+          mu: 1.15,
           outputFormat: 'png',
-          returnBase64: true,
-          returnDataUri: true,
+          upload: true,
+          returnBase64: false,
         };
       default:
         throw new Error(

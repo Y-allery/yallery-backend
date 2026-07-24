@@ -66,10 +66,10 @@ describe('MediaGenerationPricingService', () => {
     );
 
     await expect(
-      service.assertPromptImageQuantity('sdxl', 5),
+      service.assertPromptImageQuantity('krea2_turbo', 5),
     ).resolves.toBeUndefined();
     await expect(
-      service.assertPromptImageQuantity('sdxl', 6),
+      service.assertPromptImageQuantity('krea2_turbo', 6),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

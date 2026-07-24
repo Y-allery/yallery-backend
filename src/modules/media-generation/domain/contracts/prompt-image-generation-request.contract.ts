@@ -28,6 +28,9 @@ export interface PromptImageGenerationRequest {
     loraKey?: string;
     loraScale?: number;
     loraUrl?: string;
+    loraSha256?: string;
+    loraStep?: number;
+    inferenceModel?: string;
     triggerWord?: string;
     contestType?: ContestTypeEnum;
   } | null;

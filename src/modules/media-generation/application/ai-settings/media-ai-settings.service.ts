@@ -29,7 +29,7 @@ import { MediaGenerationPricingService } from 'src/modules/media-generation/appl
 @Injectable()
 export class MediaAISettingsService {
   /** Fallback when DEFAULT_PROMPT_IMAGE_AI_SERVICE is not configured. */
-  private readonly defaultPromptImageAiService = 'sdxl';
+  private readonly defaultPromptImageAiService = 'z_image_turbo';
 
   private async resolveDefaultPromptImageAiService(): Promise<string> {
     return (
@@ -66,7 +66,7 @@ export class MediaAISettingsService {
           capability: 'image_generate',
           aiService: In([
             'flux2_klein',
-            'sdxl',
+            'krea2_turbo',
             'qwen_image',
             // 2026-07-24 t2i battery candidates C/D. Their media_ai_settings rows are
             // inserted with isActive=false, so adding them here has no effect until an
@@ -132,7 +132,7 @@ export class MediaAISettingsService {
       this.mediaAISettingsRepository.find({
         where: {
           capability: 'image_generate',
-          aiService: 'sdxl_lora_generation',
+          aiService: 'krea2_lora_generation',
           isActive: true,
         },
         order: {

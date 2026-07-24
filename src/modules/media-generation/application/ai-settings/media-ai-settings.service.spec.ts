@@ -34,7 +34,7 @@ describe('MediaAISettingsService', () => {
     );
   };
 
-  it('uses SDXL as the default prompt image model', async () => {
+  it('keeps Z-Image as the default while exposing Krea 2 as the SDXL replacement', async () => {
     const service = createService({
       mediaSettings: [
         {
@@ -48,8 +48,8 @@ describe('MediaAISettingsService', () => {
           },
         },
         {
-          aiService: 'sdxl',
-          name: 'SDXL',
+          aiService: 'krea2_turbo',
+          name: 'Krea 2 Turbo',
           cost: 50,
           description: 'Standard image generation',
           settings: {
@@ -57,23 +57,33 @@ describe('MediaAISettingsService', () => {
             maxImages: 5,
           },
         },
+        {
+          aiService: 'z_image_turbo',
+          name: 'Z-Image Turbo',
+          cost: 50,
+          description: 'Platform default image generation',
+          settings: {
+            minImages: 1,
+            maxImages: 4,
+          },
+        },
       ],
     });
 
     await expect(service.getPromptImageAISettings()).resolves.toMatchObject({
       defaultSettings: {
-        defaultAI: 'sdxl',
+        defaultAI: 'z_image_turbo',
         defaultOrientations: 'horizontal',
       },
     });
   });
 
-  it('returns only SDXL LoRA generation settings for fine-tune prompt images', async () => {
+  it('returns only Krea 2 LoRA generation settings for fine-tune prompt images', async () => {
     const service = createService({
       mediaSettings: [
         {
-          aiService: 'sdxl_lora_generation',
-          name: 'SDXL LoRA Generation',
+          aiService: 'krea2_lora_generation',
+          name: 'Krea 2 LoRA Generation',
           cost: 20,
           description: 'Fine-tune contest image generation',
           settings: {
@@ -89,13 +99,13 @@ describe('MediaAISettingsService', () => {
 
     await expect(service.getFineTunePromptImageAISettings()).resolves.toEqual({
       defaultSettings: {
-        defaultAI: 'sdxl_lora_generation',
+        defaultAI: 'krea2_lora_generation',
         defaultOrientations: 'horizontal',
         defaultStyleId: 2,
       },
       aiSettings: [
         expect.objectContaining({
-          aiService: 'sdxl_lora_generation',
+          aiService: 'krea2_lora_generation',
           minImages: 1,
           maxImages: 1,
           maxPromptLength: 300,
