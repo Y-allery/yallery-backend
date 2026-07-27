@@ -100,6 +100,8 @@ export type CascadeI2vSubmission =
 export type CascadeI2vStatus =
   | { status: 'pending' }
   | { status: 'completed' }
+  /** COMPLETED on the provider, but the video is not readable back yet. */
+  | { status: 'output_missing' }
   | {
       status: 'failed';
       reasonCode:

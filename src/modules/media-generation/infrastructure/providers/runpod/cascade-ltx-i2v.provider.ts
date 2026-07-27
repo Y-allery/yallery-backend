@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   CascadeLtxI2vRoute,
   CascadeI2vStatus,
@@ -42,6 +42,8 @@ export class CascadeLtxI2vProviderError extends Error {
  */
 @Injectable()
 export class CascadeLtxI2vProvider implements TextVideoI2vProviderPort {
+  private readonly logger = new Logger(CascadeLtxI2vProvider.name);
+
   constructor(
     private readonly client: RunpodMediaClient,
     private readonly extractor: RunpodOutputExtractor,
@@ -100,7 +102,14 @@ export class CascadeLtxI2vProvider implements TextVideoI2vProviderPort {
           assertStrictInlineMp4(this.extractor.extractVideoSource(job.output));
           return { status: 'completed' };
         } catch {
-          throw new CascadeLtxI2vProviderError('RUNPOD_OUTPUT_INVALID', false);
+          // RunPod reports COMPLETED before the output is always readable back,
+          // which showed up as ~20% dead generations whenever several cascade
+          // jobs finished at once. Report it instead of killing the workflow;
+          // the caller re-polls a bounded number of times first.
+          this.logger.warn(
+            `RunPod job ${jobId} is COMPLETED without a readable video | output: ${describeOutputShape(job.output)}`,
+          );
+          return { status: 'output_missing' };
         }
       case 'FAILED':
         return { status: 'failed', reasonCode: 'RUNPOD_JOB_FAILED' };
@@ -310,4 +319,34 @@ function assertSameStagedArtifact(
   ) {
     throw new Error('VIDEO_STAGE_INVARIANT_MISMATCH');
   }
+}
+
+/**
+ * Compact, non-sensitive description of a provider payload: keys and value
+ * shapes only, so a failure is diagnosable without dumping base64 or URLs.
+ */
+function describeOutputShape(output: unknown): string {
+  if (output === null || output === undefined) {
+    return String(output);
+  }
+  if (typeof output !== 'object') {
+    return typeof output;
+  }
+  if (Array.isArray(output)) {
+    return `array(${output.length})`;
+  }
+  return Object.entries(output as Record<string, unknown>)
+    .map(([key, value]) => {
+      if (typeof value === 'string') {
+        return `${key}:string(${value.length})`;
+      }
+      if (value === null || value === undefined) {
+        return `${key}:${String(value)}`;
+      }
+      if (Array.isArray(value)) {
+        return `${key}:array(${value.length})`;
+      }
+      return `${key}:${typeof value}`;
+    })
+    .join(', ');
 }

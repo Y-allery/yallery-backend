@@ -84,6 +84,9 @@ export class TextVideoPipelineClock {
   }
 }
 
+/** Consecutive COMPLETED-but-unreadable polls tolerated before failing. */
+const MAX_OUTPUT_MISSING_POLLS = 5;
+
 /**
  * Stateful runner for one immutable queue snapshot. It performs no routing and
  * never falls back: native calls the existing finalizer, cascade calls only its
@@ -604,11 +607,21 @@ export class TextVideoPipelineService {
     video: StagedCascadeVideo;
   }> {
     const startedAt = this.clock.now().getTime();
+    // RunPod can report COMPLETED a moment before the job output is readable
+    // back, which used to kill the workflow outright. Tolerate a few of those
+    // polls before treating the output as genuinely unusable.
+    let outputMissingPolls = 0;
     while (true) {
       const status = await this.i2vProvider.getStatus(
         cascadeRouteFromWorkflow(workflow),
         workflow.runpodJobId!,
       );
+      if (status.status === 'output_missing') {
+        outputMissingPolls += 1;
+        if (outputMissingPolls > MAX_OUTPUT_MISSING_POLLS) {
+          throw new TextVideoPipelineError('RUNPOD_OUTPUT_INVALID');
+        }
+      }
       if (status.status === 'completed') {
         const video = await this.i2vProvider.stageForQc(
           cascadeRouteFromWorkflow(workflow),

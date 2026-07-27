@@ -182,12 +182,12 @@ describe('CascadeLtxI2vProvider dedicated route', () => {
       'https://provider.test/result.mp4',
     );
 
-    await expect(
-      provider.getStatus(ROUTE, 'runpod_job_12345678'),
-    ).rejects.toMatchObject({
-      reasonCode: 'RUNPOD_OUTPUT_INVALID',
-      retryable: false,
-    });
+    // getStatus reports rather than throws: the same catch also covers RunPod
+    // announcing COMPLETED before the output is readable, and killing the
+    // workflow on the first such poll cost ~20% of concurrent generations.
+    // The caller re-polls a bounded number of times, then fails.
+    await expect(provider.getStatus(ROUTE, 'runpod_job_12345678')).resolves
+      .toEqual({ status: 'output_missing' });
     await expect(
       provider.stageForQc(ROUTE, 'runpod_job_12345678', 'task_12345678'),
     ).rejects.toMatchObject({
