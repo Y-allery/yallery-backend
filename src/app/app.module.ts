@@ -27,6 +27,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { areDevToolsEnabled } from 'src/core/config/environment';
 import { buildThrottlerOptions } from 'src/core/config/throttler.config';
 import { RewardModule } from 'src/modules/billing/rewards/reward.module';
+import { EconomyModule } from 'src/modules/billing/economy/economy.module';
 import { MemeModule } from 'src/modules/memes/meme.module';
 import { UserActivityModule } from 'src/modules/engagement/user-activity/user-activity.module';
 import { MediaGenerationModule } from 'src/modules/media-generation/media-generation.module';
@@ -107,6 +108,7 @@ const DEV_TOOLS_ENABLED = areDevToolsEnabled();
     AdminModule,
     PaymentModule,
     RewardModule,
+    EconomyModule,
     MemeModule,
     UserActivityModule,
     ProviderSettingsModule,
