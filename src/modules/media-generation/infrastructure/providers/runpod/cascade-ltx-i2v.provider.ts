@@ -259,9 +259,11 @@ function assertStrictInlineMp4(source: string): string {
   if (
     payload.length < 16 ||
     payload.length % 4 !== 0 ||
-    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(
-      payload,
-    )
+    // NOT the grouped form `(?:[A-Za-z0-9+/]{4})*…`: V8 evaluates that group
+    // repetition on the stack and throws RangeError past roughly 5 MB of
+    // base64, which silently failed every larger clip. A flat character class
+    // is iterative, and the length % 4 check above keeps it just as strict.
+    !/^[A-Za-z0-9+/]*={0,2}$/.test(payload)
   ) {
     throw new Error('RUNPOD_OUTPUT_INVALID');
   }
