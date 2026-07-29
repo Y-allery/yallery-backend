@@ -25,6 +25,7 @@ describe('ContestFlowService review status updates', () => {
       contestRepository: {
         update: jest.fn(),
         findOne: jest.fn(),
+        find: jest.fn(async () => []),
         save: jest.fn(),
       },
       flowMetadataRepository: { update: jest.fn() },
@@ -556,9 +557,123 @@ describe('ContestFlowService review status updates', () => {
           ]),
         },
       });
+      // The bare listing must NOT pull untouched ineligible candidates: one prod contest had
+      // 6.2k of them, which is what made the queue (and Approve, which reloads it) hang.
       expect(candidateRepository.find).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { contestId: In([3]) } }),
+        expect.objectContaining({
+          where: [
+            {
+              contestId: In([3]),
+              eligibilityStatus: ContestSubmissionEligibilityStatus.ELIGIBLE,
+            },
+            {
+              contestId: In([3]),
+              reviewStatus: In([
+                ContestWinnerCandidateReviewStatus.SELECTED,
+                ContestWinnerCandidateReviewStatus.APPROVED,
+                ContestWinnerCandidateReviewStatus.REJECTED,
+              ]),
+            },
+          ],
+        }),
       );
+    });
+
+    it('keeps a contest in the bare listing even when no candidate is displayable', async () => {
+      // Otherwise a contest whose candidates are all ineligible disappears from the queue and
+      // takes its "mark as no winner" button with it, leaving the admin unable to close it.
+      const flowMetadataRepository = {
+        find: jest.fn(async () => [
+          {
+            contestId: 3,
+            lifecycleStatus: ContestLifecycleStatus.REVIEWING,
+            reviewStatus: ContestReviewStatus.CANDIDATES_READY,
+          },
+        ]),
+      };
+      const candidateRepository = { find: jest.fn(async () => []) };
+      const contestRepository = {
+        update: jest.fn(),
+        findOne: jest.fn(),
+        save: jest.fn(),
+        find: jest.fn(async () => [
+          {
+            id: 3,
+            name: 'Empty contest',
+            contestType: 'default',
+            status: 'active',
+            tag: null,
+          },
+        ]),
+      };
+      const { service } = createService({
+        flowMetadataRepository,
+        candidateRepository,
+        contestRepository,
+      });
+
+      const result = await service.getReviewQueue();
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual(
+        expect.objectContaining({
+          contestId: 3,
+          contestName: 'Empty contest',
+          candidates: [],
+          reviewStatus: ContestReviewStatus.CANDIDATES_READY,
+        }),
+      );
+    });
+
+    it('caps candidates per contest and reports how many were withheld', async () => {
+      const flowMetadataRepository = {
+        find: jest.fn(async () => [
+          {
+            contestId: 3,
+            lifecycleStatus: ContestLifecycleStatus.REVIEWING,
+            reviewStatus: ContestReviewStatus.CANDIDATES_READY,
+          },
+        ]),
+      };
+      const manyCandidates = Array.from({ length: 30 }, (_, index) => ({
+        id: index + 1,
+        contestId: 3,
+        rank: index + 1,
+        userId: 10,
+        postId: 100 + index,
+        eligibilityStatus: ContestSubmissionEligibilityStatus.ELIGIBLE,
+        reviewStatus: ContestWinnerCandidateReviewStatus.CANDIDATE,
+        contest: { id: 3, name: 'Big contest', tag: null },
+        post: { id: 100 + index, user: { id: 10, name: 'u' } },
+        user: { id: 10, name: 'u' },
+      }));
+      const candidateRepository = { find: jest.fn(async () => manyCandidates) };
+      const contestRepository = {
+        update: jest.fn(),
+        findOne: jest.fn(),
+        save: jest.fn(),
+        find: jest.fn(async () => [
+          {
+            id: 3,
+            name: 'Big contest',
+            contestType: 'default',
+            status: 'active',
+            tag: null,
+          },
+        ]),
+      };
+      const { service } = createService({
+        flowMetadataRepository,
+        candidateRepository,
+        contestRepository,
+      });
+
+      const result = await service.getReviewQueue();
+
+      expect(result[0].candidates).toHaveLength(25);
+      expect(result[0].hiddenCandidateCount).toBe(5);
+      // The cap must keep the TOP of the ranking, which is what the admin picks from.
+      expect(result[0].candidates[0].rank).toBe(1);
     });
 
     it('bare listing returns [] without touching candidates when nothing is active', async () => {
@@ -653,9 +768,7 @@ describe('ContestFlowService review status updates', () => {
       expect(selected.postId).toBe(103);
       expect(selected.score).toBe(7);
       expect(selected.scoreBreakdown).toEqual({ likes: 7 });
-      expect(selected.source).toBe(
-        ContestWinnerCandidateSource.INTERNAL_LIKES,
-      );
+      expect(selected.source).toBe(ContestWinnerCandidateSource.INTERNAL_LIKES);
       expect(selected.reviewStatus).toBe(
         ContestWinnerCandidateReviewStatus.SELECTED,
       );

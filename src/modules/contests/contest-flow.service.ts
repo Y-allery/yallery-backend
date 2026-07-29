@@ -62,6 +62,13 @@ export type ContestFlowSummary = {
 
 @Injectable()
 export class ContestFlowService {
+  /**
+   * Max candidates per contest returned by the bare admin review queue. The admin picks a
+   * winner from the top of the ranking; shipping the entire candidate table is what made the
+   * queue (and therefore Approve, which reloads it) hang.
+   */
+  private static readonly REVIEW_QUEUE_CANDIDATE_LIMIT = 25;
+
   constructor(
     private readonly configService: ConfigService,
     private readonly dataSource: DataSource,
@@ -430,6 +437,8 @@ export class ContestFlowService {
   async getReviewQueue(contestIds?: number[]) {
     let scopedContestIds: number[];
     let preloadedMetadata: ContestFlowMetadataEntity[] | null = null;
+    // No explicit ids => the admin review-queue listing, which is filtered and capped below.
+    const isBareListing = !contestIds;
 
     if (contestIds) {
       scopedContestIds = Array.from(new Set(contestIds));
@@ -454,8 +463,32 @@ export class ContestFlowService {
       return [];
     }
 
+    // The bare admin listing only ever acts on candidates that are approvable or already
+    // actioned. Untouched INELIGIBLE rows can never be approved (approveCandidate rejects
+    // them outright), yet one prod contest accumulated 6.2k of them ("no tweet"), all of
+    // which were hydrated with their post/user/submission relations, serialised into the
+    // response and rendered as one <img> row each by the admin UI -- which is what made
+    // Approve appear to hang. Scoped lookups (setContestWinner / rejectContestWinner /
+    // results) still get the unfiltered set, because they resolve a specific post id.
+    const where = isBareListing
+      ? [
+          {
+            contestId: In(scopedContestIds),
+            eligibilityStatus: ContestSubmissionEligibilityStatus.ELIGIBLE,
+          },
+          {
+            contestId: In(scopedContestIds),
+            reviewStatus: In([
+              ContestWinnerCandidateReviewStatus.SELECTED,
+              ContestWinnerCandidateReviewStatus.APPROVED,
+              ContestWinnerCandidateReviewStatus.REJECTED,
+            ]),
+          },
+        ]
+      : { contestId: In(scopedContestIds) };
+
     const candidates = await this.candidateRepository.find({
-      where: { contestId: In(scopedContestIds) },
+      where,
       relations: {
         contest: { tag: true },
         post: { user: true },
@@ -483,6 +516,34 @@ export class ContestFlowService {
     );
 
     const grouped = new Map<number, any>();
+
+    // Seed from the scoped contests rather than from the candidate rows. Filtering above can
+    // legitimately leave a contest with zero displayable candidates, and a contest that
+    // vanishes from the queue also takes its "mark as no winner" button with it.
+    if (isBareListing) {
+      const scopedContests = await this.contestRepository.find({
+        where: { id: In(scopedContestIds) },
+        relations: { tag: true },
+      });
+      for (const contest of scopedContests) {
+        grouped.set(contest.id, {
+          contestId: contest.id,
+          contestName: contest.name,
+          contestType: contest.contestType,
+          contestStatus: contest.status,
+          lifecycleStatus:
+            metadataByContestId.get(contest.id)?.lifecycleStatus ?? null,
+          reviewStatus:
+            metadataByContestId.get(contest.id)?.reviewStatus ?? null,
+          tag: contest.tag
+            ? { id: contest.tag.id, name: `#${contest.tag.name}` }
+            : null,
+          candidates: [],
+          hiddenCandidateCount: 0,
+        });
+      }
+    }
+
     for (const candidate of candidates) {
       if (!grouped.has(candidate.contestId)) {
         grouped.set(candidate.contestId, {
@@ -502,12 +563,24 @@ export class ContestFlowService {
               }
             : null,
           candidates: [],
+          hiddenCandidateCount: 0,
         });
       }
 
-      grouped
-        .get(candidate.contestId)
-        .candidates.push(this.serializeCandidate(candidate));
+      const group = grouped.get(candidate.contestId);
+      // Second guard rail: the admin only ever picks from the top of the ranking, so cap what
+      // is shipped per contest. Without this a future contest with thousands of ELIGIBLE
+      // candidates would reintroduce exactly the payload/render problem this fix removes.
+      if (
+        isBareListing &&
+        group.candidates.length >=
+          ContestFlowService.REVIEW_QUEUE_CANDIDATE_LIMIT
+      ) {
+        group.hiddenCandidateCount += 1;
+        continue;
+      }
+
+      group.candidates.push(this.serializeCandidate(candidate));
     }
 
     return Array.from(grouped.values()).sort((a, b) => {
