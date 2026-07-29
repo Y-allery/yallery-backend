@@ -3,6 +3,7 @@ import { AudioGenerationRequest } from 'src/modules/media-generation/domain/cont
 import { EditImageGenerationRequest } from 'src/modules/media-generation/domain/contracts/edit-image-generation-request.contract';
 import { ImageVideoGenerationRequest } from 'src/modules/media-generation/domain/contracts/image-video-generation-request.contract';
 import { MemeGenerationRequest } from 'src/modules/media-generation/domain/contracts/meme-generation-request.contract';
+import { MAX_EDIT_REFERENCE_IMAGES } from 'src/modules/media-generation/domain/constants/image-edit.constants';
 import { ResolvedPromptImageGenerationRequest } from 'src/modules/media-generation/domain/contracts/prompt-image-generation-request.contract';
 import { TextVideoGenerationRequest } from 'src/modules/media-generation/domain/contracts/text-video-generation-request.contract';
 import {
@@ -113,10 +114,22 @@ export class RunpodPayloadBuilder {
 
   buildImageEditInput(request: EditImageGenerationRequest) {
     // Raw instruction + style; the Qwen worker's upsampler shapes it and owns steps/cfg/negatives.
+    // References: [0] is the canvas, [1..2] are extra references composed into it. The fallback
+    // to [imageUrl] keeps BullMQ jobs enqueued before the multi-reference release valid on retry.
+    const references = (
+      request.imageUrls?.length ? request.imageUrls : [request.imageUrl]
+    )
+      .filter(Boolean)
+      .slice(0, MAX_EDIT_REFERENCE_IMAGES);
+
     return {
       prompt: request.prompt,
       style: request.style ?? undefined,
-      image_url: request.imageUrl,
+      // Both fields on purpose: the new worker reads image_urls, while a rolled-back worker
+      // still finds the scalar and degrades to a single-reference edit instead of failing.
+      image_url: references[0],
+      image_urls: references,
+      // OUTPUT count — deliberately unrelated to the number of reference images above.
       num_images: 1,
       output_format: 'png',
       return_base64: true,

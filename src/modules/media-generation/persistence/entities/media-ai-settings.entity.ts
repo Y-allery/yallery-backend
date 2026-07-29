@@ -2,8 +2,17 @@ import { Column, Entity, Index } from 'typeorm';
 import { TimeStampEntity } from 'src/core/database/entities/time-stamp.entity';
 
 export interface MediaAISettingsJson {
+  /** OUTPUT image count bounds (image_generate). Not the edit reference count — see below. */
   minImages?: number;
   maxImages?: number;
+  /**
+   * INPUT reference-image bounds for image_edit. Deliberately separate keys from
+   * minImages/maxImages: shipped app builds already bind maxImages to the output-quantity
+   * stepper and to `cost * quantity`, so reusing it for references would show a 1/3 stepper
+   * and pre-charge 3x on every existing client.
+   */
+  minReferenceImages?: number;
+  maxReferenceImages?: number;
   maxPromptLength?: number;
   durations?: number[];
   pricing?: {

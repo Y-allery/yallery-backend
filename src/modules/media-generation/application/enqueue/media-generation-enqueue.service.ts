@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { InjectQueue } from '@nestjs/bullmq';
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import { ContestFlowService } from 'src/modules/contests/contest-flow.service';
 import {
@@ -12,6 +12,7 @@ import {
   MEDIA_TEXT_VIDEO_GENERATION_QUEUE,
 } from 'src/modules/media-generation/infrastructure/queues/constants/media-generation.queue';
 import { AudioGenerationRequest } from 'src/modules/media-generation/domain/contracts/audio-generation-request.contract';
+import { MAX_EDIT_REFERENCE_IMAGES } from 'src/modules/media-generation/domain/constants/image-edit.constants';
 import { EditImageGenerationRequest } from 'src/modules/media-generation/domain/contracts/edit-image-generation-request.contract';
 import { ImageVideoGenerationRequest } from 'src/modules/media-generation/domain/contracts/image-video-generation-request.contract';
 import { MemeGenerationRequest } from 'src/modules/media-generation/domain/contracts/meme-generation-request.contract';
@@ -124,10 +125,43 @@ export class MediaGenerationEnqueueService {
     }
   }
 
-  async enqueueImageEditGeneration(
+  /**
+   * Collapses the two accepted input shapes (legacy scalar `imageUrl`, new `imageUrls[]`) into
+   * one invariant used by everything downstream: `imageUrls` is non-empty, deduped, capped, and
+   * `imageUrl === imageUrls[0]`. Done here rather than in the controller so the invariant also
+   * holds for contest/internal callers, and so it rides onto the BullMQ job via the spread.
+   */
+  private normalizeEditImageReferences(
     request: EditImageGenerationRequest,
+  ): EditImageGenerationRequest {
+    const candidates = request.imageUrls?.length
+      ? request.imageUrls
+      : [request.imageUrl];
+
+    const seen = new Set<string>();
+    const imageUrls: string[] = [];
+    for (const candidate of candidates) {
+      const url = typeof candidate === 'string' ? candidate.trim() : '';
+      if (!url || seen.has(url)) continue;
+      seen.add(url);
+      imageUrls.push(url);
+      if (imageUrls.length === MAX_EDIT_REFERENCE_IMAGES) break;
+    }
+
+    if (!imageUrls.length) {
+      throw new BadRequestException(
+        'At least one reference image is required.',
+      );
+    }
+
+    return { ...request, imageUrl: imageUrls[0], imageUrls };
+  }
+
+  async enqueueImageEditGeneration(
+    rawRequest: EditImageGenerationRequest,
     userId: number,
   ) {
+    const request = this.normalizeEditImageReferences(rawRequest);
     const promptContext = await this.mediaPromptEnhancerService.resolveContext({
       prompt: request.prompt,
       styleId: request.styleId ?? null,
