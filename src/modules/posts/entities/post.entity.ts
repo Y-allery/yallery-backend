@@ -118,7 +118,9 @@ export class PostEntity extends TimeStampEntity {
     negativePrompt?: string;
     /** Meme generation (Kling motion control) */
     memeId?: number;
+    /** Image edit: the canvas (always equals sourceImageUrls[0]) and the full 1-3 reference set. */
     sourceImageUrl?: string;
+    sourceImageUrls?: string[];
     sourceVideoUrl?: string;
     sourceVideoDurationSeconds?: number | null;
     billableDurationSeconds?: number | null;

@@ -187,4 +187,77 @@ describe('RunpodPayloadBuilder', () => {
       return_base64: true,
     });
   });
+
+  describe('buildImageEditInput', () => {
+    const baseRequest = {
+      aiService: 'qwen_image_edit_baked',
+      prompt: 'put him on a beach',
+    };
+
+    it('sends a single reference in both the scalar and the array form', () => {
+      expect(
+        builder.buildImageEditInput({
+          ...baseRequest,
+          imageUrl: 'https://cdn.test/a.png',
+          imageUrls: ['https://cdn.test/a.png'],
+        }),
+      ).toMatchObject({
+        image_url: 'https://cdn.test/a.png',
+        image_urls: ['https://cdn.test/a.png'],
+        num_images: 1,
+      });
+    });
+
+    it('sends all three references, with the scalar pinned to the canvas', () => {
+      const payload = builder.buildImageEditInput({
+        ...baseRequest,
+        imageUrl: 'https://cdn.test/canvas.png',
+        imageUrls: [
+          'https://cdn.test/canvas.png',
+          'https://cdn.test/person.png',
+          'https://cdn.test/jacket.png',
+        ],
+      });
+
+      expect(payload.image_urls).toEqual([
+        'https://cdn.test/canvas.png',
+        'https://cdn.test/person.png',
+        'https://cdn.test/jacket.png',
+      ]);
+      // A rolled-back worker reads only this and degrades to editing the canvas alone.
+      expect(payload.image_url).toBe('https://cdn.test/canvas.png');
+      // Reference count must never leak into the OUTPUT count.
+      expect(payload.num_images).toBe(1);
+    });
+
+    it('falls back to the scalar for jobs enqueued before the multi-reference release', () => {
+      // BullMQ keeps failed jobs (removeOnFail: false, attempts: 2), so an in-flight job with
+      // the old shape can be retried after deploy and must not produce an empty reference list.
+      expect(
+        builder.buildImageEditInput({
+          ...baseRequest,
+          imageUrl: 'https://cdn.test/legacy.png',
+        }),
+      ).toMatchObject({
+        image_url: 'https://cdn.test/legacy.png',
+        image_urls: ['https://cdn.test/legacy.png'],
+      });
+    });
+
+    it('hard-caps references at three even if a request somehow carries more', () => {
+      const payload = builder.buildImageEditInput({
+        ...baseRequest,
+        imageUrl: 'https://cdn.test/1.png',
+        imageUrls: [
+          'https://cdn.test/1.png',
+          'https://cdn.test/2.png',
+          'https://cdn.test/3.png',
+          'https://cdn.test/4.png',
+        ],
+      });
+
+      expect(payload.image_urls).toHaveLength(3);
+      expect(payload.image_urls).not.toContain('https://cdn.test/4.png');
+    });
+  });
 });

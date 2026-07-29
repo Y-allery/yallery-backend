@@ -90,9 +90,18 @@ export class MediaGenerationGuardsService {
       );
     }
 
+    // Enqueue normalises imageUrls first, so this is the real count; the ?? 1 covers internal
+    // callers that still build a request with only the scalar imageUrl.
+    const referenceCount = request.imageUrls?.length ?? 1;
+    await this.mediaGenerationPricingService.assertImageEditReferenceCount(
+      request.aiService,
+      referenceCount,
+    );
+
     const user = await this.getRequiredUser(userId);
     const totalCost = await this.mediaGenerationPricingService.getImageEditCost(
       request.aiService,
+      referenceCount,
     );
 
     if (user.points < totalCost) {

@@ -108,8 +108,11 @@ export class MediaGenerationFinalizeService {
       await this.mediaGenerationExecutionService.editImages(request);
     const user =
       await this.mediaGenerationGuardsService.getRequiredUser(userId);
+    // Same reference count the guard reserved against — keeping the reserve/settle pair in
+    // lockstep is what stops a future per-reference price from creating a money bug.
     const totalCost = await this.mediaGenerationPricingService.getImageEditCost(
       request.aiService,
+      request.imageUrls?.length ?? 1,
     );
 
     const publishTo = await this.getContestPublishTo(request.contestId ?? null);

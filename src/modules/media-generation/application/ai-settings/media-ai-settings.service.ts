@@ -18,6 +18,7 @@ import { imageEditCapability } from 'src/modules/media-generation/domain/capabil
 import { imageGenerateCapability } from 'src/modules/media-generation/domain/capabilities/image/image-generate.capability';
 import { memeGenerateCapability } from 'src/modules/media-generation/domain/capabilities/meme/meme-generate.capability';
 import { videoGenerateCapability } from 'src/modules/media-generation/domain/capabilities/video/video-generate.capability';
+import { MAX_EDIT_REFERENCE_IMAGES } from 'src/modules/media-generation/domain/constants/image-edit.constants';
 import {
   getPromptImageAllowedOrientations,
   getPromptImageDefaultOrientation,
@@ -45,6 +46,20 @@ export class MediaAISettingsService {
       maxImages: setting.settings?.maxImages ?? 4,
       maxPromptLength: setting.settings?.maxPromptLength ?? null,
     };
+  }
+
+  /**
+   * INPUT reference-image bounds for the edit flow, kept separate from the output-count
+   * minImages/maxImages above (which shipped clients already bind to the quantity stepper and
+   * to `cost * quantity`). Defaults to 1/1 so an un-migrated row behaves exactly as today.
+   */
+  private getReferenceImageLimitSettings(setting: MediaAISettingsEntity) {
+    const min = Math.max(1, setting.settings?.minReferenceImages ?? 1);
+    const max = Math.min(
+      MAX_EDIT_REFERENCE_IMAGES,
+      Math.max(min, setting.settings?.maxReferenceImages ?? 1),
+    );
+    return { minReferenceImages: min, maxReferenceImages: max };
   }
 
   constructor(
@@ -203,6 +218,7 @@ export class MediaAISettingsService {
         aiService: setting.aiService,
         name: setting.name,
         ...this.getImageLimitSettings(setting),
+        ...this.getReferenceImageLimitSettings(setting),
         cost: setting.cost,
         description: setting.description,
       })),

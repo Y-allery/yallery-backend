@@ -85,7 +85,10 @@ export class GeneratedPostFactory {
         translatedPrompt: request.translatedPrompt,
         resolvedPrompt: request.resolvedPrompt ?? request.prompt,
         aiService: request.aiService,
+        // Keep the scalar exactly as-is: notification.gateway keys off the presence of
+        // sourceImageUrl to recognise an edit when replaying undelivered results.
         sourceImageUrl: request.imageUrl,
+        sourceImageUrls: request.imageUrls ?? [request.imageUrl],
         styleId: request.styleId ?? null,
         colorId: request.colorId ?? null,
         styleName: request.styleName ?? null,

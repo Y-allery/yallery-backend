@@ -115,4 +115,69 @@ describe('MediaAISettingsService', () => {
       styles: [{ id: 2, name: 'Cinematic', imageUrl: 'style.png' }],
     });
   });
+
+  describe('getEditImageAISettings', () => {
+    const editSetting = (settings: Record<string, unknown>) => ({
+      mediaSettings: [
+        {
+          aiService: 'qwen_image_edit_baked',
+          name: 'Qwen Image Edit',
+          cost: 80,
+          description: 'Edit an image',
+          settings,
+        },
+      ],
+      colors: [{ id: 1, name: 'Warm' }],
+      styles: [{ id: 2, name: 'Cinematic', imageUrl: 'style.png' }],
+    });
+
+    it('exposes the reference-image limits without disturbing the output-count limits', async () => {
+      const service = createService(
+        editSetting({
+          minImages: 1,
+          maxImages: 1,
+          minReferenceImages: 1,
+          maxReferenceImages: 3,
+        }),
+      );
+
+      const result = await service.getEditImageAISettings();
+
+      expect(result.aiSettings[0]).toEqual(
+        expect.objectContaining({
+          aiService: 'qwen_image_edit_baked',
+          minReferenceImages: 1,
+          maxReferenceImages: 3,
+          // REGRESSION GUARD: shipped app builds bind maxImages to the OUTPUT quantity stepper
+          // and to `cost * quantity`. If it ever drifts to 3 here, every existing client starts
+          // showing a 1/3 stepper and pre-charging triple.
+          minImages: 1,
+          maxImages: 1,
+        }),
+      );
+    });
+
+    it('defaults to a single reference for a row that has not opted in', async () => {
+      const service = createService(
+        editSetting({ minImages: 1, maxImages: 1 }),
+      );
+
+      expect((await service.getEditImageAISettings()).aiSettings[0]).toEqual(
+        expect.objectContaining({
+          minReferenceImages: 1,
+          maxReferenceImages: 1,
+        }),
+      );
+    });
+
+    it('clamps an over-configured maximum down to the worker ceiling', async () => {
+      const service = createService(
+        editSetting({ minReferenceImages: 1, maxReferenceImages: 10 }),
+      );
+
+      expect((await service.getEditImageAISettings()).aiSettings[0]).toEqual(
+        expect.objectContaining({ maxReferenceImages: 3 }),
+      );
+    });
+  });
 });

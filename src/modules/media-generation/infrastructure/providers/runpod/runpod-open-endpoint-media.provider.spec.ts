@@ -409,7 +409,9 @@ describe('RunpodOpenEndpointMediaProvider', () => {
       'https://api.runpod.ai/v2/test-qwen-endpoint/run',
       {
         input: expect.objectContaining({
+          // Scalar stays populated so a rolled-back worker still finds its input.
           image_url: 'https://cdn.test/source.png',
+          image_urls: ['https://cdn.test/source.png'],
         }),
       },
       expect.any(Object),

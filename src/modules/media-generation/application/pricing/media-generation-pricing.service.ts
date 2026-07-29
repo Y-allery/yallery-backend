@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { VideoAISettingsResponse } from 'src/modules/media-generation/api/contracts/video-ai-settings-response.contract';
+import { MAX_EDIT_REFERENCE_IMAGES } from 'src/modules/media-generation/domain/constants/image-edit.constants';
 import { MediaAISettingsEntity } from 'src/modules/media-generation/persistence/entities/media-ai-settings.entity';
 
 @Injectable()
@@ -66,7 +67,60 @@ export class MediaGenerationPricingService {
     return aiSetting.cost * imageQuantity;
   }
 
-  async getImageEditCost(aiService: string): Promise<number> {
+  /**
+   * How many reference images this edit model accepts. Defaults to 1/1 so behaviour is
+   * unchanged until a row explicitly opts in, and is hard-clamped to the worker's own ceiling
+   * so an admin typo can never ask the worker for more than it supports.
+   */
+  private getReferenceImageLimits(aiSetting: MediaAISettingsEntity) {
+    const min = Math.max(1, aiSetting.settings?.minReferenceImages ?? 1);
+    const max = Math.min(
+      MAX_EDIT_REFERENCE_IMAGES,
+      Math.max(min, aiSetting.settings?.maxReferenceImages ?? 1),
+    );
+    return { min, max };
+  }
+
+  async assertImageEditReferenceCount(
+    aiService: string,
+    referenceCount: number,
+  ): Promise<void> {
+    const aiSetting = await this.mediaAISettingsRepository.findOne({
+      where: {
+        aiService,
+        capability: 'image_edit',
+        isActive: true,
+      },
+    });
+
+    if (!aiSetting) {
+      throw new BadRequestException(
+        `Media AI settings not found for image edit service ${aiService}`,
+      );
+    }
+
+    const { min, max } = this.getReferenceImageLimits(aiSetting);
+
+    if (referenceCount < min || referenceCount > max) {
+      throw new BadRequestException(
+        `${aiService} supports from ${min} to ${max} reference images.`,
+      );
+    }
+  }
+
+  /**
+   * Flat per-edit price regardless of reference count: the marginal GPU cost of an extra
+   * reference is one more VAE encode plus a longer attention sequence, far below the credit
+   * price, and per-reference pricing would need UI the app does not have. `referenceCount` is
+   * threaded through anyway so that if it ever does become price-bearing, the reserve
+   * (guards) and settle (finalize) call sites are already passing the same number — the exact
+   * shape of money bug catalogued in the 2026-06 backend audit.
+   */
+  async getImageEditCost(
+    aiService: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    referenceCount = 1,
+  ): Promise<number> {
     const aiSetting = await this.mediaAISettingsRepository.findOne({
       where: {
         aiService,

@@ -225,7 +225,10 @@ export class MediaGenerationController {
         {
           aiService: dto.ai_service,
           prompt: dto.prompt,
-          imageUrl: dto.image_url,
+          // Both forms are passed through; the enqueue service normalises them into
+          // imageUrls[] with imageUrl === imageUrls[0]. The DTO guarantees at least one.
+          imageUrl: dto.image_url ?? dto.image_urls?.[0] ?? '',
+          imageUrls: dto.image_urls,
           contestId: dto.contest_id ?? null,
           styleId: dto.style_id ?? null,
           colorId: dto.color_id ?? null,
