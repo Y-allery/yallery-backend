@@ -13,7 +13,7 @@ export interface PromptImageAISettingItem {
   allowedOrientations: MediaOrientation[];
   minImages: number;
   maxImages: number;
-  maxPromptLength: number | null;
+  maxPromptLength: number;
   cost: number;
   description: string | null;
 }

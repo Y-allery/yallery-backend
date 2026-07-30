@@ -11,7 +11,7 @@ export interface EditImageAISettingItem {
   /** INPUT reference images the model accepts (1..3). Drives the app's multi-slot picker. */
   minReferenceImages: number;
   maxReferenceImages: number;
-  maxPromptLength: number | null;
+  maxPromptLength: number;
   cost: number;
   description: string | null;
 }
