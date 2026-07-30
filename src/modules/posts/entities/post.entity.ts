@@ -115,6 +115,9 @@ export class PostEntity extends TimeStampEntity {
     height?: number | null;
     duration?: number;
     seed?: number | null;
+    /** Regenerate state; absent on rows written before 2026-07-30. */
+    imageQuantity?: number;
+    contestId?: number | null;
     negativePrompt?: string;
     /** Meme generation (Kling motion control) */
     memeId?: number;
