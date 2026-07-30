@@ -180,4 +180,68 @@ describe('MediaAISettingsService', () => {
       );
     });
   });
+
+  describe('maxPromptLength', () => {
+    // The app reads this at the TOP level of each aiSettings item
+    // (MediaAiModel.fromJson -> map['maxPromptLength']), not nested under settings.
+    const row = (
+      aiService: string,
+      settings: Record<string, unknown> | null,
+    ) => ({
+      aiService,
+      name: aiService,
+      cost: 10,
+      description: null,
+      settings,
+    });
+
+    it('advertises 500 characters on every capability that takes a prompt', async () => {
+      const service = createService({
+        mediaSettings: [
+          row('z_image_turbo', { minImages: 1, maxImages: 4 }),
+          row('krea2_lora_generation', null),
+          row('qwen_image_edit_baked', null),
+          row('mmaudio_v2', null),
+          row('p_video_text', null),
+          row('p_video_image', null),
+          row('wan22_animate_native', null),
+        ],
+      });
+
+      const responses = await Promise.all([
+        service.getPromptImageAISettings(),
+        service.getFineTunePromptImageAISettings(),
+        service.getEditImageAISettings(),
+        service.getAudioAISettings(),
+        service.getTextVideoAISettings(),
+        service.getImageVideoAISettings(),
+        service.getMemeAISettings(),
+      ]);
+
+      for (const response of responses) {
+        expect(response.aiSettings.length).toBeGreaterThan(0);
+        for (const item of response.aiSettings) {
+          expect(item).toEqual(
+            expect.objectContaining({ maxPromptLength: 500 }),
+          );
+        }
+      }
+    });
+
+    it('lets a per-model row override the default without a deploy', async () => {
+      const service = createService({
+        mediaSettings: [
+          row('z_image_turbo', {
+            minImages: 1,
+            maxImages: 4,
+            maxPromptLength: 1200,
+          }),
+        ],
+      });
+
+      expect((await service.getPromptImageAISettings()).aiSettings[0]).toEqual(
+        expect.objectContaining({ maxPromptLength: 1200 }),
+      );
+    });
+  });
 });

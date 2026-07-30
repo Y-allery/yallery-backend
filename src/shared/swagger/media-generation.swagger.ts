@@ -138,8 +138,9 @@ This endpoint intentionally exposes only the active \`krea2_lora_generation\` mo
                   maxImages: { type: 'number', example: 1 },
                   maxPromptLength: {
                     type: 'number',
-                    nullable: true,
-                    example: null,
+                    description:
+                      'Prompt-length budget in characters. Always present (defaults to 500); a per-model settings row can override it.',
+                    example: 500,
                   },
                   cost: { type: 'number', example: 20 },
                   description: {

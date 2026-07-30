@@ -40,11 +40,28 @@ export class MediaAISettingsService {
     );
   }
 
+  /**
+   * Prompt-length budget advertised to the clients, in characters. Every capability that takes
+   * a text prompt reports it at the TOP level of each aiSettings item, which is where the app
+   * reads it (`MediaAiModel.fromJson` -> `map['maxPromptLength']`, not `settings[...]`).
+   *
+   * A per-model `settings.maxPromptLength` row still wins, so a model that genuinely needs a
+   * different budget can be tuned from the admin panel without a deploy.
+   */
+  private static readonly DEFAULT_MAX_PROMPT_LENGTH = 500;
+
+  private resolveMaxPromptLength(setting: MediaAISettingsEntity): number {
+    return (
+      setting.settings?.maxPromptLength ??
+      MediaAISettingsService.DEFAULT_MAX_PROMPT_LENGTH
+    );
+  }
+
   private getImageLimitSettings(setting: MediaAISettingsEntity) {
     return {
       minImages: setting.settings?.minImages ?? 1,
       maxImages: setting.settings?.maxImages ?? 4,
-      maxPromptLength: setting.settings?.maxPromptLength ?? null,
+      maxPromptLength: this.resolveMaxPromptLength(setting),
     };
   }
 
@@ -258,6 +275,7 @@ export class MediaAISettingsService {
         name: setting.name,
         cost: setting.cost,
         description: setting.description,
+        maxPromptLength: this.resolveMaxPromptLength(setting),
       })),
     };
   }
@@ -287,6 +305,7 @@ export class MediaAISettingsService {
           setting,
         ),
         description: setting.description,
+        maxPromptLength: this.resolveMaxPromptLength(setting),
         settings:
           this.mediaGenerationPricingService.buildVideoAISettingsPayload(
             setting,
@@ -320,6 +339,7 @@ export class MediaAISettingsService {
           setting,
         ),
         description: setting.description,
+        maxPromptLength: this.resolveMaxPromptLength(setting),
         settings:
           this.mediaGenerationPricingService.buildVideoAISettingsPayload(
             setting,
@@ -353,6 +373,7 @@ export class MediaAISettingsService {
         name: setting.name,
         cost: setting.cost,
         description: setting.description,
+        maxPromptLength: this.resolveMaxPromptLength(setting),
         settings: setting.settings
           ? {
               characterOrientations: setting.settings.characterOrientations,
