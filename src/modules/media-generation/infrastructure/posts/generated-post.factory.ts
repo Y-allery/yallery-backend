@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ContestEntity } from 'src/modules/contests/entity/contest.entity';
+import { ContestTypeEnum } from 'src/modules/contests/types/contest.status.enum';
 import { MemeEntity } from 'src/modules/memes/entities/meme.entity';
 import { PostEntity } from 'src/modules/posts/entities/post.entity';
 import { TagEntity } from 'src/modules/catalog/tags/entities/tag.entity';
@@ -62,6 +63,11 @@ export class GeneratedPostFactory {
         loraKey: request.providerSettings?.loraKey ?? null,
         loraScale: request.providerSettings?.loraScale ?? null,
         triggerWord: request.providerSettings?.triggerWord ?? null,
+        // Only the resolver's fine-tune branch fills providerSettings, so any other
+        // contest is DEFAULT by elimination — the enum has just these two.
+        contestType: request.contestId
+          ? (request.providerSettings?.contestType ?? ContestTypeEnum.DEFAULT)
+          : null,
       },
     });
 

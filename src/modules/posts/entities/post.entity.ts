@@ -118,6 +118,8 @@ export class PostEntity extends TimeStampEntity {
     /** Regenerate state; absent on rows written before 2026-07-30. */
     imageQuantity?: number;
     contestId?: number | null;
+    /** Prompt-image only; null when the post is not in a contest. */
+    contestType?: 'DEFAULT' | 'FINE_TUNE' | null;
     negativePrompt?: string;
     /** Meme generation (Kling motion control) */
     memeId?: number;
