@@ -1,3 +1,4 @@
+import { GatewayTimeoutException } from '@nestjs/common';
 import { BaseMediaProcessor } from './base-media.processor';
 import { NotificationGateway } from 'src/modules/notifications/notification.gateway';
 import { MediaGenerationBalanceService } from 'src/modules/media-generation/application/balance/media-generation-balance.service';
@@ -72,11 +73,40 @@ describe('BaseMediaProcessor', () => {
       {
         type: 'image_edit',
         message: 'Generation failed: RunPod failed',
+        code: 'unknown',
         jobId: 'job-123',
         taskId: 'job-123',
         aiService: 'qwen_image_edit_baked',
       },
     );
+  });
+
+  it('classifies the failure so analytics can group on code, not on message', async () => {
+    const notificationGateway = createGateway();
+    const processor = new TestMediaProcessor(
+      notificationGateway,
+      createBalanceService(),
+      createOpsBot(),
+    );
+
+    await processor.fail(
+      {
+        id: 'job-777',
+        attemptsMade: 3,
+        opts: { attempts: 3 },
+        data: { userId: 42, aiService: 'p_video_text', chargeId: 'charge-x' },
+      },
+      new GatewayTimeoutException(
+        'RunPod job 3f0a7664 did not finish within 1200000ms',
+      ),
+    );
+
+    const [, payload] = (
+      notificationGateway.sendMediaGenerationError as jest.Mock
+    ).mock.calls[0];
+    // Same failure, two different messages if the timing or id changes — the code is stable.
+    expect(payload.code).toBe('provider_timeout');
+    expect(payload.message).toContain('did not finish within');
   });
 
   it('does not emit or refund before retry attempts are exhausted', async () => {

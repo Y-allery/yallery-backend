@@ -6,6 +6,7 @@ import {
 } from 'src/modules/notifications/notification.gateway';
 import { MediaGenerationBalanceService } from 'src/modules/media-generation/application/balance/media-generation-balance.service';
 import { OpsBotService } from 'src/modules/ops-bot/ops-bot.service';
+import { classifyMediaGenerationError } from 'src/modules/media-generation/domain/errors/media-generation-error-code';
 
 export interface FailedGenerationHandlingOptions {
   forceTerminal?: boolean;
@@ -119,6 +120,7 @@ export abstract class BaseMediaProcessor extends WorkerHost {
         {
           type: this.mediaGenerationErrorType,
           message,
+          code: classifyMediaGenerationError(err),
           jobId: job.id?.toString(),
           taskId: job.id?.toString(),
           aiService,
