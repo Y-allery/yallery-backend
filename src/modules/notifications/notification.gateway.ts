@@ -12,6 +12,7 @@ import { In, Repository } from 'typeorm';
 import { PostEntity } from 'src/modules/posts/entities/post.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ProviderRuntimeConfigService } from 'src/modules/provider-settings/provider-runtime-config.service';
+import { MediaGenerationErrorCode } from 'src/modules/media-generation/domain/errors/media-generation-error-code';
 
 export type MediaGenerationErrorType =
   | 'image'
@@ -424,7 +425,10 @@ export class NotificationGateway {
     toUserId: string,
     payload: {
       type: MediaGenerationErrorType;
+      /** Human-readable, goes to the toast. Carries timings and ids — do not group on it. */
       message: string;
+      /** Stable analytics slug for the same failure; group on this instead. */
+      code?: MediaGenerationErrorCode;
       jobId?: string;
       taskId?: string;
       aiService?: string;
