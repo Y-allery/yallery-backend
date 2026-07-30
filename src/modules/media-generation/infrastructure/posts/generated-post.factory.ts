@@ -52,6 +52,9 @@ export class GeneratedPostFactory {
         orientation: request.orientation,
         width: request.width,
         height: request.height,
+        // Client rebuilds Regenerate from the row, not from the live event.
+        imageQuantity: request.imageQuantity,
+        contestId: request.contestId ?? null,
         styleId: request.styleId ?? null,
         colorId: request.colorId ?? null,
         styleName: request.styleName ?? null,
@@ -89,6 +92,7 @@ export class GeneratedPostFactory {
         // sourceImageUrl to recognise an edit when replaying undelivered results.
         sourceImageUrl: request.imageUrl,
         sourceImageUrls: request.imageUrls ?? [request.imageUrl],
+        contestId: request.contestId ?? null,
         styleId: request.styleId ?? null,
         colorId: request.colorId ?? null,
         styleName: request.styleName ?? null,
@@ -127,6 +131,7 @@ export class GeneratedPostFactory {
         prompt: request.prompt,
         aiService: request.aiService,
         sourceVideoUrl: request.videoUrl,
+        contestId: request.contestId ?? null,
         width: videoMetadata?.width ?? null,
         height: videoMetadata?.height ?? null,
       },
@@ -173,6 +178,8 @@ export class GeneratedPostFactory {
         orientation: generationParams.orientation,
         duration: generationParams.duration,
         seed: generationParams.seed ?? null,
+        // Arrives in the argument, but was only used for the relation.
+        contestId: generationParams.contestId ?? null,
         sourceImageUrl: generationParams.sourceImageUrl,
         width: generationParams.width ?? null,
         height: generationParams.height ?? null,

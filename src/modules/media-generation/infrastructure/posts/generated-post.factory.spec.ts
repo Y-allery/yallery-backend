@@ -122,6 +122,111 @@ describe('GeneratedPostFactory', () => {
     expect(post.hasAudio).toBe(true);
   });
 
+  // camelCase on purpose: raw entity JSON, not the snake_case REST shape.
+  describe('Regenerate-restore keys', () => {
+    it('persists imageQuantity and contestId for a prompt image', async () => {
+      const { factory } = createFactory();
+
+      const post = await factory.createPromptImagePost(
+        {
+          aiService: 'z_image_turbo',
+          prompt: 'a lighthouse',
+          orientation: 'vertical',
+          width: 832,
+          height: 1216,
+          imageQuantity: 4,
+          contestId: 42,
+        } as any,
+        55,
+        'https://cdn.test/image.png',
+        null,
+      );
+
+      expect(post.generationParams).toMatchObject({
+        imageQuantity: 4,
+        contestId: 42,
+      });
+    });
+
+    it('records a null contestId outside a contest rather than dropping the key', async () => {
+      const { factory } = createFactory();
+
+      const post = await factory.createPromptImagePost(
+        {
+          aiService: 'z_image_turbo',
+          prompt: 'a lighthouse',
+          orientation: 'vertical',
+          width: 832,
+          height: 1216,
+          imageQuantity: 1,
+        } as any,
+        55,
+        'https://cdn.test/image.png',
+        null,
+      );
+
+      expect(post.generationParams).toHaveProperty('contestId', null);
+    });
+
+    it('persists contestId for an edited image', async () => {
+      const { factory } = createFactory();
+
+      const post = await factory.createEditedImagePost(
+        {
+          aiService: 'qwen_image_edit_baked',
+          prompt: 'make it snow',
+          imageUrl: 'https://cdn.test/a.png',
+          contestId: 42,
+        } as any,
+        55,
+        'https://cdn.test/edited.png',
+        null,
+      );
+
+      expect(post.generationParams).toMatchObject({ contestId: 42 });
+    });
+
+    it('persists contestId for audio', async () => {
+      const { factory } = createFactory();
+
+      const post = await factory.createAudioPost(
+        {
+          aiService: 'mmaudio_v2',
+          prompt: 'rain on a roof',
+          videoUrl: 'https://cdn.test/silent.mp4',
+          contestId: 42,
+        } as any,
+        55,
+        'https://cdn.test/with-audio.mp4',
+        null,
+        null,
+      );
+
+      expect(post.generationParams).toMatchObject({ contestId: 42 });
+    });
+
+    it('persists contestId for video instead of only using it for the relation', async () => {
+      const { factory } = createFactory();
+
+      const post = await factory.createVideoPost(
+        {
+          aiService: 'p_video_text',
+          prompt: 'cinematic robot',
+          orientation: 'horizontal',
+          duration: 5,
+          contestId: 42,
+        },
+        55,
+        'https://cdn.test/video.mp4',
+        null,
+        null,
+      );
+
+      expect(post.contest).toEqual({ id: 42 });
+      expect(post.generationParams).toMatchObject({ contestId: 42 });
+    });
+  });
+
   it('adopts the existing post for a repeated generation task', async () => {
     const { factory, postRepository } = createFactory();
     const existing = {
