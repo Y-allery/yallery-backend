@@ -168,6 +168,71 @@ describe('GeneratedPostFactory', () => {
       expect(post.generationParams).toHaveProperty('contestId', null);
     });
 
+    it('persists FINE_TUNE when the resolver marked the contest as one', async () => {
+      const { factory } = createFactory();
+
+      const post = await factory.createPromptImagePost(
+        {
+          aiService: 'krea2_lora_generation',
+          prompt: 'a lighthouse',
+          orientation: 'vertical',
+          width: 832,
+          height: 1216,
+          imageQuantity: 1,
+          contestId: 42,
+          providerSettings: { loraKey: 'k', contestType: 'FINE_TUNE' },
+        } as any,
+        55,
+        'https://cdn.test/image.png',
+        null,
+      );
+
+      expect(post.generationParams).toMatchObject({ contestType: 'FINE_TUNE' });
+    });
+
+    // The resolver only fills providerSettings on the fine-tune branch, so an ordinary
+    // contest arrives with nothing to read and must not be left indistinguishable.
+    it('falls back to DEFAULT for an ordinary contest', async () => {
+      const { factory } = createFactory();
+
+      const post = await factory.createPromptImagePost(
+        {
+          aiService: 'z_image_turbo',
+          prompt: 'a lighthouse',
+          orientation: 'vertical',
+          width: 832,
+          height: 1216,
+          imageQuantity: 1,
+          contestId: 42,
+        } as any,
+        55,
+        'https://cdn.test/image.png',
+        null,
+      );
+
+      expect(post.generationParams).toMatchObject({ contestType: 'DEFAULT' });
+    });
+
+    it('leaves contestType null outside a contest', async () => {
+      const { factory } = createFactory();
+
+      const post = await factory.createPromptImagePost(
+        {
+          aiService: 'z_image_turbo',
+          prompt: 'a lighthouse',
+          orientation: 'vertical',
+          width: 832,
+          height: 1216,
+          imageQuantity: 1,
+        } as any,
+        55,
+        'https://cdn.test/image.png',
+        null,
+      );
+
+      expect(post.generationParams).toHaveProperty('contestType', null);
+    });
+
     it('persists contestId for an edited image', async () => {
       const { factory } = createFactory();
 
