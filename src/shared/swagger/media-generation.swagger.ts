@@ -47,6 +47,12 @@ This endpoint is intentionally separate from the legacy \`image-generation/ai-se
                     type: 'array',
                     items: { type: 'string', enum: ['horizontal', 'vertical'] },
                   },
+                  maxPromptLength: {
+                    type: 'number',
+                    description:
+                      'Prompt-length budget in characters. Always present (defaults to 500); a per-model settings row can override it.',
+                    example: 500,
+                  },
                   cost: { type: 'number', example: 11 },
                   description: {
                     type: 'string',
@@ -219,6 +225,26 @@ This endpoint is separate from the legacy edit flow and reads from the new \`med
                     example: 'qwen_image_edit_baked',
                   },
                   name: { type: 'string', example: 'Qwen Image Edit Baked' },
+                  minImages: {
+                    type: 'number',
+                    description:
+                      'OUTPUT images produced per edit. Stays 1/1 — not the reference count.',
+                    example: 1,
+                  },
+                  maxImages: { type: 'number', example: 1 },
+                  minReferenceImages: {
+                    type: 'number',
+                    description:
+                      'INPUT reference images the model accepts. Drives the multi-slot picker.',
+                    example: 1,
+                  },
+                  maxReferenceImages: { type: 'number', example: 3 },
+                  maxPromptLength: {
+                    type: 'number',
+                    description:
+                      'Prompt-length budget in characters. Always present (defaults to 500); a per-model settings row can override it.',
+                    example: 500,
+                  },
                   cost: { type: 'number', example: 25 },
                   description: {
                     type: 'string',
@@ -293,6 +319,12 @@ This endpoint is separate from the legacy audio flow and reads from the new \`me
                 properties: {
                   aiService: { type: 'string', example: 'mmaudio_v2' },
                   name: { type: 'string', example: 'MMAudio V2' },
+                  maxPromptLength: {
+                    type: 'number',
+                    description:
+                      'Prompt-length budget in characters. Always present (defaults to 500); a per-model settings row can override it.',
+                    example: 500,
+                  },
                   cost: { type: 'number', example: 20 },
                   description: {
                     type: 'string',
@@ -340,6 +372,12 @@ This endpoint is separate from the legacy video flow and reads from the new \`me
                 properties: {
                   aiService: { type: 'string', example: 'p_video_text' },
                   name: { type: 'string', example: 'P-Video Text' },
+                  maxPromptLength: {
+                    type: 'number',
+                    description:
+                      'Prompt-length budget in characters. Always present (defaults to 500); a per-model settings row can override it.',
+                    example: 500,
+                  },
                   cost: { type: 'number', example: 50 },
                   description: { type: 'string', nullable: true },
                   settings: {
@@ -423,6 +461,12 @@ This endpoint is separate from the legacy video flow and reads from the new \`me
                 properties: {
                   aiService: { type: 'string', example: 'p_video_image' },
                   name: { type: 'string', example: 'P-Video Image' },
+                  maxPromptLength: {
+                    type: 'number',
+                    description:
+                      'Prompt-length budget in characters. Always present (defaults to 500); a per-model settings row can override it.',
+                    example: 500,
+                  },
                   cost: { type: 'number', example: 50 },
                   description: { type: 'string', nullable: true },
                   settings: {
@@ -509,6 +553,12 @@ This endpoint is separate from the meme template catalog. It reads from the new 
                     example: 'wan22_animate_native',
                   },
                   name: { type: 'string', example: 'WAN 2.2 Animate Native' },
+                  maxPromptLength: {
+                    type: 'number',
+                    description:
+                      'Prompt-length budget in characters. Always present (defaults to 500); a per-model settings row can override it.',
+                    example: 500,
+                  },
                   cost: { type: 'number', example: 100 },
                   description: { type: 'string', nullable: true },
                   settings: {
