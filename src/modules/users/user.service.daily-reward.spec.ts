@@ -70,13 +70,14 @@ describe('UserService.handleDailyReward', () => {
       {} as any, // 9
       {} as any, // 10
       {} as any, // 11
-      {} as any, // 12
+      {} as any, // 12 referralRedemptionRepository
       {} as any, // 13
       {} as any, // 14
       {} as any, // 15
       {} as any, // 16
       {} as any, // 17
-      { getNumber: jest.fn(async () => null) } as any, // 18 providerRuntimeConfigService
+      {} as any, // 18
+      { getNumber: jest.fn(async () => null) } as any, // 19 providerRuntimeConfigService
     );
     const sendPush = jest
       .spyOn(service, 'sendPushNotificationIfEnabled')

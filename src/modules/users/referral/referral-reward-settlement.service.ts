@@ -8,10 +8,11 @@ import { UserActivityEntity } from 'src/modules/engagement/user-activity/entitie
 import { USER_ACTIVITY_TYPES } from 'src/modules/engagement/user-activity/types/user-activity.constants';
 import { NotificationGateway } from 'src/modules/notifications/notification.gateway';
 import { ReferralEntity } from '../entities/user-refferals.entity';
+import { ReferralRedemptionEntity } from '../entities/referral-redemption.entity';
 import { UserEntity } from '../entities/user.entity';
 import { REFERRAL_REWARD_STATES } from './referral-reward.contract';
 
-interface PendingReferralRow {
+interface PendingRedemptionRow {
   id: number;
   referrerId: number;
   refereeId: number;
@@ -43,8 +44,8 @@ export class ReferralRewardSettlementService {
   private isRunning = false;
 
   constructor(
-    @InjectRepository(ReferralEntity)
-    private readonly referralRepository: Repository<ReferralEntity>,
+    @InjectRepository(ReferralRedemptionEntity)
+    private readonly redemptionRepository: Repository<ReferralRedemptionEntity>,
     private readonly rewardService: RewardService,
     @Inject(forwardRef(() => NotificationGateway))
     private readonly notificationGateway: NotificationGateway,
@@ -123,18 +124,22 @@ export class ReferralRewardSettlementService {
     return { scanned, settled };
   }
 
-  private async loadPendingBatch(): Promise<PendingReferralRow[]> {
-    const rows = await this.referralRepository
-      .createQueryBuilder('referral')
-      .select('referral.id', 'id')
+  private async loadPendingBatch(): Promise<PendingRedemptionRow[]> {
+    const rows = await this.redemptionRepository
+      .createQueryBuilder('redemption')
+      .innerJoin(
+        ReferralEntity,
+        'referral',
+        'referral.id = redemption.referralId',
+      )
+      .select('redemption.id', 'id')
       .addSelect('referral.userId', 'referrerId')
-      .addSelect('referral.usedById', 'refereeId')
-      .where('referral.referrerRewardState = :state', {
+      .addSelect('redemption.redeemedById', 'refereeId')
+      .where('redemption.rewardState = :state', {
         state: REFERRAL_REWARD_STATES.PENDING,
       })
-      .andWhere('referral.id > :cursorId', { cursorId: this.cursorId })
-      .andWhere('referral.usedById IS NOT NULL')
-      .orderBy('referral.id', 'ASC')
+      .andWhere('redemption.id > :cursorId', { cursorId: this.cursorId })
+      .orderBy('redemption.id', 'ASC')
       .limit(this.batchSize)
       .getRawMany<{
         id: number | string;
@@ -176,21 +181,21 @@ export class ReferralRewardSettlementService {
    * cannot pay the same referral twice.
    */
   private async payReferrer(
-    row: PendingReferralRow,
+    row: PendingRedemptionRow,
     rewardPoints: number,
   ): Promise<boolean> {
     try {
       const paid = await this.dataSource.transaction(async (manager) => {
         const claim = await manager
-          .getRepository(ReferralEntity)
+          .getRepository(ReferralRedemptionEntity)
           .createQueryBuilder()
-          .update(ReferralEntity)
+          .update(ReferralRedemptionEntity)
           .set({
-            referrerRewardState: REFERRAL_REWARD_STATES.PAID,
-            referrerRewardedAt: new Date(),
+            rewardState: REFERRAL_REWARD_STATES.PAID,
+            rewardedAt: new Date(),
           })
           .where('id = :id', { id: row.id })
-          .andWhere('referrerRewardState = :state', {
+          .andWhere('rewardState = :state', {
             state: REFERRAL_REWARD_STATES.PENDING,
           })
           .execute();
@@ -214,7 +219,7 @@ export class ReferralRewardSettlementService {
     } catch (error) {
       // One bad row must not abort the sweep; it stays pending and is retried.
       this.logger.error(
-        `Failed to settle referral ${row.id} for referrer ${row.referrerId}`,
+        `Failed to settle redemption ${row.id} for referrer ${row.referrerId}`,
         error?.stack ?? error?.message ?? String(error),
       );
       return false;

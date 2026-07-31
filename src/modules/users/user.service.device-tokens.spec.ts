@@ -31,13 +31,14 @@ describe('UserService device tokens', () => {
       {} as any, // 9
       {} as any, // 10
       {} as any, // 11
-      {} as any, // 12
+      {} as any, // 12 referralRedemptionRepository
       {} as any, // 13
       {} as any, // 14
       {} as any, // 15
       {} as any, // 16
       {} as any, // 17
-      {} as any, // 18 providerRuntimeConfigService
+      {} as any, // 18
+      {} as any, // 19 providerRuntimeConfigService
     );
 
     return { service, userModel, deviceTokenModel };
@@ -72,7 +73,9 @@ describe('UserService device tokens', () => {
     });
 
     it('rejects an unknown user', async () => {
-      const { service, deviceTokenModel } = createService({ userExists: false });
+      const { service, deviceTokenModel } = createService({
+        userExists: false,
+      });
 
       await expect(
         service.addDeviceToken(7, 'tok-abc', DeviceType.iOS),
@@ -82,7 +85,7 @@ describe('UserService device tokens', () => {
   });
 
   describe('removeDeviceTokensByType', () => {
-    it('deletes only the given token, leaving the user\'s other devices alive', async () => {
+    it("deletes only the given token, leaving the user's other devices alive", async () => {
       const { service, deviceTokenModel } = createService();
 
       await service.removeDeviceTokensByType(7, DeviceType.Android, 'tok-abc');

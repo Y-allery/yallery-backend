@@ -31,6 +31,20 @@ export const REFERRAL_REWARD_STATES = {
 export type ReferralRewardState =
   (typeof REFERRAL_REWARD_STATES)[keyof typeof REFERRAL_REWARD_STATES];
 
+/**
+ * Machine-readable reasons a redemption was refused, returned as `code` next to the
+ * human `message`. The app used to branch on the message text verbatim, which breaks on
+ * any wording or localisation change.
+ */
+export const REFERRAL_ERROR_CODES = {
+  NOT_FOUND: 'referral_code_not_found',
+  OWN_CODE: 'own_referral_code',
+  BONUS_ALREADY_USED: 'referral_bonus_already_used',
+} as const;
+
+export type ReferralErrorCode =
+  (typeof REFERRAL_ERROR_CODES)[keyof typeof REFERRAL_ERROR_CODES];
+
 /** States that consume a slot of the referrer's daily/lifetime cap. */
 export const REFERRAL_REWARDED_STATES: ReferralRewardState[] = [
   REFERRAL_REWARD_STATES.PENDING,
