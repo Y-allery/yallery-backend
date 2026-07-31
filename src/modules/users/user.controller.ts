@@ -2,9 +2,11 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
   Delete,
   Get,
+  HttpStatus,
   NotFoundException,
   Param,
   Post,
@@ -38,6 +40,11 @@ import {
 } from './dto/update.user.details';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UseReferralCodeDto } from './dto/use-refferal-code.dto';
+import { BindPartnerDto } from './dto/bind-partner.dto';
+import {
+  PARTNER_LINK_OUTCOMES,
+  PartnerLinkService,
+} from 'src/modules/admin/features/partnerships/partner-link.service';
 import { UpdateTwitterUsernameDto } from './dto/update.twitter.user.name.dto';
 import { UpdateLanguageDto } from './dto/update-language.dto';
 import { LogReferralActivityDto } from './dto/log-referral-activity.dto';
@@ -46,7 +53,10 @@ import { LogReferralActivityDto } from './dto/log-referral-activity.dto';
 @ApiTags('User')
 @UseGuards(JwtAuthGuard)
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly partnerLinkService: PartnerLinkService,
+  ) {}
 
   @Post('generate-referral-code')
   @ApiOperation(USER_SWAGGER.generateReferralCode)
@@ -70,6 +80,45 @@ export class UserController {
       useReferralCodeDto.code,
     );
     return { message: 'Successfuly received' };
+  }
+
+  @Post('bind-partner')
+  @ApiOperation(USER_SWAGGER.bindPartner)
+  @ApiBody({ type: BindPartnerDto })
+  @ApiResponse(USER_SWAGGER.bindPartner.responses.success)
+  @ApiResponse(USER_SWAGGER.bindPartner.responses.notFound)
+  @ApiResponse(USER_SWAGGER.bindPartner.responses.conflict)
+  async bindPartner(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: BindPartnerDto,
+  ) {
+    const outcome = await this.partnerLinkService.linkPartnerUser({
+      ref: dto.ref,
+      puid: dto.puid,
+      userId: req.user.id,
+    });
+
+    // Terminal outcomes only. The client clears the stored ref/puid on these and keeps
+    // them on anything else, so a transient failure has to stay a 5xx rather than
+    // becoming a tidy 4xx that would throw the attribution away.
+    if (outcome === PARTNER_LINK_OUTCOMES.PARTNERSHIP_NOT_FOUND) {
+      throw new NotFoundException({
+        statusCode: HttpStatus.NOT_FOUND,
+        error: 'Not Found',
+        message: 'Partnership not found',
+        code: outcome,
+      });
+    }
+    if (outcome === PARTNER_LINK_OUTCOMES.PUID_ALREADY_BOUND) {
+      throw new ConflictException({
+        statusCode: HttpStatus.CONFLICT,
+        error: 'Conflict',
+        message: 'This partner user id is already bound to another account',
+        code: outcome,
+      });
+    }
+
+    return { status: outcome };
   }
 
   @Get('profile')

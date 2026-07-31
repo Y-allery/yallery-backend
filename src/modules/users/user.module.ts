@@ -9,6 +9,7 @@ import { DeviceTokenEntity } from './entities/device-token.entity';
 import { FirebaseModule } from 'src/integrations/firebase/firebase.module';
 import { UploadModule } from 'src/modules/uploads/upload.module';
 import { ReferralEntity } from './entities/user-refferals.entity';
+import { PartnerLinkModule } from 'src/modules/admin/features/partnerships/partner-link.module';
 import { ReferralRedemptionEntity } from './entities/referral-redemption.entity';
 import { PostEntity } from 'src/modules/posts/entities/post.entity';
 import { LikeEntity } from 'src/modules/engagement/likes/entities/like.entity';
@@ -23,6 +24,7 @@ import { ReferralRewardSettlementService } from './referral/referral-reward-sett
 
 @Module({
   imports: [
+    PartnerLinkModule,
     TypeOrmModule.forFeature([
       UserEntity,
       TagEntity,

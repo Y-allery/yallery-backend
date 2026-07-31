@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsOptional, IsString, Length, Matches } from 'class-validator';
+import {
+  IsEmail,
+  IsOptional,
+  IsString,
+  Length,
+  Matches,
+} from 'class-validator';
 
 export class SignUpDto {
   @ApiProperty({ description: 'The name of the user', example: 'John Doe' })
@@ -37,12 +43,18 @@ export class SignUpDto {
   })
   password: string;
 
-  @ApiPropertyOptional({ description: 'Referral token from partnership link', example: '7d4b2eec...' })
+  @ApiPropertyOptional({
+    description: 'Referral token from partnership link',
+    example: '7d4b2eec...',
+  })
   @IsOptional()
   @IsString()
   ref?: string;
 
-  @ApiPropertyOptional({ description: 'Partner user id from external partner', example: 'partner-12345' })
+  @ApiPropertyOptional({
+    description: 'Partner user id from external partner',
+    example: 'partner-12345',
+  })
   @IsOptional()
   @IsString()
   puid?: string;

@@ -50,9 +50,9 @@ export class AuthController {
 
   @Post('login')
   @ApiOperation(AUTH_SWAGGER.login)
-  @ApiBody({ 
+  @ApiBody({
     type: SignInDto,
-    description: 'User credentials (email and password)'
+    description: 'User credentials (email and password)',
   })
   @ApiResponse(AUTH_SWAGGER.login.responses.success)
   @ApiResponse(AUTH_SWAGGER.login.responses.unauthorized)
@@ -63,9 +63,9 @@ export class AuthController {
 
   @Post('admin/login')
   @ApiOperation(AUTH_SWAGGER.adminLogin)
-  @ApiBody({ 
+  @ApiBody({
     type: SignInDto,
-    description: 'Admin credentials (email and password)'
+    description: 'Admin credentials (email and password)',
   })
   @ApiResponse(AUTH_SWAGGER.adminLogin.responses.success)
   @ApiResponse(AUTH_SWAGGER.adminLogin.responses.unauthorized)
@@ -89,15 +89,17 @@ export class AuthController {
 **Email Verification:**
 - User must click the verification link in the email
 - Unverified accounts have limited access
-- Verification link expires after 24 hours`
+- Verification link expires after 24 hours`,
   })
-  @ApiBody({ 
+  @ApiBody({
     type: SignUpDto,
-    description: 'User registration data (email, password, name, optional referral code)'
+    description:
+      'User registration data (email, password, name, optional referral code)',
   })
   @ApiResponse({
     status: 201,
-    description: 'Registration successful - user created and verification email sent',
+    description:
+      'Registration successful - user created and verification email sent',
     schema: {
       type: 'object',
       properties: {
@@ -109,19 +111,20 @@ export class AuthController {
             id: { type: 'number' },
             email: { type: 'string' },
             name: { type: 'string' },
-            emailVerified: { type: 'boolean', example: false }
-          }
-        }
-      }
-    }
+            emailVerified: { type: 'boolean', example: false },
+          },
+        },
+      },
+    },
   })
-  @ApiResponse({ 
-    status: 400, 
-    description: 'Bad request - email already exists, invalid input, or weak password' 
+  @ApiResponse({
+    status: 400,
+    description:
+      'Bad request - email already exists, invalid input, or weak password',
   })
-  @ApiResponse({ 
-    status: 409, 
-    description: 'Conflict - email is already registered' 
+  @ApiResponse({
+    status: 409,
+    description: 'Conflict - email is already registered',
   })
   async register(@Body() signUpDto: SignUpDto) {
     return this.authService.register(signUpDto);
@@ -136,7 +139,8 @@ export class AuthController {
         email: {
           type: 'string',
           example: 'user@example.com',
-          description: 'The email address of the user to resend the verification email',
+          description:
+            'The email address of the user to resend the verification email',
         },
       },
       required: ['email'],
@@ -181,7 +185,7 @@ export class AuthController {
     name: 'token',
     required: true,
     description: 'Email verification token from the verification email',
-    type: String
+    type: String,
   })
   @ApiResponse(AUTH_SWAGGER.verifyEmail.responses.success)
   @ApiResponse(AUTH_SWAGGER.verifyEmail.responses.badRequest)
@@ -225,7 +229,10 @@ export class AuthController {
   }
 
   @Get('reset-password')
-  @ApiOperation({ summary: 'Reset password page', description: 'Display password reset form page' })
+  @ApiOperation({
+    summary: 'Reset password page',
+    description: 'Display password reset form page',
+  })
   @ApiQuery({ name: 'token', required: true, type: String })
   async resetPasswordPage(@Query('token') token: string, @Res() res: Response) {
     return this.authService.handleResetPasswordPage(token, res);
@@ -241,7 +248,10 @@ export class AuthController {
   }
 
   @Get('confirm-change-email')
-  @ApiOperation({ summary: 'Confirm email change page', description: 'Display email change confirmation form page' })
+  @ApiOperation({
+    summary: 'Confirm email change page',
+    description: 'Display email change confirmation form page',
+  })
   @ApiQuery({ name: 'token', required: true, type: String })
   async changeEmailPage(@Query('token') token: string, @Res() res: Response) {
     return this.authService.handleConfirmEmailPage(token, res);
@@ -277,13 +287,21 @@ export class AuthController {
       type: 'object',
       properties: {
         token: { type: 'string' },
-        ref: { type: 'string', description: 'Referral token from partnership link' },
-        puid: { type: 'string', description: 'Partner user id from external partner' },
+        ref: {
+          type: 'string',
+          description: 'Referral token from partnership link',
+        },
+        puid: {
+          type: 'string',
+          description: 'Partner user id from external partner',
+        },
       },
       required: ['token'],
     },
   })
-  async googleLogin(@Body() body: { token: string; ref?: string; puid?: string }) {
+  async googleLogin(
+    @Body() body: { token: string; ref?: string; puid?: string },
+  ) {
     const payload = await this.authService.verifyGoogleAccessToken(body.token);
     return this.authService.signUpWithOAuth(payload, {
       ref: body.ref,
@@ -301,13 +319,21 @@ export class AuthController {
       type: 'object',
       properties: {
         token: { type: 'string' },
-        ref: { type: 'string', description: 'Referral token from partnership link' },
-        puid: { type: 'string', description: 'Partner user id from external partner' },
+        ref: {
+          type: 'string',
+          description: 'Referral token from partnership link',
+        },
+        puid: {
+          type: 'string',
+          description: 'Partner user id from external partner',
+        },
       },
       required: ['token'],
     },
   })
-  async appleLogin(@Body() body: { token: string; ref?: string; puid?: string }) {
+  async appleLogin(
+    @Body() body: { token: string; ref?: string; puid?: string },
+  ) {
     const payload = await this.authService.verifyAppleToken(body.token);
     return this.authService.signUpWithOAuth(payload, {
       ref: body.ref,
@@ -327,7 +353,10 @@ export class AuthController {
   }
 
   @Get('twitter-init')
-  @ApiOperation({ summary: 'Initialize Twitter OAuth', description: 'Initialize Twitter OAuth flow' })
+  @ApiOperation({
+    summary: 'Initialize Twitter OAuth',
+    description: 'Initialize Twitter OAuth flow',
+  })
   @ApiQuery({ name: 'userId', required: true, type: String })
   async twitterInit(@Query('userId') userId: string, @Req() req, @Res() res) {
     req.session.twitterState = userId;
@@ -336,12 +365,18 @@ export class AuthController {
 
   @Get('twitter')
   @UseGuards(AuthGuard('twitter'))
-  @ApiOperation({ summary: 'Twitter OAuth login', description: 'Redirect to Twitter OAuth' })
+  @ApiOperation({
+    summary: 'Twitter OAuth login',
+    description: 'Redirect to Twitter OAuth',
+  })
   async twitterLogin() {}
 
   @Get('twitter/callback')
   @UseGuards(AuthGuard('twitter'))
-  @ApiOperation({ summary: 'Twitter OAuth callback', description: 'Handle Twitter OAuth callback' })
+  @ApiOperation({
+    summary: 'Twitter OAuth callback',
+    description: 'Handle Twitter OAuth callback',
+  })
   async twitterLoginCallback(@Req() req, @Res() res: Response) {
     res.redirect('https://t.me/yallery_mini_bot?startapp');
   }

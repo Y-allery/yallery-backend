@@ -28,6 +28,37 @@ Refusals carry a machine-readable \`code\` next to the human \`message\` — bra
       },
     },
   },
+  bindPartner: {
+    summary: 'Bind the authenticated user to a partnership',
+    description: `Attaches the caller to a partnership using the \`ref\` (partnership referral token) and \`puid\` (the partner's own id for this user) taken from the deep link.
+
+Exists because attribution used to happen only inside register / OAuth signup, so an existing user from an earlier collaboration who signed in with a password was never attributed. This is the intended single mechanism going forward.
+
+Fully idempotent — safe to call again right after signup as a safety net.
+
+Terminal outcomes carry a \`code\`; the client clears the stored ref/puid on those and retries on anything else:
+- \`partnership_not_found\` (404)
+- \`puid_already_bound\` (409) — the puid belongs to another account and is never overwritten`,
+    responses: {
+      success: {
+        status: 200,
+        description: 'Bound, or already bound to this same user.',
+        schema: {
+          type: 'object',
+          properties: { status: { type: 'string', example: 'linked' } },
+        },
+      },
+      notFound: {
+        status: 404,
+        description: 'No partnership matches `ref`. See the `code` field.',
+      },
+      conflict: {
+        status: 409,
+        description:
+          'The (partnership, puid) pair is bound to another account. Nothing is overwritten. See the `code` field.',
+      },
+    },
+  },
   getProfile: {
     summary: 'Get user profile',
     description: `Retrieve complete profile information for the authenticated user including personal details, statistics, and preferences.`,
