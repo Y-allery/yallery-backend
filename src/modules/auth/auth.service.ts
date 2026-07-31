@@ -31,10 +31,8 @@ import { OAuthPayload } from './types/oauth.payload.interface';
 import verifyAppleToken from 'apple-signin-auth';
 import { RoleEnum } from 'src/modules/users/types/role.enum';
 import * as crypto from 'crypto';
+import { PartnerLinkService } from 'src/modules/admin/features/partnerships/partner-link.service';
 import { NotificationGateway } from 'src/modules/notifications/notification.gateway';
-import { PartnershipEntity } from 'src/modules/admin/entities/partner.entity';
-import { PartnerUserLinkEntity } from 'src/modules/admin/entities/partner-user-link.entity';
-import { PartnershipActivityEntity } from 'src/modules/admin/entities/partnership-activity.entity';
 import { RewardService } from 'src/modules/billing/rewards/reward.service';
 import { RewardTypeEnum } from 'src/modules/billing/rewards/types/reward-type.enum';
 
@@ -53,12 +51,7 @@ export class AuthService {
     private readonly rewardService: RewardService,
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
-    @InjectRepository(PartnershipEntity)
-    private readonly partnershipRepo: Repository<PartnershipEntity>,
-    @InjectRepository(PartnerUserLinkEntity)
-    private readonly partnerUserLinkRepo: Repository<PartnerUserLinkEntity>,
-    @InjectRepository(PartnershipActivityEntity)
-    private readonly partnershipActivityRepo: Repository<PartnershipActivityEntity>,
+    private readonly partnerLinkService: PartnerLinkService,
     @Inject(NotificationGateway)
     private readonly notificationGateway: NotificationGateway,
   ) {
@@ -103,15 +96,18 @@ export class AuthService {
     dto: SignInDto,
   ): Promise<{ accessToken: string; refreshToken: string }> {
     const user = await this.validateUser(dto.email, dto.password);
-    
+
     // Відмічаємо що користувач може клеймити DAILY_LOGIN нагороду
     try {
-      await this.rewardService.markRewardEligible(user.id, RewardTypeEnum.DAILY_LOGIN);
+      await this.rewardService.markRewardEligible(
+        user.id,
+        RewardTypeEnum.DAILY_LOGIN,
+      );
     } catch (error) {
       // Ігноруємо помилки (можливо вже відмічено)
       console.warn('[login] Failed to mark DAILY_LOGIN eligible:', error);
     }
-    
+
     const accessToken = await this.generateAccessToken(user);
     const refreshToken = await this.generateRefreshToken(user);
     return { accessToken, refreshToken };
@@ -149,81 +145,30 @@ export class AuthService {
     // the job payload would verify nothing if the row write failed.
     await this.userRepository.save(newUser);
 
-    // Link to partnership if referral data provided
+    // Attribution lives in PartnerLinkService; these ref/puid branches go away once the
+    // clients move to POST /user/bind-partner.
     if (dto.ref && dto.puid) {
-      const partnership = await this.partnershipRepo.findOne({
-        where: { referralToken: dto.ref },
+      const outcome = await this.partnerLinkService.linkPartnerUser({
+        ref: dto.ref,
+        puid: dto.puid,
+        userId: newUser.id,
       });
-      if (partnership) {
-        const existing = await this.partnerUserLinkRepo.findOne({
-          where: {
-            partnershipId: partnership.id,
-            partnerUserId: dto.puid,
-          },
-        });
-        if (!existing) {
-          const link = this.partnerUserLinkRepo.create({
-            partnershipId: partnership.id,
-            partnerUserId: dto.puid,
+      if (outcome !== 'linked') {
+        this.logger.warn(
+          `[register] partner link not established | ${JSON.stringify({
             userId: newUser.id,
-          });
-          await this.partnerUserLinkRepo.save(link);
-          
-          // Log registered activity for new user
-          try {
-            const activity = this.partnershipActivityRepo.create({
-              partnershipId: partnership.id,
-              userId: newUser.id,
-              activity: 'registered',
-            });
-            await this.partnershipActivityRepo.save(activity);
-          } catch (error) {
-            console.error(`[Register] Failed to log registered activity:`, error.message);
-          }
-        } else if (!existing.userId) {
-          existing.userId = newUser.id;
-          await this.partnerUserLinkRepo.save(existing);
-          
-          // Log registered activity for new user
-          try {
-            const activity = this.partnershipActivityRepo.create({
-              partnershipId: partnership.id,
-              userId: newUser.id,
-              activity: 'registered',
-            });
-            await this.partnershipActivityRepo.save(activity);
-          } catch (error) {
-            console.error(`[Register] Failed to log registered activity (link updated):`, error.message);
-          }
-        }
-        
-        // Log partnership activity 'registered'
-        try {
-          const activityExists = await this.partnershipActivityRepo.findOne({
-            where: {
-              partnershipId: partnership.id,
-              userId: newUser.id,
-              activity: 'registered',
-            },
-          });
-          if (!activityExists) {
-            const activity = this.partnershipActivityRepo.create({
-              partnershipId: partnership.id,
-              userId: newUser.id,
-              activity: 'registered',
-            });
-            await this.partnershipActivityRepo.save(activity);
-            // Partnership activity 'registered' created for user
-          }
-        } catch (error) {
-          console.error('[register] Failed to log partnership activity registered:', error?.stack || error);
-        }
+            outcome,
+          })}`,
+        );
       }
     }
 
     // Відмічаємо що користувач може клеймити DAILY_LOGIN нагороду (після реєстрації це перший логін)
     try {
-      await this.rewardService.markRewardEligible(newUser.id, RewardTypeEnum.DAILY_LOGIN);
+      await this.rewardService.markRewardEligible(
+        newUser.id,
+        RewardTypeEnum.DAILY_LOGIN,
+      );
     } catch (error) {
       console.warn('[register] Failed to mark DAILY_LOGIN eligible:', error);
     }
@@ -573,7 +518,11 @@ export class AuthService {
 
   async signUpWithOAuth(
     payload: OAuthPayload,
-    extras?: { ref?: string; puid?: string; provider?: 'google' | 'apple' | 'oauth' },
+    extras?: {
+      ref?: string;
+      puid?: string;
+      provider?: 'google' | 'apple' | 'oauth';
+    },
   ) {
     const provider = extras?.provider ?? 'oauth';
 
@@ -589,10 +538,11 @@ export class AuthService {
     });
 
     if (!user) {
-      const registrationBonus = await this.rewardService.getRewardPointsOrDefault(
-        RewardTypeEnum.REGISTRATION_BONUS,
-        3000,
-      );
+      const registrationBonus =
+        await this.rewardService.getRewardPointsOrDefault(
+          RewardTypeEnum.REGISTRATION_BONUS,
+          3000,
+        );
       user = this.userRepository.create({
         name: `${payload.firstName} ${payload.lastName}`,
         email: payload.email,
@@ -608,159 +558,30 @@ export class AuthService {
 
       // Відмічаємо що користувач може клеймити DAILY_LOGIN нагороду (після реєстрації це перший логін)
       try {
-        await this.rewardService.markRewardEligible(user.id, RewardTypeEnum.DAILY_LOGIN);
+        await this.rewardService.markRewardEligible(
+          user.id,
+          RewardTypeEnum.DAILY_LOGIN,
+        );
       } catch (error) {
-        console.warn('[signUpWithOAuth] Failed to mark DAILY_LOGIN eligible for new user:', error);
+        console.warn(
+          '[signUpWithOAuth] Failed to mark DAILY_LOGIN eligible for new user:',
+          error,
+        );
       }
 
-      // Link to partnership if referral data provided (same logic as register)
       if (extras?.ref && extras?.puid) {
-        const partnership = await this.partnershipRepo.findOne({
-          where: { referralToken: extras.ref },
+        const outcome = await this.partnerLinkService.linkPartnerUser({
+          ref: extras.ref,
+          puid: extras.puid,
+          userId: user.id,
         });
-        if (partnership) {
-          this.logOAuth('partnership-found', {
-            provider,
-            userId: user.id,
-            email: user.email,
-            partnershipId: partnership.id,
-            ref: extras.ref,
-            puid: extras.puid,
-            isNewUser: true,
-          });
-          const existing = await this.partnerUserLinkRepo.findOne({
-            where: {
-              partnershipId: partnership.id,
-              partnerUserId: extras.puid,
-            },
-          });
-          if (!existing) {
-            const link = this.partnerUserLinkRepo.create({
-              partnershipId: partnership.id,
-              partnerUserId: extras.puid,
-              userId: user.id,
-            });
-            await this.partnerUserLinkRepo.save(link);
-
-            this.logOAuth('partner-link-created', {
-              provider,
-              userId: user.id,
-              partnershipId: partnership.id,
-              partnerUserId: extras.puid,
-              isNewUser: true,
-            });
-            
-            // Log partnership activity 'registered' for new OAuth user
-            try {
-              const activityExists = await this.partnershipActivityRepo.findOne({
-                where: {
-                  partnershipId: partnership.id,
-                  userId: user.id,
-                  activity: 'registered',
-                },
-              });
-              if (!activityExists) {
-                const activity = this.partnershipActivityRepo.create({
-                  partnershipId: partnership.id,
-                  userId: user.id,
-                  activity: 'registered',
-                });
-                await this.partnershipActivityRepo.save(activity);
-                this.logOAuth('partnership-activity-created', {
-                  provider,
-                  userId: user.id,
-                  partnershipId: partnership.id,
-                  activity: 'registered',
-                  isNewUser: true,
-                });
-              } else {
-                this.logOAuth('partnership-activity-already-exists', {
-                  provider,
-                  userId: user.id,
-                  partnershipId: partnership.id,
-                  activity: 'registered',
-                  isNewUser: true,
-                });
-              }
-            } catch (error) {
-              console.error('[OAuth] Failed to log partnership activity registered:', error?.stack || error);
-              this.logger.error(
-                `[oauth] partnership-activity-create-failed | ${JSON.stringify({
-                  provider,
-                  userId: user.id,
-                  partnershipId: partnership.id,
-                  activity: 'registered',
-                  isNewUser: true,
-                  message: error?.message ?? 'unknown',
-                })}`,
-                error?.stack,
-              );
-            }
-          } else if (!existing.userId) {
-            existing.userId = user.id;
-            await this.partnerUserLinkRepo.save(existing);
-            this.logOAuth('partner-link-updated', {
-              provider,
-              userId: user.id,
-              partnershipId: partnership.id,
-              partnerUserId: extras.puid,
-              existingLinkId: existing.id,
-              isNewUser: true,
-            });
-          } else {
-            this.logOAuth('partner-link-already-bound', {
-              provider,
-              userId: user.id,
-              partnershipId: partnership.id,
-              partnerUserId: extras.puid,
-              existingLinkId: existing.id,
-              existingLinkedUserId: existing.userId,
-              isNewUser: true,
-            });
-          }
-          
-          // Log registered activity for new OAuth user
-          try {
-            const activity = this.partnershipActivityRepo.create({
-              partnershipId: partnership.id,
-              userId: user.id,
-              activity: 'registered',
-            });
-            await this.partnershipActivityRepo.save(activity);
-            this.logOAuth('registered-activity-created', {
-              provider,
-              userId: user.id,
-              partnershipId: partnership.id,
-              activity: 'registered',
-              isNewUser: true,
-            });
-          } catch (error) {
-            console.error(`[OAuth] Failed to log registered activity:`, error.message);
-            this.logger.error(
-              `[oauth] registered-activity-create-failed | ${JSON.stringify({
-                provider,
-                userId: user.id,
-                partnershipId: partnership.id,
-                activity: 'registered',
-                isNewUser: true,
-                message: error?.message ?? 'unknown',
-              })}`,
-              error?.stack,
-            );
-          }
-        } else {
-          console.warn(
-            `[OAuth] Partnership not found for ref=${extras.ref}. Skipping link`,
-          );
-          this.logOAuth('partnership-not-found', {
-            provider,
-            userId: user.id,
-            email: user.email,
-            ref: extras.ref,
-            puid: extras.puid,
-            isNewUser: true,
-          });
-        }
+        this.logOAuth('partner-link-outcome', {
+          provider,
+          userId: user.id,
+          partnerUserId: extras.puid,
+          outcome,
+          isNewUser: true,
+        });
       } else {
         this.logOAuth('partnership-skipped-missing-referral-data', {
           provider,
@@ -781,158 +602,30 @@ export class AuthService {
       // Existing user logging in via OAuth: attempt to link partnership if referral extras provided
       // Відмічаємо що користувач може клеймити DAILY_LOGIN нагороду
       try {
-        await this.rewardService.markRewardEligible(user.id, RewardTypeEnum.DAILY_LOGIN);
+        await this.rewardService.markRewardEligible(
+          user.id,
+          RewardTypeEnum.DAILY_LOGIN,
+        );
       } catch (error) {
-        console.warn('[signUpWithOAuth] Failed to mark DAILY_LOGIN eligible:', error);
+        console.warn(
+          '[signUpWithOAuth] Failed to mark DAILY_LOGIN eligible:',
+          error,
+        );
       }
 
       if (extras?.ref && extras?.puid) {
-        try {
-          const partnership = await this.partnershipRepo.findOne({
-            where: { referralToken: extras.ref },
-          });
-          if (!partnership) {
-            console.warn(
-              `[OAuth] Partnership not found for ref=${extras.ref}.`,
-            );
-            this.logOAuth('partnership-not-found', {
-              provider,
-              userId: user.id,
-              email: user.email,
-              ref: extras.ref,
-              puid: extras.puid,
-              isNewUser: false,
-            });
-          } else {
-            this.logOAuth('partnership-found', {
-              provider,
-              userId: user.id,
-              email: user.email,
-              partnershipId: partnership.id,
-              ref: extras.ref,
-              puid: extras.puid,
-              isNewUser: false,
-            });
-            const existing = await this.partnerUserLinkRepo.findOne({
-              where: {
-                partnershipId: partnership.id,
-                partnerUserId: extras.puid,
-              },
-            });
-            if (!existing) {
-              const link = this.partnerUserLinkRepo.create({
-                partnershipId: partnership.id,
-                partnerUserId: extras.puid,
-                userId: user.id,
-              });
-              await this.partnerUserLinkRepo.save(link);
-
-              this.logOAuth('partner-link-created', {
-                provider,
-                userId: user.id,
-                partnershipId: partnership.id,
-                partnerUserId: extras.puid,
-                isNewUser: false,
-              });
-
-              // Log registered activity for existing user linking to partnership
-              try {
-                const activity = this.partnershipActivityRepo.create({
-                  partnershipId: partnership.id,
-                  userId: user.id,
-                  activity: 'registered',
-                });
-                await this.partnershipActivityRepo.save(activity);
-                this.logOAuth('registered-activity-created', {
-                  provider,
-                  userId: user.id,
-                  partnershipId: partnership.id,
-                  activity: 'registered',
-                  isNewUser: false,
-                });
-              } catch (error) {
-                console.error(`[OAuth] Failed to log registered activity for existing user:`, error.message);
-                this.logger.error(
-                  `[oauth] registered-activity-create-failed | ${JSON.stringify({
-                    provider,
-                    userId: user.id,
-                    partnershipId: partnership.id,
-                    activity: 'registered',
-                    isNewUser: false,
-                    message: error?.message ?? 'unknown',
-                  })}`,
-                  error?.stack,
-                );
-              }
-            } else if (!existing.userId) {
-              existing.userId = user.id;
-              await this.partnerUserLinkRepo.save(existing);
-
-              this.logOAuth('partner-link-updated', {
-                provider,
-                userId: user.id,
-                partnershipId: partnership.id,
-                partnerUserId: extras.puid,
-                existingLinkId: existing.id,
-                isNewUser: false,
-              });
-
-              // Log registered activity for existing user linking to partnership
-              try {
-                const activity = this.partnershipActivityRepo.create({
-                  partnershipId: partnership.id,
-                  userId: user.id,
-                  activity: 'registered',
-                });
-                await this.partnershipActivityRepo.save(activity);
-                this.logOAuth('registered-activity-created', {
-                  provider,
-                  userId: user.id,
-                  partnershipId: partnership.id,
-                  activity: 'registered',
-                  isNewUser: false,
-                });
-              } catch (error) {
-                console.error(`[OAuth] Failed to log registered activity for existing user (link updated):`, error.message);
-                this.logger.error(
-                  `[oauth] registered-activity-create-failed | ${JSON.stringify({
-                    provider,
-                    userId: user.id,
-                    partnershipId: partnership.id,
-                    activity: 'registered',
-                    isNewUser: false,
-                    message: error?.message ?? 'unknown',
-                  })}`,
-                  error?.stack,
-                );
-              }
-            } else {
-              this.logOAuth('partner-link-already-bound', {
-                provider,
-                userId: user.id,
-                partnershipId: partnership.id,
-                partnerUserId: extras.puid,
-                existingLinkId: existing.id,
-                existingLinkedUserId: existing.userId,
-                isNewUser: false,
-              });
-            }
-          }
-        } catch (err) {
-          console.error('[OAuth] Failed to link partnership for existing user:', err?.stack || err);
-          this.logger.error(
-            `[oauth] partnership-link-failed | ${JSON.stringify({
-              provider,
-              userId: user.id,
-              email: user.email,
-              ref: extras?.ref ?? null,
-              puid: extras?.puid ?? null,
-              isNewUser: false,
-              message: err?.message ?? 'unknown',
-            })}`,
-            err?.stack,
-          );
-        }
+        const outcome = await this.partnerLinkService.linkPartnerUser({
+          ref: extras.ref,
+          puid: extras.puid,
+          userId: user.id,
+        });
+        this.logOAuth('partner-link-outcome', {
+          provider,
+          userId: user.id,
+          partnerUserId: extras.puid,
+          outcome,
+          isNewUser: false,
+        });
       } else {
         this.logOAuth('partnership-skipped-missing-referral-data', {
           provider,
@@ -1030,10 +723,11 @@ export class AuthService {
 
     let user = await this.userRepository.findOne({ where: { telegramId } });
     if (!user) {
-      const registrationBonus = await this.rewardService.getRewardPointsOrDefault(
-        RewardTypeEnum.REGISTRATION_BONUS,
-        3000,
-      );
+      const registrationBonus =
+        await this.rewardService.getRewardPointsOrDefault(
+          RewardTypeEnum.REGISTRATION_BONUS,
+          3000,
+        );
       user = this.userRepository.create({
         telegramId,
         nickname: username,
@@ -1046,16 +740,28 @@ export class AuthService {
 
       // Відмічаємо що користувач може клеймити DAILY_LOGIN нагороду (після реєстрації це перший логін)
       try {
-        await this.rewardService.markRewardEligible(user.id, RewardTypeEnum.DAILY_LOGIN);
+        await this.rewardService.markRewardEligible(
+          user.id,
+          RewardTypeEnum.DAILY_LOGIN,
+        );
       } catch (error) {
-        console.warn('[loginWithTelegram] Failed to mark DAILY_LOGIN eligible for new user:', error);
+        console.warn(
+          '[loginWithTelegram] Failed to mark DAILY_LOGIN eligible for new user:',
+          error,
+        );
       }
     } else {
       // Відмічаємо що користувач може клеймити DAILY_LOGIN нагороду
       try {
-        await this.rewardService.markRewardEligible(user.id, RewardTypeEnum.DAILY_LOGIN);
+        await this.rewardService.markRewardEligible(
+          user.id,
+          RewardTypeEnum.DAILY_LOGIN,
+        );
       } catch (error) {
-        console.warn('[loginWithTelegram] Failed to mark DAILY_LOGIN eligible:', error);
+        console.warn(
+          '[loginWithTelegram] Failed to mark DAILY_LOGIN eligible:',
+          error,
+        );
       }
     }
 

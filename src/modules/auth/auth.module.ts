@@ -9,15 +9,14 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtStrategy } from './strategies/jwt.auth.strategy';
 import { MailModule } from 'src/integrations/mail/mail.module';
 import { NotificationPreferenceEntity } from 'src/modules/notifications/entity/notification.preferences.entity';
-import { PartnershipEntity } from 'src/modules/admin/entities/partner.entity';
-import { PartnerUserLinkEntity } from 'src/modules/admin/entities/partner-user-link.entity';
-import { PartnershipActivityEntity } from 'src/modules/admin/entities/partnership-activity.entity';
 import { NotificationModule } from 'src/modules/notifications/notification.module';
+import { PartnerLinkModule } from 'src/modules/admin/features/partnerships/partner-link.module';
 import { TwitterStrategy } from './strategies/twitter.auth.strategy';
 import { RewardModule } from 'src/modules/billing/rewards/reward.module';
 
 @Module({
   imports: [
+    PartnerLinkModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -36,13 +35,7 @@ import { RewardModule } from 'src/modules/billing/rewards/reward.module';
     }),
     UserModule,
     MailModule,
-    TypeOrmModule.forFeature([
-      UserEntity,
-      NotificationPreferenceEntity,
-      PartnershipEntity,
-      PartnerUserLinkEntity,
-      PartnershipActivityEntity,
-    ]),
+    TypeOrmModule.forFeature([UserEntity, NotificationPreferenceEntity]),
     NotificationModule,
     RewardModule,
   ],

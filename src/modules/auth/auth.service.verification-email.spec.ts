@@ -54,9 +54,7 @@ describe('AuthService verification email', () => {
       configService as any,
       rewardService as any,
       userRepository as any,
-      {} as any, // partnershipRepo
-      {} as any, // partnerUserLinkRepo
-      {} as any, // partnershipActivityRepo
+      { linkPartnerUser: jest.fn(async () => 'linked') } as any, // partnerLinkService
       {} as any, // notificationGateway
     );
 
