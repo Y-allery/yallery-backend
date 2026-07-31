@@ -32,6 +32,31 @@ export class ReferralFlagService {
   private readonly negativeRetweetCache = new Map<string, number>();
   private static readonly NEGATIVE_RETWEET_CACHE_TTL_MS = 45_000;
 
+  /** Flags the status endpoint serves. `retweet` is computed live; the rest read rows. */
+  private static readonly READABLE_FLAGS = new Set([
+    'registered',
+    'image_generated',
+    'retweet',
+  ]);
+
+  /**
+   * Flags a partner may write. Deliberately excludes the three readable ones: this
+   * endpoint is public and unauthenticated, so accepting them would let anyone holding
+   * a ref and a puid inflate their own attribution numbers. Those three are written by
+   * us — at signup, at generation finalize, and by the live Twitter check.
+   */
+  private static readonly SETTABLE_FLAGS = new Set([
+    'first_purchase',
+    'completed_profile',
+  ]);
+
+  /**
+   * Served once, no longer part of the flow. Named rather than merely absent so a partner
+   * still polling it keeps getting the same 'false' shape, and so the historical rows are
+   * never mistaken for something still being written.
+   */
+  private static readonly RETIRED_FLAGS = new Set(['posted_to_twitter']);
+
   constructor(
     @InjectRepository(PartnershipEntity)
     private readonly partnerShipRepo: Repository<PartnershipEntity>,
@@ -73,6 +98,10 @@ export class ReferralFlagService {
     const normalizedFlag = (flag || '').trim();
     const userIdNum = Number(link.userId);
 
+    if (!ReferralFlagService.READABLE_FLAGS.has(normalizedFlag)) {
+      return { status: 'false' };
+    }
+
     if (normalizedFlag === 'retweet') {
       return this.checkRetweetFlag(partnership.id, userIdNum);
     }
@@ -94,6 +123,19 @@ export class ReferralFlagService {
     flag: string;
   }): Promise<{ status: boolean }> {
     const { referralToken, partnerUserId, flag } = params;
+    const normalizedFlag = (flag || '').trim();
+
+    // Refuse before touching the table: a retired or misspelled flag used to become a
+    // permanent row that nothing ever reads.
+    if (!ReferralFlagService.SETTABLE_FLAGS.has(normalizedFlag)) {
+      if (ReferralFlagService.RETIRED_FLAGS.has(normalizedFlag)) {
+        this.logger.warn(
+          `[setReferralFlag] Retired flag ignored: ${normalizedFlag}`,
+        );
+      }
+      return { status: false };
+    }
+
     const partnership = await this.partnerShipRepo.findOne({
       where: { referralToken },
     });
@@ -113,7 +155,7 @@ export class ReferralFlagService {
       .values({
         partnershipId: partnership.id,
         userId: link.userId,
-        activity: flag,
+        activity: normalizedFlag,
       })
       .orIgnore()
       .updateEntity(false)

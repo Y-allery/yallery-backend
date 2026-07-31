@@ -64,7 +64,7 @@ describe('ReferralFlagService', () => {
       service.checkReferralFlag({
         referralToken: 'missing',
         partnerUserId: 'partner-user',
-        flag: 'posted_to_twitter',
+        flag: 'registered',
       }),
     ).resolves.toEqual({ status: 'false' });
   });
@@ -78,13 +78,14 @@ describe('ReferralFlagService', () => {
       service.setReferralFlag({
         referralToken: 'token',
         partnerUserId: 'partner-user',
-        flag: 'posted_to_twitter',
+        flag: 'first_purchase',
       }),
     ).resolves.toEqual({ status: false });
   });
 
   it('writes the flag with INSERT IGNORE, so a concurrent duplicate is a no-op', async () => {
-    const { service, partnershipRepo, linkRepo, activityRepo } = createService();
+    const { service, partnershipRepo, linkRepo, activityRepo } =
+      createService();
     partnershipRepo.findOne.mockResolvedValue({ id: 1 });
     linkRepo.findOne.mockResolvedValue({ userId: 10 });
 
@@ -92,7 +93,7 @@ describe('ReferralFlagService', () => {
       service.setReferralFlag({
         referralToken: 'token',
         partnerUserId: 'partner-user',
-        flag: 'posted_to_twitter',
+        flag: 'first_purchase',
       }),
     ).resolves.toEqual({ status: true });
 
@@ -100,12 +101,80 @@ describe('ReferralFlagService', () => {
     expect(builder.values).toHaveBeenCalledWith({
       partnershipId: 1,
       userId: 10,
-      activity: 'posted_to_twitter',
+      activity: 'first_purchase',
     });
     expect(builder.orIgnore).toHaveBeenCalled();
     // The unique index dedupes; no read-before-write, no full-entity save.
     expect(activityRepo.findOne).not.toHaveBeenCalled();
     expect(activityRepo.save).not.toHaveBeenCalled();
+  });
+
+  describe('retired and unknown flags', () => {
+    it('reports posted_to_twitter as false without reading its historical rows', async () => {
+      const { service, partnershipRepo, linkRepo, activityRepo } =
+        createService();
+      partnershipRepo.findOne.mockResolvedValue({ id: 15 });
+      linkRepo.findOne.mockResolvedValue({ userId: 10 });
+
+      await expect(
+        service.checkReferralFlag({
+          referralToken: 'token',
+          partnerUserId: 'partner-user',
+          flag: 'posted_to_twitter',
+        }),
+      ).resolves.toEqual({ status: 'false' });
+
+      // 1250 rows still exist for partnership 15; retiring the flag must not resurrect them.
+      expect(activityRepo.createQueryBuilder).not.toHaveBeenCalled();
+    });
+
+    it('refuses to write posted_to_twitter', async () => {
+      const { service, partnershipRepo, activityRepo } = createService();
+
+      await expect(
+        service.setReferralFlag({
+          referralToken: 'token',
+          partnerUserId: 'partner-user',
+          flag: 'posted_to_twitter',
+        }),
+      ).resolves.toEqual({ status: false });
+
+      expect(partnershipRepo.findOne).not.toHaveBeenCalled();
+      expect(activityRepo.createQueryBuilder).not.toHaveBeenCalled();
+    });
+
+    // Public unauthenticated endpoint: letting a partner write these would let anyone
+    // holding a ref and a puid inflate their own attribution numbers.
+    it.each(['registered', 'image_generated', 'retweet'])(
+      'refuses to let a partner write %s',
+      async (flag) => {
+        const { service, activityRepo } = createService();
+
+        await expect(
+          service.setReferralFlag({
+            referralToken: 'token',
+            partnerUserId: 'partner-user',
+            flag,
+          }),
+        ).resolves.toEqual({ status: false });
+
+        expect(activityRepo.createQueryBuilder).not.toHaveBeenCalled();
+      },
+    );
+
+    it('does not persist a misspelled flag as a new activity type', async () => {
+      const { service, activityRepo } = createService();
+
+      await expect(
+        service.setReferralFlag({
+          referralToken: 'token',
+          partnerUserId: 'partner-user',
+          flag: 'frist_purchase',
+        }),
+      ).resolves.toEqual({ status: false });
+
+      expect(activityRepo.createQueryBuilder).not.toHaveBeenCalled();
+    });
   });
 
   it('does not call TwitterAPI.io when retweet activity is cached', async () => {
@@ -153,10 +222,15 @@ describe('ReferralFlagService', () => {
       updateEntity: jest.fn().mockReturnThis(),
       execute: jest.fn().mockResolvedValue({ raw: { affectedRows: 1 } }),
     };
-    const { service, partnershipRepo, linkRepo, userRepo, twitterApiIoService } =
-      createService({
-        activityRepo: { createQueryBuilder: jest.fn(() => queryBuilder) },
-      });
+    const {
+      service,
+      partnershipRepo,
+      linkRepo,
+      userRepo,
+      twitterApiIoService,
+    } = createService({
+      activityRepo: { createQueryBuilder: jest.fn(() => queryBuilder) },
+    });
     partnershipRepo.findOne.mockResolvedValue({ id: 1 });
     linkRepo.findOne.mockResolvedValue({ userId: 10 });
     userRepo.findOne.mockResolvedValue({ id: 10, twitterUsername: '@tester' });
@@ -207,7 +281,6 @@ describe('ReferralFlagService', () => {
       partnershipRepo,
       linkRepo,
       userRepo,
-      activityRepo,
       twitterApiIoService,
     } = createService({
       activityRepo: {
@@ -268,7 +341,6 @@ describe('ReferralFlagService', () => {
       partnershipRepo,
       linkRepo,
       userRepo,
-      activityRepo,
       twitterApiIoService,
     } = createService({
       activityRepo: {
@@ -335,12 +407,17 @@ describe('ReferralFlagService', () => {
       updateEntity: jest.fn().mockReturnThis(),
       execute: jest.fn().mockResolvedValue({ raw: { affectedRows: 1 } }),
     };
-    const { service, partnershipRepo, linkRepo, userRepo, twitterApiIoService } =
-      createService({
-        activityRepo: {
-          createQueryBuilder: jest.fn(() => queryBuilder),
-        },
-      });
+    const {
+      service,
+      partnershipRepo,
+      linkRepo,
+      userRepo,
+      twitterApiIoService,
+    } = createService({
+      activityRepo: {
+        createQueryBuilder: jest.fn(() => queryBuilder),
+      },
+    });
     partnershipRepo.findOne.mockResolvedValue({ id: 1 });
     linkRepo.findOne.mockResolvedValue({ userId: 10 });
     userRepo.findOne.mockResolvedValue({ id: 10, twitterUsername: '@tester' });
@@ -381,12 +458,17 @@ describe('ReferralFlagService', () => {
       updateEntity: jest.fn().mockReturnThis(),
       execute: jest.fn().mockResolvedValue({ raw: { affectedRows: 1 } }),
     };
-    const { service, partnershipRepo, linkRepo, userRepo, twitterApiIoService } =
-      createService({
-        activityRepo: {
-          createQueryBuilder: jest.fn(() => queryBuilder),
-        },
-      });
+    const {
+      service,
+      partnershipRepo,
+      linkRepo,
+      userRepo,
+      twitterApiIoService,
+    } = createService({
+      activityRepo: {
+        createQueryBuilder: jest.fn(() => queryBuilder),
+      },
+    });
     partnershipRepo.findOne.mockResolvedValue({ id: 1 });
     linkRepo.findOne.mockResolvedValue({ userId: 10 });
     userRepo.findOne.mockResolvedValue({ id: 10, twitterUsername: '@tester' });
@@ -428,12 +510,17 @@ describe('ReferralFlagService', () => {
       updateEntity: jest.fn().mockReturnThis(),
       execute: jest.fn().mockResolvedValue({ raw: { affectedRows: 1 } }),
     };
-    const { service, partnershipRepo, linkRepo, userRepo, twitterApiIoService } =
-      createService({
-        activityRepo: {
-          createQueryBuilder: jest.fn(() => queryBuilder),
-        },
-      });
+    const {
+      service,
+      partnershipRepo,
+      linkRepo,
+      userRepo,
+      twitterApiIoService,
+    } = createService({
+      activityRepo: {
+        createQueryBuilder: jest.fn(() => queryBuilder),
+      },
+    });
     partnershipRepo.findOne.mockResolvedValue({ id: 1 });
     linkRepo.findOne.mockResolvedValue({ userId: 10 });
     userRepo.findOne.mockResolvedValue({ id: 10, twitterUsername: '@tester' });
