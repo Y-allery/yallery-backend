@@ -9,6 +9,7 @@ import { DeviceTokenEntity } from './entities/device-token.entity';
 import { FirebaseModule } from 'src/integrations/firebase/firebase.module';
 import { UploadModule } from 'src/modules/uploads/upload.module';
 import { ReferralEntity } from './entities/user-refferals.entity';
+import { ReferralRedemptionEntity } from './entities/referral-redemption.entity';
 import { PostEntity } from 'src/modules/posts/entities/post.entity';
 import { LikeEntity } from 'src/modules/engagement/likes/entities/like.entity';
 import { PartnershipActivityEntity } from 'src/modules/admin/entities/partnership-activity.entity';
@@ -27,6 +28,7 @@ import { ReferralRewardSettlementService } from './referral/referral-reward-sett
       TagEntity,
       DeviceTokenEntity,
       ReferralEntity,
+      ReferralRedemptionEntity,
       PostEntity,
       LikeEntity,
       PartnershipActivityEntity,

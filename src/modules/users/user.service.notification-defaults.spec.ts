@@ -43,13 +43,14 @@ describe('UserService.sendPushNotificationIfEnabled preference defaults', () => 
       firebaseService as any, // 9 firebaseService
       {} as any, // 10
       {} as any, // 11
-      {} as any, // 12
+      {} as any, // 12 referralRedemptionRepository
       {} as any, // 13
       {} as any, // 14
       {} as any, // 15
       {} as any, // 16
       {} as any, // 17
-      {} as any, // 18 providerRuntimeConfigService
+      {} as any, // 18
+      {} as any, // 19 providerRuntimeConfigService
     );
 
     return { service, firebaseService };

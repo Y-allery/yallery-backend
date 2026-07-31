@@ -1,23 +1,25 @@
 import { BadRequestException } from '@nestjs/common';
 import { UserService } from 'src/modules/users/user.service';
-import { ReferralEntity } from 'src/modules/users/entities/user-refferals.entity';
-import { REFERRAL_REWARD_STATES } from 'src/modules/users/referral/referral-reward.contract';
+import { ReferralRedemptionEntity } from 'src/modules/users/entities/referral-redemption.entity';
+import {
+  REFERRAL_ERROR_CODES,
+  REFERRAL_REWARD_STATES,
+} from 'src/modules/users/referral/referral-reward.contract';
 
 /**
- * Regression tests for the useReferralCode race. The usedBy / bonusEligible
- * checks ran outside any transaction and credited both users with full-entity
- * saves, so two concurrent uses of the same code double-credited the referrer
- * and clobbered concurrent point changes. The claim must now be atomic.
+ * A code is a durable invite: the same link goes into a group chat or a story and every
+ * reader may redeem it. What must stay single-use is the invited user's own bonus, and
+ * that is now claimed by the unique insert into referral_redemptions rather than by
+ * stamping usedById onto the code.
  *
- * Also covers the abuse policy layered on top: the referrer is credited only
- * within their daily/lifetime cap, and only once the invited user has actually
- * generated media.
+ * Also covers the abuse policy layered on top: the referrer is credited only within
+ * their daily/lifetime cap, and only once the invited user has actually generated media.
  */
-describe('UserService.useReferralCode (double referral bonus)', () => {
+describe('UserService.useReferralCode', () => {
   const createService = ({
-    referral = { id: 5, user: { id: 99, points: 0 }, usedBy: null },
+    referral = { id: 5, user: { id: 99, points: 0 } },
     user = { id: 7, bonusEligible: true, points: 0 },
-    codeClaimAffected = 1,
+    redemptionInserted = 1,
     bonusClaimAffected = 1,
     lifetimeCount = 0,
     dailyCount = 0,
@@ -27,7 +29,7 @@ describe('UserService.useReferralCode (double referral bonus)', () => {
   }: any = {}) => {
     const increment = jest.fn(async () => ({ affected: 1 }));
 
-    const makeQb = (affected: number) => ({
+    const updateQb = (affected: number) => ({
       update: jest.fn().mockReturnThis(),
       set: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
@@ -35,17 +37,27 @@ describe('UserService.useReferralCode (double referral bonus)', () => {
       execute: jest.fn(async () => ({ affected })),
     });
 
+    const insertQb = (affectedRows: number) => ({
+      insert: jest.fn().mockReturnThis(),
+      into: jest.fn().mockReturnThis(),
+      values: jest.fn().mockReturnThis(),
+      orIgnore: jest.fn().mockReturnThis(),
+      execute: jest.fn(async () => ({ raw: { affectedRows } })),
+    });
+
     const userManagerRepo = {
-      createQueryBuilder: jest.fn(() => makeQb(bonusClaimAffected)),
+      createQueryBuilder: jest.fn(() => updateQb(bonusClaimAffected)),
       increment,
     };
-    const referralManagerRepo = {
-      createQueryBuilder: jest.fn(() => makeQb(codeClaimAffected)),
+    const redemptionManagerRepo = {
+      createQueryBuilder: jest.fn(() => insertQb(redemptionInserted)),
     };
 
     const manager = {
       getRepository: jest.fn((entity: any) =>
-        entity === ReferralEntity ? referralManagerRepo : userManagerRepo,
+        entity === ReferralRedemptionEntity
+          ? redemptionManagerRepo
+          : userManagerRepo,
       ),
     };
     const activityExist = jest.fn(async () => refereeHasGenerated);
@@ -56,6 +68,7 @@ describe('UserService.useReferralCode (double referral bonus)', () => {
 
     const userModel = { findOne: jest.fn(async () => user) };
     const capsQb = {
+      innerJoin: jest.fn().mockReturnThis(),
       select: jest.fn().mockReturnThis(),
       addSelect: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
@@ -66,8 +79,8 @@ describe('UserService.useReferralCode (double referral bonus)', () => {
         dailyCount: String(dailyCount),
       })),
     };
-    const referralRepository = {
-      findOne: jest.fn(async () => referral),
+    const referralRepository = { findOne: jest.fn(async () => referral) };
+    const referralRedemptionRepository = {
       createQueryBuilder: jest.fn(() => capsQb),
     };
     const rewardService = {
@@ -94,31 +107,33 @@ describe('UserService.useReferralCode (double referral bonus)', () => {
       {} as any, // 9 firebaseService
       {} as any, // 10 uploadService
       referralRepository as any, // 11 referralRepository
-      {} as any, // 12 partnerShipRepository
-      {} as any, // 13 partnerShipActivityRepository
-      {} as any, // 14 partnerUserLinkRepository
-      {} as any, // 15 reportPostRepository
-      {} as any, // 16 paymentRepository
-      dataSource as any, // 17 dataSource
-      providerRuntimeConfigService as any, // 18 providerRuntimeConfigService
+      referralRedemptionRepository as any, // 12 referralRedemptionRepository
+      {} as any, // 13 partnerShipRepository
+      {} as any, // 14 partnerShipActivityRepository
+      {} as any, // 15 partnerUserLinkRepository
+      {} as any, // 16 reportPostRepository
+      {} as any, // 17 paymentRepository
+      dataSource as any, // 18 dataSource
+      providerRuntimeConfigService as any, // 19 providerRuntimeConfigService
     );
 
     return {
       service,
       increment,
       dataSource,
-      claimBuilder: referralManagerRepo.createQueryBuilder,
+      referralRepository,
+      claimBuilder: redemptionManagerRepo.createQueryBuilder,
       notificationGateway,
       activityExist,
       providerRuntimeConfigService,
     };
   };
 
-  /** What the claiming UPDATE wrote on the referral row. */
-  const claimedState = (claimBuilder: jest.Mock) =>
-    claimBuilder.mock.results[0].value.set.mock.calls[0][0];
+  /** The row the claiming INSERT wrote into referral_redemptions. */
+  const redeemedRow = (claimBuilder: jest.Mock) =>
+    claimBuilder.mock.results[0].value.values.mock.calls[0][0];
 
-  it('credits both users once when the code and bonus are successfully claimed', async () => {
+  it('credits both users once when the redemption and bonus are claimed', async () => {
     const { service, increment } = createService();
 
     await service.useReferralCode(7, 'CODE');
@@ -128,8 +143,21 @@ describe('UserService.useReferralCode (double referral bonus)', () => {
     expect(increment).toHaveBeenCalledWith({ id: 99 }, 'points', 500); // referrer
   });
 
-  it('aborts without crediting when the code was already claimed (race lost)', async () => {
-    const { service, increment } = createService({ codeClaimAffected: 0 });
+  // The point of the whole change: one shared link, many redeemers.
+  it('lets a second person redeem a code someone else already used', async () => {
+    const { service, increment, claimBuilder } = createService();
+
+    await service.useReferralCode(7, 'CODE');
+
+    expect(increment).toHaveBeenCalledTimes(2);
+    expect(redeemedRow(claimBuilder)).toMatchObject({
+      referralId: 5,
+      redeemedById: 7,
+    });
+  });
+
+  it('aborts without crediting when this user already redeemed something', async () => {
+    const { service, increment } = createService({ redemptionInserted: 0 });
 
     await expect(service.useReferralCode(7, 'CODE')).rejects.toBeInstanceOf(
       BadRequestException,
@@ -137,7 +165,7 @@ describe('UserService.useReferralCode (double referral bonus)', () => {
     expect(increment).not.toHaveBeenCalled();
   });
 
-  it('aborts without crediting when the user already consumed their one-time bonus (race lost)', async () => {
+  it('aborts without crediting when the one-time bonus was already consumed', async () => {
     const { service, increment } = createService({ bonusClaimAffected: 0 });
 
     await expect(service.useReferralCode(7, 'CODE')).rejects.toBeInstanceOf(
@@ -146,9 +174,9 @@ describe('UserService.useReferralCode (double referral bonus)', () => {
     expect(increment).not.toHaveBeenCalled();
   });
 
-  it('rejects a code already used (fast-fail, before the transaction)', async () => {
+  it('rejects using your own referral code', async () => {
     const { service, dataSource } = createService({
-      referral: { id: 5, user: { id: 99 }, usedBy: { id: 123 } },
+      referral: { id: 5, user: { id: 7 } }, // owner === caller
     });
 
     await expect(service.useReferralCode(7, 'CODE')).rejects.toBeInstanceOf(
@@ -157,24 +185,34 @@ describe('UserService.useReferralCode (double referral bonus)', () => {
     expect(dataSource.transaction).not.toHaveBeenCalled();
   });
 
-  it('rejects using your own referral code', async () => {
-    const { service, dataSource } = createService({
-      referral: { id: 5, user: { id: 7 }, usedBy: null }, // owner === caller
+  // The app used to branch on the message text, so the code has to be in the body.
+  it('carries a machine-readable code on every refusal', async () => {
+    const own = createService({ referral: { id: 5, user: { id: 7 } } });
+    await expect(own.service.useReferralCode(7, 'CODE')).rejects.toMatchObject({
+      response: { code: REFERRAL_ERROR_CODES.OWN_CODE },
     });
 
-    await expect(service.useReferralCode(7, 'CODE')).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
-    expect(dataSource.transaction).not.toHaveBeenCalled();
+    const spent = createService({
+      user: { id: 7, bonusEligible: false },
+    });
+    await expect(
+      spent.service.useReferralCode(7, 'CODE'),
+    ).rejects.toMatchObject({
+      response: { code: REFERRAL_ERROR_CODES.BONUS_ALREADY_USED },
+    });
+
+    const missing = createService();
+    missing.referralRepository.findOne.mockResolvedValue(null);
+    await expect(
+      missing.service.useReferralCode(7, 'CODE'),
+    ).rejects.toMatchObject({
+      response: { code: REFERRAL_ERROR_CODES.NOT_FOUND },
+    });
   });
 
   it('rejects a second account on the same mailbox (alias loop)', async () => {
     const { service, dataSource } = createService({
-      referral: {
-        id: 5,
-        user: { id: 99, email: 'Farm.Er@gmail.com' },
-        usedBy: null,
-      },
+      referral: { id: 5, user: { id: 99, email: 'Farm.Er@gmail.com' } },
       user: { id: 7, bonusEligible: true, email: 'farmer+2@googlemail.com' },
     });
 
@@ -186,11 +224,7 @@ describe('UserService.useReferralCode (double referral bonus)', () => {
 
   it('still credits when two different mailboxes only look similar', async () => {
     const { service, increment } = createService({
-      referral: {
-        id: 5,
-        user: { id: 99, email: 'farmer@outlook.com' },
-        usedBy: null,
-      },
+      referral: { id: 5, user: { id: 99, email: 'farmer@outlook.com' } },
       user: { id: 7, bonusEligible: true, email: 'far.mer@outlook.com' },
     });
 
@@ -208,14 +242,14 @@ describe('UserService.useReferralCode (double referral bonus)', () => {
     // The invited user keeps their own bonus; the referrer waits for the sweep.
     expect(increment).toHaveBeenCalledTimes(1);
     expect(increment).toHaveBeenCalledWith({ id: 7 }, 'points', 500);
-    expect(claimedState(claimBuilder)).toMatchObject({
-      referrerRewardState: REFERRAL_REWARD_STATES.PENDING,
-      referrerRewardedAt: null,
+    expect(redeemedRow(claimBuilder)).toMatchObject({
+      rewardState: REFERRAL_REWARD_STATES.PENDING,
+      rewardedAt: null,
     });
     expect(notificationGateway.emitProfileUpdate).toHaveBeenCalledTimes(1);
   });
 
-  it('marks the referral capped and skips the referrer when the daily cap is reached', async () => {
+  it('marks the redemption capped and skips the referrer at the daily cap', async () => {
     const { service, increment, claimBuilder, activityExist } = createService({
       dailyCount: 10,
       dailyCap: 10,
@@ -225,14 +259,14 @@ describe('UserService.useReferralCode (double referral bonus)', () => {
 
     expect(increment).toHaveBeenCalledTimes(1);
     expect(increment).toHaveBeenCalledWith({ id: 7 }, 'points', 500);
-    expect(claimedState(claimBuilder)).toMatchObject({
-      referrerRewardState: REFERRAL_REWARD_STATES.CAPPED,
+    expect(redeemedRow(claimBuilder)).toMatchObject({
+      rewardState: REFERRAL_REWARD_STATES.CAPPED,
     });
     // Being capped short-circuits the generation lookup.
     expect(activityExist).not.toHaveBeenCalled();
   });
 
-  it('marks the referral capped when the lifetime cap is reached', async () => {
+  it('marks the redemption capped at the lifetime cap', async () => {
     const { service, increment, claimBuilder } = createService({
       lifetimeCount: 50,
       lifetimeCap: 50,
@@ -241,8 +275,8 @@ describe('UserService.useReferralCode (double referral bonus)', () => {
     await service.useReferralCode(7, 'CODE');
 
     expect(increment).toHaveBeenCalledTimes(1);
-    expect(claimedState(claimBuilder)).toMatchObject({
-      referrerRewardState: REFERRAL_REWARD_STATES.CAPPED,
+    expect(redeemedRow(claimBuilder)).toMatchObject({
+      rewardState: REFERRAL_REWARD_STATES.CAPPED,
     });
   });
 
@@ -256,8 +290,8 @@ describe('UserService.useReferralCode (double referral bonus)', () => {
     await service.useReferralCode(7, 'CODE');
 
     expect(increment).toHaveBeenCalledTimes(2);
-    expect(claimedState(claimBuilder)).toMatchObject({
-      referrerRewardState: REFERRAL_REWARD_STATES.PAID,
+    expect(redeemedRow(claimBuilder)).toMatchObject({
+      rewardState: REFERRAL_REWARD_STATES.PAID,
     });
   });
 });

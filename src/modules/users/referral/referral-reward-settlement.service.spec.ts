@@ -3,7 +3,7 @@ import { REFERRAL_REWARD_STATES } from './referral-reward.contract';
 
 /**
  * The sweep pays the half of the referral bonus that redemption deliberately
- * left pending. What must hold: only referrals whose invited user generated
+ * left pending. What must hold: only redemptions whose invited user generated
  * something get paid, the pending -> paid flip gates the credit so nothing is
  * paid twice, and one broken row cannot abort the run.
  */
@@ -18,6 +18,7 @@ describe('ReferralRewardSettlementService', () => {
   }: any = {}) => {
     let batchIndex = 0;
     const pendingQb = {
+      innerJoin: jest.fn().mockReturnThis(),
       select: jest.fn().mockReturnThis(),
       addSelect: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
@@ -26,7 +27,7 @@ describe('ReferralRewardSettlementService', () => {
       limit: jest.fn().mockReturnThis(),
       getRawMany: jest.fn(async () => batches[batchIndex++] ?? []),
     };
-    const referralRepository = {
+    const redemptionRepository = {
       createQueryBuilder: jest.fn(() => pendingQb),
     };
 
@@ -69,7 +70,7 @@ describe('ReferralRewardSettlementService', () => {
     };
 
     const service = new ReferralRewardSettlementService(
-      referralRepository as any,
+      redemptionRepository as any,
       rewardService as any,
       notificationGateway as any,
       dataSource as any,
@@ -81,7 +82,7 @@ describe('ReferralRewardSettlementService', () => {
       claimQb,
       notificationGateway,
       dataSource,
-      referralRepository,
+      redemptionRepository,
     };
   };
 
@@ -114,13 +115,12 @@ describe('ReferralRewardSettlementService', () => {
 
     expect(claimQb.set).toHaveBeenCalledWith(
       expect.objectContaining({
-        referrerRewardState: REFERRAL_REWARD_STATES.PAID,
+        rewardState: REFERRAL_REWARD_STATES.PAID,
       }),
     );
-    expect(claimQb.andWhere).toHaveBeenCalledWith(
-      'referrerRewardState = :state',
-      { state: REFERRAL_REWARD_STATES.PENDING },
-    );
+    expect(claimQb.andWhere).toHaveBeenCalledWith('rewardState = :state', {
+      state: REFERRAL_REWARD_STATES.PENDING,
+    });
   });
 
   it('does not credit when another run already flipped the row', async () => {
@@ -158,24 +158,24 @@ describe('ReferralRewardSettlementService', () => {
   });
 
   it('stops after a short batch and rewinds the cursor for the next run', async () => {
-    const { service, referralRepository } = createService({
+    const { service, redemptionRepository } = createService({
       batches: [[{ id: 7, referrerId: 11, refereeId: 21 }]],
       generatedRefereeIds: [],
     });
 
     await service.settlePendingRewards();
 
-    expect(referralRepository.createQueryBuilder).toHaveBeenCalledTimes(1);
+    expect(redemptionRepository.createQueryBuilder).toHaveBeenCalledTimes(1);
     expect((service as any).cursorId).toBe(0);
   });
 
   it('ignores an overlapping run instead of scanning the same rows twice', async () => {
-    const { service, referralRepository } = createService();
+    const { service, redemptionRepository } = createService();
     (service as any).isRunning = true;
 
     const result = await service.settlePendingRewards();
 
     expect(result).toEqual({ scanned: 0, settled: 0 });
-    expect(referralRepository.createQueryBuilder).not.toHaveBeenCalled();
+    expect(redemptionRepository.createQueryBuilder).not.toHaveBeenCalled();
   });
 });

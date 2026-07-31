@@ -12,7 +12,11 @@ describe('UserService.updateTwitterUsername (registration-bonus farming)', () =>
     existingUser = { id: 1, twitterUsername: null, points: 0 },
     firstLinkAffected = 1,
   }: {
-    existingUser?: { id: number; twitterUsername: string | null; points: number } | null;
+    existingUser?: {
+      id: number;
+      twitterUsername: string | null;
+      points: number;
+    } | null;
     firstLinkAffected?: number;
   } = {}) => {
     const userModel = {
@@ -39,6 +43,7 @@ describe('UserService.updateTwitterUsername (registration-bonus farming)', () =>
       {} as any, // firebaseService
       {} as any, // uploadService
       {} as any, // referralRepository
+      {} as any, // referralRedemptionRepository
       {} as any, // partnerShipRepository
       {} as any, // partnerShipActivityRepository
       {} as any, // partnerUserLinkRepository

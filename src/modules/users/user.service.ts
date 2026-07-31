@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  HttpStatus,
   Inject,
   Injectable,
   NotFoundException,
@@ -17,6 +18,7 @@ import { FirebaseService } from 'src/integrations/firebase/firebase.service';
 import { getNotificationMessage } from 'src/shared/helpers/notification.helper';
 import { UploadService } from 'src/modules/uploads/upload.service';
 import { ReferralEntity } from './entities/user-refferals.entity';
+import { ReferralRedemptionEntity } from './entities/referral-redemption.entity';
 import { v4 as uuidv4 } from 'uuid';
 import { UpdateUserDto } from './dto/update.user.details.dto';
 import { PostEntity } from 'src/modules/posts/entities/post.entity';
@@ -35,7 +37,9 @@ import { UserActivityEntity } from 'src/modules/engagement/user-activity/entitie
 import { USER_ACTIVITY_TYPES } from 'src/modules/engagement/user-activity/types/user-activity.constants';
 import {
   normalizeEmailIdentity,
+  ReferralErrorCode,
   ReferralRewardState,
+  REFERRAL_ERROR_CODES,
   REFERRAL_REWARDED_STATES,
   REFERRAL_REWARD_DEFAULTS,
   REFERRAL_REWARD_SETTING_KEYS,
@@ -56,6 +60,35 @@ const DAILY_REWARD_BATCH_PAUSE_MS = 50;
 
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Referral refusals carry a stable `code` next to the human message. The app branched on
+ * the message text verbatim, which breaks on any wording or localisation change.
+ *
+ * These stay subclasses of the ordinary Nest exceptions so status codes and every
+ * existing `instanceof` check keep behaving exactly as before; `code` is purely additive.
+ */
+export class ReferralBadRequestException extends BadRequestException {
+  constructor(message: string, code: ReferralErrorCode) {
+    super({
+      statusCode: HttpStatus.BAD_REQUEST,
+      error: 'Bad Request',
+      message,
+      code,
+    });
+  }
+}
+
+export class ReferralNotFoundException extends NotFoundException {
+  constructor(message: string, code: ReferralErrorCode) {
+    super({
+      statusCode: HttpStatus.NOT_FOUND,
+      error: 'Not Found',
+      message,
+      code,
+    });
+  }
+}
 
 @Injectable()
 export class UserService {
@@ -79,6 +112,8 @@ export class UserService {
     private readonly uploadService: UploadService,
     @InjectRepository(ReferralEntity)
     private readonly referralRepository: Repository<ReferralEntity>,
+    @InjectRepository(ReferralRedemptionEntity)
+    private readonly referralRedemptionRepository: Repository<ReferralRedemptionEntity>,
     @InjectRepository(PartnershipEntity)
     private readonly partnerShipRepository: Repository<PartnershipEntity>,
     @InjectRepository(PartnershipActivityEntity)
@@ -98,6 +133,17 @@ export class UserService {
     const user = await this.findById(userId);
     if (!user) {
       throw new NotFoundException('User not found');
+    }
+
+    // Idempotent: every tap of the share button used to mint another row, so a user
+    // accumulated codes and the one already pasted somewhere was never the current one.
+    // Oldest first — that is the one most likely to be out in the world already.
+    const existing = await this.referralRepository.findOne({
+      where: { user: { id: userId } },
+      order: { id: 'ASC' },
+    });
+    if (existing) {
+      return existing.code;
     }
 
     let code: string;
@@ -321,7 +367,14 @@ export class UserService {
         [user_id],
       );
 
-      // 2. Видаляємо referrals (де user є власником або використовувачем)
+      // 2. Видаляємо погашення (свої і чужі по своїх кодах), потім самі коди.
+      // Порядок важливий: referral_redemptions тримає FK на обидві таблиці.
+      await queryRunner.query(
+        `DELETE rr FROM referral_redemptions rr
+           LEFT JOIN referrals r ON r.id = rr.referralId
+          WHERE rr.redeemedById = ? OR r.userId = ?`,
+        [user_id, user_id],
+      );
       await queryRunner.query(
         'DELETE FROM referrals WHERE userId = ? OR usedById = ?',
         [user_id, user_id],
@@ -346,19 +399,15 @@ export class UserService {
       );
 
       // 6. Видаляємо payments
-      await queryRunner.query(
-        'DELETE FROM payments WHERE userId = ?',
-        [user_id],
-      );
+      await queryRunner.query('DELETE FROM payments WHERE userId = ?', [
+        user_id,
+      ]);
 
       // 7. Видаляємо самого користувача
       // CASCADE DELETE автоматично видалить:
       // - posts, likes, viewed_posts, activities, device_tokens, notification_preferences
       // - зв'язки з tags через users_tags_tags
-      await queryRunner.query(
-        'DELETE FROM users WHERE id = ?',
-        [user_id],
-      );
+      await queryRunner.query('DELETE FROM users WHERE id = ?', [user_id]);
 
       await queryRunner.commitTransaction();
       return { status: 'Success', message: 'User deleted successfully' };
@@ -568,18 +617,26 @@ export class UserService {
             title,
             body,
           );
-          
+
           // Якщо токен невалідний - видаляємо його з бази
           if (!result.success && result.isInvalidToken) {
-            console.log(`🗑️ Removing invalid token for user ${userId} (token: ${deviceToken.token.substring(0, 10)}...)`);
+            console.log(
+              `🗑️ Removing invalid token for user ${userId} (token: ${deviceToken.token.substring(0, 10)}...)`,
+            );
             try {
               await this.deviceTokenModel.remove(deviceToken);
             } catch (removeError) {
-              console.error(`❌ Failed to remove invalid token:`, removeError.message);
+              console.error(
+                `❌ Failed to remove invalid token:`,
+                removeError.message,
+              );
             }
           }
         } catch (error) {
-          console.error(`❌ Failed to send notification to token:`, error.message);
+          console.error(
+            `❌ Failed to send notification to token:`,
+            error.message,
+          );
         }
       }
     }
@@ -722,19 +779,23 @@ export class UserService {
   async useReferralCode(userId: number, code: string): Promise<void> {
     const referral = await this.referralRepository.findOne({
       where: { code },
-      relations: ['user', 'usedBy'],
+      relations: ['user'],
     });
 
     if (!referral) {
-      throw new NotFoundException('Referral code not found');
+      throw new ReferralNotFoundException(
+        'Referral code not found',
+        REFERRAL_ERROR_CODES.NOT_FOUND,
+      );
     }
 
-    if (referral.usedBy) {
-      throw new BadRequestException('Referral code is already used');
-    }
+    // No "already used" check any more: a code is a durable invite, not a single ticket.
 
     if (referral.user.id === userId) {
-      throw new BadRequestException('You can’t use your own referral code');
+      throw new ReferralBadRequestException(
+        'You can’t use your own referral code',
+        REFERRAL_ERROR_CODES.OWN_CODE,
+      );
     }
 
     const user = await this.findById(userId);
@@ -743,8 +804,9 @@ export class UserService {
     }
 
     if (!user.bonusEligible) {
-      throw new BadRequestException(
+      throw new ReferralBadRequestException(
         'You can only receive the referral bonus once',
+        REFERRAL_ERROR_CODES.BONUS_ALREADY_USED,
       );
     }
 
@@ -757,7 +819,10 @@ export class UserService {
       normalizeEmailIdentity(referral.user.email) ===
         normalizeEmailIdentity(user.email)
     ) {
-      throw new BadRequestException('You can’t use your own referral code');
+      throw new ReferralBadRequestException(
+        'You can’t use your own referral code',
+        REFERRAL_ERROR_CODES.OWN_CODE,
+      );
     }
 
     const rewardPoints = await this.rewardService.getRewardPointsOrDefault(
@@ -780,30 +845,34 @@ export class UserService {
     const payReferrerNow = rewardState === REFERRAL_REWARD_STATES.PAID;
     const now = new Date();
 
-    // The checks above are a fast-fail; the authoritative guards are the two
-    // conditional UPDATEs below. They atomically "claim" the code (usedById was
-    // NULL) and the user's one-time bonus (bonusEligible was true). Concurrent
-    // or duplicate requests fail the WHERE and abort, so the referrer is never
-    // double-credited, and both balances move via atomic increments instead of
-    // a full-entity save that could clobber concurrent writes.
+    // The checks above are a fast-fail; the authoritative guards are the insert and the
+    // conditional UPDATE below. The insert claims the user's single redemption (unique
+    // on redeemedById) and the UPDATE claims their one-time bonus (bonusEligible was
+    // true). Concurrent or duplicate requests lose one of the two and abort, so the
+    // referrer is never double-credited, and balances move via atomic increments rather
+    // than a full-entity save that could clobber a concurrent write.
     await this.dataSource.transaction(async (manager) => {
       const userRepo = manager.getRepository(UserEntity);
 
-      const claimCode = await manager
-        .getRepository(ReferralEntity)
+      const claimRedemption = await manager
+        .getRepository(ReferralRedemptionEntity)
         .createQueryBuilder()
-        .update(ReferralEntity)
-        .set({
-          usedBy: { id: userId },
-          usedAt: now,
-          referrerRewardState: rewardState,
-          referrerRewardedAt: payReferrerNow ? now : null,
+        .insert()
+        .into(ReferralRedemptionEntity)
+        .values({
+          referralId: referral.id,
+          redeemedById: userId,
+          redeemedAt: now,
+          rewardState,
+          rewardedAt: payReferrerNow ? now : null,
         })
-        .where('id = :rid', { rid: referral.id })
-        .andWhere('usedById IS NULL')
+        .orIgnore()
         .execute();
-      if (!claimCode.affected) {
-        throw new BadRequestException('Referral code is already used');
+      if (!claimRedemption.raw?.affectedRows) {
+        throw new ReferralBadRequestException(
+          'You can only receive the referral bonus once',
+          REFERRAL_ERROR_CODES.BONUS_ALREADY_USED,
+        );
       }
 
       const claimBonus = await userRepo
@@ -814,8 +883,9 @@ export class UserService {
         .andWhere('bonusEligible = :eligible', { eligible: true })
         .execute();
       if (!claimBonus.affected) {
-        throw new BadRequestException(
+        throw new ReferralBadRequestException(
           'You can only receive the referral bonus once',
+          REFERRAL_ERROR_CODES.BONUS_ALREADY_USED,
         );
       }
 
@@ -874,18 +944,25 @@ export class UserService {
     const dayStart = new Date();
     dayStart.setHours(0, 0, 0, 0);
 
-    const counts = await this.referralRepository
-      .createQueryBuilder('referral')
+    // Counted over redemptions, joined back to the codes this referrer owns. With one
+    // code per user the join is a primary-key lookup; it stays correct for the users who
+    // accumulated several codes before generation became idempotent.
+    const counts = await this.referralRedemptionRepository
+      .createQueryBuilder('redemption')
+      .innerJoin(
+        ReferralEntity,
+        'referral',
+        'referral.id = redemption.referralId',
+      )
       .select('COUNT(*)', 'lifetimeCount')
       .addSelect(
-        'SUM(CASE WHEN referral.usedAt >= :dayStart THEN 1 ELSE 0 END)',
+        'SUM(CASE WHEN redemption.redeemedAt >= :dayStart THEN 1 ELSE 0 END)',
         'dailyCount',
       )
       .where('referral.userId = :referrerId', { referrerId })
-      .andWhere('referral.usedById IS NOT NULL')
       // NULL state = redeemed before this policy shipped; those were paid.
       .andWhere(
-        '(referral.referrerRewardState IS NULL OR referral.referrerRewardState IN (:...states))',
+        '(redemption.rewardState IS NULL OR redemption.rewardState IN (:...states))',
         { states: REFERRAL_REWARDED_STATES },
       )
       .setParameter('dayStart', dayStart)
