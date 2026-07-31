@@ -11,24 +11,9 @@ import * as session from 'express-session';
 import * as passport from 'passport';
 import { RedisStore } from 'connect-redis';
 import { createClient } from 'redis';
-import * as jwt from 'jsonwebtoken';
 
 let redisClient: ReturnType<typeof createClient>;
 const SWAGGER_AUTH_SCHEME = 'bearer';
-const SWAGGER_DEV_USER_ID = 125;
-
-/**
- * Pre-authorises the Swagger UI as a known admin so local API poking needs no
- * login. The token carries no expiry and is signed with the real JWT_SECRET,
- * while swagger-ui-init.js — where swagger-ui inlines authAction — is served
- * unauthenticated. Never call this outside development.
- */
-function createSwaggerDevToken(): string {
-  return jwt.sign(
-    { sub: SWAGGER_DEV_USER_ID },
-    process.env.JWT_SECRET || 'dev',
-  );
-}
 
 function setupSwagger(app: INestApplication): void {
   const config = new DocumentBuilder()
@@ -47,22 +32,13 @@ function setupSwagger(app: INestApplication): void {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
+  // No pre-authorised token. swagger-ui inlines authAction into swagger-ui-init.js,
+  // which is served unauthenticated — so any pre-filled credential is a public one.
+  // dev and prod share JWT_SECRET, so the token minted here authenticated against
+  // PRODUCTION as user 125, the only admin account. Paste your own token instead;
+  // persistAuthorization keeps it across reloads.
   SwaggerModule.setup('api', app, document, {
-    swaggerOptions: {
-      persistAuthorization: true,
-      authAction: {
-        [SWAGGER_AUTH_SCHEME]: {
-          name: SWAGGER_AUTH_SCHEME,
-          schema: {
-            type: 'http',
-            in: 'header',
-            scheme: 'bearer',
-            bearerFormat: 'JWT',
-          },
-          value: createSwaggerDevToken(),
-        },
-      },
-    },
+    swaggerOptions: { persistAuthorization: true },
   });
 }
 
@@ -102,7 +78,7 @@ async function bootstrap() {
   });
 
   try {
-  await redisClient.connect();
+    await redisClient.connect();
   } catch (error) {
     console.error('❌ Failed to connect to Redis:', error);
     process.exit(1);
@@ -134,7 +110,10 @@ async function bootstrap() {
   app.use(compression({ threshold: 1024 }));
 
   // Increase limits for video/GIF uploads (413). If behind nginx, set client_max_body_size 100m;
-  app.use('/payment/webhook', bodyParser.raw({ type: 'application/json', limit: '50mb' }));
+  app.use(
+    '/payment/webhook',
+    bodyParser.raw({ type: 'application/json', limit: '50mb' }),
+  );
   app.use(bodyParser.json({ limit: '50mb' }));
   app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 
@@ -177,12 +156,12 @@ async function bootstrap() {
 
   const port = process.env.PORT || 8000;
   try {
-  await app.listen(port, '0.0.0.0');
-  console.log(`🚀 Application is running on: http://0.0.0.0:${port}`);
-  if (devToolsEnabled) {
-    console.log(`📚 Swagger documentation: http://0.0.0.0:${port}/api`);
-  }
-  console.log(`⏰ Cron jobs are enabled and will run every 10 minutes`);
+    await app.listen(port, '0.0.0.0');
+    console.log(`🚀 Application is running on: http://0.0.0.0:${port}`);
+    if (devToolsEnabled) {
+      console.log(`📚 Swagger documentation: http://0.0.0.0:${port}/api`);
+    }
+    console.log(`⏰ Cron jobs are enabled and will run every 10 minutes`);
   } catch (error) {
     console.error(`❌ Failed to start server on port ${port}:`, error);
     if (redisClient) {
@@ -201,7 +180,7 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 
-  process.on('SIGTERM', async () => {
+process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully...');
   if (redisClient) {
     await redisClient.quit().catch(console.error);
@@ -209,7 +188,7 @@ process.on('uncaughtException', (error) => {
   process.exit(0);
 });
 
-  process.on('SIGINT', async () => {
+process.on('SIGINT', async () => {
   console.log('SIGINT received, shutting down gracefully...');
   if (redisClient) {
     await redisClient.quit().catch(console.error);
