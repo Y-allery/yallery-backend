@@ -61,6 +61,37 @@ export class BranchLinkService {
       },
     );
 
-    return branchResponse.data.url;
+    return BranchLinkService.withReferralToken(
+      branchResponse.data.url,
+      referralToken,
+    );
+  }
+
+  /**
+   * Appends `?ref=<token>` to a Branch URL, the way the web-app branch above already does.
+   *
+   * The token is also baked into the link's `referral_token` data field, but the signup
+   * path never reads that key — it reads `ref` off the query string, which Branch passes
+   * through into getLatestReferringParams. So a bare Branch link hands the app a `puid`
+   * with no `ref`, and `if (dto.ref && dto.puid)` silently declines to link the user.
+   */
+  static withReferralToken(url: string, referralToken: string): string {
+    if (!url) {
+      return url;
+    }
+
+    try {
+      const parsed = new URL(url);
+      if (parsed.searchParams.get('ref')) {
+        return url;
+      }
+      parsed.searchParams.set('ref', referralToken);
+      return parsed.toString();
+    } catch {
+      // Never let a link Branch returned in an unexpected shape break creation.
+      return url.includes('ref=')
+        ? url
+        : `${url}${url.includes('?') ? '&' : '?'}ref=${encodeURIComponent(referralToken)}`;
+    }
   }
 }
