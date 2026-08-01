@@ -22,6 +22,16 @@ export interface ImageTransformation {
   watermark?: boolean;
   /** fl_attachment — serve with Content-Disposition: attachment. */
   attachment?: boolean;
+  /**
+   * Encode as WebP instead of inheriting the original's format.
+   *
+   * Opt-in per variant rather than "everything that is not an attachment": a
+   * download's Content-Type has to keep matching its key extension, and
+   * `t_yallery_preview_image_v2` additionally feeds og:image on shared contest
+   * links, where the crawlers are unreliable with WebP. Flipping preview later
+   * is one line here.
+   */
+  webp?: boolean;
 }
 
 export interface VideoTransformation {
@@ -41,6 +51,7 @@ export const MEDIA_TRANSFORMATIONS: Record<string, MediaTransformation> = {
     fit: 'inside',
     width: 1080,
     quality: 'good',
+    webp: true,
   },
   /** Avatars/thumbnails: g_auto, w_400, h_400, c_fill, q_auto:eco. */
   t_yallery_thumb_image_v2: {
@@ -49,8 +60,12 @@ export const MEDIA_TRANSFORMATIONS: Record<string, MediaTransformation> = {
     width: 400,
     height: 400,
     quality: 'eco',
+    webp: true,
   },
-  /** Large still previews: q_auto:good, w_720, c_limit. */
+  /**
+   * Large still previews: q_auto:good, w_720, c_limit.
+   * No `webp` yet — this one is also the og:image of a shared contest link.
+   */
   t_yallery_preview_image_v2: {
     kind: 'image',
     fit: 'inside',
