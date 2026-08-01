@@ -53,12 +53,19 @@ export const MEDIA_TRANSFORMATIONS: Record<string, MediaTransformation> = {
     quality: 'good',
     webp: true,
   },
-  /** Avatars/thumbnails: g_auto, w_400, h_400, c_fill, q_auto:eco. */
+  /**
+   * Thumbnails: w_400, c_limit, q_auto:eco — the full frame, just small.
+   *
+   * Was a 400x400 attention crop, which made the thumbnail and the full image
+   * differently framed: opening a picture from the grid visibly jumped, and the grid
+   * itself cropped twice (square variant, then cover into a tile of the post's aspect).
+   * Every consumer draws it with BoxFit.cover in a fixed box, so each one now crops once,
+   * to its own shape.
+   */
   t_yallery_thumb_image_v2: {
     kind: 'image',
-    fit: 'cover',
+    fit: 'inside',
     width: 400,
-    height: 400,
     quality: 'eco',
     webp: true,
   },
