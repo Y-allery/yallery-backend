@@ -338,6 +338,21 @@ export class MediaProxyService {
     }
 
     const quality = spec.quality === 'eco' ? 60 : 78;
+
+    // Display variants are re-encoded rather than inheriting the original's format.
+    // ~45% of the library is PNG, and a PNG variant was both heavier and worse: the
+    // palette:true path below quantises to 256 colours with dithering, which bands the
+    // gradients of photoreal output and is itself most of the file size. Measured on ten
+    // real feed variants, JPEG q78 alone was -34%; WebP is normally better again.
+    //
+    // Animated inputs keep their own branch: a GIF must not silently stop animating.
+    if (spec.webp && !animated) {
+      return {
+        body: await pipeline.webp({ quality }).toBuffer(),
+        contentType: 'image/webp',
+      };
+    }
+
     switch (extension) {
       case 'png':
         return {
