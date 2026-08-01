@@ -97,8 +97,10 @@ describe('MediaProxyService', () => {
 
     const derived = objects.get(derivedKey)!;
     const metadata = await sharp(derived).metadata();
+    // The full frame bounded to 400 wide, not a square crop: the thumbnail and the full
+    // image must be framed identically or opening one from the grid jumps.
     expect(metadata.width).toBe(400);
-    expect(metadata.height).toBe(400);
+    expect(metadata.height).toBe(300);
 
     // Second request is answered from the in-memory known-derived cache.
     const second = await service.resolve(
@@ -175,6 +177,23 @@ describe('MediaProxyService', () => {
     expect(resolved.contentLength).toBe(bytes.length);
     expect(resolved.contentType).toBe('video/mp4');
     expect(resolved.attachmentFilename).toBe('x.mp4');
+  });
+
+  // A square crop made the grid tile and the full image differently framed, so opening
+  // a picture visibly jumped, and the grid cropped twice.
+  it('keeps the thumbnail on the original aspect ratio', async () => {
+    objects.set('octoai_images/tall.jpg', await testJpeg(600, 1200));
+
+    await service.resolve(
+      'image',
+      't_yallery_thumb_image_v2/octoai_images/tall.jpg',
+    );
+
+    const meta = await sharp(
+      objects.get('t/t_yallery_thumb_image_v2/octoai_images/tall.jpg')!,
+    ).metadata();
+    expect(meta.width).toBe(400);
+    expect(meta.height).toBe(800);
   });
 
   describe('display variants are re-encoded as WebP', () => {
