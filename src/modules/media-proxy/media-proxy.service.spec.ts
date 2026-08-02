@@ -196,6 +196,66 @@ describe('MediaProxyService', () => {
     expect(meta.height).toBe(800);
   });
 
+  describe('forgetDerived', () => {
+    const feedOf = (key: string) => `t/t_yallery_feed_image_v2/${key}`;
+
+    // The exact failure this exists for: s3cmd del empties the bucket, but the process
+    // still believes the object is there, so it redirects to something that is gone and
+    // a warm-up pass through the same process skips the very keys it should rebuild.
+    it('makes a variant deleted from the bucket regenerate instead of 301-ing to nothing', async () => {
+      objects.set('octoai_images/a.jpg', await testJpeg(1200, 900));
+      await service.resolve(
+        'image',
+        't_yallery_feed_image_v2/octoai_images/a.jpg',
+      );
+      expect(spaces.putPublicObject).toHaveBeenCalledTimes(1);
+
+      // Someone runs s3cmd del.
+      objects.delete(feedOf('octoai_images/a.jpg'));
+
+      // Without forgetting, the proxy still trusts its own memory.
+      await service.resolve(
+        'image',
+        't_yallery_feed_image_v2/octoai_images/a.jpg',
+      );
+      expect(spaces.putPublicObject).toHaveBeenCalledTimes(1);
+      expect(objects.has(feedOf('octoai_images/a.jpg'))).toBe(false);
+
+      expect(service.forgetDerived()).toMatchObject({ remaining: 0 });
+
+      await service.resolve(
+        'image',
+        't_yallery_feed_image_v2/octoai_images/a.jpg',
+      );
+      expect(spaces.putPublicObject).toHaveBeenCalledTimes(2);
+      expect(objects.has(feedOf('octoai_images/a.jpg'))).toBe(true);
+    });
+
+    it('drops only the matching prefix, keeping the rest of the warm set', async () => {
+      objects.set('octoai_images/a.jpg', await testJpeg(1200, 900));
+      await service.resolve(
+        'image',
+        't_yallery_feed_image_v2/octoai_images/a.jpg',
+      );
+      await service.resolve(
+        'image',
+        't_yallery_preview_image_v2/octoai_images/a.jpg',
+      );
+
+      const result = service.forgetDerived('t/t_yallery_feed_image_v2/');
+
+      expect(result).toEqual({ forgotten: 1, remaining: 1 });
+
+      // The preview entry survived: re-resolving it does not write again.
+      const writes = spaces.putPublicObject.mock.calls.length;
+      await service.resolve(
+        'image',
+        't_yallery_preview_image_v2/octoai_images/a.jpg',
+      );
+      expect(spaces.putPublicObject).toHaveBeenCalledTimes(writes);
+    });
+  });
+
   describe('display variants are re-encoded as WebP', () => {
     // ~45% of the library is PNG, and the PNG path quantised to a 256-colour palette:
     // heavier AND worse than WebP on photoreal output.

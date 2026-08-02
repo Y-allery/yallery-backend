@@ -255,6 +255,36 @@ export class MediaProxyService {
     }
   }
 
+  /**
+   * Drops remembered derived keys so the next request re-checks Spaces.
+   *
+   * ensureDerived trusts `knownDerived` and never re-reads the bucket for a key it has
+   * seen, which is what makes the proxy cheap — and what makes deleting derived objects
+   * from the bucket dangerous: the process keeps redirecting to objects that are gone,
+   * and a warm-up pass driven through this same process silently skips regenerating
+   * exactly the keys it was meant to rebuild. Migrations used to need a process restart
+   * to clear it; this is that, without the restart.
+   *
+   * `prefix` is matched against the derived key (`t/<variant>/<key>`), so one variant can
+   * be invalidated without discarding the rest of the warm set.
+   */
+  forgetDerived(prefix?: string): { forgotten: number; remaining: number } {
+    const before = this.knownDerived.size;
+
+    if (!prefix) {
+      this.knownDerived.clear();
+      return { forgotten: before, remaining: 0 };
+    }
+
+    for (const key of this.knownDerived) {
+      if (key.startsWith(prefix)) this.knownDerived.delete(key);
+    }
+    return {
+      forgotten: before - this.knownDerived.size,
+      remaining: this.knownDerived.size,
+    };
+  }
+
   private rememberDerived(derivedKey: string): void {
     if (this.knownDerived.size >= MAX_KNOWN_DERIVED) {
       this.knownDerived.clear();
