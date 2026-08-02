@@ -777,7 +777,9 @@ export class SpacesStorageService {
     if (!proxyBaseUrl) return;
     const base = proxyBaseUrl.replace(/\/+$/, '');
     for (const variant of [
+      // v2 stays for the transition: app builds already in the wild still ask for it.
       't_yallery_thumb_image_v2',
+      't_yallery_thumb_image_v3',
       't_yallery_feed_image_v2',
       't_yallery_preview_image_v2',
     ]) {

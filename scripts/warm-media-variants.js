@@ -28,6 +28,7 @@ const CONCURRENCY = 4;
 const IMAGE_MARKER = '/media/image/upload/';
 const IMAGE_VARIANTS = [
   't_yallery_thumb_image_v2',
+  't_yallery_thumb_image_v3',
   't_yallery_feed_image_v2',
   't_yallery_preview_image_v2',
 ];
@@ -35,12 +36,12 @@ const IMAGE_VARIANTS = [
 /** table, column, variants to warm */
 const SOURCES = [
   ['posts', 'imageUrl', IMAGE_VARIANTS],
-  ['posts', 'previewImageUrl', ['t_yallery_thumb_image_v2', 't_yallery_preview_image_v2']],
-  ['users', 'avatar', ['t_yallery_thumb_image_v2']],
-  ['contests', 'imageUrl', ['t_yallery_thumb_image_v2', 't_yallery_preview_image_v2']],
-  ['tags', 'imageUrl', ['t_yallery_thumb_image_v2']],
-  ['styles', 'imageUrl', ['t_yallery_thumb_image_v2']],
-  ['memes', 'referenceImageUrl', ['t_yallery_thumb_image_v2', 't_yallery_preview_image_v2']],
+  ['posts', 'previewImageUrl', ['t_yallery_thumb_image_v2', 't_yallery_thumb_image_v3', 't_yallery_preview_image_v2']],
+  ['users', 'avatar', ['t_yallery_thumb_image_v2', 't_yallery_thumb_image_v3']],
+  ['contests', 'imageUrl', ['t_yallery_thumb_image_v2', 't_yallery_thumb_image_v3', 't_yallery_preview_image_v2']],
+  ['tags', 'imageUrl', ['t_yallery_thumb_image_v2', 't_yallery_thumb_image_v3']],
+  ['styles', 'imageUrl', ['t_yallery_thumb_image_v2', 't_yallery_thumb_image_v3']],
+  ['memes', 'referenceImageUrl', ['t_yallery_thumb_image_v2', 't_yallery_thumb_image_v3', 't_yallery_preview_image_v2']],
 ];
 
 function variantUrls(url, variants) {

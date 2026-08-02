@@ -70,6 +70,24 @@ export const MEDIA_TRANSFORMATIONS: Record<string, MediaTransformation> = {
     webp: true,
   },
   /**
+   * Same spec as v2, under a clean name.
+   *
+   * v2 objects already in the bucket, at the CDN edge and in app caches are the old
+   * 400x400 attention crop, and nothing re-derives them — ensureDerived sees them, and
+   * the edge holds them for a year. A new name sidesteps all three at once, so no
+   * bucket deletion, process restart or CDN purge is needed; v2 simply falls out of use.
+   *
+   * Requested only by app builds that ask for it — the variant name is chosen client
+   * side (media_url_transformer.dart), so this stays inert until that ships.
+   */
+  t_yallery_thumb_image_v3: {
+    kind: 'image',
+    fit: 'inside',
+    width: 400,
+    quality: 'eco',
+    webp: true,
+  },
+  /**
    * Large still previews: q_auto:good, w_720, c_limit.
    * No `webp` yet — this one is also the og:image of a shared contest link.
    */

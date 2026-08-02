@@ -83,6 +83,7 @@ describe('registry', () => {
         't_yallery_feed_image_v2',
         't_yallery_preview_image_v2',
         't_yallery_thumb_image_v2',
+        't_yallery_thumb_image_v3',
         't_yallery_video_720_v2',
         't_yallery_video_download_v1',
         't_yallery_video_preview_v2',
