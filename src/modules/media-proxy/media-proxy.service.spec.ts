@@ -196,6 +196,28 @@ describe('MediaProxyService', () => {
     expect(meta.height).toBe(800);
   });
 
+  // A clean name, so old cropped v2 objects in the bucket, at the edge and in app
+  // caches are simply bypassed instead of having to be deleted and purged.
+  it('serves thumb v3 with the same shape as v2', async () => {
+    objects.set('octoai_images/v3.png', await testPng(1200, 900));
+
+    await service.resolve(
+      'image',
+      't_yallery_thumb_image_v3/octoai_images/v3.png',
+    );
+
+    const meta = await sharp(
+      objects.get('t/t_yallery_thumb_image_v3/octoai_images/v3.png')!,
+    ).metadata();
+    expect(meta.format).toBe('webp');
+    expect(meta.width).toBe(400);
+    expect(meta.height).toBe(300);
+    // Distinct key: the v2 object is untouched and keeps its old crop.
+    expect(objects.has('t/t_yallery_thumb_image_v2/octoai_images/v3.png')).toBe(
+      false,
+    );
+  });
+
   describe('forgetDerived', () => {
     const feedOf = (key: string) => `t/t_yallery_feed_image_v2/${key}`;
 
