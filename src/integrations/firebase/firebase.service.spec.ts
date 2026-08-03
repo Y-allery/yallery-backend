@@ -45,6 +45,30 @@ describe('FirebaseService.sendNotification', () => {
     expect(sleep).not.toHaveBeenCalled();
   });
 
+  // The client reads `data` to decide which screen a tap opens; FCM rejects a message
+  // whose data values are not strings, so the field is passed through untouched.
+  it('forwards a data payload and omits the key entirely when there is none', async () => {
+    const send = jest.fn(async () => 'projects/x/messages/1');
+    const { service } = makeService(send);
+
+    await service.sendNotification('token-abcdefghij', 't', 'b', {
+      type: 'contest_opened',
+      contestId: '42',
+    });
+    expect(send).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        data: { type: 'contest_opened', contestId: '42' },
+      }),
+    );
+
+    await service.sendNotification('token-abcdefghij', 't', 'b');
+    expect(send).toHaveBeenNthCalledWith(
+      2,
+      expect.not.objectContaining({ data: expect.anything() }),
+    );
+  });
+
   it('never retries an unregistered token and still flags it for deletion', async () => {
     const send = jest.fn(async () => {
       throw fcmError({
