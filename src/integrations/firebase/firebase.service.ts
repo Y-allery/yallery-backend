@@ -70,12 +70,19 @@ export class FirebaseService implements OnModuleInit {
     token: string,
     title: string,
     body: string,
+    /**
+     * Routing payload for the tap: the client reads `type` to decide which screen to
+     * open and takes the rest as its parameters. FCM only carries strings here, so
+     * numeric ids must be stringified by the caller.
+     */
+    data?: Record<string, string>,
   ): Promise<SendNotificationResult> {
     const message = {
       notification: {
         title,
         body,
       },
+      ...(data && { data }),
       token,
     };
 

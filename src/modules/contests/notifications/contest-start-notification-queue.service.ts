@@ -25,7 +25,9 @@ import {
 
 @Injectable()
 export class ContestStartNotificationQueueService {
-  private readonly logger = new Logger(ContestStartNotificationQueueService.name);
+  private readonly logger = new Logger(
+    ContestStartNotificationQueueService.name,
+  );
   private readonly userBatchSize = 100;
   private readonly notificationBatchSize = 10;
 
@@ -168,6 +170,12 @@ export class ContestStartNotificationQueueService {
                 user,
                 push.title,
                 push.body,
+                // Tap routing. Same string as USER_ACTIVITY_TYPES.CONTEST_OPENED,
+                // and FCM carries strings only, hence String(contestId).
+                {
+                  type: USER_ACTIVITY_TYPES.CONTEST_OPENED,
+                  contestId: String(data.contestId),
+                },
               );
               return { user, ok: true, hadTokens, delivered };
             } catch (error) {
@@ -234,9 +242,7 @@ export class ContestStartNotificationQueueService {
         }
       }
 
-      await job
-        ?.updateData({ ...data, lastUserId })
-        .catch(() => undefined);
+      await job?.updateData({ ...data, lastUserId }).catch(() => undefined);
     }
 
     this.logger.log(
@@ -283,6 +289,7 @@ export class ContestStartNotificationQueueService {
     user: UserEntity,
     title: string,
     body: string,
+    data?: Record<string, string>,
   ): Promise<{ hadTokens: boolean; delivered: boolean }> {
     if (!user.deviceTokens?.length) {
       return { hadTokens: false, delivered: false };
@@ -294,6 +301,7 @@ export class ContestStartNotificationQueueService {
           deviceToken.token,
           title,
           body,
+          data,
         );
 
         if (!result.success && result.isInvalidToken) {
