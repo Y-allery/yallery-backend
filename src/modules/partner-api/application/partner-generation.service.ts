@@ -274,6 +274,10 @@ export class PartnerGenerationService {
         disable_safety_checker: false,
       };
     }
+    // num_frames is deliberately left at the upstream default of 81 (~5 s at 16 fps).
+    // The published flat price covers that configuration; the same page says pricing is
+    // "based on 16 fps duration" and allows up to 121 frames, without saying what the
+    // longer clip costs. Sending it would put us on an unverified rate.
     return {
       prompt: input.prompt,
       image: input.images?.[0],
