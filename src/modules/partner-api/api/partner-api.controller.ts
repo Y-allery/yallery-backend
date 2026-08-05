@@ -19,8 +19,10 @@ import {
   PARTNER_MODELS,
   describePartnerModel,
 } from '../domain/partner-model.catalog';
+import { PartnerApiKeyEntity } from '../entities/partner-api-key.entity';
 import {
   PartnerKeyGuard,
+  PartnerRequest,
   PARTNER_API_KEY_SECURITY,
 } from '../infrastructure/partner-key.guard';
 import { PartnerExceptionFilter } from '../infrastructure/partner-exception.filter';
@@ -40,6 +42,11 @@ import {
 @ApiSecurity(PARTNER_API_KEY_SECURITY)
 @ApiResponse({ status: 400, description: 'Invalid request', type: PartnerErrorDto })
 @ApiResponse({ status: 401, description: 'Missing or invalid API key', type: PartnerErrorDto })
+@ApiResponse({
+  status: 402,
+  description: "The key's spend limit is reached",
+  type: PartnerErrorDto,
+})
 @ApiResponse({ status: 429, description: 'Rate limit exceeded', type: PartnerErrorDto })
 @Controller('v1')
 @UseFilters(PartnerExceptionFilter)
@@ -47,8 +54,8 @@ import {
 export class PartnerApiController {
   constructor(private readonly generation: PartnerGenerationService) {}
 
-  private keyId(request: { partnerKey?: { id: number } }): number {
-    return request.partnerKey.id;
+  private keyOf(request: PartnerRequest): PartnerApiKeyEntity {
+    return request.partnerKey;
   }
 
   @Get('models')
@@ -73,11 +80,11 @@ export class PartnerApiController {
   @ApiResponse({ status: 201, type: PartnerGenerationResponseDto })
   generateImage(
     @Body() dto: PartnerImageGenerationDto,
-    @Req() request: { partnerKey?: { id: number } },
+    @Req() request: PartnerRequest,
   ): Promise<PartnerGenerationResponseDto> {
     return this.generation.generate(
       { ...dto, capability: 'text_to_image' },
-      this.keyId(request),
+      this.keyOf(request),
     );
   }
 
@@ -91,11 +98,11 @@ export class PartnerApiController {
   @ApiResponse({ status: 201, type: PartnerGenerationResponseDto })
   editImage(
     @Body() dto: PartnerImageEditDto,
-    @Req() request: { partnerKey?: { id: number } },
+    @Req() request: PartnerRequest,
   ): Promise<PartnerGenerationResponseDto> {
     return this.generation.generate(
       { ...dto, capability: 'image_to_image' },
-      this.keyId(request),
+      this.keyOf(request),
     );
   }
 
@@ -109,12 +116,12 @@ export class PartnerApiController {
   @ApiResponse({ status: 201, type: PartnerGenerationResponseDto })
   generateVideo(
     @Body() dto: PartnerVideoGenerationDto,
-    @Req() request: { partnerKey?: { id: number } },
+    @Req() request: PartnerRequest,
   ): Promise<PartnerGenerationResponseDto> {
     const { image, ...rest } = dto;
     return this.generation.generate(
       { ...rest, images: [image], capability: 'image_to_video' },
-      this.keyId(request),
+      this.keyOf(request),
     );
   }
 

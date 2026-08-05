@@ -20,6 +20,17 @@ export class PartnerApiKeyEntity {
   @Column({ type: 'varchar', length: 120 })
   name: string;
 
+  /**
+   * The account billed for this key's calls.
+   *
+   * NULL means an internal key — one we issued deliberately, with no account and no
+   * balance check. Self-service keys always have an account; only an admin can mint a key
+   * without one.
+   */
+  @Column({ type: 'int', nullable: true })
+  @Index('IDX_partner_api_keys_account')
+  accountId: number | null;
+
   @Column({ type: 'char', length: 64 })
   @Index('UQ_partner_api_keys_hash', { unique: true })
   keyHash: string;
@@ -34,6 +45,15 @@ export class PartnerApiKeyEntity {
   /** Requests per minute. Null uses the service default. */
   @Column({ type: 'int', nullable: true })
   rateLimitPerMinute: number | null;
+
+  /**
+   * When the key stops working. Null never expires.
+   *
+   * Enforced at authentication rather than by a sweep job, so a trial ends on time even
+   * if nothing is running to clean it up.
+   */
+  @Column({ type: 'timestamp', nullable: true })
+  expiresAt: Date | null;
 
   @Column({ type: 'timestamp', nullable: true })
   lastUsedAt: Date | null;

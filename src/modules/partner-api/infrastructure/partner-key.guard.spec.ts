@@ -82,6 +82,38 @@ describe('PartnerKeyGuard', () => {
     );
   });
 
+  it('rejects an expired key and says when it expired', async () => {
+    const expiredAt = new Date(Date.now() - 60_000);
+    repository.findOne.mockResolvedValue({
+      id: 3,
+      keyHash: hashPartnerKey(PLAINTEXT),
+      isActive: true,
+      expiresAt: expiredAt,
+    });
+    const { context } = contextFor({ authorization: `Bearer ${PLAINTEXT}` });
+
+    await expect(guard.canActivate(context)).rejects.toMatchObject({
+      response: {
+        error: {
+          type: 'authentication_error',
+          message: expect.stringContaining(expiredAt.toISOString()),
+        },
+      },
+    });
+  });
+
+  it('accepts a key whose expiry is still ahead', async () => {
+    repository.findOne.mockResolvedValue({
+      id: 3,
+      keyHash: hashPartnerKey(PLAINTEXT),
+      isActive: true,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    const { context } = contextFor({ authorization: `Bearer ${PLAINTEXT}` });
+
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+  });
+
   it('lets the request through when the last-used stamp fails to write', async () => {
     repository.update.mockRejectedValue(new Error('db down'));
     const { context } = contextFor({ authorization: `Bearer ${PLAINTEXT}` });

@@ -1,9 +1,17 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import {
+  BadRequestException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { RunpodOpenEndpointMediaProvider } from 'src/modules/media-generation/infrastructure/providers/runpod/runpod-open-endpoint-media.provider';
 import { UploadService } from 'src/modules/uploads/upload.service';
-import { PartnerApiUsageEntity } from '../entities/partner-api-usage.entity';
+import { PartnerApiKeyEntity } from '../entities/partner-api-key.entity';
+import {
+  PartnerBillingService,
+  PartnerHold,
+} from './partner-billing.service';
 import {
   PartnerCapability,
   PartnerModel,
@@ -13,6 +21,7 @@ import {
   HostedGenerationError,
   HostedMediaClient,
 } from '../infrastructure/hosted-media.client';
+import { isPartnerFacingError } from '../infrastructure/partner-exception.filter';
 
 export interface PartnerGenerationInput {
   model: string;
@@ -42,8 +51,7 @@ export class PartnerGenerationService {
     private readonly hosted: HostedMediaClient,
     private readonly inhouse: RunpodOpenEndpointMediaProvider,
     private readonly uploads: UploadService,
-    @InjectRepository(PartnerApiUsageEntity)
-    private readonly usageRepository: Repository<PartnerApiUsageEntity>,
+    private readonly billing: PartnerBillingService,
   ) {}
 
   private resolveModel(
@@ -93,8 +101,9 @@ export class PartnerGenerationService {
 
   async generate(
     input: PartnerGenerationInput,
-    partnerKeyId: number,
+    partnerKey: PartnerApiKeyEntity,
   ): Promise<PartnerGenerationOutput> {
+    const partnerKeyId = partnerKey.id;
     const model = this.resolveModel(input.model, input.capability);
     const size = this.assertSize(model, input.size);
     const count = Math.min(Math.max(input.n ?? 1, 1), MAX_OUTPUTS);
@@ -120,16 +129,38 @@ export class PartnerGenerationService {
       }
     }
 
+    // Money moves before the work, not after it: the balance is debited and the usage row
+    // opened in one transaction, so two calls racing on the same account cannot both see
+    // funds that only one of them can have. Whatever is not used comes back in settle().
+    const hold = await this.billing.hold(
+      partnerKey.id,
+      partnerKey.accountId,
+      model,
+      count,
+    );
+
     const startedAt = Date.now();
+    // Counted as each output actually lands, so a batch that dies halfway is settled at
+    // what we really paid rather than at the whole batch or at nothing.
+    const progress = { completed: 0 };
     try {
       const data =
         model.backend === 'hosted'
-          ? await this.runHosted(model, input, size, count)
-          : await this.runInhouse(model, input, size, count);
+          ? await this.runHosted(model, input, size, count, progress)
+          : await this.runInhouse(model, input, size, count, progress);
 
       const elapsed = Date.now() - startedAt;
       const price = +(model.priceUsd * data.length).toFixed(5);
-      await this.record(partnerKeyId, model, elapsed, 'succeeded', null, price);
+      // Settlement is already total, but it is awaited on the way out of a call the
+      // partner has paid for and whose images are in hand: a surprise here must not turn
+      // a delivered generation into a 500.
+      await this.settleQuietly(hold, {
+        status: 'succeeded',
+        executionMs: elapsed,
+        priceUsd: price,
+        costUsd: model.costUsd * data.length,
+        failureCode: null,
+      });
 
       return {
         created: Math.floor(Date.now() / 1000),
@@ -138,17 +169,22 @@ export class PartnerGenerationService {
         usage: { generation_time_ms: elapsed, price_usd: price },
       };
     } catch (error) {
-      await this.record(
-        partnerKeyId,
-        model,
-        Date.now() - startedAt,
-        'failed',
-        error instanceof HostedGenerationError ? error.stage : 'internal',
-        0,
-      );
-      // Upstream vocabulary stops here. A partner never learns which engine ran, or that
-      // one exists — including from a failure.
-      if (error instanceof BadRequestException) throw error;
+      await this.settleQuietly(hold, {
+        status: 'failed',
+        executionMs: Date.now() - startedAt,
+        // Refunded in full. What it cost us is still written to the row, so a key that
+        // fails constantly is visible even though nobody is billed for it.
+        priceUsd: 0,
+        costUsd: model.costUsd * progress.completed,
+        failureCode:
+          error instanceof HostedGenerationError ? error.stage : 'internal',
+      });
+
+      // Only errors we built ourselves may travel onwards. Everything else — including the
+      // HttpExceptions the RunPod client throws, which carry the vendor's name, the job id
+      // and its raw output — is replaced. Testing for HttpException here instead would put
+      // all of that straight into the partner's response body.
+      if (isPartnerFacingError(error)) throw error;
       this.logger.error(
         `partner generation failed for ${model.id} (${model.backend}/${model.target})`,
         error?.stack ?? error?.message ?? String(error),
@@ -167,6 +203,7 @@ export class PartnerGenerationService {
     input: PartnerGenerationInput,
     size: string,
     count: number,
+    progress: { completed: number },
   ): Promise<Array<{ url: string; seed?: number }>> {
     const results: Array<{ url: string; seed?: number }> = [];
     for (let index = 0; index < count; index++) {
@@ -176,8 +213,23 @@ export class PartnerGenerationService {
       const payload = this.hostedPayload(model, input, size, seed);
       const result = await this.hosted.generate(model.target, payload);
       results.push({ url: await this.rehost(result.url, model), seed });
+      progress.completed += 1;
     }
     return results;
+  }
+
+  private async settleQuietly(
+    hold: PartnerHold,
+    outcome: Parameters<PartnerBillingService['settle']>[1],
+  ): Promise<void> {
+    try {
+      await this.billing.settle(hold, outcome);
+    } catch (error) {
+      this.logger.error(
+        `settlement threw for usage ${hold.usageId}`,
+        error?.stack ?? error?.message ?? String(error),
+      );
+    }
   }
 
   /**
@@ -236,6 +288,7 @@ export class PartnerGenerationService {
     input: PartnerGenerationInput,
     size: string,
     count: number,
+    progress: { completed: number },
   ): Promise<Array<{ url: string; seed?: number }>> {
     // Our own routes upload their output to our storage, so a partner gets a permanent
     // URL here while the hosted backend hands back a short-lived one.
@@ -249,6 +302,7 @@ export class PartnerGenerationService {
         height,
         orientation: width >= height ? 'horizontal' : 'vertical',
       });
+      progress.completed += result.imageUrls.length;
       return result.imageUrls.map((url) => ({ url }));
     }
 
@@ -260,6 +314,7 @@ export class PartnerGenerationService {
         imageUrl: images[0],
         imageUrls: images,
       });
+      progress.completed += result.imageUrls.length;
       return result.imageUrls.map((url) => ({ url }));
     }
 
@@ -271,35 +326,7 @@ export class PartnerGenerationService {
       orientation: 'horizontal',
       ...(input.seed != null && { seed: input.seed }),
     });
+    progress.completed += 1;
     return [{ url: result.videoUrl }];
-  }
-
-  private async record(
-    partnerKeyId: number,
-    model: PartnerModel,
-    executionMs: number,
-    status: string,
-    failureCode: string | null,
-    priceUsd: number,
-  ): Promise<void> {
-    try {
-      await this.usageRepository.insert({
-        partnerKeyId,
-        model: model.id,
-        capability: model.capability,
-        backend: model.backend,
-        priceUsd: priceUsd.toFixed(5),
-        costUsd: model.costUsd.toFixed(5),
-        executionMs,
-        status,
-        failureCode,
-      });
-    } catch (error) {
-      // Billing rows are reconstructable from logs; losing one must not fail the call.
-      this.logger.error(
-        'failed to record partner usage',
-        error?.stack ?? error?.message ?? String(error),
-      );
-    }
   }
 }
