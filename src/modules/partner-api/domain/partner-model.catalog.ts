@@ -84,7 +84,7 @@ export const PARTNER_MODELS: readonly PartnerModel[] = [
   {
     id: 'yengine-video',
     capability: 'image_to_video',
-    description: 'Image-to-video, 480p.',
+    description: 'Image-to-video, 480p. Silent.',
     backend: 'hosted',
     target: 'wan-i2v',
     priceUsd: 0.12,
@@ -94,7 +94,7 @@ export const PARTNER_MODELS: readonly PartnerModel[] = [
   {
     id: 'yengine-video-hd',
     capability: 'image_to_video',
-    description: 'Image-to-video, 720p with audio.',
+    description: 'Image-to-video, 720p. Silent, like every video model here.',
     backend: 'hosted',
     target: 'wan-i2v',
     priceUsd: 0.25,
@@ -105,7 +105,7 @@ export const PARTNER_MODELS: readonly PartnerModel[] = [
     id: 'yengine-video-alt',
     capability: 'image_to_video',
     description:
-      'Image-to-video with a different model, 720p with audio. Useful as an A/B.',
+      'Image-to-video with a different model, 720p. Useful as an A/B against yengine-video-hd.',
     backend: 'inhouse',
     target: AI_SERVICES.VIDEO_IMAGE,
     priceUsd: 0.25,
