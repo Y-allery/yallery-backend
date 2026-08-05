@@ -1,5 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { PopularPost, PopularPostsResponse } from '../types/popular-post.interface';
+import {
+  PopularPost,
+  PopularPostsResponse,
+} from '../types/popular-post.interface';
 
 export class PopularPostDto implements PopularPost {
   @ApiProperty({ description: 'Post ID' })
@@ -38,7 +41,9 @@ export class PopularPostDto implements PopularPost {
   @ApiProperty({ description: 'Is post published' })
   isPublished: boolean;
 
-  @ApiProperty({ description: 'Whether the video post contains an audio track' })
+  @ApiProperty({
+    description: 'Whether the video post contains an audio track',
+  })
   hasAudio: boolean;
 
   @ApiProperty({ description: 'Is post blocked' })
@@ -71,7 +76,10 @@ export class PopularPostDto implements PopularPost {
 }
 
 export class PopularPostsResponseDto implements PopularPostsResponse {
-  @ApiProperty({ description: 'Array of popular posts', type: [PopularPostDto] })
+  @ApiProperty({
+    description: 'Array of popular posts',
+    type: [PopularPostDto],
+  })
   posts: PopularPostDto[];
 
   @ApiProperty({ description: 'Period for which posts were fetched' })

@@ -1,4 +1,10 @@
-import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 import { PartnershipSource } from 'src/modules/admin/entities/partner.entity';
 
 export class CreatePartnershipDto {

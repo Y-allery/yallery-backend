@@ -33,7 +33,11 @@ export class ImageGenerationCompatController {
     description:
       'Permanently deletes a post owned by the caller (published or draft). Related likes, views, reports and activity are removed by database cascade. Matches the mobile app’s DELETE /image-generation/:id call.',
   })
-  @ApiParam({ name: 'id', required: true, description: 'Post / generated media ID' })
+  @ApiParam({
+    name: 'id',
+    required: true,
+    description: 'Post / generated media ID',
+  })
   @ApiResponse({ status: 204, description: 'Deleted' })
   @ApiResponse({ status: 404, description: 'Not found or not owner' })
   async deleteGeneratedImage(

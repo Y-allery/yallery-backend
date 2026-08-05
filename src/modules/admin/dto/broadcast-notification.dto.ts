@@ -41,5 +41,3 @@ export class BroadcastNotificationDto {
   @IsOptional()
   emailSubject?: string;
 }
-
-

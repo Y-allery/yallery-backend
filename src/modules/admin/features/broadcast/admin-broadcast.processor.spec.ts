@@ -106,8 +106,12 @@ describe('AdminBroadcastProcessor', () => {
   });
 
   it('removes invalid device tokens and still counts the user as processed', async () => {
-    const { processor, userRepository, firebaseService, deviceTokenRepository } =
-      createProcessor();
+    const {
+      processor,
+      userRepository,
+      firebaseService,
+      deviceTokenRepository,
+    } = createProcessor();
     const invalidToken = { token: 'bad' };
     const validToken = { token: 'good' };
     userRepository.find

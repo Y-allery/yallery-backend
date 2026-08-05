@@ -1055,7 +1055,7 @@ export class ContestFlowService {
         params.aiService !== AI_SERVICES.PORTRAIT
       ) {
         throw new BadRequestException(
-          'Fine-tune contests only accept Krea 2 LoRA image generations.',
+          'Fine-tune contests only accept YEngine LoRA image generations.',
         );
       }
       return;

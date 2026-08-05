@@ -262,7 +262,7 @@ describe('AdminFineTuneService', () => {
           status: 'ready_with_validation_error',
           validation: { status: 'passed' },
         },
-        'RunPod Krea 2 validation failed',
+        'RunPod YEngine validation failed',
       ],
       [
         'validation reports failed',

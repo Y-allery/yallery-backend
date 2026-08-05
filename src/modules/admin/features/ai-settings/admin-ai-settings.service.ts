@@ -33,9 +33,10 @@ export class AdminAISettingsService {
       return aiSetting.settings;
     }
 
-    const supportsDurationSettings = ['video_generate', 'meme_generate'].includes(
-      aiSetting.capability,
-    );
+    const supportsDurationSettings = [
+      'video_generate',
+      'meme_generate',
+    ].includes(aiSetting.capability);
     const supportsImageLimits = ['image_generate', 'image_edit'].includes(
       aiSetting.capability,
     );
@@ -89,7 +90,9 @@ export class AdminAISettingsService {
       nextSettings.maxImages !== undefined &&
       nextSettings.maxImages < nextSettings.minImages
     ) {
-      throw new BadRequestException('maxImages must be greater than or equal to minImages');
+      throw new BadRequestException(
+        'maxImages must be greater than or equal to minImages',
+      );
     }
 
     if (updateDto.settings?.durations !== undefined) {
@@ -98,7 +101,9 @@ export class AdminAISettingsService {
       );
 
       if (!durations.length) {
-        throw new BadRequestException('At least one video duration is required');
+        throw new BadRequestException(
+          'At least one video duration is required',
+        );
       }
 
       nextSettings.durations = durations;

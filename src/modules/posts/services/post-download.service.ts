@@ -134,7 +134,8 @@ export class PostDownloadService {
 
     while (
       this.downloadCache.size > 0 &&
-      (this.downloadCache.size > PostDownloadService.DOWNLOAD_CACHE_MAX_ENTRIES ||
+      (this.downloadCache.size >
+        PostDownloadService.DOWNLOAD_CACHE_MAX_ENTRIES ||
         this.downloadCacheBytes > PostDownloadService.DOWNLOAD_CACHE_MAX_BYTES)
     ) {
       const oldestKey = this.downloadCache.keys().next().value;

@@ -27,7 +27,7 @@ export class AIFinetuneDatasetImageDto {
 
   @ApiPropertyOptional({
     description:
-      'Caption for this image. Krea 2 jobs preserve these as per-image training captions.',
+      'Caption for this image. Training jobs preserve these as per-image captions.',
   })
   @IsOptional()
   @IsString()
@@ -142,7 +142,7 @@ export class CreateAIFinetuneDto {
   @ApiPropertyOptional({
     enum: AI_FINETUNE_MODEL_FAMILIES,
     default: 'krea2',
-    description: 'LoRA architecture family. Krea 2 is the production family.',
+    description: 'LoRA architecture family. This is the production family.',
   })
   @IsOptional()
   @IsIn(AI_FINETUNE_MODEL_FAMILIES)

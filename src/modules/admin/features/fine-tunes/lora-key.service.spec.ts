@@ -4,9 +4,7 @@ describe('LoraKeyService', () => {
   it('normalizes trigger words into stable LoRA key parts', () => {
     const service = new LoraKeyService({ count: jest.fn() } as any);
 
-    expect(service.normalize('  Nomisma Style!!  ', 80)).toBe(
-      'nomisma_style',
-    );
+    expect(service.normalize('  Nomisma Style!!  ', 80)).toBe('nomisma_style');
     expect(service.normalize('___ABC---123___', 80)).toBe('abc_123');
   });
 

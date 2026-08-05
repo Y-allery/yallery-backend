@@ -42,7 +42,9 @@ describe('PostPublishService.share (daily-reward TOCTOU)', () => {
   };
 
   it('awards share points once when the conditional update wins', async () => {
-    const { service, notificationGateway } = createService({ awardAffected: 1 });
+    const { service, notificationGateway } = createService({
+      awardAffected: 1,
+    });
 
     const result = await service.share(5);
 
@@ -51,7 +53,9 @@ describe('PostPublishService.share (daily-reward TOCTOU)', () => {
   });
 
   it('does not double-award when a concurrent share already claimed today', async () => {
-    const { service, notificationGateway } = createService({ awardAffected: 0 });
+    const { service, notificationGateway } = createService({
+      awardAffected: 0,
+    });
 
     const result = await service.share(5);
 

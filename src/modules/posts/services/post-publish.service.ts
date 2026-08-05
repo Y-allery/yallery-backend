@@ -54,18 +54,27 @@ export class PostPublishService {
     });
 
     if (!post) {
-      console.error(`[publishPost] Post not found or already published:`, { postId, userId });
+      console.error(`[publishPost] Post not found or already published:`, {
+        postId,
+        userId,
+      });
       throw new NotFoundException('Post not found or already published');
     }
 
     if (post.user.id !== userId) {
-      console.error(`[publishPost] User not allowed to publish:`, { postId, userId, postUserId: post.user.id });
+      console.error(`[publishPost] User not allowed to publish:`, {
+        postId,
+        userId,
+        postUserId: post.user.id,
+      });
       throw new ForbiddenException('You are not allowed to publish this post');
     }
 
     if (post.contest && !post.tag) {
       try {
-        const contest = await this.contestService.findContestById(post.contest.id);
+        const contest = await this.contestService.findContestById(
+          post.contest.id,
+        );
         if (contest && contest.tag) {
           post.tag = contest.tag;
           console.log(`[publishPost] Setting tag from contest:`, {
@@ -75,7 +84,10 @@ export class PostPublishService {
           });
         }
       } catch (error) {
-        console.warn(`[publishPost] Failed to load contest tag:`, error.message);
+        console.warn(
+          `[publishPost] Failed to load contest tag:`,
+          error.message,
+        );
       }
     }
 
@@ -103,9 +115,15 @@ export class PostPublishService {
 
       try {
         if (post.videoUrl) {
-          await this.rewardService.markRewardEligible(userId, RewardTypeEnum.POST_VIDEO_REWARD);
+          await this.rewardService.markRewardEligible(
+            userId,
+            RewardTypeEnum.POST_VIDEO_REWARD,
+          );
         } else if (post.imageUrl) {
-          await this.rewardService.markRewardEligible(userId, RewardTypeEnum.POST_PHOTO_REWARD);
+          await this.rewardService.markRewardEligible(
+            userId,
+            RewardTypeEnum.POST_PHOTO_REWARD,
+          );
         }
       } catch (error) {
         console.warn('[publishPost] Failed to mark reward eligible:', error);
@@ -130,7 +148,13 @@ export class PostPublishService {
     const post = await this.postRepository.findOne({
       where: { id: postId, user: { id: userId } },
       relations: { user: true },
-      select: { id: true, imageUrl: true, videoUrl: true, previewImageUrl: true, user: { id: true } },
+      select: {
+        id: true,
+        imageUrl: true,
+        videoUrl: true,
+        previewImageUrl: true,
+        user: { id: true },
+      },
     });
 
     if (!post) {
@@ -146,7 +170,9 @@ export class PostPublishService {
       throw new BadRequestException('Provide imageUrl or videoUrl');
     }
     if (hasImage && hasVideo) {
-      throw new BadRequestException('Provide either imageUrl or videoUrl, not both');
+      throw new BadRequestException(
+        'Provide either imageUrl or videoUrl, not both',
+      );
     }
 
     if (hasImage) {
@@ -155,7 +181,8 @@ export class PostPublishService {
       post.previewImageUrl = null;
     } else {
       post.videoUrl = videoUrl!;
-      post.previewImageUrl = dto.previewImageUrl?.trim() || post.previewImageUrl || null;
+      post.previewImageUrl =
+        dto.previewImageUrl?.trim() || post.previewImageUrl || null;
       post.imageUrl = null;
     }
 
@@ -259,7 +286,10 @@ export class PostPublishService {
       }
       return null;
     } catch (error) {
-      console.warn(`[savePost] Failed to get image dimensions from ${imageUrl}:`, error?.message || error);
+      console.warn(
+        `[savePost] Failed to get image dimensions from ${imageUrl}:`,
+        error?.message || error,
+      );
       return null;
     }
   }

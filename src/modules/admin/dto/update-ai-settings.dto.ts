@@ -30,13 +30,17 @@ export class UpdateAISettingsPricingDto {
 }
 
 export class UpdateMediaAISettingsJsonDto {
-  @ApiPropertyOptional({ description: 'Minimum number of images that can be generated' })
+  @ApiPropertyOptional({
+    description: 'Minimum number of images that can be generated',
+  })
   @IsOptional()
   @IsNumber()
   @Min(1)
   minImages?: number;
 
-  @ApiPropertyOptional({ description: 'Maximum number of images that can be generated' })
+  @ApiPropertyOptional({
+    description: 'Maximum number of images that can be generated',
+  })
   @IsOptional()
   @IsNumber()
   @Min(1)
@@ -68,7 +72,10 @@ export class UpdateMediaAISettingsJsonDto {
 }
 
 export class UpdateAISettingsDto {
-  @ApiPropertyOptional({ description: 'AI service identifier (e.g., flux, aura_flow, byty_dance)' })
+  @ApiPropertyOptional({
+    description:
+      'AI service identifier (e.g., yengine_photo, yengine_photo_pro)',
+  })
   @IsOptional()
   @IsString()
   ai_service?: string;
@@ -78,22 +85,26 @@ export class UpdateAISettingsDto {
   @IsString()
   name?: string;
 
-  @ApiPropertyOptional({ 
-    description: 'Allowed orientations', 
+  @ApiPropertyOptional({
+    description: 'Allowed orientations',
     type: [String],
-    example: ['horizontal', 'vertical']
+    example: ['horizontal', 'vertical'],
   })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
   allowedOrientations?: string[];
 
-  @ApiPropertyOptional({ description: 'Minimum number of images that can be generated' })
+  @ApiPropertyOptional({
+    description: 'Minimum number of images that can be generated',
+  })
   @IsOptional()
   @IsNumber()
   minImages?: number;
 
-  @ApiPropertyOptional({ description: 'Maximum number of images that can be generated' })
+  @ApiPropertyOptional({
+    description: 'Maximum number of images that can be generated',
+  })
   @IsOptional()
   @IsNumber()
   maxImages?: number;
@@ -103,28 +114,28 @@ export class UpdateAISettingsDto {
   @IsNumber()
   maxPromptLength?: number;
 
-  @ApiPropertyOptional({ 
-    description: 'Available image sizes', 
+  @ApiPropertyOptional({
+    description: 'Available image sizes',
     type: [String],
-    example: ['1024x1024', '1536x640', '768x1344']
+    example: ['1024x1024', '1536x640', '768x1344'],
   })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
   sizes?: string[] | null;
 
-  @ApiPropertyOptional({ 
-    description: 'Quality options', 
-    type: [String]
+  @ApiPropertyOptional({
+    description: 'Quality options',
+    type: [String],
   })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
   qualityOptions?: string[] | null;
 
-  @ApiPropertyOptional({ 
-    description: 'Available styles', 
-    type: [String]
+  @ApiPropertyOptional({
+    description: 'Available styles',
+    type: [String],
   })
   @IsOptional()
   @IsArray()
@@ -136,7 +147,9 @@ export class UpdateAISettingsDto {
   @IsNumber()
   cost?: number;
 
-  @ApiPropertyOptional({ description: 'Provider model identifier, when the model needs one' })
+  @ApiPropertyOptional({
+    description: 'Provider model identifier, when the model needs one',
+  })
   @IsOptional()
   @IsString()
   api_model?: string | null;
@@ -146,9 +159,9 @@ export class UpdateAISettingsDto {
   @IsString()
   description?: string | null;
 
-  @ApiPropertyOptional({ 
-    description: 'Type of AI model', 
-    enum: ['image', 'video', 'audio']
+  @ApiPropertyOptional({
+    description: 'Type of AI model',
+    enum: ['image', 'video', 'audio'],
   })
   @IsOptional()
   @IsEnum(['image', 'video', 'audio'])
@@ -164,13 +177,16 @@ export class UpdateAISettingsDto {
   @IsBoolean()
   is_active?: boolean;
 
-  @ApiPropertyOptional({ description: 'Whether the model is active (camelCase alias)' })
+  @ApiPropertyOptional({
+    description: 'Whether the model is active (camelCase alias)',
+  })
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
 
   @ApiPropertyOptional({
-    description: 'Structured media model settings. Currently editable for video_generate models.',
+    description:
+      'Structured media model settings. Currently editable for video_generate models.',
     type: UpdateMediaAISettingsJsonDto,
   })
   @IsOptional()

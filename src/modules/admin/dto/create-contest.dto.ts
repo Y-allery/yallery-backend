@@ -171,7 +171,7 @@ export class CreateContestDto {
     type: Number,
     required: false,
     description:
-      'Optional media_ai_settings row used by this contest. Fine-tune contests automatically use krea2_lora_generation.',
+      'Optional media_ai_settings row used by this contest. Fine-tune contests automatically use yengine_portrait.',
   })
   media_ai_setting_id?: number;
 }
