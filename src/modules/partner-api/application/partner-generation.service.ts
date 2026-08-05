@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { RunpodOpenEndpointMediaProvider } from 'src/modules/media-generation/infrastructure/providers/runpod/runpod-open-endpoint-media.provider';
+import { UploadService } from 'src/modules/uploads/upload.service';
 import { PartnerApiUsageEntity } from '../entities/partner-api-usage.entity';
 import {
   PartnerCapability,
@@ -40,6 +41,7 @@ export class PartnerGenerationService {
   constructor(
     private readonly hosted: HostedMediaClient,
     private readonly inhouse: RunpodOpenEndpointMediaProvider,
+    private readonly uploads: UploadService,
     @InjectRepository(PartnerApiUsageEntity)
     private readonly usageRepository: Repository<PartnerApiUsageEntity>,
   ) {}
@@ -173,9 +175,24 @@ export class PartnerGenerationService {
       const seed = (input.seed ?? Math.floor(Math.random() * 4_000_000_000)) + index;
       const payload = this.hostedPayload(model, input, size, seed);
       const result = await this.hosted.generate(model.target, payload);
-      results.push({ url: result.url, seed });
+      results.push({ url: await this.rehost(result.url, model), seed });
     }
     return results;
+  }
+
+  /**
+   * Copies a hosted output into our own storage.
+   *
+   * Two reasons, either sufficient: the upstream's delivery URL names the upstream, which
+   * is the one thing this whole module exists to hide; and it is short-lived, so a partner
+   * who stores the link we hand back would find it dead. The in-house path already does
+   * this on its way out, which is why only this branch needs it.
+   */
+  private async rehost(url: string, model: PartnerModel): Promise<string> {
+    if (model.capability === 'image_to_video') {
+      return (await this.uploads.uploadVideoAssetByUrl(url)).videoUrl;
+    }
+    return this.uploads.uploadByUrl(url);
   }
 
   private hostedPayload(

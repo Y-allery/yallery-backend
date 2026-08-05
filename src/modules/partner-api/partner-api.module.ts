@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { MediaGenerationModule } from 'src/modules/media-generation/media-generation.module';
+import { UploadModule } from 'src/modules/uploads/upload.module';
 import { PartnerApiController } from './api/partner-api.controller';
 import { PartnerPlaygroundController } from './api/partner-playground.controller';
 import { PartnerGenerationService } from './application/partner-generation.service';
@@ -21,6 +22,7 @@ import { PartnerRateLimitGuard } from './infrastructure/partner-rate-limit.guard
   imports: [
     TypeOrmModule.forFeature([PartnerApiKeyEntity, PartnerApiUsageEntity]),
     MediaGenerationModule,
+    UploadModule,
   ],
   controllers: [PartnerApiController, PartnerPlaygroundController],
   providers: [

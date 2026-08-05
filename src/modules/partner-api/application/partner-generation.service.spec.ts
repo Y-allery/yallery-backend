@@ -9,6 +9,7 @@ describe('PartnerGenerationService', () => {
     editImages: jest.Mock;
     generateImageVideos: jest.Mock;
   };
+  let uploads: { uploadByUrl: jest.Mock; uploadVideoAssetByUrl: jest.Mock };
   let usage: { insert: jest.Mock };
   let service: PartnerGenerationService;
 
@@ -30,10 +31,17 @@ describe('PartnerGenerationService', () => {
         .fn()
         .mockResolvedValue({ videoUrl: 'https://ours/3.mp4' }),
     };
+    uploads = {
+      uploadByUrl: jest.fn().mockResolvedValue('https://ours/rehosted.png'),
+      uploadVideoAssetByUrl: jest
+        .fn()
+        .mockResolvedValue({ videoUrl: 'https://ours/rehosted.mp4' }),
+    };
     usage = { insert: jest.fn().mockResolvedValue(undefined) };
     service = new PartnerGenerationService(
       hosted as never,
       inhouse as never,
+      uploads as never,
       usage as never,
     );
   });
@@ -57,6 +65,35 @@ describe('PartnerGenerationService', () => {
     expect(result.model).toBe('yengine-photo');
     expect(result.data).toHaveLength(1);
     expect(result.usage.price_usd).toBe(0.015);
+  });
+
+  // The delivery URL names the upstream and expires, so handing it straight back would
+  // both publish who runs the model and give the partner a link that dies.
+  it('rehosts a hosted image and never returns the upstream URL', async () => {
+    hosted.generate.mockResolvedValue({
+      url: 'https://api.pruna.ai/v1/predictions/delivery/xyz/out.jpeg',
+      executionMs: 900,
+    });
+
+    const result = await run();
+
+    expect(uploads.uploadByUrl).toHaveBeenCalledWith(
+      'https://api.pruna.ai/v1/predictions/delivery/xyz/out.jpeg',
+    );
+    expect(result.data[0].url).toBe('https://ours/rehosted.png');
+    expect(JSON.stringify(result)).not.toContain('pruna');
+  });
+
+  it('rehosts a hosted video through the video path', async () => {
+    const result = await run({
+      model: 'yengine-video',
+      capability: 'image_to_video',
+      images: ['https://cdn.example/in.jpg'],
+      size: '480p',
+    });
+
+    expect(uploads.uploadVideoAssetByUrl).toHaveBeenCalledTimes(1);
+    expect(result.data[0].url).toBe('https://ours/rehosted.mp4');
   });
 
   it('sends an in-house model to our own provider', async () => {
