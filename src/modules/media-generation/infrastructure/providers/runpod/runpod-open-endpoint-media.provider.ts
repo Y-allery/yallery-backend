@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { AI_SERVICES } from 'src/modules/media-generation/domain/ai-service.catalog';
 import {
   UploadedVideoAsset,
   UploadService,
@@ -311,7 +312,7 @@ export class RunpodOpenEndpointMediaProvider
     // worker keeps taking URLs. The character image goes through the same EXIF-normalising
     // prep as i2v, and its aspect picks the output orientation.
     const input =
-      request.aiService === 'ltx_meme'
+      request.aiService === AI_SERVICES.MEME_LITE
         ? await this.buildLtxMemeSubmitInput(request)
         : this.payloadBuilder.buildMemeInput(request);
     const initialJob = await this.client.submitJob(

@@ -25,7 +25,10 @@ export class ContestWinnerCandidateEntity extends TimeStampEntity {
   @Column({ type: 'int', nullable: true })
   submissionId: number | null;
 
-  @ManyToOne(() => ContestSubmissionEntity, { nullable: true, onDelete: 'SET NULL' })
+  @ManyToOne(() => ContestSubmissionEntity, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
   @JoinColumn({ name: 'submissionId' })
   submission: ContestSubmissionEntity | null;
 

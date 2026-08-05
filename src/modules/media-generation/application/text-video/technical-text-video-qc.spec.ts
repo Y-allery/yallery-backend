@@ -174,7 +174,11 @@ const stagedVideo = (
 describe('TechnicalTextVideoVideoQc', () => {
   const qc = new TechnicalTextVideoVideoQc();
   const policyVersion = VIDEO_TECHNICAL_QC_POLICY_VERSION;
-  const evaluate = (bytes: Buffer, artifact: StagedCascadeVideo, policy = policyVersion) =>
+  const evaluate = (
+    bytes: Buffer,
+    artifact: StagedCascadeVideo,
+    policy = policyVersion,
+  ) =>
     qc.evaluate({
       runpodJobId: 'job-1',
       videoArtifactSha256: 'f'.repeat(64),

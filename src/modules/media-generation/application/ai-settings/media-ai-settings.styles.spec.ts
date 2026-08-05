@@ -22,7 +22,7 @@ const createService = (defaultStyleId: string | null) =>
     {
       find: jest.fn().mockResolvedValue([
         {
-          aiService: 'krea2_turbo',
+          aiService: 'yengine_photo_pro',
           name: 'Krea 2 Turbo',
           capability: 'image_generate',
           cost: 50,

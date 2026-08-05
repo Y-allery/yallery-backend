@@ -601,7 +601,7 @@ export const PROVIDER_SETTING_DEFINITIONS: ProviderSettingDefinition[] = [
     type: 'string',
     isSecret: false,
     validationKind: 'none',
-    defaultValue: 'z_image_turbo',
+    defaultValue: 'yengine_photo',
   },
   {
     key: 'DEFAULT_PROMPT_IMAGE_STYLE_ID',
@@ -622,7 +622,7 @@ export const PROVIDER_SETTING_DEFINITIONS: ProviderSettingDefinition[] = [
     type: 'string',
     isSecret: false,
     validationKind: 'none',
-    defaultValue: 'krea2_turbo',
+    defaultValue: 'yengine_photo_pro',
   },
   {
     key: 'RUNPOD_KREA2_TURBO_ENABLED',

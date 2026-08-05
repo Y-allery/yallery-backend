@@ -1,10 +1,4 @@
-import {
-  Column,
-  Entity,
-  Index,
-  JoinColumn,
-  ManyToOne,
-} from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { TimeStampEntity } from 'src/core/database/entities/time-stamp.entity';
 import { MediaAISettingsEntity } from 'src/modules/media-generation/persistence/entities/media-ai-settings.entity';
 import { PostEntity } from 'src/modules/posts/entities/post.entity';
@@ -58,7 +52,10 @@ export class ContestSubmissionEntity extends TimeStampEntity {
   @Column({ type: 'int', nullable: true })
   aiSettingId: number | null;
 
-  @ManyToOne(() => MediaAISettingsEntity, { nullable: true, onDelete: 'SET NULL' })
+  @ManyToOne(() => MediaAISettingsEntity, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
   @JoinColumn({ name: 'aiSettingId' })
   aiSetting: MediaAISettingsEntity | null;
 

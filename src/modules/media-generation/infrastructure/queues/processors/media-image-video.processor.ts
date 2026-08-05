@@ -29,7 +29,12 @@ export class MediaImageVideoProcessor extends BaseMediaProcessor {
     mediaGenerationBalanceService: MediaGenerationBalanceService,
     opsBotService: OpsBotService,
   ) {
-    super(notificationGateway, 'video', mediaGenerationBalanceService, opsBotService);
+    super(
+      notificationGateway,
+      'video',
+      mediaGenerationBalanceService,
+      opsBotService,
+    );
   }
 
   async process(job: Job<MediaImageVideoJobData>) {

@@ -17,4 +17,3 @@ export class ForceStartContestDto {
   @IsPositive()
   contestId: number;
 }
-

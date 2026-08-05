@@ -21,7 +21,7 @@ export class GenerateAudioDto {
   @IsString()
   @ApiProperty({
     description: 'Requested audio AI service/model identifier.',
-    example: 'mmaudio_v2',
+    example: 'yengine_audio',
   })
   ai_service: string;
 

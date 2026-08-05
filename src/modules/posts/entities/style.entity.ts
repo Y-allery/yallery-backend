@@ -6,7 +6,7 @@ export interface StyleModelOverride {
   keywords?: string[];
 }
 
-/** Per-`aiService` overrides, e.g. { krea2_turbo: { keywords: [...] }, flux2_klein: { positive: '...' } }. */
+/** Per-`aiService` overrides, e.g. { yengine_photo: { keywords: [...] }, yengine_photo_pro: { positive: '...' } }. */
 export type StyleModelOverrides = Record<string, StyleModelOverride>;
 
 @Entity('styles')

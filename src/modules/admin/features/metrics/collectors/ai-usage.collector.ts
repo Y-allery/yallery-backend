@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { AI_SERVICES } from 'src/modules/media-generation/domain/ai-service.catalog';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { PostEntity } from 'src/modules/posts/entities/post.entity';
@@ -47,8 +48,16 @@ export class AIUsageMetricsCollector {
     ]);
 
     return {
-      image: this.toUsageStats(rawImageAi, validImageServices, 'flux2_klein'),
-      video: this.toUsageStats(rawVideoAi, validVideoServices, 'p_video_text'),
+      image: this.toUsageStats(
+        rawImageAi,
+        validImageServices,
+        AI_SERVICES.PHOTO_LITE,
+      ),
+      video: this.toUsageStats(
+        rawVideoAi,
+        validVideoServices,
+        AI_SERVICES.VIDEO_TEXT,
+      ),
     };
   }
 

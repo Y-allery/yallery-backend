@@ -13,7 +13,7 @@ export const PAYMENT_SWAGGER = {
     responses: {
       success: { status: 200, description: 'Webhook processed successfully' },
       badRequest: { status: 400, description: 'Invalid webhook data' },
-      internalError: { status: 500, description: 'Error processing webhook' }
-    }
-  }
+      internalError: { status: 500, description: 'Error processing webhook' },
+    },
+  },
 };

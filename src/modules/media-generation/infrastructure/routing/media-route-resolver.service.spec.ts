@@ -27,9 +27,9 @@ describe('MediaRouteResolverService', () => {
     });
 
     await expect(
-      service.resolveAudioRoute('mmaudio_v2'),
+      service.resolveAudioRoute('yengine_audio'),
     ).resolves.toMatchObject({
-      aiService: 'mmaudio_v2',
+      aiService: 'yengine_audio',
       capability: MediaCapability.AUDIO_GENERATE,
       provider: MediaProvider.RUNPOD,
       endpointId: 'mmaudio-endpoint',
@@ -44,7 +44,9 @@ describe('MediaRouteResolverService', () => {
       RUNPOD_MMAUDIO_ENABLED: 'false',
     });
 
-    await expect(service.resolveAudioRoute('mmaudio_v2')).resolves.toBeNull();
+    await expect(
+      service.resolveAudioRoute('yengine_audio'),
+    ).resolves.toBeNull();
   });
 
   it('describes only enabled routes', async () => {
@@ -64,10 +66,10 @@ describe('MediaRouteResolverService', () => {
     });
 
     await expect(
-      service.resolveTextVideoRoute('p_video_image'),
+      service.resolveTextVideoRoute('yengine_video_image'),
     ).resolves.toBeNull();
     await expect(
-      service.resolveImageVideoRoute('p_video_text'),
+      service.resolveImageVideoRoute('yengine_video_text'),
     ).resolves.toBeNull();
   });
 
@@ -78,9 +80,9 @@ describe('MediaRouteResolverService', () => {
     });
 
     await expect(
-      service.resolveTextVideoRoute('p_video_text'),
+      service.resolveTextVideoRoute('yengine_video_text'),
     ).resolves.toMatchObject({
-      aiService: 'p_video_text',
+      aiService: 'yengine_video_text',
       endpointId: 'p-video-endpoint',
     });
   });
@@ -92,7 +94,7 @@ describe('MediaRouteResolverService', () => {
     });
 
     await expect(
-      service.resolveTextVideoRoute('p_video_text'),
+      service.resolveTextVideoRoute('yengine_video_text'),
     ).resolves.toBeNull();
   });
 });

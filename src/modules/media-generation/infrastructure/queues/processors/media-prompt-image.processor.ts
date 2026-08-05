@@ -29,7 +29,12 @@ export class MediaPromptImageProcessor extends BaseMediaProcessor {
     mediaGenerationBalanceService: MediaGenerationBalanceService,
     opsBotService: OpsBotService,
   ) {
-    super(notificationGateway, 'image', mediaGenerationBalanceService, opsBotService);
+    super(
+      notificationGateway,
+      'image',
+      mediaGenerationBalanceService,
+      opsBotService,
+    );
   }
 
   async process(job: Job<MediaPromptImageJobData>) {

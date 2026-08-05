@@ -337,24 +337,24 @@ export class AdminFineTuneService {
     }
 
     if (!outputFamily) {
-      return 'RunPod Krea 2 artifact is missing modelFamily compatibility metadata';
+      return 'RunPod YEngine artifact is missing modelFamily compatibility metadata';
     }
     if (!outputBaseModel) {
-      return 'RunPod Krea 2 artifact is missing baseModel compatibility metadata';
+      return 'RunPod YEngine artifact is missing baseModel compatibility metadata';
     }
     if (!output.loraUrl) {
       return 'RunPod completed without a LoRA artifact URL';
     }
     if (!this.parseLoraSha256(output.loraSha256)) {
-      return 'RunPod Krea 2 artifact is missing a valid loraSha256';
+      return 'RunPod YEngine artifact is missing a valid loraSha256';
     }
     if (!this.parsePositiveInteger(output.loraStep)) {
-      return 'RunPod Krea 2 artifact is missing a valid loraStep';
+      return 'RunPod YEngine artifact is missing a valid loraStep';
     }
     if (
       this.parseNonEmptyString(output.inferenceModel) !== 'krea/Krea-2-Turbo'
     ) {
-      return 'RunPod Krea 2 artifact is not validated for krea/Krea-2-Turbo';
+      return 'RunPod YEngine artifact is not validated for krea/Krea-2-Turbo';
     }
 
     return null;
@@ -401,8 +401,8 @@ export class AdminFineTuneService {
       typeof detailValue === 'string' ? detailValue.trim() : undefined;
 
     return detail
-      ? `RunPod Krea 2 validation failed: ${detail}`
-      : 'RunPod Krea 2 validation failed';
+      ? `RunPod YEngine validation failed: ${detail}`
+      : 'RunPod YEngine validation failed';
   }
 
   private parseLoraSha256(value: unknown): string | null {

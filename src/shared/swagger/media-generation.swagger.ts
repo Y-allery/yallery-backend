@@ -26,7 +26,7 @@ This endpoint is intentionally separate from the legacy \`image-generation/ai-se
               properties: {
                 defaultAI: {
                   type: 'string',
-                  example: 'flux2_klein',
+                  example: 'yengine_photo_lite',
                   nullable: true,
                 },
                 defaultOrientations: {
@@ -41,8 +41,8 @@ This endpoint is intentionally separate from the legacy \`image-generation/ai-se
               items: {
                 type: 'object',
                 properties: {
-                  aiService: { type: 'string', example: 'flux2_klein' },
-                  name: { type: 'string', example: 'FLUX.2 Klein' },
+                  aiService: { type: 'string', example: 'yengine_photo_lite' },
+                  name: { type: 'string', example: 'YEngine Photo Lite' },
                   allowedOrientations: {
                     type: 'array',
                     items: { type: 'string', enum: ['horizontal', 'vertical'] },
@@ -58,7 +58,7 @@ This endpoint is intentionally separate from the legacy \`image-generation/ai-se
                     type: 'string',
                     nullable: true,
                     example:
-                      'Prompt-to-image generation powered by the private RunPod FLUX.2 Klein endpoint.',
+                      'Prompt-to-image generation powered by the YEngine image pipeline.',
                   },
                 },
               },
@@ -102,7 +102,7 @@ This endpoint is intentionally separate from the legacy \`image-generation/ai-se
     summary: 'Get fine-tune prompt image AI settings',
     description: `Return prompt-image settings for fine-tune contests.
 
-This endpoint intentionally exposes only the active \`krea2_lora_generation\` model so clients do not need to filter regular image generation models before entering a fine-tune contest flow.`,
+This endpoint intentionally exposes only the active \`yengine_portrait\` model so clients do not need to filter regular image generation models before entering a fine-tune contest flow.`,
     responses: {
       success: {
         status: 200,
@@ -116,7 +116,7 @@ This endpoint intentionally exposes only the active \`krea2_lora_generation\` mo
               properties: {
                 defaultAI: {
                   type: 'string',
-                  example: 'krea2_lora_generation',
+                  example: 'yengine_portrait',
                   nullable: true,
                 },
                 defaultOrientations: {
@@ -133,9 +133,9 @@ This endpoint intentionally exposes only the active \`krea2_lora_generation\` mo
                 properties: {
                   aiService: {
                     type: 'string',
-                    example: 'krea2_lora_generation',
+                    example: 'yengine_portrait',
                   },
-                  name: { type: 'string', example: 'Krea 2 LoRA Generation' },
+                  name: { type: 'string', example: 'YEngine Portrait' },
                   allowedOrientations: {
                     type: 'array',
                     items: { type: 'string', enum: ['horizontal', 'vertical'] },
@@ -153,7 +153,7 @@ This endpoint intentionally exposes only the active \`krea2_lora_generation\` mo
                     type: 'string',
                     nullable: true,
                     example:
-                      'Fine-tune contest image generation powered by Krea 2 Turbo with a Krea-2-Raw LoRA.',
+                      'Fine-tune contest image generation powered by the YEngine portrait pipeline.',
                   },
                 },
               },
@@ -210,7 +210,7 @@ This endpoint is separate from the legacy edit flow and reads from the new \`med
               properties: {
                 defaultAI: {
                   type: 'string',
-                  example: 'qwen_image_edit_baked',
+                  example: 'yengine_edit',
                   nullable: true,
                 },
               },
@@ -222,9 +222,9 @@ This endpoint is separate from the legacy edit flow and reads from the new \`med
                 properties: {
                   aiService: {
                     type: 'string',
-                    example: 'qwen_image_edit_baked',
+                    example: 'yengine_edit',
                   },
-                  name: { type: 'string', example: 'Qwen Image Edit Baked' },
+                  name: { type: 'string', example: 'YEngine Edit' },
                   minImages: {
                     type: 'number',
                     description:
@@ -249,8 +249,7 @@ This endpoint is separate from the legacy edit flow and reads from the new \`med
                   description: {
                     type: 'string',
                     nullable: true,
-                    example:
-                      'Image editing powered by the private RunPod Qwen Image Edit baked endpoint.',
+                    example: 'Image editing powered by the YEngine pipeline.',
                   },
                 },
               },
@@ -307,7 +306,7 @@ This endpoint is separate from the legacy audio flow and reads from the new \`me
               properties: {
                 defaultAI: {
                   type: 'string',
-                  example: 'mmaudio_v2',
+                  example: 'yengine_audio',
                   nullable: true,
                 },
               },
@@ -317,8 +316,8 @@ This endpoint is separate from the legacy audio flow and reads from the new \`me
               items: {
                 type: 'object',
                 properties: {
-                  aiService: { type: 'string', example: 'mmaudio_v2' },
-                  name: { type: 'string', example: 'MMAudio V2' },
+                  aiService: { type: 'string', example: 'yengine_audio' },
+                  name: { type: 'string', example: 'YEngine Audio' },
                   maxPromptLength: {
                     type: 'number',
                     description:
@@ -360,7 +359,7 @@ This endpoint is separate from the legacy video flow and reads from the new \`me
               properties: {
                 defaultAI: {
                   type: 'string',
-                  example: 'p_video_text',
+                  example: 'yengine_video_text',
                   nullable: true,
                 },
               },
@@ -370,8 +369,8 @@ This endpoint is separate from the legacy video flow and reads from the new \`me
               items: {
                 type: 'object',
                 properties: {
-                  aiService: { type: 'string', example: 'p_video_text' },
-                  name: { type: 'string', example: 'P-Video Text' },
+                  aiService: { type: 'string', example: 'yengine_video_text' },
+                  name: { type: 'string', example: 'YEngine' },
                   maxPromptLength: {
                     type: 'number',
                     description:
@@ -449,7 +448,7 @@ This endpoint is separate from the legacy video flow and reads from the new \`me
               properties: {
                 defaultAI: {
                   type: 'string',
-                  example: 'p_video_image',
+                  example: 'yengine_video_image',
                   nullable: true,
                 },
               },
@@ -459,8 +458,8 @@ This endpoint is separate from the legacy video flow and reads from the new \`me
               items: {
                 type: 'object',
                 properties: {
-                  aiService: { type: 'string', example: 'p_video_image' },
-                  name: { type: 'string', example: 'P-Video Image' },
+                  aiService: { type: 'string', example: 'yengine_video_image' },
+                  name: { type: 'string', example: 'YEngine' },
                   maxPromptLength: {
                     type: 'number',
                     description:
@@ -538,7 +537,7 @@ This endpoint is separate from the meme template catalog. It reads from the new 
               properties: {
                 defaultAI: {
                   type: 'string',
-                  example: 'wan22_animate_native',
+                  example: 'yengine_meme',
                   nullable: true,
                 },
               },
@@ -550,9 +549,9 @@ This endpoint is separate from the meme template catalog. It reads from the new 
                 properties: {
                   aiService: {
                     type: 'string',
-                    example: 'wan22_animate_native',
+                    example: 'yengine_meme',
                   },
-                  name: { type: 'string', example: 'WAN 2.2 Animate Native' },
+                  name: { type: 'string', example: 'Meme v2' },
                   maxPromptLength: {
                     type: 'number',
                     description:
@@ -600,13 +599,13 @@ This endpoint is separate from the meme template catalog. It reads from the new 
 This endpoint is the new provider-facing abstraction for media generation. It resolves which backend provider should be used for the requested capability and model.
 
 **Current routing behavior:**
-- **FLUX.2 Klein**: routed through the configured private RunPod FLUX.2 Klein endpoint
-- **Krea 2 Turbo**: routed through the configured private RunPod Krea 2 Turbo endpoint
+- **YEngine Photo Lite**: routed through the configured YEngine pipeline
+- **YEngine Photo Pro**: routed through the configured YEngine pipeline
 
 **What this endpoint does:**
 - Accepts a prompt-driven image generation request
 - Resolves the provider through \`media-generation\`
-- If \`contest_id\` is provided, resolves the contest model on the backend and can switch into Krea 2 LoRA fine-tune mode automatically
+- If \`contest_id\` is provided, resolves the contest model on the backend and can switch into YEngine LoRA fine-tune mode automatically
 - Pushes the request into a dedicated queue
 - Deducts credits before persistence is finalized
 - Saves generated posts with optional contest context
@@ -658,7 +657,7 @@ This endpoint is the new provider-facing abstraction for media generation. It re
     description: `Edit an existing image through the new \`media-generation\` orchestration layer.
 
 **Current routing behavior:**
-- **Qwen Image Edit Baked**: routed through the configured private RunPod Qwen Image Edit baked endpoint
+- **YEngine Edit**: routed through the configured YEngine pipeline
 
 **What this endpoint does:**
 - Accepts an image edit request with prompt + source image URL
@@ -713,7 +712,7 @@ This endpoint is the new provider-facing abstraction for media generation. It re
     description: `Generate audio-enhanced video output through the new \`media-generation\` orchestration layer.
 
 **Current routing behavior:**
-- **MMAudio V2**: routed through Fal AI when configured
+- **YEngine Audio**: routed through Fal AI when configured
 
 **What this endpoint does:**
 - Accepts a source video URL plus prompt
@@ -768,7 +767,7 @@ This endpoint is the new provider-facing abstraction for media generation. It re
     description: `Generate videos from prompt-only input through the new \`media-generation\` orchestration layer.
 
 **Current routing behavior:**
-- **P-Video text-to-video**: routed through the public RunPod \`p-video\` endpoint when configured
+- **YEngine text-to-video**: routed through the public YEngine \`yengine\` endpoint when configured
 
 **What this endpoint does:**
 - Accepts a prompt-driven video generation request
@@ -825,7 +824,7 @@ This endpoint is the new provider-facing abstraction for media generation. It re
     description: `Generate videos from a source image through the new \`media-generation\` orchestration layer.
 
 **Current routing behavior:**
-- **P-Video image-to-video**: routed through the public RunPod \`p-video\` endpoint when configured
+- **YEngine image-to-video**: routed through the public YEngine \`yengine\` endpoint when configured
 
 **What this endpoint does:**
 - Accepts an image-to-video request with prompt + source image URL
@@ -882,7 +881,7 @@ This endpoint is the new provider-facing abstraction for media generation. It re
     description: `Generate meme motion-transfer videos through the new \`media-generation\` orchestration layer.
 
 **Current routing behavior:**
-- **WAN 2.2 Animate Native**: routed through the private RunPod meme endpoint when configured
+- **YEngine Meme**: routed through the YEngine pipeline when configured
 
 **What this endpoint does:**
 - Accepts a meme template ID plus a user source image

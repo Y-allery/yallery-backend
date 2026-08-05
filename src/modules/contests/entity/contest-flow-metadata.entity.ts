@@ -1,10 +1,4 @@
-import {
-  Column,
-  Entity,
-  Index,
-  JoinColumn,
-  OneToOne,
-} from 'typeorm';
+import { Column, Entity, Index, JoinColumn, OneToOne } from 'typeorm';
 import { TimeStampEntity } from 'src/core/database/entities/time-stamp.entity';
 import { ContestEntity } from './contest.entity';
 import {

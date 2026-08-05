@@ -81,7 +81,7 @@ describe('MediaGenerationEnqueueService', () => {
 
     const job = await service.enqueuePromptImageGeneration(
       {
-        aiService: 'krea2_turbo',
+        aiService: 'yengine_photo_pro',
         prompt: 'hello',
         imageQuantity: 1,
         orientation: 'square',
@@ -96,14 +96,14 @@ describe('MediaGenerationEnqueueService', () => {
       expect.objectContaining({
         userId: 55,
         amount: 10,
-        aiService: 'krea2_turbo',
+        aiService: 'yengine_photo_pro',
       }),
     );
     expect(queueAdd).toHaveBeenCalledWith(
-      'krea2_turbo',
+      'yengine_photo_pro',
       expect.objectContaining({
         userId: 55,
-        aiService: 'krea2_turbo',
+        aiService: 'yengine_photo_pro',
         chargeId: expect.any(String),
         request: expect.objectContaining({
           prompt: 'enhanced prompt',
@@ -133,7 +133,7 @@ describe('MediaGenerationEnqueueService', () => {
     await expect(
       service.enqueuePromptImageGeneration(
         {
-          aiService: 'krea2_turbo',
+          aiService: 'yengine_photo_pro',
           prompt: 'hello',
           imageQuantity: 1,
           orientation: 'square',
@@ -162,7 +162,7 @@ describe('MediaGenerationEnqueueService', () => {
 
     await service.enqueueTextVideoGeneration(
       {
-        aiService: 'p_video_text',
+        aiService: 'yengine_video_text',
         prompt: 'one dancer under stage lights',
         orientation: 'portrait',
         duration: 5,
@@ -174,10 +174,10 @@ describe('MediaGenerationEnqueueService', () => {
       providerRuntimeConfigService.getLtxTextPipelineModeFresh,
     ).toHaveBeenCalledTimes(1);
     expect(textVideoQueueAdd).toHaveBeenCalledWith(
-      'p_video_text',
+      'yengine_video_text',
       expect.objectContaining({
         userId: 55,
-        aiService: 'p_video_text',
+        aiService: 'yengine_video_text',
         ltxTextPipelineMode: 'cascade',
         request: expect.objectContaining({
           prompt: 'one dancer under stage lights',
@@ -190,7 +190,7 @@ describe('MediaGenerationEnqueueService', () => {
       expect.objectContaining({
         userId: 55,
         amount: 20,
-        aiService: 'p_video_text',
+        aiService: 'yengine_video_text',
       }),
     );
   });
@@ -209,7 +209,7 @@ describe('MediaGenerationEnqueueService', () => {
     await expect(
       service.enqueueTextVideoGeneration(
         {
-          aiService: 'p_video_text',
+          aiService: 'yengine_video_text',
           prompt: 'a waterfall',
           orientation: 'landscape',
           duration: 5,

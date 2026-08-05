@@ -6,7 +6,7 @@ describe('RunpodPayloadBuilder', () => {
   it('builds MMAudio video-to-audio payload', () => {
     expect(
       builder.buildAudioInput({
-        aiService: 'mmaudio_v2',
+        aiService: 'yengine_audio',
         prompt: 'cinematic drums',
         videoUrl: 'https://cdn.test/source.mp4',
       }),
@@ -24,7 +24,7 @@ describe('RunpodPayloadBuilder', () => {
   it('requires a validated Krea 2 Turbo LoRA artifact', () => {
     expect(() =>
       builder.buildPromptImageInput({
-        aiService: 'krea2_lora_generation',
+        aiService: 'yengine_portrait',
         prompt: 'portrait',
         width: 1024,
         height: 1024,
@@ -36,7 +36,7 @@ describe('RunpodPayloadBuilder', () => {
   it('builds fixed-recipe plain Krea 2 Turbo payload with structured style', () => {
     expect(
       builder.buildPromptImageInput({
-        aiService: 'krea2_turbo',
+        aiService: 'yengine_photo_pro',
         prompt: 'cinematic portrait',
         style: {
           name: 'Anime',
@@ -71,7 +71,7 @@ describe('RunpodPayloadBuilder', () => {
   it('builds fixed-recipe Krea 2 LoRA payload with integrity metadata', () => {
     expect(
       builder.buildPromptImageInput({
-        aiService: 'krea2_lora_generation',
+        aiService: 'yengine_portrait',
         prompt: 'xoob_character exploring a forest',
         width: 768,
         height: 1344,
@@ -102,7 +102,7 @@ describe('RunpodPayloadBuilder', () => {
 
   it('builds LTX text-to-video payload (720 horizontal, 5s, audio on)', () => {
     const payload = builder.buildTextVideoInput({
-      aiService: 'p_video_text',
+      aiService: 'yengine_video_text',
       prompt: 'a red dragon over snowy mountains',
       orientation: 'horizontal',
       duration: 5,
@@ -125,7 +125,7 @@ describe('RunpodPayloadBuilder', () => {
 
   it('falls back to a random positive int32 seed when the request has none', () => {
     const { seed } = builder.buildTextVideoInput({
-      aiService: 'p_video_text',
+      aiService: 'yengine_video_text',
       prompt: 'a red dragon over snowy mountains',
       orientation: 'horizontal',
       duration: 5,
@@ -138,7 +138,7 @@ describe('RunpodPayloadBuilder', () => {
 
   it('maps vertical orientation and 10s duration to a valid LTX frame count', () => {
     const payload = builder.buildTextVideoInput({
-      aiService: 'p_video_text',
+      aiService: 'yengine_video_text',
       prompt: 'ocean waves at sunset',
       orientation: 'vertical',
       duration: 10,
@@ -152,7 +152,7 @@ describe('RunpodPayloadBuilder', () => {
     expect(
       builder.buildImageVideoInput(
         {
-          aiService: 'p_video_image',
+          aiService: 'yengine_video_image',
           prompt: 'animate this',
           imageUrl: 'https://cdn.test/source.png',
           orientation: 'horizontal',
@@ -172,7 +172,7 @@ describe('RunpodPayloadBuilder', () => {
   it('builds meme animation payload preserving source audio', () => {
     expect(
       builder.buildMemeInput({
-        aiService: 'wan22_animate_native',
+        aiService: 'yengine_meme',
         prompt: '',
         imageUrl: 'https://cdn.test/image.png',
         videoUrl: 'https://cdn.test/source.mp4',
@@ -190,7 +190,7 @@ describe('RunpodPayloadBuilder', () => {
 
   describe('buildImageEditInput', () => {
     const baseRequest = {
-      aiService: 'qwen_image_edit_baked',
+      aiService: 'yengine_edit',
       prompt: 'put him on a beach',
     };
 

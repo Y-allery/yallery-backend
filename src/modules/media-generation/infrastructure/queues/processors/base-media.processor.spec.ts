@@ -60,7 +60,7 @@ describe('BaseMediaProcessor', () => {
         opts: { attempts: 3 },
         data: {
           userId: 42,
-          aiService: 'qwen_image_edit_baked',
+          aiService: 'yengine_edit',
           chargeId: 'charge-abc',
         },
       },
@@ -76,7 +76,7 @@ describe('BaseMediaProcessor', () => {
         code: 'unknown',
         jobId: 'job-123',
         taskId: 'job-123',
-        aiService: 'qwen_image_edit_baked',
+        aiService: 'yengine_edit',
       },
     );
   });
@@ -94,7 +94,11 @@ describe('BaseMediaProcessor', () => {
         id: 'job-777',
         attemptsMade: 3,
         opts: { attempts: 3 },
-        data: { userId: 42, aiService: 'p_video_text', chargeId: 'charge-x' },
+        data: {
+          userId: 42,
+          aiService: 'yengine_video_text',
+          chargeId: 'charge-x',
+        },
       },
       new GatewayTimeoutException(
         'RunPod job 3f0a7664 did not finish within 1200000ms',
@@ -125,7 +129,7 @@ describe('BaseMediaProcessor', () => {
         opts: { attempts: 3 },
         data: {
           userId: 42,
-          aiService: 'qwen_image_edit_baked',
+          aiService: 'yengine_edit',
           chargeId: 'charge-abc',
         },
       },

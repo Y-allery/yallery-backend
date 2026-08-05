@@ -51,7 +51,7 @@ describe('ContestMediaGenerationResolverService', () => {
     await expect(
       service.resolvePromptImageRequest({
         contestId: fineTuneContest.id,
-        aiService: 'flux2_klein',
+        aiService: 'yengine_photo_lite',
         prompt: 'test',
         imageQuantity: 1,
         orientation: 'vertical',
@@ -70,7 +70,7 @@ describe('ContestMediaGenerationResolverService', () => {
     } = createService();
     contestRepository.findOne.mockResolvedValue(fineTuneContest);
     mediaAISettingsRepository.findOne.mockResolvedValue({
-      aiService: 'krea2_lora_generation',
+      aiService: 'yengine_portrait',
       capability: 'image_generate',
       isActive: true,
     });
@@ -93,7 +93,7 @@ describe('ContestMediaGenerationResolverService', () => {
       orientation: 'vertical',
     });
 
-    expect(result.aiService).toBe('krea2_lora_generation');
+    expect(result.aiService).toBe('yengine_portrait');
     expect(result.providerSettings).toMatchObject({
       loraKey: 'codex_ft_key',
       loraUrl: 'https://example.com/lora.safetensors',
@@ -114,7 +114,7 @@ describe('ContestMediaGenerationResolverService', () => {
     } = createService();
     contestRepository.findOne.mockResolvedValue(fineTuneContest);
     mediaAISettingsRepository.findOne.mockResolvedValue({
-      aiService: 'krea2_lora_generation',
+      aiService: 'yengine_portrait',
       capability: 'image_generate',
       isActive: true,
     });
@@ -122,7 +122,7 @@ describe('ContestMediaGenerationResolverService', () => {
       loraKey: 'codex_ft_key',
       loraUrl: 'https://example.com/legacy.safetensors',
       triggerWord: 'legacy_character',
-      modelFamily: 'sdxl',
+      modelFamily: 'yengine_photo_legacy',
       status: 'ready',
       loraSha256: 'b'.repeat(64),
       loraStep: 800,
@@ -157,7 +157,7 @@ describe('ContestMediaGenerationResolverService', () => {
     });
     contestFlowMetadataRepository.count.mockResolvedValue(0);
     mediaAISettingsRepository.findOne.mockResolvedValue({
-      aiService: 'krea2_turbo',
+      aiService: 'yengine_photo_pro',
       capability: 'image_generate',
       isActive: true,
     });
@@ -171,11 +171,11 @@ describe('ContestMediaGenerationResolverService', () => {
 
     expect(mediaAISettingsRepository.findOne).toHaveBeenCalledWith({
       where: {
-        aiService: 'krea2_turbo',
+        aiService: 'yengine_photo_pro',
         capability: 'image_generate',
         isActive: true,
       },
     });
-    expect(result.aiService).toBe('krea2_turbo');
+    expect(result.aiService).toBe('yengine_photo_pro');
   });
 });

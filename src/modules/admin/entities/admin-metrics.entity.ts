@@ -80,22 +80,24 @@ export class AdminMetricsEntity {
   postsPerUserAvg7D: number;
 
   @Column({ type: 'json', nullable: true })
-  topTags7D: {
-    tagId: number;
-    name: string;
-    posts: number;
-    likes: number;
-  }[] | null;
+  topTags7D:
+    | {
+        tagId: number;
+        name: string;
+        posts: number;
+        likes: number;
+      }[]
+    | null;
 
   @Column({ type: 'int', default: 0 })
   purchasedYeps7D: number;
 
   @Column({ type: 'json', nullable: true })
-  contestParticipantsStats: {
-    contestId: number;
-    contestName: string;
-    participantsCount: number;
-  }[] | null;
+  contestParticipantsStats:
+    | {
+        contestId: number;
+        contestName: string;
+        participantsCount: number;
+      }[]
+    | null;
 }
-
-

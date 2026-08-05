@@ -62,8 +62,7 @@ export class MediaGenerationTasksService {
 
   async getUnfinishedTasks(userId: number): Promise<UserGenerationTask[]> {
     const since = new Date(
-      Date.now() -
-        MediaGenerationTasksService.LOOKBACK_HOURS * 60 * 60 * 1000,
+      Date.now() - MediaGenerationTasksService.LOOKBACK_HOURS * 60 * 60 * 1000,
     );
 
     const charges = await this.chargeRepository.find({

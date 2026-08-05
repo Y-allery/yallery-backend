@@ -24,7 +24,7 @@ describe('MediaMemeProcessor', () => {
         opts: { attempts: 3 },
         data: {
           userId: 77,
-          aiService: 'wan22_animate_native',
+          aiService: 'yengine_meme',
           chargeId: 'charge-meme',
         },
       } as any,
@@ -40,7 +40,7 @@ describe('MediaMemeProcessor', () => {
         code: 'unknown',
         jobId: 'meme-job-1',
         taskId: 'meme-job-1',
-        aiService: 'wan22_animate_native',
+        aiService: 'yengine_meme',
       },
     );
   });

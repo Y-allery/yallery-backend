@@ -9,12 +9,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import {
-  ApiOperation,
-  ApiParam,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Roles } from 'src/modules/auth/decorators/role.decorator';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt.auth.guard';
 import { RoleGuard } from 'src/modules/auth/guards/role.guard';

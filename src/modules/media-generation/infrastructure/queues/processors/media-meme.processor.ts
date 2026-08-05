@@ -29,7 +29,12 @@ export class MediaMemeProcessor extends BaseMediaProcessor {
     mediaGenerationBalanceService: MediaGenerationBalanceService,
     opsBotService: OpsBotService,
   ) {
-    super(notificationGateway, 'meme', mediaGenerationBalanceService, opsBotService);
+    super(
+      notificationGateway,
+      'meme',
+      mediaGenerationBalanceService,
+      opsBotService,
+    );
   }
 
   async process(job: Job<MediaMemeJobData>) {

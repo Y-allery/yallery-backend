@@ -19,7 +19,7 @@ describe('GeneratedPostFactory', () => {
 
     const post = await factory.createPromptImagePost(
       {
-        aiService: 'krea2_lora_generation',
+        aiService: 'yengine_portrait',
         prompt: 'raw prompt',
         resolvedPrompt: 'resolved prompt',
         translatedPrompt: 'translated prompt',
@@ -46,7 +46,7 @@ describe('GeneratedPostFactory', () => {
       generationParams: {
         prompt: 'raw prompt',
         resolvedPrompt: 'resolved prompt',
-        aiService: 'krea2_lora_generation',
+        aiService: 'yengine_portrait',
         loraKey: 'demo-key',
         triggerWord: 'demo',
       },
@@ -58,7 +58,7 @@ describe('GeneratedPostFactory', () => {
 
     const post = await factory.createMemePost(
       {
-        aiService: 'wan22_animate_native',
+        aiService: 'yengine_meme',
         prompt: '',
         imageUrl: 'https://cdn.test/input.png',
         videoUrl: 'https://cdn.test/source.mp4',
@@ -79,7 +79,7 @@ describe('GeneratedPostFactory', () => {
 
     expect(post.hasAudio).toBe(true);
     expect(post.generationParams).toMatchObject({
-      aiService: 'wan22_animate_native',
+      aiService: 'yengine_meme',
       memeId: 7,
       billableDurationSeconds: 5,
       sourceImageUrl: 'https://cdn.test/input.png',
@@ -95,7 +95,7 @@ describe('GeneratedPostFactory', () => {
 
     const post = await factory.createVideoPost(
       {
-        aiService: 'p_video_text',
+        aiService: 'yengine_video_text',
         prompt: 'cinematic robot',
         orientation: 'horizontal',
         duration: 5,
@@ -111,7 +111,7 @@ describe('GeneratedPostFactory', () => {
     );
 
     expect(post.generationParams).toMatchObject({
-      aiService: 'p_video_text',
+      aiService: 'yengine_video_text',
       prompt: 'cinematic robot',
       orientation: 'horizontal',
       duration: 5,
@@ -129,7 +129,7 @@ describe('GeneratedPostFactory', () => {
 
       const post = await factory.createPromptImagePost(
         {
-          aiService: 'z_image_turbo',
+          aiService: 'yengine_photo',
           prompt: 'a lighthouse',
           orientation: 'vertical',
           width: 832,
@@ -153,7 +153,7 @@ describe('GeneratedPostFactory', () => {
 
       const post = await factory.createPromptImagePost(
         {
-          aiService: 'z_image_turbo',
+          aiService: 'yengine_photo',
           prompt: 'a lighthouse',
           orientation: 'vertical',
           width: 832,
@@ -173,7 +173,7 @@ describe('GeneratedPostFactory', () => {
 
       const post = await factory.createPromptImagePost(
         {
-          aiService: 'krea2_lora_generation',
+          aiService: 'yengine_portrait',
           prompt: 'a lighthouse',
           orientation: 'vertical',
           width: 832,
@@ -197,7 +197,7 @@ describe('GeneratedPostFactory', () => {
 
       const post = await factory.createPromptImagePost(
         {
-          aiService: 'z_image_turbo',
+          aiService: 'yengine_photo',
           prompt: 'a lighthouse',
           orientation: 'vertical',
           width: 832,
@@ -218,7 +218,7 @@ describe('GeneratedPostFactory', () => {
 
       const post = await factory.createPromptImagePost(
         {
-          aiService: 'z_image_turbo',
+          aiService: 'yengine_photo',
           prompt: 'a lighthouse',
           orientation: 'vertical',
           width: 832,
@@ -238,7 +238,7 @@ describe('GeneratedPostFactory', () => {
 
       const post = await factory.createEditedImagePost(
         {
-          aiService: 'qwen_image_edit_baked',
+          aiService: 'yengine_edit',
           prompt: 'make it snow',
           imageUrl: 'https://cdn.test/a.png',
           contestId: 42,
@@ -256,7 +256,7 @@ describe('GeneratedPostFactory', () => {
 
       const post = await factory.createAudioPost(
         {
-          aiService: 'mmaudio_v2',
+          aiService: 'yengine_audio',
           prompt: 'rain on a roof',
           videoUrl: 'https://cdn.test/silent.mp4',
           contestId: 42,
@@ -275,7 +275,7 @@ describe('GeneratedPostFactory', () => {
 
       const post = await factory.createVideoPost(
         {
-          aiService: 'p_video_text',
+          aiService: 'yengine_video_text',
           prompt: 'cinematic robot',
           orientation: 'horizontal',
           duration: 5,
@@ -305,7 +305,7 @@ describe('GeneratedPostFactory', () => {
       factory.createVideoPostOnce(
         'task_12345678',
         {
-          aiService: 'p_video_text',
+          aiService: 'yengine_video_text',
           prompt: 'robot',
           orientation: 'horizontal',
           duration: 5,
@@ -339,7 +339,7 @@ describe('GeneratedPostFactory', () => {
       factory.createVideoPostOnce(
         'task_12345678',
         {
-          aiService: 'p_video_text',
+          aiService: 'yengine_video_text',
           prompt: 'robot',
           orientation: 'horizontal',
           duration: 5,

@@ -7,6 +7,10 @@ import {
   MEDIA_TEXT_VIDEO_GENERATION_QUEUE,
 } from 'src/modules/media-generation/infrastructure/queues/constants/media-generation.queue';
 import { MediaCapability } from 'src/modules/media-generation/domain/enums/media-capability.enum';
+import {
+  AI_SERVICES,
+  normalizeAiService,
+} from 'src/modules/media-generation/domain/ai-service.catalog';
 import { MediaDispatch } from 'src/modules/media-generation/domain/enums/media-dispatch.enum';
 import { MediaProvider } from 'src/modules/media-generation/domain/enums/media-provider.enum';
 
@@ -40,7 +44,7 @@ export interface MediaRouteCatalogEntry {
 export const RUNPOD_MEDIA_ROUTE_CATALOG: MediaRouteCatalogEntry[] = [
   {
     routeType: 'promptImage',
-    aiService: 'flux2_klein',
+    aiService: AI_SERVICES.PHOTO_LITE,
     capability: MediaCapability.IMAGE_GENERATE,
     provider: MediaProvider.RUNPOD,
     dispatch: MediaDispatch.BULLMQ_QUEUE,
@@ -53,7 +57,7 @@ export const RUNPOD_MEDIA_ROUTE_CATALOG: MediaRouteCatalogEntry[] = [
   },
   {
     routeType: 'promptImage',
-    aiService: 'qwen_image',
+    aiService: AI_SERVICES.PHOTO_V1,
     capability: MediaCapability.IMAGE_GENERATE,
     provider: MediaProvider.RUNPOD,
     dispatch: MediaDispatch.BULLMQ_QUEUE,
@@ -71,7 +75,7 @@ export const RUNPOD_MEDIA_ROUTE_CATALOG: MediaRouteCatalogEntry[] = [
     // 50-step/cfg4.0 checkpoint. Dark by default (RUNPOD_QWEN_IMAGE_2512_ENABLED=false) --
     // see workers/out/t2i-battery-2026-07-24/RUNBOOK.md for the morning flip.
     routeType: 'promptImage',
-    aiService: 'qwen_image_2512',
+    aiService: AI_SERVICES.PHOTO_V2,
     capability: MediaCapability.IMAGE_GENERATE,
     provider: MediaProvider.RUNPOD,
     dispatch: MediaDispatch.BULLMQ_QUEUE,
@@ -89,7 +93,7 @@ export const RUNPOD_MEDIA_ROUTE_CATALOG: MediaRouteCatalogEntry[] = [
     // the legacy Qwen image-generate endpoint there. Qwen Image Edit remains on the main
     // account, so this route must use the same per-route video-account key as qwen_image.
     routeType: 'promptImage',
-    aiService: 'z_image_turbo',
+    aiService: AI_SERVICES.PHOTO,
     capability: MediaCapability.IMAGE_GENERATE,
     provider: MediaProvider.RUNPOD,
     dispatch: MediaDispatch.BULLMQ_QUEUE,
@@ -103,7 +107,7 @@ export const RUNPOD_MEDIA_ROUTE_CATALOG: MediaRouteCatalogEntry[] = [
   },
   {
     routeType: 'promptImage',
-    aiService: 'krea2_turbo',
+    aiService: AI_SERVICES.PHOTO_PRO,
     capability: MediaCapability.IMAGE_GENERATE,
     provider: MediaProvider.RUNPOD,
     dispatch: MediaDispatch.BULLMQ_QUEUE,
@@ -116,7 +120,7 @@ export const RUNPOD_MEDIA_ROUTE_CATALOG: MediaRouteCatalogEntry[] = [
   },
   {
     routeType: 'promptImage',
-    aiService: 'krea2_lora_generation',
+    aiService: AI_SERVICES.PORTRAIT,
     capability: MediaCapability.IMAGE_GENERATE,
     provider: MediaProvider.RUNPOD,
     dispatch: MediaDispatch.BULLMQ_QUEUE,
@@ -129,7 +133,7 @@ export const RUNPOD_MEDIA_ROUTE_CATALOG: MediaRouteCatalogEntry[] = [
   },
   {
     routeType: 'imageEdit',
-    aiService: 'qwen_image_edit_baked',
+    aiService: AI_SERVICES.EDIT,
     capability: MediaCapability.IMAGE_EDIT,
     provider: MediaProvider.RUNPOD,
     dispatch: MediaDispatch.BULLMQ_QUEUE,
@@ -142,7 +146,7 @@ export const RUNPOD_MEDIA_ROUTE_CATALOG: MediaRouteCatalogEntry[] = [
   },
   {
     routeType: 'audio',
-    aiService: 'mmaudio_v2',
+    aiService: AI_SERVICES.AUDIO,
     capability: MediaCapability.AUDIO_GENERATE,
     provider: MediaProvider.RUNPOD,
     dispatch: MediaDispatch.BULLMQ_QUEUE,
@@ -155,7 +159,7 @@ export const RUNPOD_MEDIA_ROUTE_CATALOG: MediaRouteCatalogEntry[] = [
   },
   {
     routeType: 'textVideo',
-    aiService: 'p_video_text',
+    aiService: AI_SERVICES.VIDEO_TEXT,
     capability: MediaCapability.VIDEO_GENERATE,
     provider: MediaProvider.RUNPOD,
     dispatch: MediaDispatch.BULLMQ_QUEUE,
@@ -169,7 +173,7 @@ export const RUNPOD_MEDIA_ROUTE_CATALOG: MediaRouteCatalogEntry[] = [
   },
   {
     routeType: 'imageVideo',
-    aiService: 'p_video_image',
+    aiService: AI_SERVICES.VIDEO_IMAGE,
     capability: MediaCapability.VIDEO_GENERATE,
     provider: MediaProvider.RUNPOD,
     dispatch: MediaDispatch.BULLMQ_QUEUE,
@@ -183,7 +187,7 @@ export const RUNPOD_MEDIA_ROUTE_CATALOG: MediaRouteCatalogEntry[] = [
   },
   {
     routeType: 'meme',
-    aiService: 'wan22_animate_native',
+    aiService: AI_SERVICES.MEME,
     capability: MediaCapability.MEME_GENERATE,
     provider: MediaProvider.RUNPOD,
     dispatch: MediaDispatch.BULLMQ_QUEUE,
@@ -197,7 +201,7 @@ export const RUNPOD_MEDIA_ROUTE_CATALOG: MediaRouteCatalogEntry[] = [
   {
     // LTX meme motion control (worker v8.20+: DWPose reference + Union IC-LoRA). Lives on the
     // VIDEO RunPod account, hence the per-route api key — same mechanism as the p_video routes.
-    aiService: 'ltx_meme',
+    aiService: AI_SERVICES.MEME_LITE,
     routeType: 'meme',
     capability: MediaCapability.MEME_GENERATE,
     provider: MediaProvider.RUNPOD,
@@ -216,9 +220,13 @@ export function getRunpodMediaRoute(
   aiService: string,
   routeType: MediaRouteType,
 ): MediaRouteCatalogEntry | null {
+  // Normalised here as well as at the enqueue boundary: this is the last gate before a
+  // request is declared unroutable, and an app build still sending a retired id must not
+  // fail here just because some path skipped the boundary.
+  const canonical = normalizeAiService(aiService);
   return (
     RUNPOD_MEDIA_ROUTE_CATALOG.find(
-      (route) => route.aiService === aiService && route.routeType === routeType,
+      (route) => route.aiService === canonical && route.routeType === routeType,
     ) ?? null
   );
 }

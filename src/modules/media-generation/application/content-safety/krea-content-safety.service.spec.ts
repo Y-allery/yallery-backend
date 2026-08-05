@@ -38,7 +38,10 @@ describe('KreaContentSafetyService', () => {
     });
 
     await expect(
-      service.assertPromptAllowed('krea2_turbo', 'a friendly forest mascot'),
+      service.assertPromptAllowed(
+        'yengine_photo_pro',
+        'a friendly forest mascot',
+      ),
     ).resolves.toBeUndefined();
 
     expect(mockedAxios.post).toHaveBeenCalledWith(
@@ -66,7 +69,7 @@ describe('KreaContentSafetyService', () => {
 
     let caught: unknown;
     try {
-      await service.assertProviderImagesAllowed('krea2_lora_generation', [
+      await service.assertProviderImagesAllowed('yengine_portrait', [
         signedUrl,
       ]);
     } catch (error) {
@@ -101,7 +104,7 @@ describe('KreaContentSafetyService', () => {
     let caught: unknown;
     try {
       await service.assertPromptAllowed(
-        'krea2_turbo',
+        'yengine_photo_pro',
         'private prompt text',
       );
     } catch (error) {
@@ -120,10 +123,10 @@ describe('KreaContentSafetyService', () => {
     const { service, providerRuntimeConfigService } = createService();
 
     await expect(
-      service.assertPromptAllowed('z_image_turbo', 'unchanged path'),
+      service.assertPromptAllowed('yengine_photo', 'unchanged path'),
     ).resolves.toBeUndefined();
     await expect(
-      service.assertProviderImagesAllowed('flux2_klein', [
+      service.assertProviderImagesAllowed('yengine_photo_lite', [
         'https://provider.test/image.png',
       ]),
     ).resolves.toBeUndefined();

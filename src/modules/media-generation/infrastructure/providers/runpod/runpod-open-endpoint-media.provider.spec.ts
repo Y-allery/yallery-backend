@@ -87,7 +87,7 @@ describe('RunpodOpenEndpointMediaProvider', () => {
     });
 
     await provider.generatePromptImages({
-      aiService: 'krea2_turbo',
+      aiService: 'yengine_photo_pro',
       prompt: 'a friendly mascot in a forest',
       width: 768,
       height: 1344,
@@ -96,11 +96,11 @@ describe('RunpodOpenEndpointMediaProvider', () => {
     });
 
     expect(contentSafety.assertPromptAllowed).toHaveBeenCalledWith(
-      'krea2_turbo',
+      'yengine_photo_pro',
       'a friendly mascot in a forest',
     );
     expect(contentSafety.assertProviderImagesAllowed).toHaveBeenCalledWith(
-      'krea2_turbo',
+      'yengine_photo_pro',
       ['https://private.runpod.test/generated.png?signature=abc'],
     );
     expect(
@@ -132,7 +132,7 @@ describe('RunpodOpenEndpointMediaProvider', () => {
 
     await expect(
       provider.generatePromptImages({
-        aiService: 'krea2_turbo',
+        aiService: 'yengine_photo_pro',
         prompt: 'test',
         width: 768,
         height: 1344,
@@ -163,7 +163,7 @@ describe('RunpodOpenEndpointMediaProvider', () => {
     });
 
     const result = await provider.generateAudio({
-      aiService: 'mmaudio_v2',
+      aiService: 'yengine_audio',
       prompt: 'upbeat meme soundtrack',
       videoUrl: 'https://cdn.test/source.mp4',
     });
@@ -209,7 +209,7 @@ describe('RunpodOpenEndpointMediaProvider', () => {
     });
 
     const result = await provider.generateTextVideos({
-      aiService: 'p_video_text',
+      aiService: 'yengine_video_text',
       prompt: 'a cinematic robot',
       orientation: 'horizontal',
       duration: 5,
@@ -247,7 +247,7 @@ describe('RunpodOpenEndpointMediaProvider', () => {
     });
 
     const result = await provider.generateTextVideos({
-      aiService: 'p_video_text',
+      aiService: 'yengine_video_text',
       prompt: 'a cinematic robot',
       orientation: 'horizontal',
       duration: 5,
@@ -282,7 +282,7 @@ describe('RunpodOpenEndpointMediaProvider', () => {
     });
 
     const result = await provider.generateImageVideos({
-      aiService: 'p_video_image',
+      aiService: 'yengine_video_image',
       prompt: 'animate this',
       imageUrl: 'https://cdn.test/source.png',
       orientation: 'horizontal',
@@ -337,7 +337,7 @@ describe('RunpodOpenEndpointMediaProvider', () => {
     });
 
     await provider.generateImageVideos({
-      aiService: 'p_video_image',
+      aiService: 'yengine_video_image',
       prompt: 'animate this',
       imageUrl: 'https://cdn.test/wide.png',
       orientation: 'vertical',
@@ -367,7 +367,7 @@ describe('RunpodOpenEndpointMediaProvider', () => {
     });
 
     const result = await provider.generateMemes({
-      aiService: 'wan22_animate_native',
+      aiService: 'yengine_meme',
       memeId: 1,
       imageUrl: 'https://cdn.test/source.png',
       videoUrl: 'https://cdn.test/reference.mp4',
@@ -400,7 +400,7 @@ describe('RunpodOpenEndpointMediaProvider', () => {
     });
 
     const result = await provider.editImages({
-      aiService: 'qwen_image_edit_baked',
+      aiService: 'yengine_edit',
       prompt: 'make it snow',
       imageUrl: 'https://cdn.test/source.png',
     });
@@ -436,7 +436,7 @@ describe('RunpodOpenEndpointMediaProvider', () => {
 
     await expect(
       provider.editImages({
-        aiService: 'qwen_image_edit_baked',
+        aiService: 'yengine_edit',
         prompt: 'make it snow',
         imageUrl: 'https://cdn.test/source.png',
       }),
@@ -456,7 +456,7 @@ describe('RunpodOpenEndpointMediaProvider', () => {
 
     await expect(
       provider.generateAudio({
-        aiService: 'mmaudio_v2',
+        aiService: 'yengine_audio',
         prompt: 'upbeat meme soundtrack',
         videoUrl: 'https://cdn.test/source.mp4',
       }),

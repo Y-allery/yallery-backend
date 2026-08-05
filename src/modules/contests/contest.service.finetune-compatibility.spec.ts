@@ -52,7 +52,7 @@ describe('ContestService fine-tune model compatibility', () => {
     const fineTune = {
       id: 8,
       loraKey: 'sdxl_key',
-      modelFamily: 'sdxl',
+      modelFamily: 'yengine_photo_legacy',
       status: 'ready',
       loraUrl: 'https://example.com/sdxl.safetensors',
     };

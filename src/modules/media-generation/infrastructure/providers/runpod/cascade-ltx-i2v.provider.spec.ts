@@ -186,8 +186,9 @@ describe('CascadeLtxI2vProvider dedicated route', () => {
     // announcing COMPLETED before the output is readable, and killing the
     // workflow on the first such poll cost ~20% of concurrent generations.
     // The caller re-polls a bounded number of times, then fails.
-    await expect(provider.getStatus(ROUTE, 'runpod_job_12345678')).resolves
-      .toEqual({ status: 'output_missing' });
+    await expect(
+      provider.getStatus(ROUTE, 'runpod_job_12345678'),
+    ).resolves.toEqual({ status: 'output_missing' });
     await expect(
       provider.stageForQc(ROUTE, 'runpod_job_12345678', 'task_12345678'),
     ).rejects.toMatchObject({

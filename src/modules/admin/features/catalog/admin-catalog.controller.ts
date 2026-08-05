@@ -69,7 +69,8 @@ export class AdminCatalogController {
   @ApiResponse({ status: 400, description: 'Bad Request.' })
   async createStyle(@Body() createStyleDto: CreateStyleDto) {
     const style = await this.adminCatalogService.createStyle(createStyleDto);
-    if (style?.id) await this.contentTranslationQueue.enqueue('style', style.id);
+    if (style?.id)
+      await this.contentTranslationQueue.enqueue('style', style.id);
     return style;
   }
 
@@ -96,7 +97,10 @@ export class AdminCatalogController {
     @Param('id', ParseIntPipe) id: number,
     @Body() updateStyleDto: UpdateStyleDto,
   ) {
-    const style = await this.adminCatalogService.updateStyle(id, updateStyleDto);
+    const style = await this.adminCatalogService.updateStyle(
+      id,
+      updateStyleDto,
+    );
     await this.contentTranslationQueue.enqueue('style', id);
     return style;
   }

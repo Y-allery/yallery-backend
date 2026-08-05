@@ -21,9 +21,7 @@ export class MetricsSnapshotBuilder {
   async buildAndSave() {
     const now = new Date();
     const periodEnd = new Date(now.getTime());
-    const periodStart = new Date(
-      periodEnd.getTime() - 7 * 24 * 60 * 60 * 1000,
-    );
+    const periodStart = new Date(periodEnd.getTime() - 7 * 24 * 60 * 60 * 1000);
 
     const [postStats, aiStats, purchasedYeps7D, contestParticipantsStats] =
       await Promise.all([
@@ -33,7 +31,10 @@ export class MetricsSnapshotBuilder {
           periodStart,
           periodEnd,
         ),
-        this.contestMetricsCollector.collectParticipants(periodStart, periodEnd),
+        this.contestMetricsCollector.collectParticipants(
+          periodStart,
+          periodEnd,
+        ),
       ]);
 
     const snapshot = this.adminMetricsRepository.create({

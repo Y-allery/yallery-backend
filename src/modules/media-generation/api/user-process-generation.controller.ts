@@ -1,4 +1,5 @@
 import { Controller, Get, Req, UseGuards } from '@nestjs/common';
+import { AI_SERVICES } from 'src/modules/media-generation/domain/ai-service.catalog';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt.auth.guard';
 import { AuthenticatedRequest } from 'src/modules/auth/types/auth.user.interface';
@@ -38,13 +39,13 @@ export class UserProcessGenerationController {
           {
             taskId: '3f1c…',
             status: 'failed',
-            aiService: 'qwen_image',
+            aiService: AI_SERVICES.PHOTO_V1,
             createdAt: '2026-07-20T12:00:00.000Z',
           },
           {
             taskId: '9ab2…',
             status: 'processing',
-            aiService: 'p_video_text',
+            aiService: AI_SERVICES.VIDEO_TEXT,
             createdAt: '2026-07-20T12:05:00.000Z',
           },
         ],
