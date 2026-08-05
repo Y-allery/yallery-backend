@@ -25,14 +25,14 @@ export class GenerateImageVideoDto {
   @IsString()
   @ApiProperty({
     description: 'Requested AI service/model identifier.',
-    example: 'p_video_image',
+    example: 'yengine_video_image',
   })
   ai_service: string;
 
   @IsUrl()
   @ApiProperty({
     description: 'Source image URL used for image-to-video generation.',
-    example: 'https://image.runpod.ai/assets/pruna/pruna-video.png',
+    example: 'https://image.yengine.ai/assets/yengine/yengine-video.png',
   })
   image_url: string;
 

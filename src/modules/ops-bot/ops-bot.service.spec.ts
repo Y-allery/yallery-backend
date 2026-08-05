@@ -385,11 +385,11 @@ describe('OpsBotService', () => {
       const { service, telegram } = makeService({ telegramSendResult: true });
 
       await service.notifyRunpodFailure({
-        aiService: 'qwen_image',
+        aiService: 'yengine_photo_v1',
         message: 'boom',
       });
       await service.notifyRunpodFailure({
-        aiService: 'qwen_image',
+        aiService: 'yengine_photo_v1',
         message: 'boom again',
       });
 
@@ -401,11 +401,11 @@ describe('OpsBotService', () => {
       const { service, telegram } = makeService({ telegramSendResult: false });
 
       await service.notifyRunpodFailure({
-        aiService: 'qwen_image',
+        aiService: 'yengine_photo_v1',
         message: 'boom',
       });
       await service.notifyRunpodFailure({
-        aiService: 'qwen_image',
+        aiService: 'yengine_photo_v1',
         message: 'boom again',
       });
 
@@ -433,11 +433,11 @@ describe('OpsBotService', () => {
       );
 
       await service.notifyRunpodFailure({
-        aiService: 'krea2_turbo',
+        aiService: 'yengine_photo_pro',
         message: 'x',
       });
       await service.notifyRunpodFailure({
-        aiService: 'krea2_turbo',
+        aiService: 'yengine_photo_pro',
         message: 'y',
       });
 

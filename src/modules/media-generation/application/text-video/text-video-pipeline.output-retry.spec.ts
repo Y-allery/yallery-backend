@@ -8,7 +8,9 @@ import { TextVideoPipelineService } from './text-video-pipeline.service';
  */
 describe('TextVideoPipelineService — COMPLETED before the output is readable', () => {
   const buildHarness = (statuses: Array<{ status: string }>) => {
-    const getStatus = jest.fn(async () => statuses.shift() ?? { status: 'completed' });
+    const getStatus = jest.fn(
+      async () => statuses.shift() ?? { status: 'completed' },
+    );
     const stageForQc = jest.fn(async () => ({
       privateArtifactRef: `video_stage_${'a'.repeat(64)}`,
       artifactSha256: 'b'.repeat(64),

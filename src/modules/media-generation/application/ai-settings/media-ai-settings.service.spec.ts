@@ -38,7 +38,7 @@ describe('MediaAISettingsService', () => {
     const service = createService({
       mediaSettings: [
         {
-          aiService: 'flux2_klein',
+          aiService: 'yengine_photo_lite',
           name: 'FLUX.2 Klein',
           cost: 60,
           description: 'Fast image generation',
@@ -48,7 +48,7 @@ describe('MediaAISettingsService', () => {
           },
         },
         {
-          aiService: 'krea2_turbo',
+          aiService: 'yengine_photo_pro',
           name: 'Krea 2 Turbo',
           cost: 50,
           description: 'Standard image generation',
@@ -58,7 +58,7 @@ describe('MediaAISettingsService', () => {
           },
         },
         {
-          aiService: 'z_image_turbo',
+          aiService: 'yengine_photo',
           name: 'Z-Image Turbo',
           cost: 50,
           description: 'Platform default image generation',
@@ -72,7 +72,7 @@ describe('MediaAISettingsService', () => {
 
     await expect(service.getPromptImageAISettings()).resolves.toMatchObject({
       defaultSettings: {
-        defaultAI: 'z_image_turbo',
+        defaultAI: 'yengine_photo',
         defaultOrientations: 'horizontal',
       },
     });
@@ -82,7 +82,7 @@ describe('MediaAISettingsService', () => {
     const service = createService({
       mediaSettings: [
         {
-          aiService: 'krea2_lora_generation',
+          aiService: 'yengine_portrait',
           name: 'Krea 2 LoRA Generation',
           cost: 20,
           description: 'Fine-tune contest image generation',
@@ -99,13 +99,13 @@ describe('MediaAISettingsService', () => {
 
     await expect(service.getFineTunePromptImageAISettings()).resolves.toEqual({
       defaultSettings: {
-        defaultAI: 'krea2_lora_generation',
+        defaultAI: 'yengine_portrait',
         defaultOrientations: 'horizontal',
         defaultStyleId: 2,
       },
       aiSettings: [
         expect.objectContaining({
-          aiService: 'krea2_lora_generation',
+          aiService: 'yengine_portrait',
           minImages: 1,
           maxImages: 1,
           maxPromptLength: 300,
@@ -120,7 +120,7 @@ describe('MediaAISettingsService', () => {
     const editSetting = (settings: Record<string, unknown>) => ({
       mediaSettings: [
         {
-          aiService: 'qwen_image_edit_baked',
+          aiService: 'yengine_edit',
           name: 'Qwen Image Edit',
           cost: 80,
           description: 'Edit an image',
@@ -145,7 +145,7 @@ describe('MediaAISettingsService', () => {
 
       expect(result.aiSettings[0]).toEqual(
         expect.objectContaining({
-          aiService: 'qwen_image_edit_baked',
+          aiService: 'yengine_edit',
           minReferenceImages: 1,
           maxReferenceImages: 3,
           // REGRESSION GUARD: shipped app builds bind maxImages to the OUTPUT quantity stepper
@@ -198,13 +198,13 @@ describe('MediaAISettingsService', () => {
     it('advertises 500 characters on every capability that takes a prompt', async () => {
       const service = createService({
         mediaSettings: [
-          row('z_image_turbo', { minImages: 1, maxImages: 4 }),
-          row('krea2_lora_generation', null),
-          row('qwen_image_edit_baked', null),
-          row('mmaudio_v2', null),
-          row('p_video_text', null),
-          row('p_video_image', null),
-          row('wan22_animate_native', null),
+          row('yengine_photo', { minImages: 1, maxImages: 4 }),
+          row('yengine_portrait', null),
+          row('yengine_edit', null),
+          row('yengine_audio', null),
+          row('yengine_video_text', null),
+          row('yengine_video_image', null),
+          row('yengine_meme', null),
         ],
       });
 
@@ -231,7 +231,7 @@ describe('MediaAISettingsService', () => {
     it('lets a per-model row override the default without a deploy', async () => {
       const service = createService({
         mediaSettings: [
-          row('z_image_turbo', {
+          row('yengine_photo', {
             minImages: 1,
             maxImages: 4,
             maxPromptLength: 1200,

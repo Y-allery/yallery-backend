@@ -209,7 +209,7 @@ function jobData(
 ): MediaTextVideoJobData {
   return {
     request: {
-      aiService: 'p_video_text',
+      aiService: 'yengine_video_text',
       prompt: 'One dancer turns slowly in an empty studio.',
       orientation: 'horizontal',
       duration: 5,
@@ -218,7 +218,7 @@ function jobData(
       contestSubmissionId: 77,
     },
     userId: 42,
-    aiService: 'p_video_text',
+    aiService: 'yengine_video_text',
     chargeId: CHARGE_ID,
     ltxTextPipelineMode: mode,
   };

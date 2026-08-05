@@ -181,9 +181,9 @@ describe('ContentBotService publishing safety', () => {
     expect(created.every((r: any) => r.isPreview === true)).toBe(true);
     const imageRows = created.filter((r: any) => r.mediaKind === 'image');
     expect(imageRows.length).toBeGreaterThan(0);
-    expect(
-      imageRows.every((r: any) => r.aiService === 'z_image_turbo'),
-    ).toBe(true);
+    expect(imageRows.every((r: any) => r.aiService === 'yengine_photo')).toBe(
+      true,
+    );
     // Generation was attempted, but nothing was ever published.
     expect(
       enqueueService.enqueuePromptImageGeneration.mock.calls.length +

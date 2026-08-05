@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { AI_SERVICES } from 'src/modules/media-generation/domain/ai-service.catalog';
 import { In, Repository } from 'typeorm';
 import { ContestEntity } from './entity/contest.entity';
 import { UserEntity } from 'src/modules/users/entities/user.entity';
@@ -866,7 +867,7 @@ export class ContestService {
         const explicitSetting = await this.getActiveMediaAiSettingById(
           params.mediaAiSettingId,
         );
-        if (explicitSetting.aiService !== 'krea2_lora_generation') {
+        if (explicitSetting.aiService !== AI_SERVICES.PORTRAIT) {
           throw new BadRequestException(
             'Fine-tune contests must use the krea2_lora_generation media model.',
           );
@@ -874,14 +875,14 @@ export class ContestService {
         return explicitSetting;
       }
 
-      return this.getActiveMediaAiSettingByAiService('krea2_lora_generation');
+      return this.getActiveMediaAiSettingByAiService(AI_SERVICES.PORTRAIT);
     }
 
     if (params.mediaAiSettingId != null) {
       const explicitSetting = await this.getActiveMediaAiSettingById(
         params.mediaAiSettingId,
       );
-      if (explicitSetting.aiService === 'krea2_lora_generation') {
+      if (explicitSetting.aiService === AI_SERVICES.PORTRAIT) {
         throw new BadRequestException(
           `${explicitSetting.aiService} requires fineTuneToken to be configured.`,
         );
@@ -934,7 +935,7 @@ export class ContestService {
     fineTuneToken: string | null,
     mediaAiService: string | null,
   ): ContestTypeEnum {
-    return fineTuneToken || mediaAiService === 'krea2_lora_generation'
+    return fineTuneToken || mediaAiService === AI_SERVICES.PORTRAIT
       ? ContestTypeEnum.FINE_TUNE
       : ContestTypeEnum.DEFAULT;
   }

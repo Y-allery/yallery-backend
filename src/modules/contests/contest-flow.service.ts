@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { AI_SERVICES } from 'src/modules/media-generation/domain/ai-service.catalog';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 import { MediaAISettingsEntity } from 'src/modules/media-generation/persistence/entities/media-ai-settings.entity';
@@ -1051,7 +1052,7 @@ export class ContestFlowService {
       if (
         params.mediaKind !== 'image' ||
         params.capability !== 'image_generate' ||
-        params.aiService !== 'krea2_lora_generation'
+        params.aiService !== AI_SERVICES.PORTRAIT
       ) {
         throw new BadRequestException(
           'Fine-tune contests only accept Krea 2 LoRA image generations.',
@@ -1060,7 +1061,7 @@ export class ContestFlowService {
       return;
     }
 
-    if (params.aiService === 'krea2_lora_generation') {
+    if (params.aiService === AI_SERVICES.PORTRAIT) {
       throw new BadRequestException(
         'Fine-tune generation models can only be used in fine-tune contests.',
       );

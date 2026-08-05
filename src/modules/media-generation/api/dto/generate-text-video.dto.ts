@@ -10,14 +10,14 @@ export class GenerateTextVideoDto {
   @ApiProperty({
     description: 'Prompt text used to generate the video.',
     example:
-      'Cartoon anamorphic computer says: Runpod is the best. The camera is static. The background is a spaceship. Audio: playful pop music',
+      'Cartoon anamorphic computer says: YEngine is the best. The camera is static. The background is a spaceship. Audio: playful pop music',
   })
   prompt: string;
 
   @IsString()
   @ApiProperty({
     description: 'Requested AI service/model identifier.',
-    example: 'p_video_text',
+    example: 'yengine_video_text',
   })
   ai_service: string;
 

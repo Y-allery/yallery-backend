@@ -17,7 +17,7 @@ export class GeneratePromptImageDto {
   @ApiPropertyOptional({
     description:
       'Requested AI service/model identifier. Optional when contest_id is provided because the backend resolves the contest model automatically.',
-    example: 'flux2_klein',
+    example: 'yengine_photo_lite',
   })
   ai_service?: string;
 

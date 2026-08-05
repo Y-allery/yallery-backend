@@ -4,6 +4,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import axios from 'axios';
+import { AI_SERVICES } from 'src/modules/media-generation/domain/ai-service.catalog';
 import { ProviderRuntimeConfigService } from 'src/modules/provider-settings/provider-runtime-config.service';
 
 type ModerationImageInput = {
@@ -15,9 +16,10 @@ type ModerationImageInput = {
 
 type ModerationInput = string | ModerationImageInput[];
 
-const KREA_AI_SERVICES = new Set([
-  'krea2_turbo',
-  'krea2_lora_generation',
+/** Services whose upstream requires us to moderate before dispatch. */
+const MODERATED_AI_SERVICES: ReadonlySet<string> = new Set<string>([
+  AI_SERVICES.PHOTO_PRO,
+  AI_SERVICES.PORTRAIT,
 ]);
 const MODERATION_URL = 'https://api.openai.com/v1/moderations';
 const DEFAULT_MODERATION_MODEL = 'omni-moderation-latest';
@@ -62,16 +64,14 @@ export class KreaContentSafetyService {
   }
 
   private requiresModeration(aiService: string): boolean {
-    return KREA_AI_SERVICES.has(aiService);
+    return MODERATED_AI_SERVICES.has(aiService);
   }
 
   private async isFlagged(input: ModerationInput): Promise<boolean> {
     try {
       const [apiKey, configuredModel] = await Promise.all([
         this.providerRuntimeConfigService.getString('OPENAI_API_KEY'),
-        this.providerRuntimeConfigService.getString(
-          'OPENAI_MODERATION_MODEL',
-        ),
+        this.providerRuntimeConfigService.getString('OPENAI_MODERATION_MODEL'),
       ]);
 
       if (!apiKey) {

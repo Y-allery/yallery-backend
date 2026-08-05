@@ -29,7 +29,12 @@ export class MediaEditImageProcessor extends BaseMediaProcessor {
     mediaGenerationBalanceService: MediaGenerationBalanceService,
     opsBotService: OpsBotService,
   ) {
-    super(notificationGateway, 'image_edit', mediaGenerationBalanceService, opsBotService);
+    super(
+      notificationGateway,
+      'image_edit',
+      mediaGenerationBalanceService,
+      opsBotService,
+    );
   }
 
   async process(job: Job<MediaEditImageJobData>) {

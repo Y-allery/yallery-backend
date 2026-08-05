@@ -22,7 +22,7 @@ export class GenerateEditImageDto {
   @IsString()
   @ApiProperty({
     description: 'Requested AI service/model identifier.',
-    example: 'qwen_image_edit_baked',
+    example: 'yengine_edit',
   })
   ai_service: string;
 

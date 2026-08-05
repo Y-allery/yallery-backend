@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { AI_SERVICES } from 'src/modules/media-generation/domain/ai-service.catalog';
 import { AudioGenerationRequest } from 'src/modules/media-generation/domain/contracts/audio-generation-request.contract';
 import { EditImageGenerationRequest } from 'src/modules/media-generation/domain/contracts/edit-image-generation-request.contract';
 import { ImageVideoGenerationRequest } from 'src/modules/media-generation/domain/contracts/image-video-generation-request.contract';
@@ -31,7 +32,7 @@ export class RunpodPayloadBuilder {
     const style = request.style ?? undefined;
 
     switch (request.aiService) {
-      case 'flux2_klein':
+      case AI_SERVICES.PHOTO_LITE:
         return {
           prompt,
           style,
@@ -42,12 +43,12 @@ export class RunpodPayloadBuilder {
           return_base64: true,
           return_data_uri: true,
         };
-      case 'qwen_image':
+      case AI_SERVICES.PHOTO_V1:
       // 2026-07-24 t2i battery candidates C/D: same worker payload shape as qwen_image
       // (prompt/style/width/height/num_images/output_format/return_base64/return_data_uri).
       // Dark by default via provider-settings (see media-route.catalog.ts).
-      case 'qwen_image_2512':
-      case 'z_image_turbo':
+      case AI_SERVICES.PHOTO_V2:
+      case AI_SERVICES.PHOTO:
         return {
           prompt,
           style,
@@ -58,7 +59,7 @@ export class RunpodPayloadBuilder {
           return_base64: true,
           return_data_uri: true,
         };
-      case 'krea2_turbo':
+      case AI_SERVICES.PHOTO_PRO:
         return {
           prompt,
           style,
@@ -72,7 +73,7 @@ export class RunpodPayloadBuilder {
           upload: true,
           returnBase64: false,
         };
-      case 'krea2_lora_generation':
+      case AI_SERVICES.PORTRAIT:
         if (
           !request.providerSettings?.loraUrl ||
           !request.providerSettings?.loraKey ||

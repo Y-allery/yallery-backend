@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { AI_SERVICES } from 'src/modules/media-generation/domain/ai-service.catalog';
 import { In, Repository } from 'typeorm';
 import { ColorEntity } from 'src/modules/media-generation/persistence/entities/color.entity';
 import { MediaAISettingsEntity } from 'src/modules/media-generation/persistence/entities/media-ai-settings.entity';
@@ -30,7 +31,7 @@ import { MediaGenerationPricingService } from 'src/modules/media-generation/appl
 @Injectable()
 export class MediaAISettingsService {
   /** Fallback when DEFAULT_PROMPT_IMAGE_AI_SERVICE is not configured. */
-  private readonly defaultPromptImageAiService = 'z_image_turbo';
+  private readonly defaultPromptImageAiService = AI_SERVICES.PHOTO;
 
   private async resolveDefaultPromptImageAiService(): Promise<string> {
     return (
@@ -97,14 +98,14 @@ export class MediaAISettingsService {
         where: {
           capability: 'image_generate',
           aiService: In([
-            'flux2_klein',
-            'krea2_turbo',
-            'qwen_image',
+            AI_SERVICES.PHOTO_LITE,
+            AI_SERVICES.PHOTO_PRO,
+            AI_SERVICES.PHOTO_V1,
             // 2026-07-24 t2i battery candidates C/D. Their media_ai_settings rows are
             // inserted with isActive=false, so adding them here has no effect until an
             // admin flips isActive post-battery (see workers/out/t2i-battery-2026-07-24/RUNBOOK.md).
-            'qwen_image_2512',
-            'z_image_turbo',
+            AI_SERVICES.PHOTO_V2,
+            AI_SERVICES.PHOTO,
           ]),
           isActive: true,
         },
@@ -164,7 +165,7 @@ export class MediaAISettingsService {
       this.mediaAISettingsRepository.find({
         where: {
           capability: 'image_generate',
-          aiService: 'krea2_lora_generation',
+          aiService: AI_SERVICES.PORTRAIT,
           isActive: true,
         },
         order: {
@@ -212,7 +213,7 @@ export class MediaAISettingsService {
       this.mediaAISettingsRepository.find({
         where: {
           capability: 'image_edit',
-          aiService: 'qwen_image_edit_baked',
+          aiService: AI_SERVICES.EDIT,
           isActive: true,
         },
         order: {
@@ -224,7 +225,7 @@ export class MediaAISettingsService {
     ]);
 
     const defaultSetting = settings.find(
-      (setting) => setting.aiService === 'qwen_image_edit_baked',
+      (setting) => setting.aiService === AI_SERVICES.EDIT,
     );
 
     return {
@@ -263,7 +264,7 @@ export class MediaAISettingsService {
     });
 
     const defaultSetting =
-      settings.find((setting) => setting.aiService === 'mmaudio_v2') ??
+      settings.find((setting) => setting.aiService === AI_SERVICES.AUDIO) ??
       settings[0];
 
     return {
@@ -284,7 +285,7 @@ export class MediaAISettingsService {
     const settings = await this.mediaAISettingsRepository.find({
       where: {
         capability: 'video_generate',
-        aiService: 'p_video_text',
+        aiService: AI_SERVICES.VIDEO_TEXT,
         isActive: true,
       },
       order: {
@@ -318,7 +319,7 @@ export class MediaAISettingsService {
     const settings = await this.mediaAISettingsRepository.find({
       where: {
         capability: 'video_generate',
-        aiService: 'p_video_image',
+        aiService: AI_SERVICES.VIDEO_IMAGE,
         isActive: true,
       },
       order: {
@@ -360,9 +361,8 @@ export class MediaAISettingsService {
     });
 
     const defaultSetting =
-      settings.find(
-        (setting) => setting.aiService === 'wan22_animate_native',
-      ) ?? settings[0];
+      settings.find((setting) => setting.aiService === AI_SERVICES.MEME) ??
+      settings[0];
 
     return {
       defaultSettings: {

@@ -42,9 +42,7 @@ describe('MediaGenerationPricingService', () => {
       }),
     );
 
-    await expect(
-      service.getMemeCost('wan22_animate_native', 4.1),
-    ).resolves.toBe(13);
+    await expect(service.getMemeCost('yengine_meme', 4.1)).resolves.toBe(13);
   });
 
   it('throws when active settings are missing', async () => {
@@ -66,10 +64,10 @@ describe('MediaGenerationPricingService', () => {
     );
 
     await expect(
-      service.assertPromptImageQuantity('krea2_turbo', 5),
+      service.assertPromptImageQuantity('yengine_photo_pro', 5),
     ).resolves.toBeUndefined();
     await expect(
-      service.assertPromptImageQuantity('krea2_turbo', 6),
+      service.assertPromptImageQuantity('yengine_photo_pro', 6),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -81,10 +79,10 @@ describe('MediaGenerationPricingService', () => {
       );
 
       await expect(
-        service.assertImageEditReferenceCount('qwen_image_edit_baked', 1),
+        service.assertImageEditReferenceCount('yengine_edit', 1),
       ).resolves.toBeUndefined();
       await expect(
-        service.assertImageEditReferenceCount('qwen_image_edit_baked', 2),
+        service.assertImageEditReferenceCount('yengine_edit', 2),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -96,10 +94,10 @@ describe('MediaGenerationPricingService', () => {
       );
 
       await expect(
-        service.assertImageEditReferenceCount('qwen_image_edit_baked', 3),
+        service.assertImageEditReferenceCount('yengine_edit', 3),
       ).resolves.toBeUndefined();
       await expect(
-        service.assertImageEditReferenceCount('qwen_image_edit_baked', 4),
+        service.assertImageEditReferenceCount('yengine_edit', 4),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -112,10 +110,10 @@ describe('MediaGenerationPricingService', () => {
       );
 
       await expect(
-        service.assertImageEditReferenceCount('qwen_image_edit_baked', 3),
+        service.assertImageEditReferenceCount('yengine_edit', 3),
       ).resolves.toBeUndefined();
       await expect(
-        service.assertImageEditReferenceCount('qwen_image_edit_baked', 4),
+        service.assertImageEditReferenceCount('yengine_edit', 4),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -133,11 +131,7 @@ describe('MediaGenerationPricingService', () => {
       jest.fn().mockResolvedValue({ cost: 80, settings: {} }),
     );
 
-    await expect(
-      service.getImageEditCost('qwen_image_edit_baked', 1),
-    ).resolves.toBe(80);
-    await expect(
-      service.getImageEditCost('qwen_image_edit_baked', 3),
-    ).resolves.toBe(80);
+    await expect(service.getImageEditCost('yengine_edit', 1)).resolves.toBe(80);
+    await expect(service.getImageEditCost('yengine_edit', 3)).resolves.toBe(80);
   });
 });

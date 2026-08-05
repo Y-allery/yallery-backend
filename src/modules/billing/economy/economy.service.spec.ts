@@ -6,7 +6,11 @@ describe('EconomyService', () => {
   const rewardRow = (
     rewardType: RewardTypeEnum,
     points: number,
-    extra: Partial<{ isDaily: boolean; isActive: boolean; description: string }> = {},
+    extra: Partial<{
+      isDaily: boolean;
+      isActive: boolean;
+      description: string;
+    }> = {},
   ) => ({
     rewardType,
     points,
@@ -92,7 +96,7 @@ describe('EconomyService', () => {
       [],
       [
         {
-          aiService: 'p_video_text',
+          aiService: 'yengine_video_text',
           name: 'YEngine',
           capability: 'video_generate',
           cost: 50,
@@ -102,7 +106,7 @@ describe('EconomyService', () => {
           },
         },
         {
-          aiService: 'z_image_turbo',
+          aiService: 'yengine_photo',
           name: 'Z-Image Turbo',
           capability: 'image_generate',
           cost: 55,
@@ -114,13 +118,13 @@ describe('EconomyService', () => {
     const economy = await service.getEconomy();
 
     expect(economy.generation.video[0]).toMatchObject({
-      aiService: 'p_video_text',
+      aiService: 'yengine_video_text',
       strategy: 'per_second',
       creditsPerSecond: 35,
       durationCosts: { '5': 175, '10': 350 },
     });
     expect(economy.generation.image[0]).toMatchObject({
-      aiService: 'z_image_turbo',
+      aiService: 'yengine_photo',
       points: 55,
       strategy: 'fixed',
       creditsPerSecond: null,

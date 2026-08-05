@@ -53,7 +53,9 @@ describe('ContestService.setContestWinner (legacy double-payout)', () => {
     const userService = {
       sendPushNotificationIfEnabled: jest.fn(async () => undefined),
     };
-    const userActivityService = { logContestWon: jest.fn(async () => undefined) };
+    const userActivityService = {
+      logContestWon: jest.fn(async () => undefined),
+    };
     const notificationGateway = {
       emitProfileUpdate: jest.fn(async () => undefined),
     };

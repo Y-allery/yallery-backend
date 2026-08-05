@@ -11,7 +11,7 @@ describe('MediaGenerationTasksService.getUnfinishedTasks', () => {
     jobId: 'job-1',
     userId: 7,
     status: 'reserved',
-    aiService: 'qwen_image',
+    aiService: 'yengine_photo_v1',
     createdAt: new Date('2026-07-20T12:00:00Z'),
     ...over,
   });

@@ -29,7 +29,12 @@ export class MediaAudioProcessor extends BaseMediaProcessor {
     mediaGenerationBalanceService: MediaGenerationBalanceService,
     opsBotService: OpsBotService,
   ) {
-    super(notificationGateway, 'audio', mediaGenerationBalanceService, opsBotService);
+    super(
+      notificationGateway,
+      'audio',
+      mediaGenerationBalanceService,
+      opsBotService,
+    );
   }
 
   async process(job: Job<MediaAudioJobData>) {

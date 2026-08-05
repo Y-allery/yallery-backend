@@ -49,12 +49,12 @@ describe('MediaGenerationGuardsService', () => {
       service,
       mediaRouteResolverService,
       mediaGenerationPricingService,
-    } = createService({ textRoute: { aiService: 'p_video_text' } });
+    } = createService({ textRoute: { aiService: 'yengine_video_text' } });
 
     await expect(
       service.assertUserCanGenerateVideos(
         {
-          aiService: 'p_video_text',
+          aiService: 'yengine_video_text',
           prompt: 'waves at sunset',
           orientation: 'horizontal',
           duration: 5,
@@ -65,25 +65,25 @@ describe('MediaGenerationGuardsService', () => {
 
     expect(
       mediaRouteResolverService.resolveTextVideoRoute,
-    ).toHaveBeenCalledWith('p_video_text');
+    ).toHaveBeenCalledWith('yengine_video_text');
     expect(
       mediaRouteResolverService.resolveImageVideoRoute,
     ).not.toHaveBeenCalled();
     expect(mediaGenerationPricingService.getVideoCost).toHaveBeenCalledWith(
-      'p_video_text',
+      'yengine_video_text',
       5,
     );
   });
 
   it('validates the image-video route for requests with a source image', async () => {
     const { service, mediaRouteResolverService } = createService({
-      imageRoute: { aiService: 'p_video_image' },
+      imageRoute: { aiService: 'yengine_video_image' },
     });
 
     await expect(
       service.assertUserCanGenerateVideos(
         {
-          aiService: 'p_video_image',
+          aiService: 'yengine_video_image',
           prompt: 'subtle movement',
           imageUrl: 'https://cdn.test/source.png',
           orientation: 'vertical',
@@ -95,7 +95,7 @@ describe('MediaGenerationGuardsService', () => {
 
     expect(
       mediaRouteResolverService.resolveImageVideoRoute,
-    ).toHaveBeenCalledWith('p_video_image');
+    ).toHaveBeenCalledWith('yengine_video_image');
     expect(
       mediaRouteResolverService.resolveTextVideoRoute,
     ).not.toHaveBeenCalled();
@@ -108,7 +108,7 @@ describe('MediaGenerationGuardsService', () => {
     await expect(
       service.assertUserCanGenerateVideos(
         {
-          aiService: 'p_video_text',
+          aiService: 'yengine_video_text',
           prompt: 'waves at sunset',
           orientation: 'horizontal',
           duration: 5,
@@ -117,7 +117,7 @@ describe('MediaGenerationGuardsService', () => {
       ),
     ).rejects.toThrow(
       new BadRequestException(
-        'No video generation route configured for p_video_text.',
+        'No video generation route configured for yengine_video_text.',
       ),
     );
 

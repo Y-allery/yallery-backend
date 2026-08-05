@@ -11,21 +11,21 @@ describe('MediaGenerationFinalizeService', () => {
         imageUrl,
         videoUrl: null,
         previewImageUrl: null,
-        generationParams: { aiService: 'flux2_klein' },
+        generationParams: { aiService: 'yengine_photo_lite' },
       })),
       createEditedImagePost: jest.fn(async (_request, _userId, imageUrl) => ({
         id: 8,
         imageUrl,
         videoUrl: null,
         previewImageUrl: null,
-        generationParams: { aiService: 'qwen_image_edit_baked' },
+        generationParams: { aiService: 'yengine_edit' },
       })),
       createAudioPost: jest.fn(async () => ({
         id: 9,
         imageUrl: null,
         videoUrl: 'https://cdn.test/result.mp4',
         previewImageUrl: 'https://cdn.test/result.jpg',
-        generationParams: { aiService: 'mmaudio_v2' },
+        generationParams: { aiService: 'yengine_audio' },
       })),
       createVideoPost: jest.fn(
         async (_params, _userId, videoUrl, previewImageUrl) => ({
@@ -33,7 +33,7 @@ describe('MediaGenerationFinalizeService', () => {
           imageUrl: null,
           videoUrl,
           previewImageUrl,
-          generationParams: { aiService: 'p_video_text' },
+          generationParams: { aiService: 'yengine_video_text' },
         }),
       ),
       createVideoPostOnce: jest.fn(
@@ -48,7 +48,7 @@ describe('MediaGenerationFinalizeService', () => {
           imageUrl: null,
           videoUrl,
           previewImageUrl,
-          generationParams: { aiService: 'p_video_text' },
+          generationParams: { aiService: 'yengine_video_text' },
         }),
       ),
       findById: jest.fn(async () => ({
@@ -56,7 +56,7 @@ describe('MediaGenerationFinalizeService', () => {
         imageUrl: null,
         videoUrl: 'https://cdn.test/adopted-video.mp4',
         previewImageUrl: 'https://cdn.test/adopted-preview.jpg',
-        generationParams: { aiService: 'p_video_text' },
+        generationParams: { aiService: 'yengine_video_text' },
       })),
       findByGenerationTaskId: jest.fn(async () => null),
       createMemePost: jest.fn(
@@ -65,7 +65,7 @@ describe('MediaGenerationFinalizeService', () => {
           imageUrl: null,
           videoUrl,
           previewImageUrl,
-          generationParams: { aiService: 'wan22_animate_native' },
+          generationParams: { aiService: 'yengine_meme' },
         }),
       ),
     };
@@ -173,7 +173,7 @@ describe('MediaGenerationFinalizeService', () => {
 
     await service.finalizePromptImageGeneration(
       {
-        aiService: 'flux2_klein',
+        aiService: 'yengine_photo_lite',
         prompt: 'castle',
         imageQuantity: 1,
         orientation: 'vertical',
@@ -203,7 +203,7 @@ describe('MediaGenerationFinalizeService', () => {
 
     await service.finalizeImageEditGeneration(
       {
-        aiService: 'qwen_image_edit_baked',
+        aiService: 'yengine_edit',
         prompt: 'edit',
         imageUrl: 'https://cdn.test/source.jpg',
       } as any,
@@ -232,7 +232,7 @@ describe('MediaGenerationFinalizeService', () => {
 
     const result = await service.finalizeAudioGeneration(
       {
-        aiService: 'mmaudio_v2',
+        aiService: 'yengine_audio',
         prompt: 'soundtrack',
         videoUrl: 'https://cdn.test/source.mp4',
         contestSubmissionId: 88,
@@ -274,7 +274,7 @@ describe('MediaGenerationFinalizeService', () => {
 
     await service.finalizeTextVideoGeneration(
       {
-        aiService: 'p_video_text',
+        aiService: 'yengine_video_text',
         prompt: 'robot',
         orientation: 'horizontal',
         duration: 5,
@@ -284,7 +284,7 @@ describe('MediaGenerationFinalizeService', () => {
 
     expect(generatedPostFactory.createVideoPost).toHaveBeenCalledWith(
       expect.objectContaining({
-        aiService: 'p_video_text',
+        aiService: 'yengine_video_text',
         width: 1280,
         height: 720,
         hasAudio: true,
@@ -305,7 +305,7 @@ describe('MediaGenerationFinalizeService', () => {
       userActivityService,
     } = createService();
     const request = {
-      aiService: 'p_video_text',
+      aiService: 'yengine_video_text',
       prompt: 'robot',
       orientation: 'horizontal',
       duration: 5,
@@ -379,7 +379,7 @@ describe('MediaGenerationFinalizeService', () => {
       hasAudio: true,
       generationParams: {
         prompt: 'robot',
-        aiService: 'p_video_text',
+        aiService: 'yengine_video_text',
         orientation: 'horizontal',
         duration: 5,
         seed: null,
@@ -392,7 +392,7 @@ describe('MediaGenerationFinalizeService', () => {
       service.reconcileAcceptedTextVideoGeneration(
         'task_12345678',
         {
-          aiService: 'p_video_text',
+          aiService: 'yengine_video_text',
           prompt: 'robot',
           orientation: 'horizontal',
           duration: 5,
@@ -450,7 +450,7 @@ describe('MediaGenerationFinalizeService', () => {
 
     await service.finalizeImageVideoGeneration(
       {
-        aiService: 'p_video_image',
+        aiService: 'yengine_video_image',
         prompt: 'animate',
         imageUrl: 'https://cdn.test/source.png',
         orientation: 'vertical',
@@ -489,7 +489,7 @@ describe('MediaGenerationFinalizeService', () => {
 
     await service.finalizeImageVideoGeneration(
       {
-        aiService: 'p_video_image',
+        aiService: 'yengine_video_image',
         prompt: 'animate',
         imageUrl: 'https://cdn.test/source.png',
         orientation: 'vertical',
@@ -513,7 +513,7 @@ describe('MediaGenerationFinalizeService', () => {
 
     await service.finalizeMemeGeneration(
       {
-        aiService: 'wan22_animate_native',
+        aiService: 'yengine_meme',
         memeId: 4,
         imageUrl: 'https://cdn.test/source.png',
         videoUrl: 'https://cdn.test/reference.mp4',

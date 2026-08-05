@@ -61,13 +61,13 @@ describe('MediaTextVideoProcessor LTX mode snapshots', () => {
       id: 'text-video-job-1',
       data: {
         request: {
-          aiService: 'p_video_text',
+          aiService: 'yengine_video_text',
           prompt: 'private user prompt with a silver samurai',
           orientation: 'portrait',
           duration: 5,
         },
         userId: 42,
-        aiService: 'p_video_text',
+        aiService: 'yengine_video_text',
         ltxTextPipelineMode,
       },
     }) as any;
@@ -84,7 +84,7 @@ describe('MediaTextVideoProcessor LTX mode snapshots', () => {
     });
     expect(finalize.finalizeTextVideoGeneration).toHaveBeenCalledWith(
       expect.objectContaining({
-        aiService: 'p_video_text',
+        aiService: 'yengine_video_text',
         prompt: 'private user prompt with a silver samurai',
       }),
       42,
@@ -138,7 +138,7 @@ describe('MediaTextVideoProcessor LTX mode snapshots', () => {
     const renderedLog = log.mock.calls.flat().join(' ');
     expect(renderedLog).toContain(expectedHash);
     expect(renderedLog).toContain('text-video-job-1');
-    expect(renderedLog).toContain('p_video_text');
+    expect(renderedLog).toContain('yengine_video_text');
     expect(renderedLog).not.toContain(rawPrompt);
     expect(renderedLog).not.toContain(rawPrompt.substring(0, 20));
   });

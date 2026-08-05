@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { normalizeAiService } from 'src/modules/media-generation/domain/ai-service.catalog';
 import { InjectQueue } from '@nestjs/bullmq';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Queue } from 'bullmq';
@@ -58,6 +59,9 @@ export class MediaGenerationEnqueueService {
     request: PromptImageGenerationRequest,
     userId: number,
   ) {
+    // Retired ids still arrive from app builds in the wild; everything downstream
+    // (routing, pricing, ai-settings, the stored post) sees only the canonical one.
+    request = { ...request, aiService: normalizeAiService(request.aiService) };
     const promptContext = await this.mediaPromptEnhancerService.resolveContext({
       prompt: request.prompt,
       styleId: request.styleId ?? null,
@@ -161,6 +165,12 @@ export class MediaGenerationEnqueueService {
     rawRequest: EditImageGenerationRequest,
     userId: number,
   ) {
+    // Retired ids still arrive from app builds in the wild; everything downstream
+    // (routing, pricing, ai-settings, the stored post) sees only the canonical one.
+    rawRequest = {
+      ...rawRequest,
+      aiService: normalizeAiService(rawRequest.aiService),
+    };
     const request = this.normalizeEditImageReferences(rawRequest);
     const promptContext = await this.mediaPromptEnhancerService.resolveContext({
       prompt: request.prompt,
@@ -230,6 +240,9 @@ export class MediaGenerationEnqueueService {
     request: AudioGenerationRequest,
     userId: number,
   ) {
+    // Retired ids still arrive from app builds in the wild; everything downstream
+    // (routing, pricing, ai-settings, the stored post) sees only the canonical one.
+    request = { ...request, aiService: normalizeAiService(request.aiService) };
     const totalCost =
       await this.mediaGenerationGuardsService.assertUserCanGenerateAudio(
         request,
@@ -284,6 +297,9 @@ export class MediaGenerationEnqueueService {
     request: TextVideoGenerationRequest,
     userId: number,
   ) {
+    // Retired ids still arrive from app builds in the wild; everything downstream
+    // (routing, pricing, ai-settings, the stored post) sees only the canonical one.
+    request = { ...request, aiService: normalizeAiService(request.aiService) };
     // This direct DB read is the global control-plane boundary: each new job
     // snapshots one mode and keeps it for all BullMQ retries. COMEBACK therefore
     // changes new work without mutating already queued/in-flight generations.
@@ -344,6 +360,9 @@ export class MediaGenerationEnqueueService {
     request: ImageVideoGenerationRequest,
     userId: number,
   ) {
+    // Retired ids still arrive from app builds in the wild; everything downstream
+    // (routing, pricing, ai-settings, the stored post) sees only the canonical one.
+    request = { ...request, aiService: normalizeAiService(request.aiService) };
     const totalCost =
       await this.mediaGenerationGuardsService.assertUserCanGenerateVideos(
         request,
@@ -398,6 +417,9 @@ export class MediaGenerationEnqueueService {
     request: Omit<MemeGenerationRequest, 'videoUrl'>,
     userId: number,
   ) {
+    // Retired ids still arrive from app builds in the wild; everything downstream
+    // (routing, pricing, ai-settings, the stored post) sees only the canonical one.
+    request = { ...request, aiService: normalizeAiService(request.aiService) };
     const meme = await this.mediaGenerationGuardsService.getRequiredMeme(
       request.memeId,
     );

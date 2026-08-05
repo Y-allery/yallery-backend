@@ -21,27 +21,40 @@ export const AUTH_SWAGGER = {
     responses: {
       success: {
         status: 200,
-        description: 'Login successful - returns access token, refresh token, and user data',
+        description:
+          'Login successful - returns access token, refresh token, and user data',
         schema: {
           type: 'object',
           properties: {
-            accessToken: { type: 'string', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' },
-            refreshToken: { type: 'string', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' },
+            accessToken: {
+              type: 'string',
+              example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+            },
+            refreshToken: {
+              type: 'string',
+              example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+            },
             user: {
               type: 'object',
               properties: {
                 id: { type: 'number' },
                 email: { type: 'string' },
                 name: { type: 'string' },
-                nickname: { type: 'string', nullable: true }
-              }
-            }
-          }
-        }
+                nickname: { type: 'string', nullable: true },
+              },
+            },
+          },
+        },
       },
-      unauthorized: { status: 401, description: 'Invalid credentials or email not verified' },
-      badRequest: { status: 400, description: 'Bad request - missing or invalid input' }
-    }
+      unauthorized: {
+        status: 401,
+        description: 'Invalid credentials or email not verified',
+      },
+      badRequest: {
+        status: 400,
+        description: 'Bad request - missing or invalid input',
+      },
+    },
   },
   adminLogin: {
     summary: 'Admin login',
@@ -52,10 +65,20 @@ export const AUTH_SWAGGER = {
 - Admin tokens provide access to admin-only endpoints
 - Same token structure as regular login but with elevated permissions`,
     responses: {
-      success: { status: 200, description: 'Admin login successful - returns access token, refresh token, and admin user data' },
-      unauthorized: { status: 401, description: 'Invalid credentials or user is not an admin' },
-      forbidden: { status: 403, description: 'Forbidden - user does not have admin role' }
-    }
+      success: {
+        status: 200,
+        description:
+          'Admin login successful - returns access token, refresh token, and admin user data',
+      },
+      unauthorized: {
+        status: 401,
+        description: 'Invalid credentials or user is not an admin',
+      },
+      forbidden: {
+        status: 403,
+        description: 'Forbidden - user does not have admin role',
+      },
+    },
   },
   register: {
     summary: 'User registration',
@@ -75,7 +98,8 @@ export const AUTH_SWAGGER = {
     responses: {
       success: {
         status: 201,
-        description: 'Registration successful - user created and verification email sent',
+        description:
+          'Registration successful - user created and verification email sent',
         schema: {
           type: 'object',
           properties: {
@@ -87,15 +111,22 @@ export const AUTH_SWAGGER = {
                 id: { type: 'number' },
                 email: { type: 'string' },
                 name: { type: 'string' },
-                emailVerified: { type: 'boolean', example: false }
-              }
-            }
-          }
-        }
+                emailVerified: { type: 'boolean', example: false },
+              },
+            },
+          },
+        },
       },
-      badRequest: { status: 400, description: 'Bad request - email already exists, invalid input, or weak password' },
-      conflict: { status: 409, description: 'Conflict - email is already registered' }
-    }
+      badRequest: {
+        status: 400,
+        description:
+          'Bad request - email already exists, invalid input, or weak password',
+      },
+      conflict: {
+        status: 409,
+        description: 'Conflict - email is already registered',
+      },
+    },
   },
   resendEmail: {
     summary: 'Resend verification email',
@@ -116,13 +147,19 @@ export const AUTH_SWAGGER = {
         schema: {
           type: 'object',
           properties: {
-            message: { type: 'string', example: 'Verification email sent successfully' }
-          }
-        }
+            message: {
+              type: 'string',
+              example: 'Verification email sent successfully',
+            },
+          },
+        },
       },
       notFound: { status: 404, description: 'User with this email not found' },
-      badRequest: { status: 400, description: 'Email already verified or rate limit exceeded' }
-    }
+      badRequest: {
+        status: 400,
+        description: 'Email already verified or rate limit exceeded',
+      },
+    },
   },
   verifyEmail: {
     summary: 'Verify email address',
@@ -139,9 +176,15 @@ export const AUTH_SWAGGER = {
 - Each token can only be used once
 - Invalid or expired tokens show an error page`,
     responses: {
-      success: { status: 200, description: 'Email verified successfully - returns HTML success page' },
-      badRequest: { status: 400, description: 'Invalid or expired token - returns HTML error page' }
-    }
+      success: {
+        status: 200,
+        description: 'Email verified successfully - returns HTML success page',
+      },
+      badRequest: {
+        status: 400,
+        description: 'Invalid or expired token - returns HTML error page',
+      },
+    },
   },
   refresh: {
     summary: 'Refresh access token',
@@ -152,9 +195,15 @@ export const AUTH_SWAGGER = {
 - New access token expires in 1 hour
 - Refresh token can be reused until it expires`,
     responses: {
-      success: { status: 200, description: 'New access token generated successfully' },
-      unauthorized: { status: 401, description: 'Invalid or expired refresh token' }
-    }
+      success: {
+        status: 200,
+        description: 'New access token generated successfully',
+      },
+      unauthorized: {
+        status: 401,
+        description: 'Invalid or expired refresh token',
+      },
+    },
   },
   requestResetPassword: {
     summary: 'Request password reset',
@@ -166,32 +215,38 @@ export const AUTH_SWAGGER = {
 3. Sends reset link via email
 4. Token expires after 1 hour`,
     responses: {
-      success: { status: 200, description: 'Password reset link sent to email' },
-      notFound: { status: 404, description: 'Email not found' }
-    }
+      success: {
+        status: 200,
+        description: 'Password reset link sent to email',
+      },
+      notFound: { status: 404, description: 'Email not found' },
+    },
   },
   resetPassword: {
     summary: 'Reset password',
     description: `Set a new password using the reset token from the email link.`,
     responses: {
       success: { status: 200, description: 'Password reset successfully' },
-      badRequest: { status: 400, description: 'Invalid or expired token' }
-    }
+      badRequest: { status: 400, description: 'Invalid or expired token' },
+    },
   },
   requestChangeEmail: {
     summary: 'Request email change',
     description: `Request to change your email address. A confirmation link will be sent to your current email.`,
     responses: {
-      success: { status: 200, description: 'Confirmation link sent to current email' }
-    }
+      success: {
+        status: 200,
+        description: 'Confirmation link sent to current email',
+      },
+    },
   },
   confirmChangeEmail: {
     summary: 'Confirm email change',
     description: `Confirm and complete the email change process using the token from the confirmation email.`,
     responses: {
       success: { status: 200, description: 'Email changed successfully' },
-      badRequest: { status: 400, description: 'Invalid or expired token' }
-    }
+      badRequest: { status: 400, description: 'Invalid or expired token' },
+    },
   },
   googleLogin: {
     summary: 'Login with Google',
@@ -205,23 +260,23 @@ export const AUTH_SWAGGER = {
 5. Returns JWT tokens`,
     responses: {
       success: { status: 200, description: 'Google login successful' },
-      unauthorized: { status: 401, description: 'Invalid Google token' }
-    }
+      unauthorized: { status: 401, description: 'Invalid Google token' },
+    },
   },
   appleLogin: {
     summary: 'Login with Apple',
     description: `Authenticate using Apple Sign In. Requires a valid Apple identity token.`,
     responses: {
       success: { status: 200, description: 'Apple login successful' },
-      unauthorized: { status: 401, description: 'Invalid Apple token' }
-    }
+      unauthorized: { status: 401, description: 'Invalid Apple token' },
+    },
   },
   telegramLogin: {
     summary: 'Login with Telegram',
     description: `Authenticate using Telegram Web App initData.`,
     responses: {
       success: { status: 200, description: 'Telegram login successful' },
-      unauthorized: { status: 401, description: 'Invalid Telegram data' }
-    }
-  }
+      unauthorized: { status: 401, description: 'Invalid Telegram data' },
+    },
+  },
 };

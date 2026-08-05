@@ -29,7 +29,7 @@ describe('RunpodTimeoutPolicyService', () => {
     const { service } = createService();
 
     await expect(
-      service.getStatusTimeoutMs('mmaudio_v2', 'audio'),
+      service.getStatusTimeoutMs('yengine_audio', 'audio'),
     ).resolves.toBe(7200000);
   });
 
@@ -39,7 +39,7 @@ describe('RunpodTimeoutPolicyService', () => {
     });
 
     await expect(
-      service.getStatusTimeoutMs('mmaudio_v2', 'audio'),
+      service.getStatusTimeoutMs('yengine_audio', 'audio'),
     ).resolves.toBe(12345);
     expect(providerRuntimeConfigService.getNumber).toHaveBeenCalledWith(
       'RUNPOD_MMAUDIO_STATUS_TIMEOUT_MS',
@@ -60,7 +60,7 @@ describe('RunpodTimeoutPolicyService', () => {
     const { service } = createService();
 
     await expect(
-      service.getStatusTimeoutMs('qwen_image_edit_baked', 'imageEdit'),
+      service.getStatusTimeoutMs('yengine_edit', 'imageEdit'),
     ).resolves.toBe(1200000);
   });
 
@@ -70,7 +70,7 @@ describe('RunpodTimeoutPolicyService', () => {
     });
 
     await expect(
-      service.getStatusTimeoutMs('qwen_image_edit_baked', 'imageEdit'),
+      service.getStatusTimeoutMs('yengine_edit', 'imageEdit'),
     ).resolves.toBe(654321);
     expect(providerRuntimeConfigService.getNumber).toHaveBeenCalledWith(
       'RUNPOD_QWEN_IMAGE_EDIT_BAKED_STATUS_TIMEOUT_MS',

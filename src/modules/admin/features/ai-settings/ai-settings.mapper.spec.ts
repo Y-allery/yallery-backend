@@ -33,7 +33,7 @@ describe('AISettingsMapper', () => {
   it('preserves legacy and camelCase response aliases', () => {
     const result = mapper.format({
       id: 10,
-      aiService: 'krea2_lora_generation',
+      aiService: 'yengine_portrait',
       name: 'Krea 2 LoRA',
       description: 'Fine-tune image generation',
       provider: 'runpod',
@@ -47,8 +47,8 @@ describe('AISettingsMapper', () => {
 
     expect(result).toMatchObject({
       id: 10,
-      ai_service: 'krea2_lora_generation',
-      aiService: 'krea2_lora_generation',
+      ai_service: 'yengine_portrait',
+      aiService: 'yengine_portrait',
       type: 'finetune',
       category: 'finetune',
       is_active: true,

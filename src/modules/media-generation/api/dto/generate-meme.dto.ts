@@ -6,7 +6,7 @@ export class GenerateMemeDto {
   @IsString()
   @ApiProperty({
     description: 'Requested AI service/model identifier.',
-    example: 'wan22_animate_native',
+    example: 'yengine_meme',
   })
   ai_service: string;
 
@@ -40,7 +40,7 @@ export class GenerateMemeDto {
   @IsString()
   @ApiPropertyOptional({
     description:
-      'Optional negative prompt override for RunPod WAN motion transfer.',
+      'Optional negative prompt override for YEngine WAN motion transfer.',
     example: 'foreign limbs, copied background, jitter, flicker',
   })
   negative_prompt?: string;

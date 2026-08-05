@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { AI_SERVICES } from 'src/modules/media-generation/domain/ai-service.catalog';
 import { ContestEntity } from 'src/modules/contests/entity/contest.entity';
 import { ContestTypeEnum } from 'src/modules/contests/types/contest.status.enum';
 import { AIFinetuneEntity } from 'src/modules/admin/entities/ai-finetune.entity';
@@ -23,7 +24,7 @@ import {
 @Injectable()
 export class ContestMediaGenerationResolverService {
   /** Fallback when DEFAULT_PROMPT_IMAGE_CONTEST_AI_SERVICE is not configured. */
-  private readonly defaultPromptImageContestAiService = 'krea2_turbo';
+  private readonly defaultPromptImageContestAiService = AI_SERVICES.PHOTO_PRO;
 
   constructor(
     @InjectRepository(ContestEntity)
@@ -65,7 +66,7 @@ export class ContestMediaGenerationResolverService {
     const { width, height } = getPromptImageDimensions(aiService, orientation);
 
     if (contest.contestType !== ContestTypeEnum.FINE_TUNE) {
-      if (aiService === 'krea2_lora_generation') {
+      if (aiService === AI_SERVICES.PORTRAIT) {
         throw new BadRequestException(
           `Contest ${contest.id} is linked to ${aiService} but is not marked as a fine-tune contest.`,
         );
@@ -80,7 +81,7 @@ export class ContestMediaGenerationResolverService {
       };
     }
 
-    if (aiService !== 'krea2_lora_generation') {
+    if (aiService !== AI_SERVICES.PORTRAIT) {
       throw new BadRequestException(
         `Contest ${contest.id} is marked as fine-tune but is linked to ${aiService}.`,
       );
@@ -223,7 +224,7 @@ export class ContestMediaGenerationResolverService {
 
     if (contest.contestType === ContestTypeEnum.FINE_TUNE) {
       return this.getMediaAiSettingByAiService(
-        'krea2_lora_generation',
+        AI_SERVICES.PORTRAIT,
         expectedCapability,
       );
     }
@@ -288,7 +289,7 @@ export class ContestMediaGenerationResolverService {
     }
 
     const requestedAiService = aiService?.trim();
-    if (requestedAiService && requestedAiService !== 'krea2_lora_generation') {
+    if (requestedAiService && requestedAiService !== AI_SERVICES.PORTRAIT) {
       throw new BadRequestException(
         'Fine-tune contests only accept krea2_lora_generation prompt image generations.',
       );

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { AI_SERVICES } from 'src/modules/media-generation/domain/ai-service.catalog';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, MoreThanOrEqual, Repository } from 'typeorm';
 import { LikeService } from 'src/modules/engagement/likes/like.service';
@@ -52,8 +53,8 @@ export class ContentBotService {
   /** Points are the spend currency; keep the bot far above any single cost. */
   private static readonly POINTS_TARGET = 2_000_000;
   private static readonly POINTS_MIN = 200_000;
-  private static readonly IMAGE_AI = 'z_image_turbo';
-  private static readonly VIDEO_AI = 'p_video_text';
+  private static readonly IMAGE_AI = AI_SERVICES.PHOTO;
+  private static readonly VIDEO_AI = AI_SERVICES.VIDEO_TEXT;
   private static readonly VIDEO_DURATION = 5;
   /** Cap drafts published per publish tick, so pacing can't burst. */
   private static readonly PUBLISH_PER_TICK_MAX = 3;
@@ -363,7 +364,8 @@ export class ContentBotService {
     });
     const remainingCap = Math.max(0, cfg.maxDailyItems - usedToday);
     const toDo = Math.min(limit, remainingCap);
-    if (toDo <= 0) return { enqueued: 0, failed: 0, skipped: 'daily cap reached' };
+    if (toDo <= 0)
+      return { enqueued: 0, failed: 0, skipped: 'daily cap reached' };
 
     const planned = await this.planRepository.find({
       where: { planDate, status: 'planned', isPreview: false },
@@ -540,9 +542,7 @@ export class ContentBotService {
       (p) =>
         p.mediaKind === kind &&
         p.promptText === params.prompt &&
-        (kind !== 'video' ||
-          p.seed == null ||
-          Number(params.seed) === p.seed),
+        (kind !== 'video' || p.seed == null || Number(params.seed) === p.seed),
     );
     if (idx < 0) return null;
     return generatingPlans.splice(idx, 1)[0];
@@ -776,9 +776,7 @@ export class ContentBotService {
   // Preview (manual, admin) — generate drafts, never publish
   // ---------------------------------------------------------------------------
 
-  async runPreview(
-    count: number,
-  ): Promise<{
+  async runPreview(count: number): Promise<{
     botUserId: number;
     planned: number;
     enqueued: number;

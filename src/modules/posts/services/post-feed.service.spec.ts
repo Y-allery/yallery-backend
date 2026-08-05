@@ -30,7 +30,7 @@ describe('PostFeedService', () => {
     hasAudio: false,
     generationParams: JSON.stringify({
       prompt: 'demo prompt',
-      ai_service: 'flux2_klein',
+      ai_service: 'yengine_photo_lite',
       orientation: 'vertical',
       width: 768,
       height: 1344,
@@ -207,7 +207,7 @@ describe('PostFeedService', () => {
 
     expect(normalized).toMatchObject({
       prompt: 'demo prompt',
-      ai_service: 'flux2_klein',
+      ai_service: 'yengine_photo_lite',
       orientation: 'vertical',
       width: 768,
       height: 1344,
@@ -259,6 +259,8 @@ describe('PostFeedService', () => {
 
     expect(result.posts[0].hasAudio).toBe(true);
     expect(result.posts[0]).not.toHaveProperty('suggestedTags');
-    expect(result.posts[0].generationParams).not.toHaveProperty('suggestedTags');
+    expect(result.posts[0].generationParams).not.toHaveProperty(
+      'suggestedTags',
+    );
   });
 });

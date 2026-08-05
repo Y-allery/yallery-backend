@@ -64,7 +64,7 @@ describe('UserActivityService idempotency', () => {
       pointsDelta: -25,
       mediaType: 'video',
       mode: 'text_to_video',
-      aiService: 'p_video_text',
+      aiService: 'yengine_video_text',
       duration: 5,
       postId: 12,
     });

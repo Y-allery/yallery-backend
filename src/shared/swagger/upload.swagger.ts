@@ -3,19 +3,25 @@ export const UPLOAD_SWAGGER = {
     summary: 'Upload image',
     description: `Upload an image file to the cloud storage. Returns a public URL for the uploaded image. Supports common image formats (JPG, PNG, WebP, GIF).`,
     responses: {
-      success: { 
-        status: 200, 
+      success: {
+        status: 200,
         description: 'Image uploaded successfully',
         schema: {
           type: 'object',
           properties: {
-            imageUrl: { type: 'string', example: 'https://cdn.example.com/image.jpg' }
-          }
-        }
+            imageUrl: {
+              type: 'string',
+              example: 'https://cdn.example.com/image.jpg',
+            },
+          },
+        },
       },
-      badRequest: { status: 400, description: 'No file provided or invalid file type' },
-      internalError: { status: 500, description: 'Failed to upload image' }
-    }
+      badRequest: {
+        status: 400,
+        description: 'No file provided or invalid file type',
+      },
+      internalError: { status: 500, description: 'Failed to upload image' },
+    },
   },
   uploadVideo: {
     summary: 'Upload video',
@@ -27,12 +33,19 @@ export const UPLOAD_SWAGGER = {
         schema: {
           type: 'object',
           properties: {
-            videoUrl: { type: 'string', example: 'https://api.example.com/media/video/upload/octoai_videos/video.mp4' }
-          }
-        }
+            videoUrl: {
+              type: 'string',
+              example:
+                'https://api.example.com/media/video/upload/octoai_videos/video.mp4',
+            },
+          },
+        },
       },
-      badRequest: { status: 400, description: 'No file provided or invalid file type' },
-      internalError: { status: 500, description: 'Failed to upload video' }
-    }
-  }
+      badRequest: {
+        status: 400,
+        description: 'No file provided or invalid file type',
+      },
+      internalError: { status: 500, description: 'Failed to upload video' },
+    },
+  },
 };
