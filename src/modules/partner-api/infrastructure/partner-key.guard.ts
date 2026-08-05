@@ -74,6 +74,17 @@ export class PartnerKeyGuard implements CanActivate {
       });
     }
 
+    // Checked here, not by a sweep job: a trial has to stop working on time even when
+    // nothing is running to clean it up.
+    if (record.expiresAt && record.expiresAt.getTime() <= Date.now()) {
+      throw new UnauthorizedException({
+        error: {
+          type: 'authentication_error',
+          message: `API key expired on ${record.expiresAt.toISOString()}. Ask for a new one.`,
+        },
+      });
+    }
+
     request.partnerKey = record;
     // Fire-and-forget: a last-seen timestamp must never fail a generation.
     this.keyRepository

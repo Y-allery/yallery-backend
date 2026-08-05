@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AdminPartnerApiController } from './api/admin-partner-api.controller';
+import { PartnerApiModule } from './partner-api.module';
+import { PartnerAccountEntity } from './entities/partner-account.entity';
 import { PartnerApiKeyEntity } from './entities/partner-api-key.entity';
 import { PartnerApiUsageEntity } from './entities/partner-api-usage.entity';
 
@@ -11,7 +13,12 @@ import { PartnerApiUsageEntity } from './entities/partner-api-usage.entity';
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([PartnerApiKeyEntity, PartnerApiUsageEntity]),
+    TypeOrmModule.forFeature([
+      PartnerAccountEntity,
+      PartnerApiKeyEntity,
+      PartnerApiUsageEntity,
+    ]),
+    PartnerApiModule,
   ],
   controllers: [AdminPartnerApiController],
 })

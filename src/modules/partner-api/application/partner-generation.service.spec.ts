@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, HttpException, HttpStatus } from '@nestjs/common';
 import { PartnerGenerationService } from './partner-generation.service';
 import { HostedGenerationError } from '../infrastructure/hosted-media.client';
 
@@ -10,7 +10,7 @@ describe('PartnerGenerationService', () => {
     generateImageVideos: jest.Mock;
   };
   let uploads: { uploadByUrl: jest.Mock; uploadVideoAssetByUrl: jest.Mock };
-  let usage: { insert: jest.Mock };
+  let billing: { hold: jest.Mock; settle: jest.Mock };
   let service: PartnerGenerationService;
 
   beforeEach(() => {
@@ -37,16 +37,26 @@ describe('PartnerGenerationService', () => {
         .fn()
         .mockResolvedValue({ videoUrl: 'https://ours/rehosted.mp4' }),
     };
-    usage = { insert: jest.fn().mockResolvedValue(undefined) };
+    billing = {
+      hold: jest
+        .fn()
+        .mockResolvedValue({ usageId: 11, accountId: 5, heldUsd: 0.015 }),
+      settle: jest.fn().mockResolvedValue(undefined),
+    };
     service = new PartnerGenerationService(
       hosted as never,
       inhouse as never,
       uploads as never,
-      usage as never,
+      billing as never,
     );
   });
 
-  const run = (overrides: Record<string, unknown> = {}) =>
+  const KEY = { id: 7, accountId: 5 } as never;
+
+  const run = (
+    overrides: Record<string, unknown> = {},
+    key: unknown = KEY,
+  ) =>
     service.generate(
       {
         model: 'yengine-photo',
@@ -54,7 +64,7 @@ describe('PartnerGenerationService', () => {
         capability: 'text_to_image',
         ...overrides,
       } as never,
-      7,
+      key as never,
     );
 
   it('sends a hosted model upstream and prices the response', async () => {
@@ -167,39 +177,92 @@ describe('PartnerGenerationService', () => {
     });
   });
 
-  it('records the failure with our cost and a zero price', async () => {
-    hosted.generate.mockRejectedValue(
-      new HostedGenerationError('boom', 'submit'),
-    );
-
-    await expect(run()).rejects.toBeTruthy();
-    expect(usage.insert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        partnerKeyId: 7,
-        model: 'yengine-photo',
-        status: 'failed',
-        failureCode: 'submit',
-        priceUsd: '0.00000',
-      }),
-    );
-  });
-
-  it('still returns the images when the usage row cannot be written', async () => {
-    usage.insert.mockRejectedValue(new Error('db down'));
+  it('still returns the images when settlement cannot be written', async () => {
+    billing.settle.mockRejectedValue(new Error('db down'));
 
     await expect(run()).resolves.toMatchObject({ model: 'yengine-photo' });
   });
 
-  it('records what we paid alongside what the partner paid', async () => {
-    await run();
+  describe('billing', () => {
+    it('holds the money before any work is dispatched', async () => {
+      billing.hold.mockImplementation(async () => {
+        expect(hosted.generate).not.toHaveBeenCalled();
+        return { usageId: 11, accountId: 5, heldUsd: 0.015 };
+      });
 
-    expect(usage.insert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        backend: 'hosted',
-        priceUsd: '0.01500',
-        costUsd: '0.00500',
-        status: 'succeeded',
-      }),
-    );
+      await run();
+
+      expect(billing.hold).toHaveBeenCalledWith(
+        7,
+        5,
+        expect.objectContaining({ id: 'yengine-photo' }),
+        1,
+      );
+    });
+
+    it('does not dispatch when the balance cannot cover the call', async () => {
+      billing.hold.mockRejectedValue(
+        new HttpException(
+          { error: { type: 'insufficient_balance', message: 'Top up' } },
+          HttpStatus.PAYMENT_REQUIRED,
+        ),
+      );
+
+      await expect(run()).rejects.toMatchObject({
+        status: 402,
+        response: { error: { type: 'insufficient_balance' } },
+      });
+      expect(hosted.generate).not.toHaveBeenCalled();
+      expect(billing.settle).not.toHaveBeenCalled();
+    });
+
+    it('settles a success at what was actually produced', async () => {
+      await run({ n: 2 });
+
+      expect(billing.settle).toHaveBeenCalledWith(
+        expect.objectContaining({ usageId: 11 }),
+        expect.objectContaining({
+          status: 'succeeded',
+          priceUsd: 0.03,
+          costUsd: 0.01,
+          failureCode: null,
+        }),
+      );
+    });
+
+    // The partner is refunded, but what we burned still has to be recorded — otherwise a
+    // key that fails constantly looks free in every report we have.
+    it('settles a partial batch at the cost of the outputs that did land', async () => {
+      hosted.generate
+        .mockResolvedValueOnce({ url: 'https://cdn/1.png', executionMs: 900 })
+        .mockResolvedValueOnce({ url: 'https://cdn/2.png', executionMs: 900 })
+        .mockRejectedValueOnce(new HostedGenerationError('boom', 'poll'));
+
+      await expect(run({ n: 3 })).rejects.toBeTruthy();
+
+      expect(billing.settle).toHaveBeenCalledWith(
+        expect.objectContaining({ usageId: 11 }),
+        expect.objectContaining({
+          status: 'failed',
+          priceUsd: 0,
+          costUsd: 0.01,
+          failureCode: 'poll',
+        }),
+      );
+    });
+
+    it('settles a failure that produced nothing at zero cost', async () => {
+      hosted.generate.mockRejectedValue(
+        new HostedGenerationError('boom', 'submit'),
+      );
+
+      await expect(run()).rejects.toBeTruthy();
+
+      expect(billing.settle).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ status: 'failed', costUsd: 0 }),
+      );
+    });
   });
+
 });

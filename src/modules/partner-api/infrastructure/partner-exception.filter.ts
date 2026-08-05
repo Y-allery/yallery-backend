@@ -10,10 +10,30 @@ import {
 const TYPE_BY_STATUS: Record<number, string> = {
   400: 'invalid_request_error',
   401: 'authentication_error',
+  402: 'quota_exceeded',
   403: 'authentication_error',
   404: 'invalid_request_error',
   413: 'invalid_request_error',
   429: 'rate_limit_error',
+};
+
+/**
+ * Whether this exception was built by us for a partner to read.
+ *
+ * The test is the nested `type`, not the class: a great deal of the code this module calls
+ * throws HttpExceptions of its own — the RunPod client's carry the vendor name, the job id
+ * and its raw output — and treating those as partner-facing puts all of it in the response.
+ */
+export const isPartnerFacingError = (error: unknown): boolean => {
+  if (!(error instanceof HttpException)) return false;
+  const body = error.getResponse();
+  if (typeof body !== 'object' || body === null) return false;
+  const envelope = (body as Record<string, unknown>)['error'];
+  return (
+    typeof envelope === 'object' &&
+    envelope !== null &&
+    typeof (envelope as Record<string, unknown>)['type'] === 'string'
+  );
 };
 
 /**

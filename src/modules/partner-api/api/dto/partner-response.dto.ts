@@ -74,6 +74,7 @@ export class PartnerErrorBodyDto {
       'invalid_request_error',
       'authentication_error',
       'rate_limit_error',
+      'quota_exceeded',
       'generation_error',
     ],
   })
