@@ -1,6 +1,10 @@
 import { Controller, Get, Header } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
-import { PARTNER_PLAYGROUND_HTML } from './partner-playground.page';
+import {
+  PARTNER_MODELS,
+  describePartnerModel,
+} from '../domain/partner-model.catalog';
+import { renderPartnerPlayground } from './partner-playground.page';
 
 /**
  * The page itself is public; every call it makes still needs the partner's own key, which
@@ -14,6 +18,8 @@ export class PartnerPlaygroundController {
   @Header('Cache-Control', 'no-store')
   @Header('X-Robots-Tag', 'noindex, nofollow')
   playground(): string {
-    return PARTNER_PLAYGROUND_HTML;
+    // The public projection, same as GET /v1/models — the page must not carry the
+    // backend or our cost into a partner's browser.
+    return renderPartnerPlayground(PARTNER_MODELS.map(describePartnerModel));
   }
 }
