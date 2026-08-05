@@ -30,7 +30,11 @@ export const renderPartnerPlayground = (models: unknown[]): string =>
   header h1 { font-size: 19px; margin: 0; letter-spacing: .2px; }
   header .sub { color: var(--muted); font-size: 13px; }
   header a { color: var(--accent-2); text-decoration: none; }
-  main { display: grid; grid-template-columns: 420px 1fr; gap: 0; min-height: calc(100vh - 66px); }
+  /* minmax(0, 1fr), not 1fr: a grid track's default min-width is its content's, so the
+     long unbreakable curl line in the <pre> widened the whole column as you typed — and
+     the result image, being max-width:100%, grew and shrank with it. */
+  main { display: grid; grid-template-columns: 420px minmax(0, 1fr); gap: 0;
+         min-height: calc(100vh - 66px); }
   @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
   .pane { padding: 22px 24px; }
   .pane.left { border-right: 1px solid var(--line); }
@@ -161,9 +165,15 @@ export const renderPartnerPlayground = (models: unknown[]): string =>
   function refresh() {
     var m = activeModel();
     $('modelHint').textContent = m ? m.description : '';
-    $('size').innerHTML = m ? m.sizes.map(function (s) {
-      return '<option>' + s + '</option>';
-    }).join('') : '';
+    // Rebuilt only when the model actually changed. Rebuilding on every keystroke threw
+    // away whatever size the user had picked and silently reverted it to the default.
+    var wanted = m ? m.sizes.join('|') : '';
+    if ($('size').dataset.sizes !== wanted) {
+      $('size').dataset.sizes = wanted;
+      $('size').innerHTML = m ? m.sizes.map(function (s) {
+        return '<option>' + s + '</option>';
+      }).join('') : '';
+    }
     var n = cap === 'image_to_video' ? 1 : Number($('n').value || 1);
     $('nWrap').style.display = cap === 'image_to_video' ? 'none' : '';
     $('cost').innerHTML = m

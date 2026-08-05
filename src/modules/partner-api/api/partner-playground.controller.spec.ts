@@ -10,6 +10,12 @@ describe('PartnerPlaygroundController', () => {
     }
   });
 
+  // A grid track defaults to its content's min-width, so the long curl line grew the
+  // column — and the result image with it — on every keystroke.
+  it('pins the result column so typing cannot resize it', () => {
+    expect(html).toContain('minmax(0, 1fr)');
+  });
+
   // The page runs in the partner's browser: anything embedded here is published.
   it('carries no backend or cost into the browser', () => {
     for (const model of PARTNER_MODELS) {

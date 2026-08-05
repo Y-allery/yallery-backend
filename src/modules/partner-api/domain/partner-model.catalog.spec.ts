@@ -30,6 +30,15 @@ describe('partner model catalog', () => {
     }
   });
 
+  // We advertised "720p with audio" on two video models for a day. The output has no
+  // audio track at all — verified with ffprobe against a real generation — and a promised
+  // feature that does not exist is the kind of thing an integrator builds on.
+  it('claims no audio, because no video model here produces any', () => {
+    for (const model of PARTNER_MODELS) {
+      expect(model.description).not.toMatch(/\baudio\b/i);
+    }
+  });
+
   it('gives every model at least one size, with the default first', () => {
     for (const model of PARTNER_MODELS) {
       expect(model.sizes.length).toBeGreaterThan(0);
