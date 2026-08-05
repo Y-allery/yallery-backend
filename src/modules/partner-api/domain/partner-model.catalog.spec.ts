@@ -30,12 +30,25 @@ describe('partner model catalog', () => {
     }
   });
 
-  // We advertised "720p with audio" on two video models for a day. The output has no
-  // audio track at all — verified with ffprobe against a real generation — and a promised
-  // feature that does not exist is the kind of thing an integrator builds on.
-  it('claims no audio, because no video model here produces any', () => {
+  // We shipped "720p with audio" on both hosted video models without checking. ffprobe on
+  // a real generation shows the hosted model returns a single h264 stream and nothing
+  // else; ours returns h264 + aac. Only the model that actually carries sound may say so.
+  it('mentions sound only on the model that produces it', () => {
+    const claimsSound = PARTNER_MODELS.filter((model) =>
+      /\b(audio|sound|soundtrack)\b/i.test(model.description),
+    );
+    for (const model of claimsSound) {
+      const silent = /\bno sound\b|\bsilent\b/i.test(model.description);
+      if (silent) continue;
+      expect(model.id).toBe('yengine-video-hd');
+      expect(model.backend).toBe('inhouse');
+    }
+  });
+
+  it('says plainly when a video model has no sound', () => {
     for (const model of PARTNER_MODELS) {
-      expect(model.description).not.toMatch(/\baudio\b/i);
+      if (model.capability !== 'image_to_video') continue;
+      expect(model.description).toMatch(/\bno sound\b|soundtrack/i);
     }
   });
 

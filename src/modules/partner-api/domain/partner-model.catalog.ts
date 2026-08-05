@@ -3,6 +3,12 @@ import { AI_SERVICES } from 'src/modules/media-generation/domain/ai-service.cata
 /**
  * The models a partner can address, and where each one is actually executed.
  *
+ * The video flagship is ours, not the hosted one, and that is not the same trade-off as
+ * the images. Measured head to head on the same input (2026-08-05): ours returns
+ * 1280x704 at 24 fps with a soundtrack in 39 s and costs us ~$0.065; the hosted model
+ * returns 960x960 at 16 fps, silent, in 76 s and costs $0.11. It loses on every axis, so
+ * it is kept only as an A/B and as somewhere to fall back to.
+ *
  * The public id is a product name. Which engine runs it, and on whose hardware, is not
  * published anywhere in the request, the response or the errors — that is the point of
  * this indirection, and it is what lets `backend` move without the partner noticing.
@@ -84,7 +90,7 @@ export const PARTNER_MODELS: readonly PartnerModel[] = [
   {
     id: 'yengine-video',
     capability: 'image_to_video',
-    description: 'Image-to-video, 480p. Silent.',
+    description: 'Image-to-video, 480p, 16 fps, no sound. The budget option.',
     backend: 'hosted',
     target: 'wan-i2v',
     priceUsd: 0.12,
@@ -94,22 +100,23 @@ export const PARTNER_MODELS: readonly PartnerModel[] = [
   {
     id: 'yengine-video-hd',
     capability: 'image_to_video',
-    description: 'Image-to-video, 720p. Silent, like every video model here.',
-    backend: 'hosted',
-    target: 'wan-i2v',
+    description:
+      'Image-to-video, 1280x704 at 24 fps with a generated soundtrack. The best video here.',
+    backend: 'inhouse',
+    target: AI_SERVICES.VIDEO_IMAGE,
     priceUsd: 0.25,
-    costUsd: 0.11,
+    costUsd: 0.065,
     sizes: ['720p'],
   },
   {
     id: 'yengine-video-alt',
     capability: 'image_to_video',
     description:
-      'Image-to-video with a different model, 720p. Useful as an A/B against yengine-video-hd.',
-    backend: 'inhouse',
-    target: AI_SERVICES.VIDEO_IMAGE,
+      'Image-to-video from a different model, 960x960 at 16 fps, no sound. Useful as an A/B against yengine-video-hd.',
+    backend: 'hosted',
+    target: 'wan-i2v',
     priceUsd: 0.25,
-    costUsd: 0.073,
+    costUsd: 0.11,
     sizes: ['720p'],
   },
 ];
