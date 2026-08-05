@@ -1,8 +1,12 @@
 /**
  * Single self-contained page: no build step, no CDN, no framework. It is handed to a
  * partner as a URL and must work from a locked-down network on the first click.
+ *
+ * The catalog is injected at render time rather than fetched: /v1/models needs a key, and
+ * an empty model dropdown is otherwise the first thing a partner sees.
  */
-export const PARTNER_PLAYGROUND_HTML = `<!doctype html>
+export const renderPartnerPlayground = (models: unknown[]): string =>
+  `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -128,7 +132,7 @@ export const PARTNER_PLAYGROUND_HTML = `<!doctype html>
 
 <script>
 (function () {
-  var models = [], cap = 'text_to_image';
+  var models = ${JSON.stringify(models)}, cap = 'text_to_image';
   var $ = function (id) { return document.getElementById(id); };
 
   function activeModel() {
@@ -173,17 +177,11 @@ export const PARTNER_PLAYGROUND_HTML = `<!doctype html>
   }
 
   function loadModels() {
-    fetch('/v1/models', { headers: { Authorization: 'Bearer ' + $('key').value } })
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        models = (j.data || []);
-        var mine = models.filter(function (m) { return m.capability === cap; });
-        $('model').innerHTML = mine.map(function (m) {
-          return '<option value="' + m.id + '">' + m.id + ' — $' + m.price_usd + '</option>';
-        }).join('');
-        refresh();
-      })
-      .catch(function () { $('curl').textContent = 'Could not load models. Check the key.'; });
+    var mine = models.filter(function (m) { return m.capability === cap; });
+    $('model').innerHTML = mine.map(function (m) {
+      return '<option value="' + m.id + '">' + m.id + ' — $' + m.price_usd + '</option>';
+    }).join('');
+    refresh();
   }
 
   $('tabs').addEventListener('click', function (e) {
@@ -197,7 +195,6 @@ export const PARTNER_PLAYGROUND_HTML = `<!doctype html>
     $(id).addEventListener('input', refresh);
     $(id).addEventListener('change', refresh);
   });
-  $('key').addEventListener('change', loadModels);
 
   $('go').addEventListener('click', function () {
     var btn = this, started = Date.now();
