@@ -11,6 +11,8 @@ import * as session from 'express-session';
 import * as passport from 'passport';
 import { RedisStore } from 'connect-redis';
 import { createClient } from 'redis';
+import { PartnerApiModule } from './modules/partner-api/partner-api.module';
+import { PARTNER_API_KEY_SECURITY } from './modules/partner-api/infrastructure/partner-key.guard';
 
 let redisClient: ReturnType<typeof createClient>;
 const SWAGGER_AUTH_SCHEME = 'bearer';
@@ -38,6 +40,47 @@ function setupSwagger(app: INestApplication): void {
   // PRODUCTION as user 125, the only admin account. Paste your own token instead;
   // persistAuthorization keeps it across reloads.
   SwaggerModule.setup('api', app, document, {
+    swaggerOptions: { persistAuthorization: true },
+  });
+}
+
+/**
+ * The partner-facing reference, mounted in production on purpose — it is the product a
+ * third party integrates against, and it is not the internal /api document: it includes
+ * only PartnerApiModule, so no admin or app route can appear in it, and it authenticates
+ * with a partner key rather than a user JWT.
+ */
+function setupPartnerSwagger(app: INestApplication): void {
+  const config = new DocumentBuilder()
+    .setTitle('YEngine Generation API')
+    .setDescription(
+      'Text-to-photo, photo-to-photo and photo-to-video generation.\n\n' +
+        '**Authentication** — send your key as `Authorization: Bearer <key>` ' +
+        '(or `x-api-key: <key>`).\n\n' +
+        '**Pricing** — `GET /v1/models` returns the price per output in USD. ' +
+        'It is the final price; nothing is added later.\n\n' +
+        '**Timeouts** — calls are synchronous. Images return in seconds, video in ' +
+        '40-120 s, so allow 300 s client-side and do not retry on your own timeout ' +
+        'alone: the generation is still billed.\n\n' +
+        `**Playground** — try it in the browser at [/v1/playground](/v1/playground).`,
+    )
+    .setVersion('1.0')
+    .addApiKey(
+      {
+        type: 'apiKey',
+        name: 'Authorization',
+        in: 'header',
+        description: 'Your partner key, as `Bearer <key>`.',
+      },
+      PARTNER_API_KEY_SECURITY,
+    )
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config, {
+    include: [PartnerApiModule],
+  });
+  SwaggerModule.setup('v1/docs', app, document, {
+    customSiteTitle: 'YEngine API',
     swaggerOptions: { persistAuthorization: true },
   });
 }
@@ -94,6 +137,7 @@ async function bootstrap() {
   if (devToolsEnabled) {
     setupSwagger(app);
   }
+  setupPartnerSwagger(app);
 
   app.use('/payment/webhook', (req, res, next) => {
     console.log('🔔 ===== WEBHOOK REQUEST RECEIVED =====');

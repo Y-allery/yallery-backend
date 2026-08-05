@@ -36,6 +36,8 @@ import { ProviderSettingsModule } from 'src/modules/provider-settings/provider-s
 import { TranslationsModule } from 'src/modules/translations/translations.module';
 import { ContentBotModule } from 'src/modules/content-bot/content-bot.module';
 import { OpsBotModule } from 'src/modules/ops-bot/ops-bot.module';
+import { PartnerApiModule } from 'src/modules/partner-api/partner-api.module';
+import { PartnerApiAdminModule } from 'src/modules/partner-api/partner-api-admin.module';
 
 /**
  * The @Module decorator below is evaluated while this file is imported — before
@@ -117,6 +119,8 @@ const DEV_TOOLS_ENABLED = areDevToolsEnabled();
     TranslationsModule,
     ContentBotModule,
     OpsBotModule,
+    PartnerApiModule,
+    PartnerApiAdminModule,
   ],
   providers: [
     {
