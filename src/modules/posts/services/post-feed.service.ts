@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { AI_SERVICES } from 'src/modules/media-generation/domain/ai-service.catalog';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PostEntity } from '../entities/post.entity';
@@ -31,8 +32,10 @@ interface PopularCoreRow {
 export class PostFeedService {
   // Popular posts are identical for all users except isLiked/isViewed flags,
   // so the heavy aggregate query is cached and flags are resolved per request.
-  private popularPostsCache: { rows: PopularCoreRow[]; expiresAt: number } | null =
-    null;
+  private popularPostsCache: {
+    rows: PopularCoreRow[];
+    expiresAt: number;
+  } | null = null;
   private static readonly POPULAR_POSTS_CACHE_TTL_MS = 60_000;
 
   constructor(
@@ -174,11 +177,7 @@ export class PostFeedService {
   }): Promise<any[]> {
     const columns = this.feedRowColumns(args.userId);
     const conditions: string[] = [];
-    const params: number[] = [
-      ...columns.params,
-      args.userId,
-      args.userId,
-    ];
+    const params: number[] = [...columns.params, args.userId, args.userId];
 
     if (args.tagId) {
       conditions.push('AND p.tagId = ?');
@@ -493,7 +492,13 @@ export class PostFeedService {
     `;
 
     const [posts, totalResult] = await Promise.all([
-      this.postRepository.query(query, [userId, userId, userId, safeLimit, offset]),
+      this.postRepository.query(query, [
+        userId,
+        userId,
+        userId,
+        safeLimit,
+        offset,
+      ]),
       this.postRepository.query(totalQuery, [userId]),
     ]);
 
@@ -680,17 +685,22 @@ export class PostFeedService {
   }
 
   private normalizeGenerationParams(params: any): any {
-    if (!params || typeof params !== 'object' || Object.keys(params).length === 0) {
+    if (
+      !params ||
+      typeof params !== 'object' ||
+      Object.keys(params).length === 0
+    ) {
       return {
         prompt: 'Unknown',
-        ai_service: 'flux',
+        ai_service: AI_SERVICES.PHOTO_LEGACY,
         orientation: 'vertical',
       };
     }
 
     return {
       prompt: params.prompt || 'Unknown',
-      ai_service: params.ai_service || params.aiService || 'flux',
+      ai_service:
+        params.ai_service || params.aiService || AI_SERVICES.PHOTO_LEGACY,
       orientation: params.orientation || 'vertical',
       style_id: params.style_id,
       color_id: params.color_id,

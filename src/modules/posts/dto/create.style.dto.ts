@@ -54,7 +54,7 @@ export class CreateStyleDto {
 
   @ApiPropertyOptional({
     description:
-      'Per-aiService overrides, e.g. { "krea2_turbo": { "keywords": ["gothic"] }, "flux2_klein": { "positive": "..." } }.',
+      'Per-aiService overrides, e.g. { "yengine_photo": { "keywords": ["gothic"] }, "yengine_photo_pro": { "positive": "..." } }.',
   })
   @IsOptional()
   @IsObject()
