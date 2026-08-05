@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Req,
+  UseFilters,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiExcludeEndpoint,
   ApiOperation,
@@ -15,6 +23,7 @@ import {
   PartnerKeyGuard,
   PARTNER_API_KEY_SECURITY,
 } from '../infrastructure/partner-key.guard';
+import { PartnerExceptionFilter } from '../infrastructure/partner-exception.filter';
 import { PartnerRateLimitGuard } from '../infrastructure/partner-rate-limit.guard';
 import {
   PartnerImageEditDto,
@@ -33,6 +42,7 @@ import {
 @ApiResponse({ status: 401, description: 'Missing or invalid API key', type: PartnerErrorDto })
 @ApiResponse({ status: 429, description: 'Rate limit exceeded', type: PartnerErrorDto })
 @Controller('v1')
+@UseFilters(PartnerExceptionFilter)
 @UseGuards(PartnerKeyGuard, PartnerRateLimitGuard)
 export class PartnerApiController {
   constructor(private readonly generation: PartnerGenerationService) {}
