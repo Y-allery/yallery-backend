@@ -58,6 +58,18 @@ describe('partner model catalog', () => {
     }
   });
 
+  // Scoped to video on purpose. Two image models at one price are a real offering — same
+  // cost, different aesthetic, the partner picks by taste and neither is worse. Video is
+  // not like that: resolution, frame rate and sound are ordered, so a second 720p tier at
+  // the same price could only ever be the worse one. That shipped for a single deploy.
+  it('offers no two video models at the same price', () => {
+    const prices = PARTNER_MODELS.filter(
+      (model) => model.capability === 'image_to_video',
+    ).map((model) => model.priceUsd);
+
+    expect(new Set(prices).size).toBe(prices.length);
+  });
+
   it('has no duplicate ids', () => {
     const ids = PARTNER_MODELS.map((model) => model.id);
     expect(new Set(ids).size).toBe(ids.length);
