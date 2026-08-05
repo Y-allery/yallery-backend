@@ -242,6 +242,10 @@ const mediaGenerationQueueOptions = {
     MediaProviderRegistryService,
     MediaRouteResolverService,
     MediaGenerationEnqueueService,
+    // Exported for the partner API, which calls a route synchronously rather than
+    // through the queue: a partner's HTTP request is the job, and there is no post,
+    // no points charge and no socket delivery to schedule around.
+    RunpodOpenEndpointMediaProvider,
   ],
 })
 export class MediaGenerationModule {}
