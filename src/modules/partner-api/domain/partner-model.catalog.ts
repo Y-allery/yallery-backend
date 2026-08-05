@@ -101,22 +101,11 @@ export const PARTNER_MODELS: readonly PartnerModel[] = [
     id: 'yengine-video-hd',
     capability: 'image_to_video',
     description:
-      'Image-to-video, 1280x704 at 24 fps with a generated soundtrack. The best video here.',
+      'Image-to-video, 1280x704 at 24 fps with a generated soundtrack.',
     backend: 'inhouse',
     target: AI_SERVICES.VIDEO_IMAGE,
     priceUsd: 0.25,
     costUsd: 0.065,
-    sizes: ['720p'],
-  },
-  {
-    id: 'yengine-video-alt',
-    capability: 'image_to_video',
-    description:
-      'Image-to-video from a different model, 960x960 at 16 fps, no sound. Useful as an A/B against yengine-video-hd.',
-    backend: 'hosted',
-    target: 'wan-i2v',
-    priceUsd: 0.25,
-    costUsd: 0.11,
     sizes: ['720p'],
   },
 ];
