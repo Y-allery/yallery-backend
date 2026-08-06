@@ -1,17 +1,12 @@
-import {
-  BadRequestException,
-  HttpException,
-  HttpStatus,
-  Injectable,
-  Logger,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { RunpodOpenEndpointMediaProvider } from 'src/modules/media-generation/infrastructure/providers/runpod/runpod-open-endpoint-media.provider';
 import { UploadService } from 'src/modules/uploads/upload.service';
 import { PartnerApiKeyEntity } from '../entities/partner-api-key.entity';
-import {
-  PartnerBillingService,
-  PartnerHold,
-} from './partner-billing.service';
+import { PartnerJobEntity } from '../entities/partner-job.entity';
+import { PartnerBillingService, PartnerHold } from './partner-billing.service';
+import { PartnerJobService, PartnerJobView } from './partner-job.service';
 import {
   PartnerCapability,
   PartnerModel,
@@ -21,7 +16,12 @@ import {
   HostedGenerationError,
   HostedMediaClient,
 } from '../infrastructure/hosted-media.client';
-import { isPartnerFacingError } from '../infrastructure/partner-exception.filter';
+import { partnerErrorEnvelope } from '../infrastructure/partner-exception.filter';
+import {
+  PARTNER_GENERATION_JOB_OPTIONS,
+  PARTNER_GENERATION_QUEUE,
+  PartnerGenerationJobData,
+} from '../infrastructure/queues/partner.queues';
 
 export interface PartnerGenerationInput {
   model: string;
@@ -31,17 +31,20 @@ export interface PartnerGenerationInput {
   n?: number;
   seed?: number;
   capability: PartnerCapability;
+  /** Present means the partner wants the result delivered, not awaited. */
+  callbackUrl?: string;
 }
 
-export interface PartnerGenerationOutput {
-  created: number;
-  model: string;
-  data: Array<{ url: string; seed?: number }>;
-  usage: { generation_time_ms: number; price_usd: number };
-}
+export type PartnerGenerationOutput = PartnerJobView;
 
 const MAX_OUTPUTS = 4;
 const MAX_REFERENCE_IMAGES = 3;
+
+const holdOf = (job: PartnerJobEntity): PartnerHold => ({
+  usageId: job.usageId,
+  accountId: job.accountId,
+  heldUsd: Number(job.heldUsd),
+});
 
 @Injectable()
 export class PartnerGenerationService {
@@ -52,6 +55,9 @@ export class PartnerGenerationService {
     private readonly inhouse: RunpodOpenEndpointMediaProvider,
     private readonly uploads: UploadService,
     private readonly billing: PartnerBillingService,
+    private readonly jobs: PartnerJobService,
+    @InjectQueue(PARTNER_GENERATION_QUEUE)
+    private readonly queue: Queue<PartnerGenerationJobData>,
   ) {}
 
   private resolveModel(
@@ -99,46 +105,174 @@ export class PartnerGenerationService {
     return { width, height };
   }
 
+  private assertReferences(input: PartnerGenerationInput): void {
+    if (input.capability === 'text_to_image') return;
+    if (!input.images?.length) {
+      throw new BadRequestException({
+        error: {
+          type: 'invalid_request_error',
+          param: 'images',
+          message: 'At least one reference image URL is required.',
+        },
+      });
+    }
+    if (input.images.length > MAX_REFERENCE_IMAGES) {
+      throw new BadRequestException({
+        error: {
+          type: 'invalid_request_error',
+          param: 'images',
+          message: `At most ${MAX_REFERENCE_IMAGES} reference images are accepted.`,
+        },
+      });
+    }
+  }
+
+  /**
+   * Everything that must happen while the partner is still on the phone: validation, the
+   * job row, and the money.
+   *
+   * The hold stays here rather than moving into the worker so an empty balance is a 402 on
+   * the request itself. Learning about it from a callback a minute later, on a request that
+   * already answered 202, is the kind of API nobody integrates against twice.
+   */
+  async submit(
+    input: PartnerGenerationInput,
+    partnerKey: PartnerApiKeyEntity,
+  ): Promise<PartnerJobEntity> {
+    const model = this.resolveModel(input.model, input.capability);
+    const size = this.assertSize(model, input.size);
+    const count = Math.min(Math.max(input.n ?? 1, 1), MAX_OUTPUTS);
+    this.assertReferences(input);
+
+    const job = await this.jobs.create({
+      partnerKey,
+      model: model.id,
+      capability: model.capability,
+      callbackUrl: input.callbackUrl ?? null,
+      request: {
+        prompt: input.prompt,
+        size,
+        count,
+        ...(input.images?.length && { images: input.images }),
+        ...(input.seed != null && { seed: input.seed }),
+      },
+    });
+
+    let hold: PartnerHold;
+    try {
+      hold = await this.billing.hold(
+        partnerKey.id,
+        partnerKey.accountId,
+        model,
+        count,
+      );
+    } catch (error) {
+      await this.jobs.markFailed(job.id, {
+        type: partnerErrorEnvelope(error)?.type ?? 'generation_error',
+        message: 'Rejected before any work started. Not charged.',
+      });
+      throw error;
+    }
+
+    await this.jobs.attachHold(job.id, hold);
+    job.usageId = hold.usageId;
+    job.heldUsd = hold.heldUsd.toFixed(4);
+
+    if (job.callbackUrl) await this.enqueue(job);
+    return job;
+  }
+
+  /** Queues the work, refunding on the spot if the queue itself will not take it. */
+  private async enqueue(job: PartnerJobEntity): Promise<void> {
+    try {
+      await this.queue.add(
+        'generate',
+        { jobId: job.id },
+        PARTNER_GENERATION_JOB_OPTIONS,
+      );
+    } catch (error) {
+      this.logger.error(
+        `could not queue partner job ${job.id}`,
+        error?.stack ?? String(error),
+      );
+      await this.settleQuietly(holdOf(job), {
+        status: 'failed',
+        executionMs: 0,
+        priceUsd: 0,
+        costUsd: 0,
+        failureCode: 'queue',
+      });
+      await this.jobs.markFailed(job.id, {
+        type: 'generation_error',
+        message: 'Could not accept the request. Retry; you were not charged.',
+      });
+      throw new BadRequestException({
+        error: {
+          type: 'generation_error',
+          message: 'Could not accept the request. Retry; you were not charged.',
+        },
+      });
+    }
+  }
+
+  /**
+   * Returns the money for a job that died without settling itself.
+   *
+   * Our own cost is booked at the whole batch, not at zero: the worker was killed somewhere
+   * inside a generation we had almost certainly already paid a GPU for, and a report that
+   * shows those as free is a report that hides them.
+   */
+  async refundAbandoned(job: PartnerJobEntity): Promise<void> {
+    const model = findPartnerModel(job.model);
+    const count = Number((job.request as { count?: number })?.count ?? 1);
+    await this.settleQuietly(holdOf(job), {
+      status: 'failed',
+      executionMs: 0,
+      priceUsd: 0,
+      costUsd: (model?.costUsd ?? 0) * count,
+      failureCode: 'abandoned',
+    });
+  }
+
+  /** The synchronous path, unchanged from the partner's point of view. */
   async generate(
     input: PartnerGenerationInput,
     partnerKey: PartnerApiKeyEntity,
   ): Promise<PartnerGenerationOutput> {
-    const partnerKeyId = partnerKey.id;
-    const model = this.resolveModel(input.model, input.capability);
-    const size = this.assertSize(model, input.size);
-    const count = Math.min(Math.max(input.n ?? 1, 1), MAX_OUTPUTS);
+    const job = await this.submit(input, partnerKey);
+    return this.execute(job);
+  }
 
-    if (input.capability !== 'text_to_image') {
-      if (!input.images?.length) {
-        throw new BadRequestException({
-          error: {
-            type: 'invalid_request_error',
-            param: 'images',
-            message: 'At least one reference image URL is required.',
-          },
-        });
-      }
-      if (input.images.length > MAX_REFERENCE_IMAGES) {
-        throw new BadRequestException({
-          error: {
-            type: 'invalid_request_error',
-            param: 'images',
-            message: `At most ${MAX_REFERENCE_IMAGES} reference images are accepted.`,
-          },
-        });
-      }
-    }
-
-    // Money moves before the work, not after it: the balance is debited and the usage row
-    // opened in one transaction, so two calls racing on the same account cannot both see
-    // funds that only one of them can have. Whatever is not used comes back in settle().
-    const hold = await this.billing.hold(
-      partnerKey.id,
-      partnerKey.accountId,
-      model,
-      count,
+  /**
+   * Runs a job that has already been validated and paid for.
+   *
+   * Identical for the synchronous caller and the worker: it settles the money and closes
+   * the row either way, and rethrows a partner-shaped error. The worker swallows that
+   * throw — the row already carries the failure — while the synchronous caller lets it
+   * become the HTTP response.
+   */
+  async execute(job: PartnerJobEntity): Promise<PartnerGenerationOutput> {
+    const model = this.resolveModel(
+      job.model,
+      job.capability as PartnerCapability,
     );
+    const request = job.request as {
+      prompt: string;
+      size: string;
+      count: number;
+      images?: string[];
+      seed?: number;
+    };
+    const input: PartnerGenerationInput = {
+      model: model.id,
+      capability: model.capability,
+      prompt: request.prompt,
+      images: request.images,
+      seed: request.seed,
+    };
+    const hold = holdOf(job);
 
+    await this.jobs.markRunning(job.id);
     const startedAt = Date.now();
     // Counted as each output actually lands, so a batch that dies halfway is settled at
     // what we really paid rather than at the whole batch or at nothing.
@@ -146,8 +280,20 @@ export class PartnerGenerationService {
     try {
       const data =
         model.backend === 'hosted'
-          ? await this.runHosted(model, input, size, count, progress)
-          : await this.runInhouse(model, input, size, count, progress);
+          ? await this.runHosted(
+              model,
+              input,
+              request.size,
+              request.count,
+              progress,
+            )
+          : await this.runInhouse(
+              model,
+              input,
+              request.size,
+              request.count,
+              progress,
+            );
 
       const elapsed = Date.now() - startedAt;
       const price = +(model.priceUsd * data.length).toFixed(5);
@@ -162,11 +308,19 @@ export class PartnerGenerationService {
         failureCode: null,
       });
 
-      return {
-        created: Math.floor(Date.now() / 1000),
-        model: model.id,
+      const result = {
         data,
         usage: { generation_time_ms: elapsed, price_usd: price },
+      };
+      await this.jobs.markSucceeded(job.id, result);
+
+      return {
+        id: job.publicId,
+        object: 'generation',
+        status: 'succeeded',
+        created: Math.floor(Date.now() / 1000),
+        model: model.id,
+        ...result,
       };
     } catch (error) {
       await this.settleQuietly(hold, {
@@ -184,17 +338,20 @@ export class PartnerGenerationService {
       // HttpExceptions the RunPod client throws, which carry the vendor's name, the job id
       // and its raw output — is replaced. Testing for HttpException here instead would put
       // all of that straight into the partner's response body.
-      if (isPartnerFacingError(error)) throw error;
-      this.logger.error(
-        `partner generation failed for ${model.id} (${model.backend}/${model.target})`,
-        error?.stack ?? error?.message ?? String(error),
-      );
-      throw new BadRequestException({
-        error: {
-          type: 'generation_error',
-          message: 'Generation failed. Retry; if it persists, contact support.',
-        },
-      });
+      const own = partnerErrorEnvelope(error);
+      if (!own) {
+        this.logger.error(
+          `partner generation failed for ${model.id} (${model.backend}/${model.target})`,
+          error?.stack ?? error?.message ?? String(error),
+        );
+      }
+      const envelope = own ?? {
+        type: 'generation_error',
+        message: 'Generation failed. Retry; if it persists, contact support.',
+      };
+
+      await this.jobs.markFailed(job.id, envelope);
+      throw own ? error : new BadRequestException({ error: envelope });
     }
   }
 
@@ -209,7 +366,8 @@ export class PartnerGenerationService {
     for (let index = 0; index < count; index++) {
       // The upstream returns one image per call, so `n` is emulated. Seeds are stepped
       // rather than reused, otherwise every output of a batch is identical.
-      const seed = (input.seed ?? Math.floor(Math.random() * 4_000_000_000)) + index;
+      const seed =
+        (input.seed ?? Math.floor(Math.random() * 4_000_000_000)) + index;
       const payload = this.hostedPayload(model, input, size, seed);
       const result = await this.hosted.generate(model.target, payload);
       results.push({ url: await this.rehost(result.url, model), seed });
@@ -269,7 +427,8 @@ export class PartnerGenerationService {
       return {
         prompt: input.prompt,
         images: input.images,
-        aspect_ratio: size === 'match_input_image' ? 'match_input_image' : '1:1',
+        aspect_ratio:
+          size === 'match_input_image' ? 'match_input_image' : '1:1',
         seed,
         disable_safety_checker: false,
       };

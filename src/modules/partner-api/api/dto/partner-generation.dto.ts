@@ -15,23 +15,7 @@ import {
   ValidatorConstraint,
   ValidatorConstraintInterface,
 } from 'class-validator';
-
-const PRIVATE_HOST = new RegExp(
-  [
-    '^localhost$',
-    '^127\\.',
-    '^0\\.',
-    '^10\\.',
-    '^192\\.168\\.',
-    '^169\\.254\\.',
-    '^172\\.(1[6-9]|2\\d|3[01])\\.',
-    '^\\[?::1\\]?$',
-    '^\\[?f[cd]',
-    '\\.internal$',
-    '\\.local$',
-  ].join('|'),
-  'i',
-);
+import { MAX_URL_LENGTH, isPublicHttpUrl } from '../../domain/public-url';
 
 /**
  * Reference images arrive as URLs we or the upstream will fetch, which makes an
@@ -41,24 +25,25 @@ const PRIVATE_HOST = new RegExp(
 @ValidatorConstraint({ name: 'publicImageUrl' })
 export class IsPublicImageUrl implements ValidatorConstraintInterface {
   validate(value: unknown): boolean {
-    const check = (candidate: unknown) => {
-      if (typeof candidate !== 'string' || candidate.length > 2048) return false;
-      let parsed: URL;
-      try {
-        parsed = new URL(candidate);
-      } catch {
-        return false;
-      }
-      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
-        return false;
-      }
-      return !PRIVATE_HOST.test(parsed.hostname);
-    };
-    return Array.isArray(value) ? value.every(check) : check(value);
+    return Array.isArray(value)
+      ? value.every(isPublicHttpUrl)
+      : isPublicHttpUrl(value);
   }
 
   defaultMessage(): string {
     return 'must be a publicly reachable http(s) image URL';
+  }
+}
+
+/** Same rule, different noun: this one is an address we POST to rather than fetch from. */
+@ValidatorConstraint({ name: 'partnerCallbackUrl' })
+export class IsPartnerCallbackUrl implements ValidatorConstraintInterface {
+  validate(value: unknown): boolean {
+    return isPublicHttpUrl(value);
+  }
+
+  defaultMessage(): string {
+    return 'must be a publicly reachable http(s) URL';
   }
 }
 
@@ -102,6 +87,19 @@ class BasePartnerGenerationDto {
   @Min(0)
   @Max(4294967295)
   seed?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Where to POST the result. Supplying it switches the call to asynchronous: the ' +
+      'request answers 202 with a job id straight away and the finished generation is ' +
+      'delivered to this URL. Omit it to keep waiting for the result inline.',
+    example: 'https://example.com/hooks/yallery',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_URL_LENGTH)
+  @Validate(IsPartnerCallbackUrl)
+  callback_url?: string;
 }
 
 export class PartnerImageGenerationDto extends BasePartnerGenerationDto {
