@@ -14,144 +14,227 @@ export const PARTNER_PORTAL_HTML = `<!doctype html>
 <title>YEngine — Console</title>
 <style>
   :root {
-    --bg: #0d0f14; --panel: #151922; --line: #232935; --text: #e8ecf4;
-    --muted: #8d97ab; --accent: #7c5cff; --accent-2: #29d3a2; --danger: #ff6b6b;
+    --bg: #0b0d12; --panel: #141821; --panel-2: #10141c; --line: #232935;
+    --line-soft: #1b202b; --text: #e9edf5; --muted: #8b95a9; --muted-2: #6b7488;
+    --accent: #7c5cff; --accent-soft: #241d47; --accent-2: #29d3a2; --danger: #ff6b6b;
+    --radius: 14px;
   }
   * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
   body {
     margin: 0; background: var(--bg); color: var(--text);
     font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
+
+  /* The header sticks: the balance is the number you keep glancing at, and scrolling down
+     to a table should not take it off the screen. */
   header {
-    padding: 20px 28px; border-bottom: 1px solid var(--line);
-    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    position: sticky; top: 0; z-index: 10;
+    padding: 0 28px; height: 64px; border-bottom: 1px solid var(--line);
+    background: rgba(11, 13, 18, .86); backdrop-filter: blur(12px);
+    display: flex; align-items: center; gap: 22px;
   }
-  header h1 { font-size: 18px; margin: 0; letter-spacing: .2px; }
-  header a { color: var(--accent-2); text-decoration: none; font-size: 13px; }
+  header h1 { font-size: 15px; margin: 0; letter-spacing: -.1px; font-weight: 650; }
+  header nav { display: flex; gap: 18px; }
+  header a { color: var(--muted); text-decoration: none; font-size: 13.5px; transition: color .15s; }
+  header a:hover { color: var(--text); }
   header .spacer { flex: 1; }
-  .wrap { max-width: 980px; margin: 0 auto; padding: 28px 24px 60px; }
-  .auth { max-width: 400px; margin: 8vh auto; }
-  h2 { font-size: 16px; margin: 30px 0 12px; }
-  label { display: block; font-size: 12px; text-transform: uppercase;
-          letter-spacing: .8px; color: var(--muted); margin: 14px 0 6px; }
-  input, button, select {
-    width: 100%; font: inherit; color: var(--text); background: var(--panel);
-    border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px;
-  }
-  input:focus { outline: none; border-color: var(--accent); }
-  button { cursor: pointer; }
-  button.primary {
-    background: var(--accent); border-color: var(--accent); font-weight: 600;
-    margin-top: 18px; padding: 12px;
-  }
-  button.ghost { width: auto; padding: 7px 12px; font-size: 13px; }
-  button.link {
-    width: auto; background: none; border: none; color: var(--accent-2);
-    padding: 0; font-size: 13px; text-decoration: underline;
-  }
-  .card {
+
+  .wallet {
+    display: flex; align-items: center; gap: 10px;
     background: var(--panel); border: 1px solid var(--line);
-    border-radius: 12px; padding: 20px 22px; margin-bottom: 18px;
+    border-radius: 999px; padding: 5px 6px 5px 14px;
   }
-  .balance { font-size: 34px; font-weight: 650; letter-spacing: -.5px; }
-  .balance.low { color: var(--danger); }
-  .muted { color: var(--muted); font-size: 13px; }
-  table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); }
-  th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .7px; }
-  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
-  code {
-    background: #0a0c11; border: 1px solid var(--line); border-radius: 6px;
-    padding: 3px 7px; font-size: 13px; word-break: break-all;
-  }
-  .revealed {
-    background: #0a0c11; border: 1px solid var(--accent-2); border-radius: 9px;
-    padding: 14px; margin-top: 14px;
-  }
-  .err { color: var(--danger); margin-top: 12px; font-size: 14px; }
-  .ok { color: var(--accent-2); }
-  .row { display: flex; gap: 10px; align-items: flex-end; }
-  /* Every field column shares the width, not just the first: the auto top-up row has two
-     of them. min-width:0 because a flex item's floor is its content, and a number input
-     with a long label refuses to shrink below it. */
-  .row > div { flex: 1; min-width: 0; }
-  /* Buttons carry width:100% from the base rule. .ghost already opts out; .primary did
-     not, so inside a row it demanded the whole line and squeezed the input next to it
-     down to two characters. Only rows are affected — the sign-in button is full width on
-     purpose. */
-  .row button.primary { width: auto; }
-  /* Balance lives in the header next to the button that changes it: the number and the way
-     to fix it belong together, and it stays visible while you read the rest of the page. */
-  .wallet { display: flex; align-items: center; gap: 8px; }
-  .wallet b { font-size: 16px; font-variant-numeric: tabular-nums; }
+  .wallet .cap { font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted-2); }
+  .wallet b { font-size: 15px; font-variant-numeric: tabular-nums; letter-spacing: -.2px; }
   .wallet b.low { color: var(--danger); }
   button.plus {
-    width: 28px; height: 28px; padding: 0; border-radius: 8px; cursor: pointer;
-    background: var(--accent); border-color: var(--accent); color: #fff;
-    font-size: 18px; line-height: 1;
+    width: 26px; height: 26px; padding: 0; border-radius: 999px; flex: 0 0 auto;
+    background: var(--accent); border: 0; color: #fff; font-size: 17px; line-height: 1;
+    display: grid; place-items: center; transition: transform .12s, filter .15s;
+  }
+  button.plus:hover { filter: brightness(1.12); transform: scale(1.06); }
+
+  .avatar {
+    width: 28px; height: 28px; border-radius: 999px; flex: 0 0 auto;
+    background: var(--accent-soft); border: 1px solid var(--line);
+    display: grid; place-items: center; font-size: 12px; font-weight: 650;
+    color: #cdbcff; text-transform: uppercase;
   }
 
-  /* Segmented control: one bordered strip, dividers between cells rather than gaps, so it
-     reads as a single choice instead of four buttons that happen to sit together. */
-  .seg { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .wrap { max-width: 1020px; margin: 0 auto; padding: 32px 24px 80px; }
+  .auth { max-width: 380px; margin: 12vh auto; padding: 0 20px; }
+
+  /* A section is a labelled band, not a floating heading — and its subtitle is where the
+     sentence that used to hang loose above the page now lives. */
+  .section { margin-top: 38px; }
+  .section.first { margin-top: 0; }
+  .section > h2 {
+    font-size: 13px; margin: 0 0 4px; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--muted-2); font-weight: 650;
+  }
+  .section > .sub { color: var(--muted); font-size: 13.5px; margin-bottom: 14px; }
+
+  label {
+    display: block; font-size: 11.5px; text-transform: uppercase;
+    letter-spacing: .8px; color: var(--muted-2); margin: 0 0 7px; font-weight: 600;
+  }
+  input, button, select {
+    width: 100%; font: inherit; color: var(--text); background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px 13px;
+    transition: border-color .15s, background .15s;
+  }
+  input::placeholder { color: var(--muted-2); }
+  input:focus { outline: none; border-color: var(--accent); background: var(--panel); }
+  button { cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  button.primary {
+    background: var(--accent); border-color: var(--accent); font-weight: 650;
+    padding: 11px 16px; color: #fff;
+  }
+  button.primary:hover:not(:disabled) { filter: brightness(1.1); }
+  button.ghost { width: auto; padding: 8px 14px; font-size: 13.5px; background: transparent; }
+  button.ghost:hover { background: rgba(255,255,255,.05); border-color: #2e3646; }
+  button.danger:hover { border-color: var(--danger); color: var(--danger); }
+  button.link {
+    width: auto; background: none; border: none; color: var(--accent-2);
+    padding: 0; font-size: 13.5px;
+  }
+  button.link:hover { text-decoration: underline; }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 20px 22px;
+  }
+
+  /* Three tiles: what the account is doing, at a glance, before any table. */
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  @media (max-width: 760px) { .tiles { grid-template-columns: 1fr; } }
+  .tile {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 18px 20px;
+  }
+  .tile .cap {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .9px;
+    color: var(--muted-2); font-weight: 600;
+  }
+  .tile .big {
+    font-size: 26px; font-weight: 650; letter-spacing: -.6px; margin-top: 8px;
+    font-variant-numeric: tabular-nums;
+  }
+  .tile .note { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .tile .big.ok { color: var(--accent-2); }
+  .tile .big.off { color: var(--muted); }
+
+  .banner {
+    display: block; border-radius: 11px; padding: 12px 14px;
+    font-size: 13.5px; margin-bottom: 14px;
+  }
+  .banner.bad { background: rgba(255,107,107,.09); border: 1px solid rgba(255,107,107,.3); color: #ffc0c0; }
+  .banner.info { background: rgba(124,92,255,.09); border: 1px solid rgba(124,92,255,.3); color: #cdbcff; }
+
+  .muted { color: var(--muted); font-size: 13.5px; }
+  .split-line { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  .split-line .grow { flex: 1; min-width: 0; }
+  .kv { min-width: 170px; }
+  .kv .cap {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .9px;
+    color: var(--muted-2); font-weight: 600;
+  }
+  .kv .val { margin-top: 5px; font-size: 14.5px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 11px 12px; }
+  thead th {
+    color: var(--muted-2); font-size: 10.5px; text-transform: uppercase;
+    letter-spacing: .9px; font-weight: 650; border-bottom: 1px solid var(--line);
+  }
+  tbody tr { border-bottom: 1px solid var(--line-soft); }
+  tbody tr:last-child { border-bottom: 0; }
+  tbody tr:hover { background: rgba(255,255,255,.022); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.empty { color: var(--muted-2); text-align: center; padding: 26px 12px; }
+  .table-wrap { overflow-x: auto; margin: 0 -22px -20px; padding: 0 22px; }
+  .table-wrap table { min-width: 460px; }
+
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+  code {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px;
+    padding: 3px 8px; word-break: break-all;
+  }
+  .revealed {
+    background: var(--panel-2); border: 1px solid var(--accent-2); border-radius: 11px;
+    padding: 15px; margin-top: 14px;
+  }
+  .err { color: var(--danger); margin-top: 12px; font-size: 13.5px; }
+  .ok { color: var(--accent-2); }
+
+  .row { display: flex; gap: 10px; align-items: flex-end; }
+  .row > div { flex: 1; min-width: 0; }
+  .row button.primary, .row button.ghost { width: auto; }
+
+  .seg {
+    display: flex; border: 1px solid var(--line); border-radius: 11px; overflow: hidden;
+    background: var(--panel-2);
+  }
   .seg button {
     width: auto; flex: 1; border: 0; border-radius: 0; background: transparent;
-    padding: 10px 12px; cursor: pointer; color: var(--text); white-space: nowrap;
+    padding: 11px 12px; color: var(--muted); white-space: nowrap; font-size: 14px;
+    transition: background .15s, color .15s;
   }
+  .seg button:hover { background: rgba(255,255,255,.04); color: var(--text); }
   .seg button + button { border-left: 1px solid var(--line); }
-  .seg button.on { background: #241d47; color: #fff; box-shadow: inset 0 0 0 1px var(--accent); }
+  .seg button.on {
+    background: var(--accent-soft); color: #fff; font-weight: 600;
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
   .seg.small { flex: 0 0 auto; }
-  .seg.small button { flex: 0 0 auto; min-width: 62px; }
+  .seg.small button { flex: 0 0 auto; min-width: 66px; }
 
   .modal-backdrop {
-    position: fixed; inset: 0; background: rgba(4, 6, 10, .72);
-    display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 20;
+    position: fixed; inset: 0; background: rgba(4, 6, 10, .74);
+    display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 30;
+    backdrop-filter: blur(3px);
   }
   .modal {
-    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
     width: 100%; max-width: 560px; max-height: 92vh; overflow: auto;
+    box-shadow: 0 24px 70px rgba(0,0,0,.55);
   }
-  .modal-head, .modal-foot {
-    display: flex; align-items: center; gap: 12px; padding: 18px 22px;
-  }
+  .modal-head, .modal-foot { display: flex; align-items: center; gap: 12px; padding: 18px 22px; }
   .modal-head { border-bottom: 1px solid var(--line); }
   .modal-foot { border-top: 1px solid var(--line); justify-content: flex-end; }
-  .modal-head h3 { margin: 0; font-size: 17px; flex: 1; }
+  .modal-head h3 { margin: 0; font-size: 16.5px; flex: 1; font-weight: 650; }
   .modal-body { padding: 20px 22px; }
   .modal button.x {
     width: auto; background: transparent; border: 0; color: var(--muted);
-    font-size: 20px; line-height: 1; cursor: pointer; padding: 4px 6px;
+    font-size: 22px; line-height: 1; padding: 2px 6px; border-radius: 8px;
   }
+  .modal button.x:hover { color: var(--text); background: rgba(255,255,255,.06); }
   .modal-foot button { width: auto; }
-  .split { display: flex; align-items: center; gap: 16px; margin-top: 26px; }
+  .split { display: flex; align-items: center; gap: 18px; margin-top: 26px; }
   .split > div:first-child { flex: 1; }
-  /* The threshold block is inset rather than outlined: it belongs to the Yes above it, and
-     a second border would read as a separate section. */
-  .inset {
-    background: #10141c; border-radius: 11px; padding: 16px 18px; margin-top: 16px;
-  }
-  .field-row {
-    display: flex; align-items: center; gap: 14px; margin-top: 12px;
-  }
-  .field-row > span { flex: 1; }
-  /* The spinner arrows sit on top of a right-aligned amount and clip the last digit. */
+  .split strong { font-size: 14.5px; }
+  .inset { background: var(--panel-2); border-radius: 12px; padding: 16px 18px; margin-top: 16px; }
+  .field-row { display: flex; align-items: center; gap: 14px; margin-top: 13px; }
+  .field-row > span { flex: 1; font-size: 14px; }
   input[type=number] { -moz-appearance: textfield; }
   input[type=number]::-webkit-outer-spin-button,
   input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-  .amt { position: relative; width: 132px; }
-  .amt > span { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); }
-  .amt input { padding-left: 26px; text-align: right; }
-  .sentence { margin-top: 16px; line-height: 1.5; }
+  .amt { position: relative; width: 130px; }
+  .amt > span { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--muted-2); }
+  .amt input { padding-left: 26px; text-align: right; font-variant-numeric: tabular-nums; }
+  .sentence { margin-top: 16px; line-height: 1.55; }
   .sentence b { color: var(--text); }
-  .summary { display: flex; gap: 18px 34px; flex-wrap: wrap; align-items: flex-end; }
-  .summary .col { min-width: 160px; }
-  .summary .spacer { flex: 1; min-width: 0; }
-  .summary .value { font-size: 15px; margin-top: 4px; }
+
   .pill {
-    font-size: 11px; padding: 2px 8px; border-radius: 20px;
-    border: 1px solid var(--line); color: var(--muted);
+    font-size: 10.5px; padding: 3px 9px; border-radius: 999px; font-weight: 600;
+    border: 1px solid var(--line); color: var(--muted-2); text-transform: uppercase;
+    letter-spacing: .6px; white-space: nowrap;
   }
-  .pill.on { color: var(--accent-2); border-color: var(--accent-2); }
+  .pill.on { color: var(--accent-2); border-color: rgba(41,211,162,.4); background: rgba(41,211,162,.09); }
+  .pill.bad { color: var(--danger); border-color: rgba(255,107,107,.4); background: rgba(255,107,107,.09); }
   .hide { display: none; }
 </style>
 </head>
@@ -183,93 +266,131 @@ export const PARTNER_PORTAL_HTML = `<!doctype html>
 
 <div id="appView" class="hide">
   <header>
-    <h1>YEngine Console</h1>
-    <a href="/v1/docs" target="_blank">API reference</a>
-    <a href="/v1/playground" target="_blank">Playground</a>
+    <h1>YEngine</h1>
+    <nav>
+      <a href="/v1/docs" target="_blank">API reference</a>
+      <a href="/v1/playground" target="_blank">Playground</a>
+    </nav>
     <span class="spacer"></span>
     <div class="wallet">
-      <span class="muted">Balance</span>
+      <span class="cap">Balance</span>
       <b id="balance">$0.00</b>
       <button class="plus hide" id="openTopup" title="Add credits">+</button>
     </div>
-    <span class="muted" id="who"></span>
+    <div class="avatar" id="avatar" title=""></div>
     <button class="ghost" id="logout">Sign out</button>
   </header>
 
   <div class="wrap">
-    <div class="muted" id="balanceHint" style="margin-bottom:22px"></div>
+    <div class="banner bad hide" id="lowBanner"></div>
 
-    <h2>Payment</h2>
-    <div class="card" id="billingCard">
-      <div id="billingUnavailable" class="muted hide">
-        Card payment is not switched on yet. Message us and we will credit your balance by hand.
+    <div class="section first">
+      <div class="tiles">
+        <div class="tile">
+          <div class="cap">Spent, last 30 days</div>
+          <div class="big" id="tileSpent">$0.00</div>
+          <div class="note" id="tileSpentNote">No calls yet.</div>
+        </div>
+        <div class="tile">
+          <div class="cap">Calls, all time</div>
+          <div class="big" id="tileCalls">0</div>
+          <div class="note" id="tileCallsNote">Across every key on this account.</div>
+        </div>
+        <div class="tile">
+          <div class="cap">Automatic top-up</div>
+          <div class="big off" id="tileAuto">Off</div>
+          <div class="note" id="tileAutoNote">Keeps calls working when the balance runs low.</div>
+        </div>
       </div>
+    </div>
 
-      <div id="billingBody" class="hide">
-        <div class="err hide" id="autoDisabled" style="margin-bottom:16px"></div>
-        <div class="summary">
-          <div class="col">
-            <div class="muted">Card</div>
-            <div class="value" id="cardSummary">No card saved.</div>
-          </div>
-          <div class="col">
-            <div class="muted">Automatic top-up</div>
-            <div class="value" id="autoSummary">Off</div>
-          </div>
-          <div class="spacer"></div>
-          <div>
+    <div class="section">
+      <h2>Payment</h2>
+      <div class="sub" id="paymentSub">How you add credit to this account.</div>
+      <div class="card" id="billingCard">
+        <div id="billingUnavailable" class="banner info hide">
+          Card payment is not switched on yet. Message us and we will credit your balance by hand.
+        </div>
+
+        <div id="billingBody" class="hide">
+          <div class="banner bad hide" id="autoDisabled"></div>
+          <div class="split-line">
+            <div class="kv">
+              <div class="cap">Card on file</div>
+              <div class="val" id="cardSummary">No card saved</div>
+            </div>
+            <div class="kv">
+              <div class="cap">Rule</div>
+              <div class="val" id="autoSummary">Off</div>
+            </div>
+            <div class="grow"></div>
             <button class="ghost" id="cardAdd">Add card</button>
+            <button class="ghost danger hide" id="cardRemove">Remove</button>
           </div>
+
+          <div class="table-wrap" style="margin-top:22px">
+            <table>
+              <thead>
+                <tr><th>When</th><th>Type</th><th class="num">Amount</th><th class="num">Status</th></tr>
+              </thead>
+              <tbody id="payments"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>API keys</h2>
+      <div class="sub">Shown once at creation. Only the hash is stored, so a lost key cannot be recovered.</div>
+      <div class="card">
+        <div class="row">
           <div>
-            <button class="ghost hide" id="cardRemove">Remove card</button>
+            <label for="keyName">New key name</label>
+            <input id="keyName" placeholder="production">
           </div>
+          <button class="ghost" id="createKey">Create key</button>
         </div>
-
-        <table style="margin-top:26px" id="paymentsTable">
-          <thead>
-            <tr><th>When</th><th>Type</th><th class="num">Amount</th><th class="num">Status</th></tr>
-          </thead>
-          <tbody id="payments"></tbody>
-        </table>
+        <div class="revealed hide" id="revealed"></div>
+        <div class="table-wrap" style="margin-top:20px">
+          <table>
+            <thead>
+              <tr><th>Name</th><th>Key</th><th>Last used</th><th></th></tr>
+            </thead>
+            <tbody id="keys"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
-    <h2>API keys</h2>
-    <div class="card">
-      <div class="row">
-        <div>
-          <label for="keyName">New key name</label>
-          <input id="keyName" placeholder="production">
+    <div class="section">
+      <h2>Usage</h2>
+      <div class="sub">Successful calls over the last 30 days, by model.</div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Model</th><th class="num">Calls</th><th class="num">Spent</th><th class="num">Avg time</th></tr>
+            </thead>
+            <tbody id="usage"></tbody>
+          </table>
         </div>
-        <button class="ghost" id="createKey" style="margin-bottom:1px">Create key</button>
       </div>
-      <div class="revealed hide" id="revealed"></div>
-      <table style="margin-top:18px">
-        <thead>
-          <tr><th>Name</th><th>Key</th><th>Last used</th><th></th></tr>
-        </thead>
-        <tbody id="keys"></tbody>
-      </table>
     </div>
 
-    <h2>Usage, last 30 days</h2>
-    <div class="card">
-      <table>
-        <thead>
-          <tr><th>Model</th><th class="num">Calls</th><th class="num">Spent</th><th class="num">Avg time</th></tr>
-        </thead>
-        <tbody id="usage"></tbody>
-      </table>
-    </div>
-
-    <h2>Balance history</h2>
-    <div class="card">
-      <table>
-        <thead>
-          <tr><th>When</th><th>What</th><th class="num">Amount</th><th class="num">Balance</th></tr>
-        </thead>
-        <tbody id="ledger"></tbody>
-      </table>
+    <div class="section">
+      <h2>Balance history</h2>
+      <div class="sub">Every movement on this account, newest first.</div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>When</th><th>What</th><th class="num">Amount</th><th class="num">Balance</th></tr>
+            </thead>
+            <tbody id="ledger"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -463,11 +584,11 @@ export const PARTNER_PORTAL_HTML = `<!doctype html>
     billing.minimum = b.minimumTopUpUsd;
     $('openTopup').className = b.cardPaymentAvailable ? 'plus' : 'plus hide';
     if (!b.cardPaymentAvailable) {
-      $('billingUnavailable').className = 'muted';
+      $('billingUnavailable').className = 'banner info';
       $('billingBody').className = 'hide';
       return;
     }
-    $('billingUnavailable').className = 'muted hide';
+    $('billingUnavailable').className = 'banner info hide';
     $('billingBody').className = '';
 
     $('topupAmount').min = b.minimumTopUpUsd;
@@ -477,32 +598,44 @@ export const PARTNER_PORTAL_HTML = `<!doctype html>
 
     var card = b.card;
     $('cardSummary').textContent = card
-      ? (card.brand || 'card').toUpperCase() + ' ending ' + card.last4
-      : 'No card saved.';
+      ? (card.brand || 'card').toUpperCase() + ' \u2022\u2022\u2022\u2022 ' + card.last4
+      : 'No card saved';
     $('cardAdd').textContent = card ? 'Replace card' : 'Add card';
-    $('cardRemove').className = card ? 'ghost' : 'ghost hide';
+    $('cardRemove').className = card ? 'ghost danger' : 'ghost danger hide';
 
     var auto = b.autoRecharge;
     if (auto.thresholdUsd != null) $('autoThreshold').value = auto.thresholdUsd;
     if (auto.amountUsd != null) $('autoAmount').value = auto.amountUsd;
     setAuto(auto.enabled);
-    $('autoSummary').textContent = auto.enabled
-      ? money(auto.thresholdUsd) + ' \u2192 add ' + money(auto.amountUsd) +
-        (card ? '' : ' (starts once a card is saved)')
+
+    var rule = auto.enabled
+      ? 'Below ' + money(auto.thresholdUsd) + ' \u2192 add ' + money(auto.amountUsd)
       : 'Off';
+    $('autoSummary').textContent =
+      rule + (auto.enabled && !card ? ' (waiting for a card)' : '');
+    $('tileAuto').textContent = auto.enabled ? 'On' : 'Off';
+    $('tileAuto').className = 'big ' + (auto.enabled ? 'ok' : 'off');
+    $('tileAutoNote').textContent = auto.enabled
+      ? (card
+          ? 'Charges ' + card.brand.toUpperCase() + ' \u2022' + card.last4 +
+            ' ' + money(auto.amountUsd) + ' when the balance drops below ' +
+            money(auto.thresholdUsd) + '.'
+          : 'Armed, but there is no card to charge yet.')
+      : 'Keeps calls working when the balance runs low.';
+
     $('autoDisabled').textContent = auto.disabledReason || '';
-    $('autoDisabled').className = auto.disabledReason ? 'err' : 'err hide';
+    $('autoDisabled').className = auto.disabledReason ? 'banner bad' : 'banner bad hide';
 
     $('payments').innerHTML = b.payments.length
       ? b.payments.map(function (p) {
+          var bad = p.status === 'failed';
           return '<tr><td class="muted">' + when(p.createdAt) + '</td>' +
             '<td>' + (p.kind === 'auto' ? 'Automatic' : 'Manual') + '</td>' +
             '<td class="num">' + money(p.amountUsd) + '</td>' +
-            '<td class="num ' + (p.status === 'succeeded' ? '' : 'muted') + '">' +
-            esc(p.status === 'failed' ? 'failed: ' + (p.failureCode || '') : p.status) +
-            '</td></tr>';
+            '<td class="num"><span class="pill ' + (bad ? 'bad' : 'on') + '">' +
+            esc(bad ? (p.failureCode || 'failed') : p.status) + '</span></td></tr>';
         }).join('')
-      : '<tr><td colspan="4" class="muted">No card payments yet.</td></tr>';
+      : '<tr><td colspan="4" class="empty">No card payments yet.</td></tr>';
   }
 
   function pick(segId, value, attr) {
@@ -627,12 +760,31 @@ export const PARTNER_PORTAL_HTML = `<!doctype html>
       .then(function (r) {
         var acc = r[0], usage = r[1], ledger = r[2];
         renderBilling(r[3]);
-        $('who').textContent = acc.email;
+        $('avatar').textContent = (acc.email || '?').slice(0, 1);
+        $('avatar').title = acc.email;
         $('balance').textContent = money(acc.balanceUsd);
         $('balance').className = acc.balanceUsd <= 0 ? 'low' : '';
-        $('balanceHint').textContent = acc.balanceUsd <= 0
-          ? 'Out of credit — calls are rejected until it is topped up.'
-          : acc.totals.calls + ' calls so far, ' + money(acc.totals.spentUsd) + ' spent.';
+
+        // An empty balance is the one thing worth interrupting for: every call is being
+        // rejected right now, and nothing else on the page says so.
+        var broke = acc.balanceUsd <= 0;
+        $('lowBanner').className = broke ? 'banner bad' : 'banner bad hide';
+        $('lowBanner').textContent = broke
+          ? 'Out of credit — every call is rejected until the balance is topped up.'
+          : '';
+
+        var spent30 = usage.rows.reduce(function (sum, u) {
+          return sum + Number(u.spentUsd || 0);
+        }, 0);
+        var calls30 = usage.rows.reduce(function (sum, u) {
+          return sum + Number(u.calls || 0);
+        }, 0);
+        $('tileSpent').textContent = money(spent30);
+        $('tileSpentNote').textContent = calls30
+          ? calls30 + ' call' + (calls30 === 1 ? '' : 's') + ' in the last 30 days.'
+          : 'No calls in the last 30 days.';
+        $('tileCalls').textContent = acc.totals.calls;
+        $('tileCallsNote').textContent = money(acc.totals.spentUsd) + ' spent all time.';
 
         $('keys').innerHTML = acc.keys.length
           ? acc.keys.map(function (k) {
@@ -645,7 +797,7 @@ export const PARTNER_PORTAL_HTML = `<!doctype html>
                   ? '<button class="ghost" data-revoke="' + k.id + '">Revoke</button>'
                   : '') + '</td></tr>';
             }).join('')
-          : '<tr><td colspan="4" class="muted">No keys yet — create one above.</td></tr>';
+          : '<tr><td colspan="4" class="empty">No keys yet — create one above.</td></tr>';
 
         [].forEach.call($('keys').querySelectorAll('[data-revoke]'), function (b) {
           b.addEventListener('click', function () { revoke(Number(b.dataset.revoke)); });
@@ -658,7 +810,7 @@ export const PARTNER_PORTAL_HTML = `<!doctype html>
                 '<td class="num">' + money(u.spentUsd) + '</td>' +
                 '<td class="num">' + (Number(u.avgMs) / 1000).toFixed(1) + 's</td></tr>';
             }).join('')
-          : '<tr><td colspan="4" class="muted">Nothing yet.</td></tr>';
+          : '<tr><td colspan="4" class="empty">Nothing yet.</td></tr>';
 
         $('ledger').innerHTML = ledger.length
           ? ledger.map(function (t) {
@@ -668,7 +820,7 @@ export const PARTNER_PORTAL_HTML = `<!doctype html>
                 (t.amountUsd >= 0 ? '+' : '') + money(t.amountUsd) + '</td>' +
                 '<td class="num">' + money(t.balanceAfterUsd) + '</td></tr>';
             }).join('')
-          : '<tr><td colspan="4" class="muted">Nothing yet.</td></tr>';
+          : '<tr><td colspan="4" class="empty">Nothing yet.</td></tr>';
       });
   }
 

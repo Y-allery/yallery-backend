@@ -15,72 +15,136 @@ export const renderPartnerPlayground = (models: unknown[]): string =>
 <title>YEngine API Playground</title>
 <style>
   :root {
-    --bg: #0d0f14; --panel: #151922; --line: #232935; --text: #e8ecf4;
-    --muted: #8d97ab; --accent: #7c5cff; --accent-2: #29d3a2; --danger: #ff6b6b;
+    --bg: #0b0d12; --panel: #141821; --panel-2: #10141c; --line: #232935;
+    --line-soft: #1b202b; --text: #e9edf5; --muted: #8b95a9; --muted-2: #6b7488;
+    --accent: #7c5cff; --accent-soft: #241d47; --accent-2: #29d3a2; --danger: #ff6b6b;
   }
   * { box-sizing: border-box; }
   body {
     margin: 0; background: var(--bg); color: var(--text);
     font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
   header {
-    padding: 22px 28px; border-bottom: 1px solid var(--line);
-    display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+    padding: 0 28px; height: 64px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+    background: rgba(11,13,18,.86); backdrop-filter: blur(12px);
+    position: sticky; top: 0; z-index: 10;
   }
-  header h1 { font-size: 19px; margin: 0; letter-spacing: .2px; }
+  header h1 { font-size: 15px; margin: 0; font-weight: 650; letter-spacing: -.1px; }
+  header .badge {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: .7px; font-weight: 650;
+    color: #cdbcff; background: var(--accent-soft); border: 1px solid rgba(124,92,255,.4);
+    padding: 3px 9px; border-radius: 999px;
+  }
   header .sub { color: var(--muted); font-size: 13px; }
-  header a { color: var(--accent-2); text-decoration: none; }
-  /* minmax(0, 1fr), not 1fr: a grid track's default min-width is its content's, so the
-     long unbreakable curl line in the <pre> widened the whole column as you typed — and
-     the result image, being max-width:100%, grew and shrank with it. */
-  main { display: grid; grid-template-columns: 420px minmax(0, 1fr); gap: 0;
-         min-height: calc(100vh - 66px); }
-  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
-  .pane { padding: 22px 24px; }
-  .pane.left { border-right: 1px solid var(--line); }
-  label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .8px;
-          color: var(--muted); margin: 16px 0 6px; }
+  header .spacer { flex: 1; }
+  header a { color: var(--muted); text-decoration: none; font-size: 13.5px; transition: color .15s; }
+  header a:hover { color: var(--text); }
+
+  main {
+    display: grid; grid-template-columns: 400px minmax(0, 1fr);
+    min-height: calc(100vh - 64px);
+  }
+  @media (max-width: 940px) { main { grid-template-columns: 1fr; } }
+  .pane { padding: 24px 26px; }
+  .pane.left { border-right: 1px solid var(--line); background: #0d1017; }
+
+  label {
+    display: block; font-size: 11.5px; text-transform: uppercase; letter-spacing: .8px;
+    color: var(--muted-2); margin: 20px 0 7px; font-weight: 600;
+  }
+  label:first-of-type { margin-top: 0; }
   input, select, textarea, button {
-    width: 100%; font: inherit; color: var(--text); background: var(--panel);
-    border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px;
+    width: 100%; font: inherit; color: var(--text); background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px 13px;
+    transition: border-color .15s, background .15s;
   }
-  textarea { min-height: 92px; resize: vertical; }
-  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+  input::placeholder, textarea::placeholder { color: var(--muted-2); }
+  textarea { min-height: 92px; resize: vertical; line-height: 1.5; }
+  input:focus, select:focus, textarea:focus {
+    outline: none; border-color: var(--accent); background: var(--panel);
+  }
+  select { appearance: none; cursor: pointer; }
+  input[type=number] { -moz-appearance: textfield; }
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   .row { display: flex; gap: 10px; }
-  .row > div { flex: 1; }
+  .row > div { flex: 1; min-width: 0; }
+
   button.go {
-    margin-top: 20px; background: var(--accent); border-color: var(--accent);
-    font-weight: 600; cursor: pointer; padding: 12px;
+    margin-top: 22px; background: var(--accent); border-color: var(--accent);
+    font-weight: 650; cursor: pointer; padding: 13px; color: #fff;
+    transition: filter .15s;
   }
+  button.go:hover:not(:disabled) { filter: brightness(1.1); }
   button.go:disabled { opacity: .55; cursor: default; }
-  .tabs { display: flex; gap: 8px; margin-top: 4px; }
+
+  /* Capability picker is one strip, not three buttons — it is a single choice. */
+  .tabs {
+    display: flex; border: 1px solid var(--line); border-radius: 11px;
+    overflow: hidden; background: var(--panel-2);
+  }
   .tabs button {
-    flex: 1; cursor: pointer; padding: 9px 6px; font-size: 13px; background: var(--panel);
+    flex: 1; cursor: pointer; padding: 11px 6px; font-size: 13px; background: transparent;
+    border: 0; border-radius: 0; color: var(--muted); transition: background .15s, color .15s;
   }
-  .tabs button.on { border-color: var(--accent); color: #fff; background: #241d47; }
-  .hint { color: var(--muted); font-size: 12px; margin-top: 6px; }
-  .price { color: var(--accent-2); font-weight: 600; }
+  .tabs button:hover { background: rgba(255,255,255,.04); color: var(--text); }
+  .tabs button + button { border-left: 1px solid var(--line); }
+  .tabs button.on {
+    background: var(--accent-soft); color: #fff; font-weight: 600;
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
+
+  .hint { color: var(--muted); font-size: 12.5px; margin-top: 7px; line-height: 1.5; }
+  .hint code {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 5px;
+    padding: 1px 5px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11.5px;
+  }
+  .price { color: var(--accent-2); font-weight: 650; }
+
+  .cap {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .9px;
+    color: var(--muted-2); font-weight: 600; margin-bottom: 9px;
+  }
   pre {
-    background: #0a0c11; border: 1px solid var(--line); border-radius: 9px;
-    padding: 14px; overflow: auto; font-size: 12.5px; margin: 0;
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 11px;
+    padding: 15px; overflow: auto; font-size: 12.5px; margin: 0; line-height: 1.6;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   }
-  .out { margin-top: 18px; }
-  .out img, .out video { max-width: 100%; border-radius: 10px; border: 1px solid var(--line); display: block; }
-  .stat { display: inline-block; margin-right: 18px; color: var(--muted); font-size: 13px; }
-  .stat b { color: var(--text); font-weight: 600; }
-  .err { color: var(--danger); white-space: pre-wrap; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
-  .spin { display: inline-block; width: 13px; height: 13px; border: 2px solid #fff5;
-          border-top-color: #fff; border-radius: 50%; animation: r .7s linear infinite;
-          vertical-align: -2px; margin-right: 7px; }
+  .out { margin-top: 24px; }
+  .out img, .out video {
+    max-width: 100%; border-radius: 11px; border: 1px solid var(--line); display: block;
+  }
+  .stat {
+    display: inline-flex; align-items: center; gap: 6px; margin-right: 8px;
+    color: var(--muted); font-size: 12.5px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px;
+  }
+  .stat b { color: var(--text); font-weight: 650; font-variant-numeric: tabular-nums; }
+  .err {
+    color: #ffc0c0; white-space: pre-wrap; background: rgba(255,107,107,.09);
+    border: 1px solid rgba(255,107,107,.3); border-radius: 11px; padding: 14px;
+    font-size: 13.5px; font-family: inherit;
+  }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+  .spin {
+    display: inline-block; width: 13px; height: 13px; border: 2px solid #fff5;
+    border-top-color: #fff; border-radius: 50%; animation: r .7s linear infinite;
+    vertical-align: -2px; margin-right: 7px;
+  }
   @keyframes r { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
 <header>
-  <h1>YEngine API — Playground</h1>
-  <span class="sub">Live calls against the production API. Every run is billed to your key.</span>
-  <span class="sub">·&nbsp;<a href="/v1/docs" target="_blank">API reference</a></span>
+  <h1>YEngine Playground</h1>
+  <span class="badge">Live</span>
+  <span class="sub">Real calls against the production API — every run is billed to your key.</span>
+  <span class="spacer"></span>
+  <a href="/v1/docs" target="_blank">API reference</a>
+  <a href="/portal" target="_blank">Console</a>
 </header>
 
 <main>
@@ -135,7 +199,7 @@ export const renderPartnerPlayground = (models: unknown[]): string =>
   </section>
 
   <section class="pane">
-    <label>Request</label>
+    <div class="cap">Request</div>
     <pre id="curl">Pick a model to see the request.</pre>
     <div class="out" id="out"></div>
   </section>
