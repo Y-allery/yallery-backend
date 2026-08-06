@@ -134,6 +134,10 @@ export const PARTNER_PORTAL_HTML = `<!doctype html>
     display: flex; align-items: center; gap: 14px; margin-top: 12px;
   }
   .field-row > span { flex: 1; }
+  /* The spinner arrows sit on top of a right-aligned amount and clip the last digit. */
+  input[type=number] { -moz-appearance: textfield; }
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   .amt { position: relative; width: 132px; }
   .amt > span { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); }
   .amt input { padding-left: 26px; text-align: right; }
