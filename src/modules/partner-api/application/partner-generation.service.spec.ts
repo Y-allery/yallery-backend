@@ -11,7 +11,33 @@ describe('PartnerGenerationService', () => {
   };
   let uploads: { uploadByUrl: jest.Mock; uploadVideoAssetByUrl: jest.Mock };
   let billing: { hold: jest.Mock; settle: jest.Mock };
+  let jobs: FakeJobService;
+  let queue: { add: jest.Mock };
   let service: PartnerGenerationService;
+
+  // Enough of PartnerJobService to hold a row in memory; the real one is covered by its own
+  // spec, and stubbing it here keeps these tests about generation and money.
+  class FakeJobService {
+    rows: Record<string, unknown>[] = [];
+    create = jest.fn(async (input: Record<string, unknown>) => {
+      const row = {
+        id: this.rows.length + 1,
+        publicId: `job_${this.rows.length + 1}`,
+        partnerKeyId: (input.partnerKey as { id: number }).id,
+        accountId: (input.partnerKey as { accountId: number }).accountId,
+        usageId: null,
+        heldUsd: '0.0000',
+        status: 'queued',
+        ...input,
+      };
+      this.rows.push(row);
+      return row;
+    });
+    attachHold = jest.fn(async () => undefined);
+    markRunning = jest.fn(async () => undefined);
+    markSucceeded = jest.fn(async () => undefined);
+    markFailed = jest.fn(async () => undefined);
+  }
 
   beforeEach(() => {
     hosted = {
@@ -43,20 +69,21 @@ describe('PartnerGenerationService', () => {
         .mockResolvedValue({ usageId: 11, accountId: 5, heldUsd: 0.015 }),
       settle: jest.fn().mockResolvedValue(undefined),
     };
+    jobs = new FakeJobService();
+    queue = { add: jest.fn().mockResolvedValue({ id: '1' }) };
     service = new PartnerGenerationService(
       hosted as never,
       inhouse as never,
       uploads as never,
       billing as never,
+      jobs as never,
+      queue as never,
     );
   });
 
   const KEY = { id: 7, accountId: 5 } as never;
 
-  const run = (
-    overrides: Record<string, unknown> = {},
-    key: unknown = KEY,
-  ) =>
+  const run = (overrides: Record<string, unknown> = {}, key: unknown = KEY) =>
     service.generate(
       {
         model: 'yengine-photo',
@@ -265,4 +292,104 @@ describe('PartnerGenerationService', () => {
     });
   });
 
+  describe('callback_url', () => {
+    const submit = (overrides: Record<string, unknown> = {}) =>
+      service.submit(
+        {
+          model: 'yengine-photo',
+          prompt: 'a cat',
+          capability: 'text_to_image',
+          callbackUrl: 'https://partner.example/hook',
+          ...overrides,
+        } as never,
+        KEY,
+      );
+
+    it('queues the work instead of running it', async () => {
+      const job = await submit();
+
+      expect(queue.add).toHaveBeenCalledWith(
+        'generate',
+        { jobId: job.id },
+        expect.objectContaining({ attempts: 1 }),
+      );
+      expect(hosted.generate).not.toHaveBeenCalled();
+    });
+
+    // The whole point of holding synchronously: an empty balance is an answer to the
+    // request, not something the partner finds out from a callback a minute later.
+    it('takes the money before accepting, and queues nothing when it cannot', async () => {
+      billing.hold.mockRejectedValue(
+        new HttpException(
+          { error: { type: 'insufficient_balance', message: 'Top up' } },
+          HttpStatus.PAYMENT_REQUIRED,
+        ),
+      );
+
+      await expect(submit()).rejects.toMatchObject({ status: 402 });
+      expect(queue.add).not.toHaveBeenCalled();
+      expect(jobs.markFailed).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({ type: 'insufficient_balance' }),
+      );
+    });
+
+    // A queue that will not take the job has to give the money back on the spot: nothing
+    // downstream will ever look at this row again.
+    it('refunds when the queue refuses the job', async () => {
+      queue.add.mockRejectedValue(new Error('redis down'));
+
+      await expect(submit()).rejects.toMatchObject({
+        response: { error: { type: 'generation_error' } },
+      });
+      expect(billing.settle).toHaveBeenCalledWith(
+        expect.objectContaining({ usageId: 11 }),
+        expect.objectContaining({ status: 'failed', priceUsd: 0 }),
+      );
+    });
+
+    it('rejects a bad model before a job is created', async () => {
+      await expect(submit({ model: 'gpt-image-2' })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(jobs.create).not.toHaveBeenCalled();
+    });
+
+    it('does not queue anything when no callback is asked for', async () => {
+      await run();
+
+      expect(queue.add).not.toHaveBeenCalled();
+    });
+
+    it('records the outcome on the job row for the worker to deliver', async () => {
+      const job = await submit();
+      await service.execute(job as never);
+
+      expect(jobs.markSucceeded).toHaveBeenCalledWith(
+        job.id,
+        expect.objectContaining({
+          data: [
+            { url: 'https://ours/rehosted.png', seed: expect.any(Number) },
+          ],
+        }),
+      );
+    });
+
+    it('records a failure on the job row rather than losing it', async () => {
+      hosted.generate.mockRejectedValue(
+        new HostedGenerationError('pruna exploded', 'poll'),
+      );
+      const job = await submit();
+
+      await expect(service.execute(job as never)).rejects.toBeTruthy();
+
+      expect(jobs.markFailed).toHaveBeenCalledWith(
+        job.id,
+        expect.objectContaining({
+          type: 'generation_error',
+          message: expect.not.stringContaining('pruna'),
+        }),
+      );
+    });
+  });
 });

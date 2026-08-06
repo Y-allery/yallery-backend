@@ -123,6 +123,13 @@ export const renderPartnerPlayground = (models: unknown[]): string =>
       </div>
     </div>
 
+    <label for="callback">Callback URL <span style="text-transform:none;letter-spacing:0">— optional</span></label>
+    <input id="callback" type="url" placeholder="https://webhook.site/your-id" autocomplete="off">
+    <div class="hint">
+      Fill this in and the call returns a job id immediately; the finished result is POSTed
+      here. This page then polls <code>/v1/jobs/{id}</code> so you can watch both sides.
+    </div>
+
     <button class="go" id="go">Generate</button>
     <div class="hint" id="cost"></div>
   </section>
@@ -153,6 +160,7 @@ export const renderPartnerPlayground = (models: unknown[]): string =>
     if (cap === 'image_to_image') { b.images = urls; b.n = Number($('n').value); }
     else if (cap === 'image_to_video') { b.image = urls[0] || ''; }
     else { b.n = Number($('n').value); }
+    if ($('callback').value.trim()) b.callback_url = $('callback').value.trim();
     return b;
   }
 
@@ -201,13 +209,70 @@ export const renderPartnerPlayground = (models: unknown[]): string =>
     $('imagesWrap').style.display = cap === 'text_to_image' ? 'none' : '';
     loadModels();
   });
-  ['model', 'size', 'n', 'seed', 'prompt', 'images'].forEach(function (id) {
+  ['model', 'size', 'n', 'seed', 'prompt', 'images', 'callback'].forEach(function (id) {
     $(id).addEventListener('input', refresh);
     $(id).addEventListener('change', refresh);
   });
 
+  function fail(message) {
+    $('out').innerHTML = '<pre class="err">' + message + '</pre>';
+  }
+
+  function render(job, started) {
+    var isVideo = cap === 'image_to_video';
+    $('out').innerHTML =
+      '<div><span class="stat">round trip <b>' +
+        ((Date.now() - started) / 1000).toFixed(1) + 's</b></span>' +
+      '<span class="stat">server <b>' +
+        (job.usage.generation_time_ms / 1000).toFixed(1) + 's</b></span>' +
+      '<span class="stat">billed <b>$' +
+        job.usage.price_usd.toFixed(3) + '</b></span>' +
+      '<span class="stat">job <b>' + job.id + '</b></span></div>' +
+      '<div class="grid" style="margin-top:14px">' +
+      job.data.map(function (d) {
+        return isVideo
+          ? '<video src="' + d.url + '" controls autoplay loop muted></video>'
+          : '<a href="' + d.url + '" target="_blank"><img src="' + d.url + '"></a>';
+      }).join('') + '</div>';
+  }
+
+  // The callback lands on the partner's own endpoint, which a browser tab cannot read, so
+  // the page follows the same job through GET /v1/jobs/{id} — both halves of the async
+  // contract are visible at once.
+  function poll(id, started, done) {
+    $('out').innerHTML = '<div><span class="stat">job <b>' + id +
+      '</b></span><span class="stat" id="jobState"><span class="spin"></span>queued — ' +
+      'the result is also being POSTed to your callback URL</span></div>';
+
+    var tick = function () {
+      fetch('/v1/jobs/' + id, {
+        headers: { Authorization: 'Bearer ' + $('key').value },
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (job) {
+          if (job.status === 'succeeded') { render(job, started); return done(); }
+          if (job.status === 'failed') {
+            fail((job.error && job.error.message) || 'Generation failed.');
+            return done();
+          }
+          if ($('jobState')) {
+            $('jobState').innerHTML = '<span class="spin"></span>' + job.status +
+              ' — ' + ((Date.now() - started) / 1000).toFixed(0) + 's';
+          }
+          // 3s, not 1s: polling shares the key's 60/min budget with real generations.
+          setTimeout(tick, 3000);
+        })
+        .catch(function (err) { fail(err.message); done(); });
+    };
+    setTimeout(tick, 2000);
+  }
+
   $('go').addEventListener('click', function () {
     var btn = this, started = Date.now();
+    var release = function () {
+      btn.disabled = false;
+      btn.textContent = 'Generate';
+    };
     btn.disabled = true;
     btn.innerHTML = '<span class="spin"></span>Generating…';
     $('out').innerHTML = '';
@@ -219,35 +284,24 @@ export const renderPartnerPlayground = (models: unknown[]): string =>
       },
       body: JSON.stringify(body()),
     })
-      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (r) {
+        return r.json().then(function (j) {
+          return { ok: r.ok, accepted: r.status === 202, j: j };
+        });
+      })
       .then(function (res) {
         if (!res.ok) {
           var e = (res.j && res.j.error) || {};
-          $('out').innerHTML = '<pre class="err">' +
-            (e.message || JSON.stringify(res.j)) + '</pre>';
-          return;
+          fail(e.message || JSON.stringify(res.j));
+          return release();
         }
-        var isVideo = cap === 'image_to_video';
-        $('out').innerHTML =
-          '<div><span class="stat">round trip <b>' +
-            ((Date.now() - started) / 1000).toFixed(1) + 's</b></span>' +
-          '<span class="stat">server <b>' +
-            (res.j.usage.generation_time_ms / 1000).toFixed(1) + 's</b></span>' +
-          '<span class="stat">billed <b>$' +
-            res.j.usage.price_usd.toFixed(3) + '</b></span></div>' +
-          '<div class="grid" style="margin-top:14px">' +
-          res.j.data.map(function (d) {
-            return isVideo
-              ? '<video src="' + d.url + '" controls autoplay loop muted></video>'
-              : '<a href="' + d.url + '" target="_blank"><img src="' + d.url + '"></a>';
-          }).join('') + '</div>';
+        if (res.accepted) return poll(res.j.id, started, release);
+        render(res.j, started);
+        release();
       })
       .catch(function (err) {
-        $('out').innerHTML = '<pre class="err">' + err.message + '</pre>';
-      })
-      .then(function () {
-        btn.disabled = false;
-        btn.textContent = 'Generate';
+        fail(err.message);
+        release();
       });
   });
 

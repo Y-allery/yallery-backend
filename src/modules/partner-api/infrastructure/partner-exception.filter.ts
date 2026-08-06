@@ -24,17 +24,37 @@ const TYPE_BY_STATUS: Record<number, string> = {
  * throws HttpExceptions of its own — the RunPod client's carry the vendor name, the job id
  * and its raw output — and treating those as partner-facing puts all of it in the response.
  */
-export const isPartnerFacingError = (error: unknown): boolean => {
-  if (!(error instanceof HttpException)) return false;
+export interface PartnerErrorEnvelope {
+  type: string;
+  message: string;
+  param?: string;
+}
+
+/** The envelope if this exception carries one, otherwise null. */
+export const partnerErrorEnvelope = (
+  error: unknown,
+): PartnerErrorEnvelope | null => {
+  if (!(error instanceof HttpException)) return null;
   const body = error.getResponse();
-  if (typeof body !== 'object' || body === null) return false;
+  if (typeof body !== 'object' || body === null) return null;
   const envelope = (body as Record<string, unknown>)['error'];
-  return (
-    typeof envelope === 'object' &&
-    envelope !== null &&
-    typeof (envelope as Record<string, unknown>)['type'] === 'string'
-  );
+  if (
+    typeof envelope !== 'object' ||
+    envelope === null ||
+    typeof (envelope as Record<string, unknown>)['type'] !== 'string'
+  ) {
+    return null;
+  }
+  const { type, message, param } = envelope as Record<string, unknown>;
+  return {
+    type: type as string,
+    message: typeof message === 'string' ? message : '',
+    ...(typeof param === 'string' && { param }),
+  };
 };
+
+export const isPartnerFacingError = (error: unknown): boolean =>
+  partnerErrorEnvelope(error) !== null;
 
 /**
  * Gives every partner-facing failure the one error shape the docs promise.

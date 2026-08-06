@@ -25,6 +25,21 @@ export class PartnerUsageDto {
 }
 
 export class PartnerGenerationResponseDto {
+  @ApiProperty({
+    description: 'Job id. Pass it to GET /v1/jobs/{id} at any time.',
+    example: 'job_9f2c1b7a4d6e8f0a1b2c3d4e',
+  })
+  id: string;
+
+  @ApiProperty({ example: 'generation' })
+  object: string;
+
+  @ApiProperty({
+    enum: ['queued', 'running', 'succeeded', 'failed'],
+    description: 'Always `succeeded` on a synchronous response.',
+  })
+  status: string;
+
   @ApiProperty({ description: 'Unix timestamp, seconds.' })
   created: number;
 
@@ -36,6 +51,39 @@ export class PartnerGenerationResponseDto {
 
   @ApiProperty({ type: PartnerUsageDto })
   usage: PartnerUsageDto;
+}
+
+export class PartnerAcceptedJobDto {
+  @ApiProperty({ example: 'job_9f2c1b7a4d6e8f0a1b2c3d4e' })
+  id: string;
+
+  @ApiProperty({ example: 'generation' })
+  object: string;
+
+  @ApiProperty({ enum: ['queued'] })
+  status: string;
+
+  @ApiProperty({ example: 'yengine-photo' })
+  model: string;
+
+  @ApiProperty({ description: 'Unix timestamp, seconds.' })
+  created: number;
+}
+
+export class PartnerJobDto extends PartnerAcceptedJobDto {
+  @ApiPropertyOptional({
+    type: [PartnerOutputDto],
+    description: 'Present once the job succeeded.',
+  })
+  data?: PartnerOutputDto[];
+
+  @ApiPropertyOptional({ type: PartnerUsageDto })
+  usage?: PartnerUsageDto;
+
+  @ApiPropertyOptional({
+    description: 'Present when the job failed. The money was refunded in full.',
+  })
+  error?: { type: string; message: string };
 }
 
 export class PartnerModelDto {
@@ -83,7 +131,9 @@ export class PartnerErrorBodyDto {
   @ApiProperty()
   message: string;
 
-  @ApiPropertyOptional({ description: 'Which field caused it, when it is one.' })
+  @ApiPropertyOptional({
+    description: 'Which field caused it, when it is one.',
+  })
   param?: string;
 }
 

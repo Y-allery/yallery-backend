@@ -3,6 +3,7 @@ import { validateSync } from 'class-validator';
 import {
   IsPublicImageUrl,
   PartnerImageEditDto,
+  PartnerImageGenerationDto,
   PartnerVideoGenerationDto,
 } from './partner-generation.dto';
 
@@ -67,12 +68,50 @@ describe('partner generation DTOs', () => {
     );
   });
 
+  describe('callback_url', () => {
+    const withCallback = (callback_url: unknown) =>
+      errorsFor(PartnerImageGenerationDto, {
+        model: 'yengine-photo',
+        prompt: 'a cat',
+        callback_url,
+      });
+
+    it('is optional', () => {
+      expect(
+        errorsFor(PartnerImageGenerationDto, {
+          model: 'yengine-photo',
+          prompt: 'a cat',
+        }),
+      ).toEqual([]);
+    });
+
+    it('accepts a public endpoint', () => {
+      expect(withCallback('https://partner.example/hooks/yallery')).toEqual([]);
+    });
+
+    // We POST to this address ourselves, so it is the same forgery primitive as an
+    // inbound image URL — pointed at our own network from the other direction.
+    it.each([
+      'http://localhost:3000/hook',
+      'http://169.254.169.254/latest',
+      'ftp://partner.example/hook',
+      'nonsense',
+    ])('rejects %s', (url) => {
+      expect(withCallback(url)).toContain('callback_url');
+    });
+  });
+
   it('rejects more than three reference images', () => {
     expect(
       errorsFor(PartnerImageEditDto, {
         model: 'yengine-edit',
         prompt: 'x',
-        images: ['https://a/1.png', 'https://a/2.png', 'https://a/3.png', 'https://a/4.png'],
+        images: [
+          'https://a/1.png',
+          'https://a/2.png',
+          'https://a/3.png',
+          'https://a/4.png',
+        ],
       }),
     ).toContain('images');
   });
