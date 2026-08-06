@@ -238,14 +238,16 @@ describe('PartnerPaymentService', () => {
   });
 
   describe('auto top-up rule', () => {
-    it('will not switch on without a card', async () => {
+    // The rule is set in the same dialog as the first payment, and that payment is what
+    // saves the card — so refusing here would make the dialog impossible to submit.
+    it('can be armed before a card exists', async () => {
       await expect(
         service.setAutoRecharge(account({ paymentMethodId: null }), {
           enabled: true,
           thresholdUsd: 5,
           amountUsd: 10,
         }),
-      ).rejects.toMatchObject({ status: 400 });
+      ).resolves.toBeUndefined();
     });
 
     // Trigger 10 / top up 10 lands the balance right back on the trigger and charges again.

@@ -71,7 +71,78 @@ export const PARTNER_PORTAL_HTML = `<!doctype html>
   .err { color: var(--danger); margin-top: 12px; font-size: 14px; }
   .ok { color: var(--accent-2); }
   .row { display: flex; gap: 10px; align-items: flex-end; }
-  .row > *:first-child { flex: 1; }
+  /* Every field column shares the width, not just the first: the auto top-up row has two
+     of them. min-width:0 because a flex item's floor is its content, and a number input
+     with a long label refuses to shrink below it. */
+  .row > div { flex: 1; min-width: 0; }
+  /* Buttons carry width:100% from the base rule. .ghost already opts out; .primary did
+     not, so inside a row it demanded the whole line and squeezed the input next to it
+     down to two characters. Only rows are affected — the sign-in button is full width on
+     purpose. */
+  .row button.primary { width: auto; }
+  /* Balance lives in the header next to the button that changes it: the number and the way
+     to fix it belong together, and it stays visible while you read the rest of the page. */
+  .wallet { display: flex; align-items: center; gap: 8px; }
+  .wallet b { font-size: 16px; font-variant-numeric: tabular-nums; }
+  .wallet b.low { color: var(--danger); }
+  button.plus {
+    width: 28px; height: 28px; padding: 0; border-radius: 8px; cursor: pointer;
+    background: var(--accent); border-color: var(--accent); color: #fff;
+    font-size: 18px; line-height: 1;
+  }
+
+  /* Segmented control: one bordered strip, dividers between cells rather than gaps, so it
+     reads as a single choice instead of four buttons that happen to sit together. */
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .seg button {
+    width: auto; flex: 1; border: 0; border-radius: 0; background: transparent;
+    padding: 10px 12px; cursor: pointer; color: var(--text); white-space: nowrap;
+  }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button.on { background: #241d47; color: #fff; box-shadow: inset 0 0 0 1px var(--accent); }
+  .seg.small { flex: 0 0 auto; }
+  .seg.small button { flex: 0 0 auto; min-width: 62px; }
+
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(4, 6, 10, .72);
+    display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 20;
+  }
+  .modal {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    width: 100%; max-width: 560px; max-height: 92vh; overflow: auto;
+  }
+  .modal-head, .modal-foot {
+    display: flex; align-items: center; gap: 12px; padding: 18px 22px;
+  }
+  .modal-head { border-bottom: 1px solid var(--line); }
+  .modal-foot { border-top: 1px solid var(--line); justify-content: flex-end; }
+  .modal-head h3 { margin: 0; font-size: 17px; flex: 1; }
+  .modal-body { padding: 20px 22px; }
+  .modal button.x {
+    width: auto; background: transparent; border: 0; color: var(--muted);
+    font-size: 20px; line-height: 1; cursor: pointer; padding: 4px 6px;
+  }
+  .modal-foot button { width: auto; }
+  .split { display: flex; align-items: center; gap: 16px; margin-top: 26px; }
+  .split > div:first-child { flex: 1; }
+  /* The threshold block is inset rather than outlined: it belongs to the Yes above it, and
+     a second border would read as a separate section. */
+  .inset {
+    background: #10141c; border-radius: 11px; padding: 16px 18px; margin-top: 16px;
+  }
+  .field-row {
+    display: flex; align-items: center; gap: 14px; margin-top: 12px;
+  }
+  .field-row > span { flex: 1; }
+  .amt { position: relative; width: 132px; }
+  .amt > span { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+  .amt input { padding-left: 26px; text-align: right; }
+  .sentence { margin-top: 16px; line-height: 1.5; }
+  .sentence b { color: var(--text); }
+  .summary { display: flex; gap: 18px 34px; flex-wrap: wrap; align-items: flex-end; }
+  .summary .col { min-width: 160px; }
+  .summary .spacer { flex: 1; min-width: 0; }
+  .summary .value { font-size: 15px; margin-top: 4px; }
   .pill {
     font-size: 11px; padding: 2px 8px; border-radius: 20px;
     border: 1px solid var(--line); color: var(--muted);
@@ -112,16 +183,17 @@ export const PARTNER_PORTAL_HTML = `<!doctype html>
     <a href="/v1/docs" target="_blank">API reference</a>
     <a href="/v1/playground" target="_blank">Playground</a>
     <span class="spacer"></span>
+    <div class="wallet">
+      <span class="muted">Balance</span>
+      <b id="balance">$0.00</b>
+      <button class="plus hide" id="openTopup" title="Add credits">+</button>
+    </div>
     <span class="muted" id="who"></span>
     <button class="ghost" id="logout">Sign out</button>
   </header>
 
   <div class="wrap">
-    <div class="card">
-      <div class="muted">Balance</div>
-      <div class="balance" id="balance">$0.00</div>
-      <div class="muted" id="balanceHint"></div>
-    </div>
+    <div class="muted" id="balanceHint" style="margin-bottom:22px"></div>
 
     <h2>Payment</h2>
     <div class="card" id="billingCard">
@@ -130,42 +202,26 @@ export const PARTNER_PORTAL_HTML = `<!doctype html>
       </div>
 
       <div id="billingBody" class="hide">
-        <div class="row" style="align-items:flex-end">
-          <div>
-            <label for="topupAmount">Add funds, USD</label>
-            <input id="topupAmount" type="number" min="10" step="5" value="25">
+        <div class="err hide" id="autoDisabled" style="margin-bottom:16px"></div>
+        <div class="summary">
+          <div class="col">
+            <div class="muted">Card</div>
+            <div class="value" id="cardSummary">No card saved.</div>
           </div>
-          <button class="primary" id="topupGo" style="margin-bottom:1px">Add funds</button>
-        </div>
-        <div class="muted" id="topupHint" style="margin-top:8px"></div>
-
-        <h3 style="font-size:14px;margin:26px 0 10px">Card</h3>
-        <div class="row" style="align-items:center">
-          <div id="cardSummary" class="muted">No card saved.</div>
-          <button class="ghost" id="cardAdd" style="max-width:170px">Add card</button>
-          <button class="ghost hide" id="cardRemove" style="max-width:130px">Remove</button>
-        </div>
-
-        <h3 style="font-size:14px;margin:26px 0 10px">Automatic top-up</h3>
-        <div class="muted" style="margin-bottom:10px">
-          Keeps the API running without you watching the balance. Needs a saved card.
-        </div>
-        <div class="err hide" id="autoDisabled" style="margin-bottom:10px"></div>
-        <div class="row" style="align-items:flex-end">
+          <div class="col">
+            <div class="muted">Automatic top-up</div>
+            <div class="value" id="autoSummary">Off</div>
+          </div>
+          <div class="spacer"></div>
           <div>
-            <label for="autoThreshold">When balance falls below</label>
-            <input id="autoThreshold" type="number" min="0" step="1" value="5">
+            <button class="ghost" id="cardAdd">Add card</button>
           </div>
           <div>
-            <label for="autoAmount">Top up by</label>
-            <input id="autoAmount" type="number" min="10" step="5" value="10">
+            <button class="ghost hide" id="cardRemove">Remove card</button>
           </div>
-          <button class="primary" id="autoSave" style="margin-bottom:1px;max-width:150px">Turn on</button>
-          <button class="ghost hide" id="autoOff" style="margin-bottom:1px;max-width:110px">Turn off</button>
         </div>
-        <div class="muted" id="autoHint" style="margin-top:8px"></div>
 
-        <table style="margin-top:24px" id="paymentsTable">
+        <table style="margin-top:26px" id="paymentsTable">
           <thead>
             <tr><th>When</th><th>Type</th><th class="num">Amount</th><th class="num">Status</th></tr>
           </thead>
@@ -210,6 +266,69 @@ export const PARTNER_PORTAL_HTML = `<!doctype html>
         </thead>
         <tbody id="ledger"></tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop hide" id="topupModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Add credits</h3>
+      <button class="x" id="topupClose" title="Close">&times;</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="muted">Choose an amount to add.</div>
+      <div class="seg" id="amountSeg" style="margin-top:10px">
+        <button data-amount="10">$10</button>
+        <button data-amount="25" class="on">$25</button>
+        <button data-amount="50">$50</button>
+        <button data-amount="100">$100</button>
+        <button data-amount="other">Other</button>
+      </div>
+      <div id="otherWrap" class="hide">
+        <label for="topupAmount">Amount, USD</label>
+        <input id="topupAmount" type="number" min="10" step="5" value="25">
+      </div>
+      <div class="muted" id="topupHint" style="margin-top:10px"></div>
+
+      <div class="split">
+        <div>
+          <strong>Enable automatic top-up?</strong>
+          <div class="muted" style="margin-top:4px">
+            Adds funds on its own when the balance runs low, so your calls never start
+            failing mid-integration.
+          </div>
+        </div>
+        <div class="seg small" id="autoSeg">
+          <button data-auto="yes">Yes</button>
+          <button data-auto="no" class="on">No</button>
+        </div>
+      </div>
+
+      <div class="inset hide" id="autoPanel">
+        <strong>Set the threshold</strong>
+        <div class="field-row">
+          <span>When the balance goes below</span>
+          <div class="amt"><span>$</span>
+            <input id="autoThreshold" type="number" min="0" step="1" value="5">
+          </div>
+        </div>
+        <div class="field-row">
+          <span>Automatically add</span>
+          <div class="amt"><span>$</span>
+            <input id="autoAmount" type="number" min="10" step="5" value="10">
+          </div>
+        </div>
+        <div class="muted sentence" id="autoSentence"></div>
+      </div>
+
+      <div class="err hide" id="topupErr" style="margin-top:16px"></div>
+    </div>
+
+    <div class="modal-foot">
+      <button class="ghost" id="cardOnly">Save a card only</button>
+      <button class="primary" id="goCheckout">Go to checkout</button>
     </div>
   </div>
 </div>
@@ -334,7 +453,11 @@ export const PARTNER_PORTAL_HTML = `<!doctype html>
       : 'Payment received — the balance updates within a few seconds.';
   }
 
+  var billing = { minimum: 10, amount: 25, auto: false };
+
   function renderBilling(b) {
+    billing.minimum = b.minimumTopUpUsd;
+    $('openTopup').className = b.cardPaymentAvailable ? 'plus' : 'plus hide';
     if (!b.cardPaymentAvailable) {
       $('billingUnavailable').className = 'muted';
       $('billingBody').className = 'hide';
@@ -358,12 +481,11 @@ export const PARTNER_PORTAL_HTML = `<!doctype html>
     var auto = b.autoRecharge;
     if (auto.thresholdUsd != null) $('autoThreshold').value = auto.thresholdUsd;
     if (auto.amountUsd != null) $('autoAmount').value = auto.amountUsd;
-    $('autoSave').textContent = auto.enabled ? 'Save' : 'Turn on';
-    $('autoOff').className = auto.enabled ? 'ghost' : 'ghost hide';
-    $('autoHint').textContent = auto.enabled
-      ? 'On — when the balance drops below ' + money(auto.thresholdUsd) +
-        ' we charge your card ' + money(auto.amountUsd) + '.'
-      : (card ? 'Off.' : 'Add a card first.');
+    setAuto(auto.enabled);
+    $('autoSummary').textContent = auto.enabled
+      ? money(auto.thresholdUsd) + ' \u2192 add ' + money(auto.amountUsd) +
+        (card ? '' : ' (starts once a card is saved)')
+      : 'Off';
     $('autoDisabled').textContent = auto.disabledReason || '';
     $('autoDisabled').className = auto.disabledReason ? 'err' : 'err hide';
 
@@ -379,36 +501,120 @@ export const PARTNER_PORTAL_HTML = `<!doctype html>
       : '<tr><td colspan="4" class="muted">No card payments yet.</td></tr>';
   }
 
-  function goToStripe(path, body) {
-    return api(path, { method: 'POST', body: body })
-      .then(function (j) { location.href = j.url; })
-      .catch(function (e) { alert(e.message); });
+  function pick(segId, value, attr) {
+    [].forEach.call($(segId).children, function (b) {
+      b.classList.toggle('on', b.dataset[attr] === value);
+    });
   }
 
-  $('topupGo').addEventListener('click', function () {
-    goToStripe('/billing/topup', { amountUsd: Number($('topupAmount').value) });
+  function chosenAmount() {
+    return billing.amount === 'other'
+      ? Number($('topupAmount').value)
+      : Number(billing.amount);
+  }
+
+  function setAmount(value) {
+    billing.amount = value;
+    pick('amountSeg', String(value), 'amount');
+    $('otherWrap').className = value === 'other' ? '' : 'hide';
+    sentence();
+  }
+
+  function setAuto(on) {
+    billing.auto = !!on;
+    pick('autoSeg', on ? 'yes' : 'no', 'auto');
+    $('autoPanel').className = on ? 'inset' : 'inset hide';
+    sentence();
+  }
+
+  // The rule in one sentence, in the same words the confirmation email would use. Two
+  // number boxes are easy to read backwards; a sentence is not.
+  function sentence() {
+    var threshold = Number($('autoThreshold').value);
+    var amount = Number($('autoAmount').value);
+    $('autoSentence').innerHTML =
+      'When your balance falls below <b>' + money(threshold) +
+      '</b> the card you pay with today is charged <b>' + money(amount) + '</b>.';
+  }
+
+  function openTopup() {
+    $('topupErr').className = 'err hide';
+    $('topupModal').className = 'modal-backdrop';
+    sentence();
+  }
+  function closeTopup() { $('topupModal').className = 'modal-backdrop hide'; }
+
+  $('openTopup').addEventListener('click', openTopup);
+  $('topupClose').addEventListener('click', closeTopup);
+  $('topupModal').addEventListener('click', function (e) {
+    if (e.target === this) closeTopup();
   });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeTopup();
+  });
+
+  $('amountSeg').addEventListener('click', function (e) {
+    if (e.target.tagName === 'BUTTON') setAmount(e.target.dataset.amount);
+  });
+  $('autoSeg').addEventListener('click', function (e) {
+    if (e.target.tagName === 'BUTTON') setAuto(e.target.dataset.auto === 'yes');
+  });
+  ['autoThreshold', 'autoAmount', 'topupAmount'].forEach(function (id) {
+    $(id).addEventListener('input', sentence);
+  });
+
+  function fail(message) {
+    $('topupErr').textContent = message;
+    $('topupErr').className = 'err';
+  }
+
+  // The rule is saved before the redirect, not after: the partner is about to leave for
+  // Stripe and may never come back to this tab, and the card that payment saves is exactly
+  // the one the rule needs.
+  $('goCheckout').addEventListener('click', function () {
+    var button = this;
+    var amount = chosenAmount();
+    if (!(amount >= billing.minimum)) {
+      return fail('The smallest top-up is ' + money(billing.minimum) + '.');
+    }
+    button.disabled = true;
+    var rule = billing.auto
+      ? api('/billing/auto-recharge', {
+          method: 'POST',
+          body: {
+            enabled: true,
+            thresholdUsd: Number($('autoThreshold').value),
+            amountUsd: Number($('autoAmount').value),
+          },
+        })
+      : Promise.resolve();
+
+    rule
+      .then(function () {
+        return api('/billing/topup', { method: 'POST', body: { amountUsd: amount } });
+      })
+      .then(function (j) { location.href = j.url; })
+      .catch(function (e) { fail(e.message); button.disabled = false; });
+  });
+
+  $('cardOnly').addEventListener('click', function () {
+    var button = this;
+    button.disabled = true;
+    api('/billing/card', { method: 'POST' })
+      .then(function (j) { location.href = j.url; })
+      .catch(function (e) { fail(e.message); button.disabled = false; });
+  });
+
   $('cardAdd').addEventListener('click', function () {
-    goToStripe('/billing/card', {});
+    api('/billing/card', { method: 'POST' })
+      .then(function (j) { location.href = j.url; })
+      .catch(function (e) { alert(e.message); });
   });
   $('cardRemove').addEventListener('click', function () {
     if (!confirm('Remove the saved card? Automatic top-up switches off with it.')) return;
     api('/billing/card/remove', { method: 'POST' }).then(load)
       .catch(function (e) { alert(e.message); });
   });
-
-  function saveAuto(enabled) {
-    api('/billing/auto-recharge', {
-      method: 'POST',
-      body: {
-        enabled: enabled,
-        thresholdUsd: Number($('autoThreshold').value),
-        amountUsd: Number($('autoAmount').value),
-      },
-    }).then(load).catch(function (e) { alert(e.message); });
-  }
-  $('autoSave').addEventListener('click', function () { saveAuto(true); });
-  $('autoOff').addEventListener('click', function () { saveAuto(false); });
 
   function load() {
     return Promise.all([
@@ -419,7 +625,7 @@ export const PARTNER_PORTAL_HTML = `<!doctype html>
         renderBilling(r[3]);
         $('who').textContent = acc.email;
         $('balance').textContent = money(acc.balanceUsd);
-        $('balance').className = 'balance' + (acc.balanceUsd <= 0 ? ' low' : '');
+        $('balance').className = acc.balanceUsd <= 0 ? 'low' : '';
         $('balanceHint').textContent = acc.balanceUsd <= 0
           ? 'Out of credit — calls are rejected until it is topped up.'
           : acc.totals.calls + ' calls so far, ' + money(acc.totals.spentUsd) + ' spent.';

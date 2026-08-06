@@ -163,9 +163,10 @@ export class PartnerPaymentService {
     input: { enabled: boolean; thresholdUsd: number; amountUsd: number },
   ): Promise<void> {
     if (input.enabled) {
-      if (!account.paymentMethodId) {
-        throw invalid('Add a card before turning automatic top-up on.');
-      }
+      // Deliberately allowed without a card: the rule is set in the same dialog as the
+      // first payment, and that payment is what saves the card. Nothing can be charged in
+      // the meantime — the claim in PartnerRechargeService will not select an account
+      // without a payment method.
       const minimum = await this.stripe.minimumTopUpUsd();
       if (input.amountUsd < minimum) {
         throw invalid(`The smallest automatic top-up is $${minimum}.`);
