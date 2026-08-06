@@ -108,9 +108,13 @@ export const renderPartnerPlayground = (models: unknown[]): string =>
     font-size: 11px; text-transform: uppercase; letter-spacing: .9px;
     color: var(--muted-2); font-weight: 600; margin-bottom: 9px;
   }
+  /* Wrapped, not scrolled: the JSON body makes this line long enough that the interesting
+     end of it would sit off-screen, and the wrap is visual only — it still copies as one
+     command. */
   pre {
     background: var(--panel-2); border: 1px solid var(--line); border-radius: 11px;
-    padding: 15px; overflow: auto; font-size: 12.5px; margin: 0; line-height: 1.6;
+    padding: 15px; font-size: 12.5px; margin: 0; line-height: 1.6;
+    white-space: pre-wrap; word-break: break-word;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   }
   .out { margin-top: 24px; }
