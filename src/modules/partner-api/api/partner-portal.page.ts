@@ -80,6 +80,12 @@ export const PARTNER_PORTAL_HTML = `<!doctype html>
     display: block; font-size: 11.5px; text-transform: uppercase;
     letter-spacing: .8px; color: var(--muted-2); margin: 0 0 7px; font-weight: 600;
   }
+  /* A label that follows a field starts a new one, so it needs the gap. The first label in
+     a card does not, which is why this is a sibling rule and not a blanket top margin. */
+  input + label, select + label, textarea + label { margin-top: 20px; }
+  #companyWrap { margin-top: 20px; }
+  .auth .card button.primary { margin-top: 22px; width: 100%; }
+  .auth .card .err + div { margin-top: 14px; }
   input, button, select {
     width: 100%; font: inherit; color: var(--text); background: var(--panel-2);
     border: 1px solid var(--line); border-radius: 10px; padding: 10px 13px;
@@ -258,7 +264,7 @@ export const PARTNER_PORTAL_HTML = `<!doctype html>
 
     <button class="primary" id="authGo">Sign in</button>
     <div class="err hide" id="authErr"></div>
-    <div style="margin-top:14px">
+    <div style="margin-top:16px">
       <button class="link" id="authSwitch">Create an account</button>
     </div>
   </div>
