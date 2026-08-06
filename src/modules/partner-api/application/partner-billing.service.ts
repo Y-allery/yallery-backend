@@ -1,6 +1,14 @@
 import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
 import { InjectDataSource } from '@nestjs/typeorm';
+import { Queue } from 'bullmq';
 import { DataSource, EntityManager } from 'typeorm';
+import { PartnerRechargeService } from './partner-recharge.service';
+import {
+  PARTNER_RECHARGE_JOB_OPTIONS,
+  PARTNER_RECHARGE_QUEUE,
+  PartnerRechargeJobData,
+} from '../infrastructure/queues/partner.queues';
 import { PartnerAccountEntity } from '../entities/partner-account.entity';
 import { PartnerApiUsageEntity } from '../entities/partner-api-usage.entity';
 import {
@@ -22,7 +30,12 @@ const round = (value: number): number => +value.toFixed(4);
 export class PartnerBillingService {
   private readonly logger = new Logger(PartnerBillingService.name);
 
-  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
+  constructor(
+    @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly recharge: PartnerRechargeService,
+    @InjectQueue(PARTNER_RECHARGE_QUEUE)
+    private readonly rechargeQueue: Queue<PartnerRechargeJobData>,
+  ) {}
 
   async getBalance(accountId: number): Promise<number> {
     const account = await this.dataSource
@@ -51,7 +64,7 @@ export class PartnerBillingService {
   ): Promise<PartnerHold> {
     const heldUsd = round(model.priceUsd * count);
 
-    return this.dataSource.transaction(async (manager) => {
+    const hold = await this.dataSource.transaction(async (manager) => {
       if (accountId != null) {
         const debit = await manager
           .createQueryBuilder()
@@ -66,6 +79,10 @@ export class PartnerBillingService {
           const balance = await manager
             .getRepository(PartnerAccountEntity)
             .findOne({ where: { id: accountId } });
+          // Running dry is the strongest possible signal that a top-up is due, so this call
+          // failing still schedules one. It does not rescue this request — the partner is
+          // told plainly — but the next one lands on a funded account.
+          this.considerRecharge(accountId);
           throw new HttpException(
             {
               error: {
@@ -107,6 +124,40 @@ export class PartnerBillingService {
 
       return { usageId: usage.id, accountId, heldUsd };
     });
+
+    // Checked after the debit committed, because this is the moment the balance actually
+    // fell — settlement only ever gives money back.
+    this.considerRecharge(accountId);
+    return hold;
+  }
+
+  /**
+   * Queues an automatic top-up if this account is set up for one and has dropped under its
+   * trigger.
+   *
+   * Deliberately not awaited: the partner is waiting on a generation, and neither a slow
+   * Redis nor a missing card may add latency to it or fail the call. The worker re-checks
+   * every condition before it charges anything.
+   */
+  private considerRecharge(accountId: number | null): void {
+    if (accountId == null || !this.rechargeQueue) return;
+    this.recharge
+      .isDue(accountId)
+      .then((due) =>
+        due
+          ? this.rechargeQueue.add(
+              'recharge',
+              { accountId },
+              PARTNER_RECHARGE_JOB_OPTIONS,
+            )
+          : null,
+      )
+      .catch((error) =>
+        this.logger.error(
+          `could not schedule an automatic top-up for account ${accountId}`,
+          error?.stack ?? String(error),
+        ),
+      );
   }
 
   /**
@@ -126,7 +177,8 @@ export class PartnerBillingService {
       failureCode: string | null;
     },
   ): Promise<void> {
-    const chargedUsd = outcome.status === 'succeeded' ? round(outcome.priceUsd) : 0;
+    const chargedUsd =
+      outcome.status === 'succeeded' ? round(outcome.priceUsd) : 0;
     const refundUsd = round(hold.heldUsd - chargedUsd);
 
     try {
@@ -183,29 +235,48 @@ export class PartnerBillingService {
     note: string | null,
     adminId: number | null,
   ): Promise<number> {
-    return this.dataSource.transaction(async (manager) => {
-      const updated = await manager
-        .createQueryBuilder()
-        .update(PartnerAccountEntity)
-        .set({ balanceUsd: () => `balanceUsd + ${round(amountUsd)}` })
-        .where('id = :id', { id: accountId })
-        .execute();
+    return this.dataSource.transaction((manager) =>
+      this.topUpWithin(manager, accountId, amountUsd, note, adminId),
+    );
+  }
 
-      if (!updated.affected) {
-        throw new HttpException(
-          { error: { type: 'invalid_request_error', message: 'No such account' } },
-          HttpStatus.NOT_FOUND,
-        );
-      }
+  /**
+   * The same credit, joined to a transaction the caller already opened.
+   *
+   * A card payment has to record the payment and move the balance together or not at all:
+   * crediting outside the insert that guards against a redelivered webhook is exactly how
+   * one payment becomes two.
+   */
+  async topUpWithin(
+    manager: EntityManager,
+    accountId: number,
+    amountUsd: number,
+    note: string | null,
+    adminId: number | null,
+  ): Promise<number> {
+    const updated = await manager
+      .createQueryBuilder()
+      .update(PartnerAccountEntity)
+      .set({ balanceUsd: () => `balanceUsd + ${round(amountUsd)}` })
+      .where('id = :id', { id: accountId })
+      .execute();
 
-      return this.writeLedger(manager, {
-        accountId,
-        kind: amountUsd >= 0 ? 'topup' : 'adjustment',
-        amountUsd: round(amountUsd),
-        usageId: null,
-        note,
-        adminId,
-      });
+    if (!updated.affected) {
+      throw new HttpException(
+        {
+          error: { type: 'invalid_request_error', message: 'No such account' },
+        },
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    return this.writeLedger(manager, {
+      accountId,
+      kind: amountUsd >= 0 ? 'topup' : 'adjustment',
+      amountUsd: round(amountUsd),
+      usageId: null,
+      note,
+      adminId,
     });
   }
 

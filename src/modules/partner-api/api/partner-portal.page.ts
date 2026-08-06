@@ -123,6 +123,57 @@ export const PARTNER_PORTAL_HTML = `<!doctype html>
       <div class="muted" id="balanceHint"></div>
     </div>
 
+    <h2>Payment</h2>
+    <div class="card" id="billingCard">
+      <div id="billingUnavailable" class="muted hide">
+        Card payment is not switched on yet. Message us and we will credit your balance by hand.
+      </div>
+
+      <div id="billingBody" class="hide">
+        <div class="row" style="align-items:flex-end">
+          <div>
+            <label for="topupAmount">Add funds, USD</label>
+            <input id="topupAmount" type="number" min="10" step="5" value="25">
+          </div>
+          <button class="primary" id="topupGo" style="margin-bottom:1px">Add funds</button>
+        </div>
+        <div class="muted" id="topupHint" style="margin-top:8px"></div>
+
+        <h3 style="font-size:14px;margin:26px 0 10px">Card</h3>
+        <div class="row" style="align-items:center">
+          <div id="cardSummary" class="muted">No card saved.</div>
+          <button class="ghost" id="cardAdd" style="max-width:170px">Add card</button>
+          <button class="ghost hide" id="cardRemove" style="max-width:130px">Remove</button>
+        </div>
+
+        <h3 style="font-size:14px;margin:26px 0 10px">Automatic top-up</h3>
+        <div class="muted" style="margin-bottom:10px">
+          Keeps the API running without you watching the balance. Needs a saved card.
+        </div>
+        <div class="err hide" id="autoDisabled" style="margin-bottom:10px"></div>
+        <div class="row" style="align-items:flex-end">
+          <div>
+            <label for="autoThreshold">When balance falls below</label>
+            <input id="autoThreshold" type="number" min="0" step="1" value="5">
+          </div>
+          <div>
+            <label for="autoAmount">Top up by</label>
+            <input id="autoAmount" type="number" min="10" step="5" value="10">
+          </div>
+          <button class="primary" id="autoSave" style="margin-bottom:1px;max-width:150px">Turn on</button>
+          <button class="ghost hide" id="autoOff" style="margin-bottom:1px;max-width:110px">Turn off</button>
+        </div>
+        <div class="muted" id="autoHint" style="margin-top:8px"></div>
+
+        <table style="margin-top:24px" id="paymentsTable">
+          <thead>
+            <tr><th>When</th><th>Type</th><th class="num">Amount</th><th class="num">Status</th></tr>
+          </thead>
+          <tbody id="payments"></tbody>
+        </table>
+      </div>
+    </div>
+
     <h2>API keys</h2>
     <div class="card">
       <div class="row">
@@ -271,15 +322,106 @@ export const PARTNER_PORTAL_HTML = `<!doctype html>
       .catch(function (e) { alert(e.message); });
   }
 
+  // Stripe hands the customer back to /portal?topup=done. The balance is credited by the
+  // webhook, not by this redirect, so the page just reloads and shows whatever landed —
+  // trusting the query string would let anyone top themselves up with a bookmark.
+  function consumeReturn() {
+    var q = location.search;
+    if (q.indexOf('topup=done') < 0 && q.indexOf('card=saved') < 0) return;
+    history.replaceState({}, '', location.pathname);
+    return q.indexOf('card=saved') >= 0
+      ? 'Card saved.'
+      : 'Payment received — the balance updates within a few seconds.';
+  }
+
+  function renderBilling(b) {
+    if (!b.cardPaymentAvailable) {
+      $('billingUnavailable').className = 'muted';
+      $('billingBody').className = 'hide';
+      return;
+    }
+    $('billingUnavailable').className = 'muted hide';
+    $('billingBody').className = '';
+
+    $('topupAmount').min = b.minimumTopUpUsd;
+    $('autoAmount').min = b.minimumTopUpUsd;
+    $('topupHint').textContent = 'Minimum ' + money(b.minimumTopUpUsd) +
+      '. Charged in USD, receipt emailed by Stripe.';
+
+    var card = b.card;
+    $('cardSummary').textContent = card
+      ? (card.brand || 'card').toUpperCase() + ' ending ' + card.last4
+      : 'No card saved.';
+    $('cardAdd').textContent = card ? 'Replace card' : 'Add card';
+    $('cardRemove').className = card ? 'ghost' : 'ghost hide';
+
+    var auto = b.autoRecharge;
+    if (auto.thresholdUsd != null) $('autoThreshold').value = auto.thresholdUsd;
+    if (auto.amountUsd != null) $('autoAmount').value = auto.amountUsd;
+    $('autoSave').textContent = auto.enabled ? 'Save' : 'Turn on';
+    $('autoOff').className = auto.enabled ? 'ghost' : 'ghost hide';
+    $('autoHint').textContent = auto.enabled
+      ? 'On — when the balance drops below ' + money(auto.thresholdUsd) +
+        ' we charge your card ' + money(auto.amountUsd) + '.'
+      : (card ? 'Off.' : 'Add a card first.');
+    $('autoDisabled').textContent = auto.disabledReason || '';
+    $('autoDisabled').className = auto.disabledReason ? 'err' : 'err hide';
+
+    $('payments').innerHTML = b.payments.length
+      ? b.payments.map(function (p) {
+          return '<tr><td class="muted">' + when(p.createdAt) + '</td>' +
+            '<td>' + (p.kind === 'auto' ? 'Automatic' : 'Manual') + '</td>' +
+            '<td class="num">' + money(p.amountUsd) + '</td>' +
+            '<td class="num ' + (p.status === 'succeeded' ? '' : 'muted') + '">' +
+            esc(p.status === 'failed' ? 'failed: ' + (p.failureCode || '') : p.status) +
+            '</td></tr>';
+        }).join('')
+      : '<tr><td colspan="4" class="muted">No card payments yet.</td></tr>';
+  }
+
+  function goToStripe(path, body) {
+    return api(path, { method: 'POST', body: body })
+      .then(function (j) { location.href = j.url; })
+      .catch(function (e) { alert(e.message); });
+  }
+
+  $('topupGo').addEventListener('click', function () {
+    goToStripe('/billing/topup', { amountUsd: Number($('topupAmount').value) });
+  });
+  $('cardAdd').addEventListener('click', function () {
+    goToStripe('/billing/card', {});
+  });
+  $('cardRemove').addEventListener('click', function () {
+    if (!confirm('Remove the saved card? Automatic top-up switches off with it.')) return;
+    api('/billing/card/remove', { method: 'POST' }).then(load)
+      .catch(function (e) { alert(e.message); });
+  });
+
+  function saveAuto(enabled) {
+    api('/billing/auto-recharge', {
+      method: 'POST',
+      body: {
+        enabled: enabled,
+        thresholdUsd: Number($('autoThreshold').value),
+        amountUsd: Number($('autoAmount').value),
+      },
+    }).then(load).catch(function (e) { alert(e.message); });
+  }
+  $('autoSave').addEventListener('click', function () { saveAuto(true); });
+  $('autoOff').addEventListener('click', function () { saveAuto(false); });
+
   function load() {
-    return Promise.all([api('/account'), api('/usage'), api('/transactions')])
+    return Promise.all([
+      api('/account'), api('/usage'), api('/transactions'), api('/billing'),
+    ])
       .then(function (r) {
         var acc = r[0], usage = r[1], ledger = r[2];
+        renderBilling(r[3]);
         $('who').textContent = acc.email;
         $('balance').textContent = money(acc.balanceUsd);
         $('balance').className = 'balance' + (acc.balanceUsd <= 0 ? ' low' : '');
         $('balanceHint').textContent = acc.balanceUsd <= 0
-          ? 'Out of credit — calls are rejected until it is topped up. Message us to add funds.'
+          ? 'Out of credit — calls are rejected until it is topped up.'
           : acc.totals.calls + ' calls so far, ' + money(acc.totals.spentUsd) + ' spent.';
 
         $('keys').innerHTML = acc.keys.length
@@ -323,7 +465,10 @@ export const PARTNER_PORTAL_HTML = `<!doctype html>
   function show() {
     $('authView').className = 'auth hide';
     $('appView').className = '';
-    load().catch(function () { $('logout').click(); });
+    var returned = consumeReturn();
+    load()
+      .then(function () { if (returned) $('topupHint').textContent = returned; })
+      .catch(function () { $('logout').click(); });
   }
 
   setMode('login');

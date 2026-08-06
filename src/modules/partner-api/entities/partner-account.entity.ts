@@ -43,6 +43,54 @@ export class PartnerAccountEntity {
   @Column({ type: 'timestamp', nullable: true })
   lastLoginAt: Date | null;
 
+  /** Stripe customer holding the saved card. Null until the first payment. */
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  stripeCustomerId: string | null;
+
+  /**
+   * The saved card, and the two digits of it a human can recognise.
+   *
+   * Nothing else about the card is ours to hold: Stripe keeps the number, we keep a handle
+   * to it. Storing more would put this database in PCI scope for no benefit.
+   */
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  paymentMethodId: string | null;
+
+  @Column({ type: 'varchar', length: 24, nullable: true })
+  paymentMethodBrand: string | null;
+
+  @Column({ type: 'char', length: 4, nullable: true })
+  paymentMethodLast4: string | null;
+
+  @Column({ type: 'boolean', default: false })
+  autoRechargeEnabled: boolean;
+
+  /** Charge the card once the balance falls below this. */
+  @Column({ type: 'decimal', precision: 12, scale: 4, nullable: true })
+  autoRechargeThresholdUsd: string | null;
+
+  @Column({ type: 'decimal', precision: 12, scale: 4, nullable: true })
+  autoRechargeAmountUsd: string | null;
+
+  /**
+   * Claimed by a conditional UPDATE before a top-up is attempted.
+   *
+   * Several generations can cross the threshold within the same second; without this each
+   * of them would charge the card. Released when the charge settles or fails.
+   */
+  @Column({ type: 'boolean', default: false })
+  rechargeInFlight: boolean;
+
+  /** Two in a row turns auto top-up off: a card that declines twice will decline again. */
+  @Column({ type: 'int', default: 0 })
+  autoRechargeFailures: number;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  autoRechargeDisabledReason: string | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  lastRechargeAt: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 }

@@ -42,7 +42,7 @@ export type ProviderSettingValidationKind =
 export interface ProviderSettingDefinition {
   key: string;
   /** 'app' covers settings that are not tied to an external provider. */
-  provider: 'openai' | 'runpod' | 'pruna' | 'app' | 'adapty';
+  provider: 'openai' | 'runpod' | 'pruna' | 'app' | 'adapty' | 'stripe';
   group: ProviderSettingGroup;
   label: string;
   description?: string;
@@ -938,6 +938,40 @@ export const PROVIDER_SETTING_DEFINITIONS: ProviderSettingDefinition[] = [
     type: 'secret',
     isSecret: true,
     validationKind: 'none',
+  },
+  {
+    key: 'STRIPE_SECRET_KEY',
+    provider: 'stripe',
+    group: 'payments',
+    label: 'Stripe secret key',
+    description:
+      'Server-side key (sk_live_… or sk_test_…) used to create checkout sessions and to charge a saved card for auto top-ups. Unset = the partner billing screen tells customers that card payment is unavailable and the admin top-up stays the only way money enters an account.',
+    type: 'secret',
+    isSecret: true,
+    validationKind: 'none',
+  },
+  {
+    key: 'STRIPE_WEBHOOK_SECRET',
+    provider: 'stripe',
+    group: 'payments',
+    label: 'Stripe webhook signing secret',
+    description:
+      'The whsec_… value Stripe shows when you add the endpoint (Developers -> Webhooks -> https://yallery-api-prod.org/portal/billing/webhook, events: checkout.session.completed, payment_intent.succeeded, payment_intent.payment_failed, setup_intent.succeeded). Balances are only ever credited from a request that verifies against this — without it every webhook is rejected, because an unverified one is just a stranger asking us to add money.',
+    type: 'secret',
+    isSecret: true,
+    validationKind: 'none',
+  },
+  {
+    key: 'STRIPE_MIN_TOPUP_USD',
+    provider: 'stripe',
+    group: 'payments',
+    label: 'Minimum top-up, USD',
+    description:
+      'Smallest amount a partner may add, and the floor for the auto top-up amount. Stripe takes 2.9% + $0.30 per charge, so a $10 top-up loses ~5.9% to fees and a $50 one ~3.5% — that is what this number is really setting.',
+    type: 'number',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: '10',
   },
   {
     key: REFERRAL_REWARD_SETTING_KEYS.dailyCap,

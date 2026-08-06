@@ -1,5 +1,10 @@
 export const PARTNER_GENERATION_QUEUE = 'partner-generation';
 export const PARTNER_WEBHOOK_QUEUE = 'partner-webhook';
+export const PARTNER_RECHARGE_QUEUE = 'partner-recharge';
+
+export interface PartnerRechargeJobData {
+  accountId: number;
+}
 
 export interface PartnerGenerationJobData {
   jobId: number;
@@ -17,6 +22,19 @@ export interface PartnerWebhookJobData {
  * is the expensive kind of mistake. A failure goes straight to the partner, who decides.
  */
 export const PARTNER_GENERATION_JOB_OPTIONS = {
+  attempts: 1,
+  removeOnComplete: 200,
+  removeOnFail: 500,
+} as const;
+
+/**
+ * Never retried by the queue either.
+ *
+ * A failed top-up is a declined card, and a queue that retries it turns one decline into
+ * six — which is what a bank's fraud system is watching for. `PartnerRechargeService`
+ * decides when to try again.
+ */
+export const PARTNER_RECHARGE_JOB_OPTIONS = {
   attempts: 1,
   removeOnComplete: 200,
   removeOnFail: 500,

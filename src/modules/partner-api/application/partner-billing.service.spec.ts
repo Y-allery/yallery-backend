@@ -16,10 +16,16 @@ describe('PartnerBillingService', () => {
   let inserted: Array<Record<string, unknown>>;
   let savedUsage: { id: number };
   let service: PartnerBillingService;
+  let recharge: { isDue: jest.Mock };
+  let rechargeQueue: { add: jest.Mock };
 
   const buildManager = () => ({
     createQueryBuilder: () => {
-      const record = { set: null as unknown, wheres: [] as string[], params: {} };
+      const record = {
+        set: null as unknown,
+        wheres: [] as string[],
+        params: {},
+      };
       const builder: Record<string, unknown> = {
         update: () => builder,
         set: (value: unknown) => {
@@ -69,13 +75,19 @@ describe('PartnerBillingService', () => {
     balance = 10;
     inserted = [];
     savedUsage = { id: 42 };
-    service = new PartnerBillingService({
-      transaction: async (fn: (m: unknown) => Promise<unknown>) =>
-        fn(buildManager()),
-      getRepository: () => ({
-        findOne: async () => ({ id: 5, balanceUsd: balance.toFixed(4) }),
-      }),
-    } as never);
+    recharge = { isDue: jest.fn().mockResolvedValue(false) };
+    rechargeQueue = { add: jest.fn().mockResolvedValue(undefined) };
+    service = new PartnerBillingService(
+      {
+        transaction: async (fn: (m: unknown) => Promise<unknown>) =>
+          fn(buildManager()),
+        getRepository: () => ({
+          findOne: async () => ({ id: 5, balanceUsd: balance.toFixed(4) }),
+        }),
+      } as never,
+      recharge as never,
+      rechargeQueue as never,
+    );
   });
 
   const MODEL = {
@@ -174,7 +186,9 @@ describe('PartnerBillingService', () => {
         kind: 'refund',
         amountUsd: '0.0450',
       });
-      expect(inserted.find((row) => row.table === 'usage-update')).toMatchObject({
+      expect(
+        inserted.find((row) => row.table === 'usage-update'),
+      ).toMatchObject({
         status: 'failed',
         priceUsd: '0.00000',
         costUsd: '0.01000',
@@ -199,11 +213,15 @@ describe('PartnerBillingService', () => {
     // The images are already delivered by this point; throwing here would turn a good
     // response into a 500 and the partner would be refunded for work they received.
     it('never throws, even when the whole transaction fails', async () => {
-      service = new PartnerBillingService({
-        transaction: async () => {
-          throw new Error('deadlock');
-        },
-      } as never);
+      service = new PartnerBillingService(
+        {
+          transaction: async () => {
+            throw new Error('deadlock');
+          },
+        } as never,
+        recharge as never,
+        rechargeQueue as never,
+      );
 
       await expect(
         service.settle(HOLD, {

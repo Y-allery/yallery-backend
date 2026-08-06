@@ -8,7 +8,13 @@ import { PartnerPlaygroundController } from './api/partner-playground.controller
 import { PartnerAccountService } from './application/partner-account.service';
 import { PartnerBillingService } from './application/partner-billing.service';
 import { PartnerGenerationService } from './application/partner-generation.service';
+import { ProviderSettingsModule } from 'src/modules/provider-settings/provider-settings.module';
 import { PartnerJobService } from './application/partner-job.service';
+import { PartnerPaymentService } from './application/partner-payment.service';
+import { PartnerRechargeService } from './application/partner-recharge.service';
+import { StripeClient } from './infrastructure/stripe.client';
+import { PartnerRechargeProcessor } from './infrastructure/queues/partner-recharge.processor';
+import { PartnerPaymentEntity } from './entities/partner-payment.entity';
 import { PartnerAccountEntity } from './entities/partner-account.entity';
 import { PartnerApiKeyEntity } from './entities/partner-api-key.entity';
 import { PartnerApiUsageEntity } from './entities/partner-api-usage.entity';
@@ -23,6 +29,7 @@ import { PartnerGenerationProcessor } from './infrastructure/queues/partner-gene
 import { PartnerWebhookProcessor } from './infrastructure/queues/partner-webhook.processor';
 import {
   PARTNER_GENERATION_QUEUE,
+  PARTNER_RECHARGE_QUEUE,
   PARTNER_WEBHOOK_QUEUE,
 } from './infrastructure/queues/partner.queues';
 import { PartnerPortalController } from './api/partner-portal.controller';
@@ -42,10 +49,13 @@ import { PartnerPortalController } from './api/partner-portal.controller';
       PartnerApiUsageEntity,
       PartnerBalanceTransactionEntity,
       PartnerJobEntity,
+      PartnerPaymentEntity,
     ]),
     BullModule.registerQueue({ name: PARTNER_GENERATION_QUEUE }),
     BullModule.registerQueue({ name: PARTNER_WEBHOOK_QUEUE }),
+    BullModule.registerQueue({ name: PARTNER_RECHARGE_QUEUE }),
     MediaGenerationModule,
+    ProviderSettingsModule,
     UploadModule,
   ],
   controllers: [
@@ -58,13 +68,17 @@ import { PartnerPortalController } from './api/partner-portal.controller';
     PartnerBillingService,
     PartnerAccountService,
     PartnerJobService,
+    PartnerPaymentService,
+    PartnerRechargeService,
     HostedMediaClient,
     PartnerCallbackClient,
+    StripeClient,
     PartnerKeyGuard,
     PartnerRateLimitGuard,
     PartnerSessionGuard,
     PartnerGenerationProcessor,
     PartnerWebhookProcessor,
+    PartnerRechargeProcessor,
   ],
   exports: [PartnerBillingService],
 })

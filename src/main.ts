@@ -158,6 +158,12 @@ async function bootstrap() {
     '/payment/webhook',
     bodyParser.raw({ type: 'application/json', limit: '50mb' }),
   );
+  // Stripe signs the exact bytes it sent. Parsing to JSON and back reorders keys, the
+  // signature stops matching, and the only way anyone finds out is by disabling the check.
+  app.use(
+    '/portal/billing/webhook',
+    bodyParser.raw({ type: 'application/json', limit: '1mb' }),
+  );
   app.use(bodyParser.json({ limit: '50mb' }));
   app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 
