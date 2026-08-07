@@ -31,7 +31,10 @@ describe('PartnerAccountService', () => {
 
   describe('signing up', () => {
     it('stores the email lowercased and the password only as a hash', async () => {
-      await service.signUp({ email: '  DEV@Acme.COM ', password: 'correct horse battery' });
+      await service.signUp({
+        email: '  DEV@Acme.COM ',
+        password: 'correct horse battery',
+      });
 
       const saved = accounts.save.mock.calls[0][0];
       expect(saved.email).toBe('dev@acme.com');
@@ -83,14 +86,17 @@ describe('PartnerAccountService', () => {
     // A portal session must never be spendable as a Yallery user token: the two are
     // different populations, and one of them signs up unattended.
     it('signs with a key that is not the user JWT secret', () => {
-      expect(partnerTokenSecret({ JWT_SECRET: 'user-secret' } as never)).not.toBe(
-        'user-secret',
-      );
+      expect(
+        partnerTokenSecret({ JWT_SECRET: 'user-secret' } as never),
+      ).not.toBe('user-secret');
     });
 
     it('prefers an explicitly configured partner secret', () => {
       expect(
-        partnerTokenSecret({ JWT_SECRET: 'u', PARTNER_JWT_SECRET: 'p' } as never),
+        partnerTokenSecret({
+          JWT_SECRET: 'u',
+          PARTNER_JWT_SECRET: 'p',
+        } as never),
       ).toBe('p');
     });
 

@@ -68,7 +68,10 @@ describe('PartnerExceptionFilter', () => {
   });
 
   it('answers a non-HTTP crash generically, leaking nothing', () => {
-    filter.catch(new Error('ECONNREFUSED 10.0.0.4:6379 while calling pruna'), host);
+    filter.catch(
+      new Error('ECONNREFUSED 10.0.0.4:6379 while calling pruna'),
+      host,
+    );
 
     expect(status).toHaveBeenCalledWith(500);
     const body = json.mock.calls[0][0];

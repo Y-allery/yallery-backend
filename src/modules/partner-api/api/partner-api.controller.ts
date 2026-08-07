@@ -109,14 +109,14 @@ export class PartnerApiController {
       n?: number;
       callback_url?: string;
     },
-    capability: PartnerCapability,
+    accepts: readonly PartnerCapability[],
     images: string[] | undefined,
     request: PartnerRequest,
     response: { status(code: number): unknown },
   ): Promise<PartnerGenerationReply> {
     const { callback_url: callbackUrl, ...rest } = dto;
     const job = await this.generation.submit(
-      { ...rest, images, capability, callbackUrl },
+      { ...rest, images, accepts, callbackUrl },
       this.keyOf(request),
     );
 
@@ -157,7 +157,7 @@ export class PartnerApiController {
     @Req() request: PartnerRequest,
     @Res({ passthrough: true }) response: { status(code: number): unknown },
   ): Promise<PartnerGenerationReply> {
-    return this.dispatch(dto, 'text_to_image', undefined, request, response);
+    return this.dispatch(dto, ['text_to_image'], undefined, request, response);
   }
 
   @Post('images/edits')
@@ -179,16 +179,18 @@ export class PartnerApiController {
     @Res({ passthrough: true }) response: { status(code: number): unknown },
   ): Promise<PartnerGenerationReply> {
     const { images, ...rest } = dto;
-    return this.dispatch(rest, 'image_to_image', images, request, response);
+    return this.dispatch(rest, ['image_to_image'], images, request, response);
   }
 
   @Post('videos/generations')
   @ApiOperation({
     summary: 'Photo to video',
     description:
-      'Animates a still image into a short clip. This is the slow one — 40 to 120 s is normal, ' +
-      'so either pass `callback_url` and let us deliver it, or use a 300 s client timeout and ' +
-      'do not retry on your own timeout alone.',
+      'Produces a short clip. Pass `image` with an image-to-video model to animate a picture ' +
+      'you already have, or omit it and use a text-to-video model to generate one from the ' +
+      'prompt alone.\n\nThis is the slow endpoint — 40 to 120 s is normal and text-to-video is ' +
+      'the longer of the two, because it draws its opening frame first. Pass `callback_url` and ' +
+      'let us deliver it, or use a 300 s client timeout and do not retry on your own timeout alone.',
   })
   @ApiResponse({ status: 201, type: PartnerGenerationResponseDto })
   @ApiResponse({
@@ -202,7 +204,16 @@ export class PartnerApiController {
     @Res({ passthrough: true }) response: { status(code: number): unknown },
   ): Promise<PartnerGenerationReply> {
     const { image, ...rest } = dto;
-    return this.dispatch(rest, 'image_to_video', [image], request, response);
+    // One endpoint, two capabilities: whether this animates a picture or invents one is a
+    // property of the model, not of the URL, so a partner switching between them changes a
+    // string rather than an integration.
+    return this.dispatch(
+      rest,
+      ['image_to_video', 'text_to_video'],
+      image ? [image] : undefined,
+      request,
+      response,
+    );
   }
 
   @Get('jobs/:id')

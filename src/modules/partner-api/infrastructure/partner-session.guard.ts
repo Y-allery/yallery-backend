@@ -67,7 +67,10 @@ export class PartnerSessionGuard implements CanActivate {
       : null;
     if (!account || !account.isActive) {
       throw new UnauthorizedException({
-        error: { type: 'authentication_error', message: 'Account unavailable.' },
+        error: {
+          type: 'authentication_error',
+          message: 'Account unavailable.',
+        },
       });
     }
 

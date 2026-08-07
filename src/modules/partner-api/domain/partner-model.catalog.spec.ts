@@ -23,7 +23,8 @@ describe('partner model catalog', () => {
   });
 
   it('keeps every id free of vendor names', () => {
-    const vendors = /pruna|wan|qwen|krea|flux|sdxl|ltx|z-image|kling|bytedance/i;
+    const vendors =
+      /pruna|wan|qwen|krea|flux|sdxl|ltx|z-image|kling|bytedance/i;
     for (const model of PARTNER_MODELS) {
       expect(model.id).not.toMatch(vendors);
       expect(model.description).not.toMatch(vendors);
@@ -40,7 +41,8 @@ describe('partner model catalog', () => {
     for (const model of claimsSound) {
       const silent = /\bno sound\b|\bsilent\b/i.test(model.description);
       if (silent) continue;
-      expect(model.id).toBe('yengine-video-hd');
+      // Both of ours run the same worker with audio on; the hosted one is silent.
+      expect(['yengine-video-hd', 'yengine-video-text']).toContain(model.id);
       expect(model.backend).toBe('inhouse');
     }
   });

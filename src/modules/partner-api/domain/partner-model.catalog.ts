@@ -9,6 +9,12 @@ import { AI_SERVICES } from 'src/modules/media-generation/domain/ai-service.cata
  * returns 960x960 at 16 fps, silent, in 76 s and costs $0.11. It loses on every axis, so
  * it is kept only as an A/B and as somewhere to fall back to.
  *
+ * Text-to-video goes through a still rather than straight to the video model. The worker
+ * has no notion of that — it animates when it is handed an image and generates from
+ * nothing when it is not — so the two steps are ours to sequence. It is worth doing: a
+ * clip generated from nothing drifts, and one generated from a picture we have already
+ * seen does not. The app reached the same conclusion and runs a heavier version of it.
+ *
  * The public id is a product name. Which engine runs it, and on whose hardware, is not
  * published anywhere in the request, the response or the errors — that is the point of
  * this indirection, and it is what lets `backend` move without the partner noticing.
@@ -25,7 +31,8 @@ export type PartnerBackend = 'hosted' | 'inhouse';
 export type PartnerCapability =
   | 'text_to_image'
   | 'image_to_image'
-  | 'image_to_video';
+  | 'image_to_video'
+  | 'text_to_video';
 
 export interface PartnerModel {
   /** Published id. Never leaks the engine. */
@@ -106,6 +113,19 @@ export const PARTNER_MODELS: readonly PartnerModel[] = [
     target: AI_SERVICES.VIDEO_IMAGE,
     priceUsd: 0.25,
     costUsd: 0.065,
+    sizes: ['720p'],
+  },
+  {
+    id: 'yengine-video-text',
+    capability: 'text_to_video',
+    description:
+      'Text-to-video, 1280x704 at 24 fps with a generated soundtrack. Slowest model — pass callback_url.',
+    backend: 'inhouse',
+    target: AI_SERVICES.VIDEO_IMAGE,
+    priceUsd: 0.25,
+    // Still plus clip. The still is a rounding error next to the video, which is why
+    // going through one buys a lot for almost nothing.
+    costUsd: 0.07,
     sizes: ['720p'],
   },
 ];

@@ -3,10 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { PartnerJobService } from '../../application/partner-job.service';
 import { PartnerCallbackClient } from '../partner-callback.client';
-import {
-  PARTNER_WEBHOOK_QUEUE,
-  PartnerWebhookJobData,
-} from './partner.queues';
+import { PARTNER_WEBHOOK_QUEUE, PartnerWebhookJobData } from './partner.queues';
 
 /**
  * Delivers a finished job to the partner's `callback_url`.

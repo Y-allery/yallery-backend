@@ -21,7 +21,12 @@ describe('PartnerWebhookProcessor', () => {
   });
 
   const queued = (overrides: Record<string, unknown> = {}) =>
-    ({ data: { jobId: 1 }, attemptsMade: 1, opts: { attempts: 6 }, ...overrides }) as unknown as Job<{
+    ({
+      data: { jobId: 1 },
+      attemptsMade: 1,
+      opts: { attempts: 6 },
+      ...overrides,
+    }) as unknown as Job<{
       jobId: number;
     }>;
 

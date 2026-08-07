@@ -133,11 +133,14 @@ export class PartnerImageEditDto extends PartnerImageGenerationDto {
 }
 
 export class PartnerVideoGenerationDto extends BasePartnerGenerationDto {
-  @ApiProperty({
-    description: 'URL of the still image to animate.',
+  @ApiPropertyOptional({
+    description:
+      'URL of the still image to animate. Required by the image-to-video models and ' +
+      'refused by the text-to-video ones, which draw their own opening frame.',
     example: 'https://example.com/photo.jpg',
   })
+  @IsOptional()
   @IsString()
   @Validate(IsPublicImageUrl)
-  image: string;
+  image?: string;
 }

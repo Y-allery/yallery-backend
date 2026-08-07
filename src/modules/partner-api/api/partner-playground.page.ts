@@ -162,6 +162,7 @@ export const renderPartnerPlayground = (models: unknown[]): string =>
       <button data-cap="text_to_image" class="on">Text → Photo</button>
       <button data-cap="image_to_image">Photo → Photo</button>
       <button data-cap="image_to_video">Photo → Video</button>
+      <button data-cap="text_to_video">Text → Video</button>
     </div>
 
     <label for="model">Model</label>
@@ -227,6 +228,7 @@ export const renderPartnerPlayground = (models: unknown[]): string =>
                  .filter(Boolean);
     if (cap === 'image_to_image') { b.images = urls; b.n = Number($('n').value); }
     else if (cap === 'image_to_video') { b.image = urls[0] || ''; }
+    else if (cap === 'text_to_video') { /* the model draws its own opening frame */ }
     else { b.n = Number($('n').value); }
     if ($('callback').value.trim()) b.callback_url = $('callback').value.trim();
     return b;
@@ -250,8 +252,9 @@ export const renderPartnerPlayground = (models: unknown[]): string =>
         return '<option>' + s + '</option>';
       }).join('') : '';
     }
-    var n = cap === 'image_to_video' ? 1 : Number($('n').value || 1);
-    $('nWrap').style.display = cap === 'image_to_video' ? 'none' : '';
+    var isVideo = cap === 'image_to_video' || cap === 'text_to_video';
+    var n = isVideo ? 1 : Number($('n').value || 1);
+    $('nWrap').style.display = isVideo ? 'none' : '';
     $('cost').innerHTML = m
       ? 'This run costs <span class="price">$' + (m.price_usd * n).toFixed(3) + '</span>'
       : '';
@@ -274,7 +277,8 @@ export const renderPartnerPlayground = (models: unknown[]): string =>
     if (e.target.tagName !== 'BUTTON') return;
     cap = e.target.dataset.cap;
     [].forEach.call(this.children, function (b) { b.classList.toggle('on', b === e.target); });
-    $('imagesWrap').style.display = cap === 'text_to_image' ? 'none' : '';
+    var needsImages = cap === 'image_to_image' || cap === 'image_to_video';
+    $('imagesWrap').style.display = needsImages ? '' : 'none';
     loadModels();
   });
   ['model', 'size', 'n', 'seed', 'prompt', 'images', 'callback'].forEach(function (id) {
@@ -287,7 +291,7 @@ export const renderPartnerPlayground = (models: unknown[]): string =>
   }
 
   function render(job, started) {
-    var isVideo = cap === 'image_to_video';
+    var isVideo = cap === 'image_to_video' || cap === 'text_to_video';
     $('out').innerHTML =
       '<div><span class="stat">round trip <b>' +
         ((Date.now() - started) / 1000).toFixed(1) + 's</b></span>' +

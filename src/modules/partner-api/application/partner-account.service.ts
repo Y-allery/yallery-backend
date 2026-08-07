@@ -72,7 +72,9 @@ export class PartnerAccountService {
     const email = this.normalizeEmail(input.email);
     const existing = await this.accounts.findOne({ where: { email } });
     if (existing) {
-      throw invalid('An account with this email already exists. Sign in instead.');
+      throw invalid(
+        'An account with this email already exists. Sign in instead.',
+      );
     }
 
     const account = await this.accounts.save(
@@ -160,7 +162,9 @@ export class PartnerAccountService {
     accountId: number,
     name: string,
   ): Promise<{ record: PartnerApiKeyEntity; plaintext: string }> {
-    const active = await this.keys.count({ where: { accountId, isActive: true } });
+    const active = await this.keys.count({
+      where: { accountId, isActive: true },
+    });
     if (active >= MAX_ACTIVE_KEYS) {
       throw invalid(
         `You already have ${MAX_ACTIVE_KEYS} active keys. Revoke one to create another.`,

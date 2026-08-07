@@ -62,10 +62,29 @@ describe('partner generation DTOs', () => {
     expect(validateSync(dto)).toHaveLength(0);
   });
 
-  it('requires model, prompt and image on a video request', () => {
+  it('requires model and prompt on a video request', () => {
     expect(errorsFor(PartnerVideoGenerationDto, {})).toEqual(
-      expect.arrayContaining(['model', 'prompt', 'image']),
+      expect.arrayContaining(['model', 'prompt']),
     );
+  });
+
+  // Text-to-video draws its own opening frame, so the field cannot be mandatory here —
+  // which model needs it is decided in the service, against the catalog.
+  it('leaves the image optional and still validates it when present', () => {
+    expect(
+      errorsFor(PartnerVideoGenerationDto, {
+        model: 'yengine-video-text',
+        prompt: 'a kite over a beach',
+      }),
+    ).toEqual([]);
+
+    expect(
+      errorsFor(PartnerVideoGenerationDto, {
+        model: 'yengine-video',
+        prompt: 'x',
+        image: 'http://127.0.0.1/a.png',
+      }),
+    ).toContain('image');
   });
 
   describe('callback_url', () => {

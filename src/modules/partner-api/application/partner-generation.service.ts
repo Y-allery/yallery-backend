@@ -30,7 +30,8 @@ export interface PartnerGenerationInput {
   size?: string;
   n?: number;
   seed?: number;
-  capability: PartnerCapability;
+  /** Capabilities the endpoint that was called serves. The model picks one of them. */
+  accepts: readonly PartnerCapability[];
   /** Present means the partner wants the result delivered, not awaited. */
   callbackUrl?: string;
 }
@@ -60,9 +61,16 @@ export class PartnerGenerationService {
     private readonly queue: Queue<PartnerGenerationJobData>,
   ) {}
 
+  /**
+   * Resolves a model and checks it belongs on the endpoint that was called.
+   *
+   * An endpoint can serve more than one capability: /v1/videos/generations takes both the
+   * image-to-video models and the text-to-video one, and which of the two a request is
+   * comes from the model rather than from a second URL.
+   */
   private resolveModel(
     id: string,
-    capability: PartnerCapability,
+    allowed: readonly PartnerCapability[],
   ): PartnerModel {
     const model = findPartnerModel(id);
     if (!model) {
@@ -74,7 +82,7 @@ export class PartnerGenerationService {
         },
       });
     }
-    if (model.capability !== capability) {
+    if (!allowed.includes(model.capability)) {
       throw new BadRequestException({
         error: {
           type: 'invalid_request_error',
@@ -105,8 +113,23 @@ export class PartnerGenerationService {
     return { width, height };
   }
 
-  private assertReferences(input: PartnerGenerationInput): void {
-    if (input.capability === 'text_to_image') return;
+  private assertReferences(
+    model: PartnerModel,
+    input: PartnerGenerationInput,
+  ): void {
+    if (model.capability === 'text_to_image') return;
+    if (model.capability === 'text_to_video') {
+      if (input.images?.length) {
+        throw new BadRequestException({
+          error: {
+            type: 'invalid_request_error',
+            param: 'image',
+            message: `Model '${model.id}' generates from the prompt alone. Use an image-to-video model to animate a picture you already have.`,
+          },
+        });
+      }
+      return;
+    }
     if (!input.images?.length) {
       throw new BadRequestException({
         error: {
@@ -139,10 +162,10 @@ export class PartnerGenerationService {
     input: PartnerGenerationInput,
     partnerKey: PartnerApiKeyEntity,
   ): Promise<PartnerJobEntity> {
-    const model = this.resolveModel(input.model, input.capability);
+    const model = this.resolveModel(input.model, input.accepts);
     const size = this.assertSize(model, input.size);
     const count = Math.min(Math.max(input.n ?? 1, 1), MAX_OUTPUTS);
-    this.assertReferences(input);
+    this.assertReferences(model, input);
 
     const job = await this.jobs.create({
       partnerKey,
@@ -252,10 +275,9 @@ export class PartnerGenerationService {
    * become the HTTP response.
    */
   async execute(job: PartnerJobEntity): Promise<PartnerGenerationOutput> {
-    const model = this.resolveModel(
-      job.model,
+    const model = this.resolveModel(job.model, [
       job.capability as PartnerCapability,
-    );
+    ]);
     const request = job.request as {
       prompt: string;
       size: string;
@@ -265,7 +287,7 @@ export class PartnerGenerationService {
     };
     const input: PartnerGenerationInput = {
       model: model.id,
-      capability: model.capability,
+      accepts: [model.capability],
       prompt: request.prompt,
       images: request.images,
       seed: request.seed,
@@ -376,6 +398,27 @@ export class PartnerGenerationService {
     return results;
   }
 
+  /**
+   * Makes the opening frame a text-to-video clip is animated from.
+   *
+   * Uses the same fast image model sold as `yengine-photo`: at half a cent against a
+   * six-cent clip the still is a rounding error, and it is the cheapest quality we buy
+   * anywhere. Its cost is not added to `progress` — the caller counts delivered outputs,
+   * and a still is not one; the catalog's `costUsd` already carries it.
+   */
+  private async stillFor(input: PartnerGenerationInput): Promise<string> {
+    const still = await this.hosted.generate('p-image', {
+      prompt: input.prompt,
+      aspect_ratio: 'custom',
+      width: 1280,
+      height: 704,
+      prompt_upsampling: false,
+      seed: input.seed ?? Math.floor(Math.random() * 4_000_000_000),
+      disable_safety_checker: false,
+    });
+    return this.uploads.uploadByUrl(still.url);
+  }
+
   private async settleQuietly(
     hold: PartnerHold,
     outcome: Parameters<PartnerBillingService['settle']>[1],
@@ -481,10 +524,19 @@ export class PartnerGenerationService {
       return result.imageUrls.map((url) => ({ url }));
     }
 
+    // Text-to-video is animated from a still we make first, not generated from nothing.
+    // The video worker cannot do this itself — it animates when handed an image and
+    // generates when not — so the two calls are sequenced here. A clip grown from a
+    // picture that already exists holds its subject; one grown from a prompt drifts.
+    const source =
+      model.capability === 'text_to_video'
+        ? await this.stillFor(input)
+        : images[0];
+
     const result = await this.inhouse.generateImageVideos({
       aiService: model.target,
       prompt: input.prompt,
-      imageUrl: images[0],
+      imageUrl: source,
       duration: 5,
       orientation: 'horizontal',
       ...(input.seed != null && { seed: input.seed }),

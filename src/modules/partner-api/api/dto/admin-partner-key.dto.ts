@@ -52,7 +52,9 @@ export class CreatePartnerKeyDto {
 }
 
 export class TopUpAccountDto {
-  @ApiProperty({ description: 'Account id from GET /admin/partner-api/accounts.' })
+  @ApiProperty({
+    description: 'Account id from GET /admin/partner-api/accounts.',
+  })
   @IsInt()
   @Min(1)
   accountId: number;

@@ -88,7 +88,12 @@ describe('PartnerGenerationService', () => {
       {
         model: 'yengine-photo',
         prompt: 'a cat',
-        capability: 'text_to_image',
+        accepts: [
+          'text_to_image',
+          'image_to_image',
+          'image_to_video',
+          'text_to_video',
+        ],
         ...overrides,
       } as never,
       key as never,
@@ -124,7 +129,6 @@ describe('PartnerGenerationService', () => {
   it('rehosts a hosted video through the video path', async () => {
     const result = await run({
       model: 'yengine-video',
-      capability: 'image_to_video',
       images: ['https://cdn.example/in.jpg'],
       size: '480p',
     });
@@ -157,7 +161,7 @@ describe('PartnerGenerationService', () => {
 
   it('rejects a model used on the wrong endpoint', async () => {
     await expect(
-      run({ model: 'yengine-edit', capability: 'text_to_image' }),
+      run({ model: 'yengine-edit', accepts: ['text_to_image'] }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -174,16 +178,15 @@ describe('PartnerGenerationService', () => {
   });
 
   it('requires a reference image for editing', async () => {
-    await expect(
-      run({ model: 'yengine-edit', capability: 'image_to_image' }),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(run({ model: 'yengine-edit' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 
   it('caps reference images at three', async () => {
     await expect(
       run({
         model: 'yengine-edit',
-        capability: 'image_to_image',
         images: ['a', 'b', 'c', 'd'],
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
@@ -292,13 +295,88 @@ describe('PartnerGenerationService', () => {
     });
   });
 
+  describe('text to video', () => {
+    const t2v = (overrides: Record<string, unknown> = {}) =>
+      run({ model: 'yengine-video-text', ...overrides });
+
+    // The video worker has no cascade of its own — it animates what it is handed. Drawing
+    // the opening frame first is this service's job, and it is the whole reason the model
+    // exists as something separate from plain text-to-video on the worker.
+    it('draws a still first and animates that', async () => {
+      const result = await t2v();
+
+      expect(hosted.generate).toHaveBeenCalledTimes(1);
+      expect(hosted.generate.mock.calls[0][0]).toBe('p-image');
+      expect(inhouse.generateImageVideos).toHaveBeenCalledWith(
+        expect.objectContaining({ imageUrl: 'https://ours/rehosted.png' }),
+      );
+      expect(result.data[0].url).toBe('https://ours/3.mp4');
+    });
+
+    // The still is ours; handing back a link to where it came from would publish the
+    // upstream just as surely as returning it as the result.
+    it('rehosts the still before sending it onward', async () => {
+      hosted.generate.mockResolvedValue({
+        url: 'https://api.pruna.ai/v1/predictions/delivery/x/still.jpeg',
+        executionMs: 800,
+      });
+
+      const result = await t2v();
+
+      expect(uploads.uploadByUrl).toHaveBeenCalledWith(
+        'https://api.pruna.ai/v1/predictions/delivery/x/still.jpeg',
+      );
+      expect(JSON.stringify(result)).not.toContain('pruna');
+    });
+
+    it('passes the same seed to the still and the clip', async () => {
+      await t2v({ seed: 4242 });
+
+      expect(hosted.generate.mock.calls[0][1]).toMatchObject({ seed: 4242 });
+      expect(inhouse.generateImageVideos).toHaveBeenCalledWith(
+        expect.objectContaining({ seed: 4242 }),
+      );
+    });
+
+    it('refuses an image, because this model makes its own', async () => {
+      await expect(
+        t2v({ images: ['https://cdn.example/in.jpg'] }),
+      ).rejects.toMatchObject({
+        response: { error: { param: 'image' } },
+      });
+      expect(hosted.generate).not.toHaveBeenCalled();
+    });
+
+    // A still that never arrives means no clip, so nothing is billed — and our cost is
+    // whatever the failed still burned, which is what `progress` deliberately excludes.
+    it('bills nothing when the still fails', async () => {
+      hosted.generate.mockRejectedValue(
+        new HostedGenerationError('still exploded', 'poll'),
+      );
+
+      await expect(t2v()).rejects.toBeTruthy();
+
+      expect(inhouse.generateImageVideos).not.toHaveBeenCalled();
+      expect(billing.settle).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ status: 'failed', priceUsd: 0, costUsd: 0 }),
+      );
+    });
+
+    it('is priced like the other video model', async () => {
+      const result = await t2v();
+
+      expect(result.usage.price_usd).toBe(0.25);
+    });
+  });
+
   describe('callback_url', () => {
     const submit = (overrides: Record<string, unknown> = {}) =>
       service.submit(
         {
           model: 'yengine-photo',
           prompt: 'a cat',
-          capability: 'text_to_image',
+          accepts: ['text_to_image'],
           callbackUrl: 'https://partner.example/hook',
           ...overrides,
         } as never,
