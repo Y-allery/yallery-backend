@@ -675,6 +675,46 @@ export const PROVIDER_SETTING_DEFINITIONS: ProviderSettingDefinition[] = [
     defaultValue: 'true',
   },
   {
+    key: 'WORKER_KEEPALIVE_ENABLED',
+    provider: 'runpod',
+    group: 'runpod_toggles',
+    label: 'Video Worker Keepalive Enabled',
+    description:
+      'Pings the P-Video endpoint with a micro job when there was no real video traffic, so the ' +
+      'FlashBoot freeze never goes stale and users keep the ~27s cold start (vs ~59s degraded). ' +
+      'Costs roughly $1-2/day. Enable on prod only — a second environment pinging the same ' +
+      'endpoint just doubles the spend.',
+    type: 'boolean',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: 'false',
+  },
+  {
+    key: 'WORKER_KEEPALIVE_IDLE_MINUTES',
+    provider: 'runpod',
+    group: 'runpod_toggles',
+    label: 'Keepalive Idle Threshold (minutes)',
+    description:
+      'Ping only when neither a real video workflow nor a previous ping happened within this ' +
+      'window. Measured decay: freeze is fresh at 30 min, degraded after hours.',
+    type: 'number',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: '25',
+  },
+  {
+    key: 'WORKER_KEEPALIVE_PINGS',
+    provider: 'runpod',
+    group: 'runpod_toggles',
+    label: 'Keepalive Concurrent Pings',
+    description:
+      'Concurrent micro jobs per ping; two tend to land on both worker slots so both freezes stay fresh.',
+    type: 'number',
+    isSecret: false,
+    validationKind: 'none',
+    defaultValue: '2',
+  },
+  {
     key: 'RUNPOD_LTX_MEME_ENABLED',
     provider: 'runpod',
     group: 'runpod_toggles',
