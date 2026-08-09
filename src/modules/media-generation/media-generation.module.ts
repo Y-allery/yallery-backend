@@ -246,6 +246,9 @@ const mediaGenerationQueueOptions = {
     // through the queue: a partner's HTTP request is the job, and there is no post,
     // no points charge and no socket delivery to schedule around.
     RunpodOpenEndpointMediaProvider,
+    // Exported for the worker-keepalive module: its ping is a raw endpoint job on
+    // purpose — no workflow row, no points, no delivery.
+    RunpodMediaClient,
   ],
 })
 export class MediaGenerationModule {}
