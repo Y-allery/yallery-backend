@@ -116,6 +116,18 @@ export const PARTNER_MODELS: readonly PartnerModel[] = [
     sizes: ['720p'],
   },
   {
+    id: 'yengine-video-fhd',
+    capability: 'image_to_video',
+    description:
+      'Image-to-video, 1920x1088 at 24 fps with a generated soundtrack. Same worker as ' +
+      'yengine-video-hd at twice the pixels: ~55s of generation instead of ~26s.',
+    backend: 'inhouse',
+    target: AI_SERVICES.VIDEO_IMAGE,
+    priceUsd: 0.4,
+    costUsd: 0.1,
+    sizes: ['1080p'],
+  },
+  {
     id: 'yengine-video-text',
     capability: 'text_to_video',
     description:

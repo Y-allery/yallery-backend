@@ -539,6 +539,7 @@ export class PartnerGenerationService {
       imageUrl: source,
       duration: 5,
       orientation: 'horizontal',
+      resolution: size === '1080p' ? '1080p' : '720p',
       ...(input.seed != null && { seed: input.seed }),
     });
     progress.completed += 1;

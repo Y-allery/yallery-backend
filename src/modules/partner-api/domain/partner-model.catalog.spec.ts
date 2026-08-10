@@ -41,8 +41,12 @@ describe('partner model catalog', () => {
     for (const model of claimsSound) {
       const silent = /\bno sound\b|\bsilent\b/i.test(model.description);
       if (silent) continue;
-      // Both of ours run the same worker with audio on; the hosted one is silent.
-      expect(['yengine-video-hd', 'yengine-video-text']).toContain(model.id);
+      // All of ours run the same worker with audio on; the hosted one is silent.
+      expect([
+        'yengine-video-hd',
+        'yengine-video-fhd',
+        'yengine-video-text',
+      ]).toContain(model.id);
       expect(model.backend).toBe('inhouse');
     }
   });

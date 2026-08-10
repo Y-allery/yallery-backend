@@ -2,7 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { AI_SERVICES } from 'src/modules/media-generation/domain/ai-service.catalog';
 import { AudioGenerationRequest } from 'src/modules/media-generation/domain/contracts/audio-generation-request.contract';
 import { EditImageGenerationRequest } from 'src/modules/media-generation/domain/contracts/edit-image-generation-request.contract';
-import { ImageVideoGenerationRequest } from 'src/modules/media-generation/domain/contracts/image-video-generation-request.contract';
+import {
+  ImageVideoGenerationRequest,
+  MediaVideoResolution,
+} from 'src/modules/media-generation/domain/contracts/image-video-generation-request.contract';
 import { MemeGenerationRequest } from 'src/modules/media-generation/domain/contracts/meme-generation-request.contract';
 import { MAX_EDIT_REFERENCE_IMAGES } from 'src/modules/media-generation/domain/constants/image-edit.constants';
 import { ResolvedPromptImageGenerationRequest } from 'src/modules/media-generation/domain/contracts/prompt-image-generation-request.contract';
@@ -21,6 +24,15 @@ const LTX_DIMENSIONS_720: Record<
 > = {
   horizontal: { width: 1280, height: 704 },
   vertical: { width: 704, height: 1280 },
+};
+// 1080 tier: same worker, ~55s of generation instead of ~26s. Requires the endpoint's
+// LTX_MAX_PIXELS to cover 1920x1088 (2088960) — it does on the prod video endpoint.
+const LTX_DIMENSIONS_1080: Record<
+  MediaOrientation,
+  { width: number; height: number }
+> = {
+  horizontal: { width: 1920, height: 1088 },
+  vertical: { width: 1088, height: 1920 },
 };
 
 @Injectable()
@@ -154,7 +166,10 @@ export class RunpodPayloadBuilder {
     // LTX worker owns the prompt upsampler (enhance defaults on). The backend only maps
     // orientation -> 32-multiple dimensions and duration -> validated frame tier.
     // Jobs queued before the seed field existed fall back to a fresh random seed.
-    const { width, height } = this.resolveLtxDimensions(request.orientation);
+    const { width, height } = this.resolveLtxDimensions(
+      request.orientation,
+      request.resolution,
+    );
 
     return {
       prompt: request.prompt,
@@ -228,11 +243,16 @@ export class RunpodPayloadBuilder {
     };
   }
 
-  private resolveLtxDimensions(orientation: MediaOrientation): {
+  private resolveLtxDimensions(
+    orientation: MediaOrientation,
+    resolution?: MediaVideoResolution,
+  ): {
     width: number;
     height: number;
   } {
-    return LTX_DIMENSIONS_720[orientation] ?? LTX_DIMENSIONS_720.horizontal;
+    const table =
+      resolution === '1080p' ? LTX_DIMENSIONS_1080 : LTX_DIMENSIONS_720;
+    return table[orientation] ?? table.horizontal;
   }
 
   private framesForDuration(duration: number): number {
