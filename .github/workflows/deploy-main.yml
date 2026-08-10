@@ -36,13 +36,15 @@ jobs:
     runs-on: ubuntu-latest
     needs: deploy-product
     # The engine node is optional: without ENGINE_SERVER_IP this is a no-op, so a single-node
-    # setup keeps deploying exactly as before.
+    # setup keeps deploying exactly as before. (Secrets cannot be read inside `if:`, hence env.)
+    env:
+      ENGINE_HOST: ${{ secrets.ENGINE_SERVER_IP }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
       - name: Deploy to ENGINE node
-        if: ${{ secrets.ENGINE_SERVER_IP != '' }}
+        if: env.ENGINE_HOST != ''
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.ENGINE_SERVER_IP }}
