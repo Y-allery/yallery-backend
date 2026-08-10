@@ -104,7 +104,11 @@ const DEV_TOOLS_ENABLED = areDevToolsEnabled();
     PostModule,
     LikeModule,
     ContestModule,
-    ScheduleModule.forRoot(),
+    // The engine node serves /v1, /portal and /media behind the same domain from its own
+    // droplet, so both nodes run this same image. Only the product node schedules work:
+    // two schedulers would double every push, every content-bot post and every keepalive
+    // ping. Routing decides which node answers what; the cron owner is decided here.
+    ...(process.env.NODE_ROLE === 'engine' ? [] : [ScheduleModule.forRoot()]),
     NotificationModule,
     FirebaseModule,
     TransactionModule,
