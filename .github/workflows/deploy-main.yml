@@ -6,9 +6,11 @@ on:
       - main
 
 jobs:
-  deploy:
+  # Both nodes run this same image behind one domain: the product node answers Yallery and
+  # owns the crons, the engine node answers /v1, /portal and /media. They deploy in sequence
+  # so a migration lands once, from the node that owns the schema.
+  deploy-product:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -29,3 +31,29 @@ jobs:
             npm run build
             npm run migration:run
             pm2 restart yallery-backend
+
+  deploy-engine:
+    runs-on: ubuntu-latest
+    needs: deploy-product
+    # The engine node is optional: without ENGINE_SERVER_IP this is a no-op, so a single-node
+    # setup keeps deploying exactly as before.
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Deploy to ENGINE node
+        if: ${{ secrets.ENGINE_SERVER_IP != '' }}
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.ENGINE_SERVER_IP }}
+          username: root
+          key: ${{ secrets.PROD_DEPLOY_KEY }}
+          script: |
+            set -euo pipefail
+            cd /root/yallery-backend
+            git reset --hard HEAD
+            git clean -fd -e .env
+            git pull origin main
+            npm install --omit=dev
+            NODE_OPTIONS=--max-old-space-size=3072 npm run build
+            pm2 restart yengine-api
