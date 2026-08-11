@@ -95,16 +95,6 @@ export const PARTNER_MODELS: readonly PartnerModel[] = [
     sizes: ['match_input_image'],
   },
   {
-    id: 'yengine-video',
-    capability: 'image_to_video',
-    description: 'Image-to-video, 480p, 16 fps, no sound. The budget option.',
-    backend: 'hosted',
-    target: 'wan-i2v',
-    priceUsd: 0.12,
-    costUsd: 0.05,
-    sizes: ['480p'],
-  },
-  {
     id: 'yengine-video-hd',
     capability: 'image_to_video',
     description:
