@@ -111,7 +111,7 @@ export const PARTNER_MODELS: readonly PartnerModel[] = [
       'Image-to-video, 1280x704 at 24 fps with a generated soundtrack.',
     backend: 'inhouse',
     target: AI_SERVICES.VIDEO_IMAGE,
-    priceUsd: 0.25,
+    priceUsd: 0.18,
     costUsd: 0.065,
     sizes: ['720p'],
   },
@@ -123,7 +123,7 @@ export const PARTNER_MODELS: readonly PartnerModel[] = [
       'yengine-video-hd at twice the pixels: ~55s of generation instead of ~26s.',
     backend: 'inhouse',
     target: AI_SERVICES.VIDEO_IMAGE,
-    priceUsd: 0.4,
+    priceUsd: 0.28,
     costUsd: 0.1,
     sizes: ['1080p'],
   },
@@ -134,7 +134,7 @@ export const PARTNER_MODELS: readonly PartnerModel[] = [
       'Text-to-video, 1280x704 at 24 fps with a generated soundtrack. Slowest model — pass callback_url.',
     backend: 'inhouse',
     target: AI_SERVICES.VIDEO_IMAGE,
-    priceUsd: 0.25,
+    priceUsd: 0.18,
     // Still plus clip. The still is a rounding error next to the video, which is why
     // going through one buys a lot for almost nothing.
     costUsd: 0.07,
