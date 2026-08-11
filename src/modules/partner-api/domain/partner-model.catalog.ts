@@ -128,6 +128,18 @@ export const PARTNER_MODELS: readonly PartnerModel[] = [
     sizes: ['1080p'],
   },
   {
+    id: 'yengine-video-text-fhd',
+    capability: 'text_to_video',
+    description:
+      'Text-to-video, 1920x1088 at 24 fps with a generated soundtrack. Slowest model — pass callback_url.',
+    backend: 'inhouse',
+    target: AI_SERVICES.VIDEO_IMAGE,
+    priceUsd: 0.28,
+    // The still is the same rounding error as on the 720p tier; the clip is what costs.
+    costUsd: 0.105,
+    sizes: ['1080p'],
+  },
+  {
     id: 'yengine-video-text',
     capability: 'text_to_video',
     description:

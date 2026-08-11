@@ -46,6 +46,7 @@ describe('partner model catalog', () => {
         'yengine-video-hd',
         'yengine-video-fhd',
         'yengine-video-text',
+        'yengine-video-text-fhd',
       ]).toContain(model.id);
       expect(model.backend).toBe('inhouse');
     }
