@@ -41,6 +41,22 @@ export type PartnerGenerationOutput = PartnerJobView;
 const MAX_OUTPUTS = 4;
 const MAX_REFERENCE_IMAGES = 3;
 
+/**
+ * Our `size` strings translated into the upstream editor's own vocabulary.
+ *
+ * It takes named ratios and nothing else: `custom` with explicit width/height — which is
+ * what the text-to-image sibling uses — is rejected with "matches none of the enum values"
+ * (verified against the live API 2026-08-12). Sizes not listed here fall back to matching
+ * the input rather than to a square, so a size added to the catalogue without a line here
+ * ships the wrong resolution instead of silently cropping the partner's photo to 1:1.
+ */
+const HOSTED_EDIT_ASPECT_RATIOS: Record<string, string> = {
+  match_input_image: 'match_input_image',
+  '1024x1024': '1:1',
+  '1280x704': '16:9',
+  '704x1280': '9:16',
+};
+
 const holdOf = (job: PartnerJobEntity): PartnerHold => ({
   usageId: job.usageId,
   accountId: job.accountId,
@@ -470,8 +486,7 @@ export class PartnerGenerationService {
       return {
         prompt: input.prompt,
         images: input.images,
-        aspect_ratio:
-          size === 'match_input_image' ? 'match_input_image' : '1:1',
+        aspect_ratio: HOSTED_EDIT_ASPECT_RATIOS[size] ?? 'match_input_image',
         seed,
         disable_safety_checker: false,
       };
