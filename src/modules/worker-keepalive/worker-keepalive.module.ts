@@ -2,13 +2,13 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { MediaGenerationModule } from '../media-generation/media-generation.module';
-import { MediaTextVideoWorkflowEntity } from '../media-generation/persistence/entities/media-text-video-workflow.entity';
+import { PartnerJobEntity } from '../partner-api/entities/partner-job.entity';
 import { ProviderSettingsModule } from '../provider-settings/provider-settings.module';
 import { WorkerKeepaliveService } from './worker-keepalive.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([MediaTextVideoWorkflowEntity]),
+    TypeOrmModule.forFeature([PartnerJobEntity]),
     ProviderSettingsModule,
     MediaGenerationModule,
   ],
