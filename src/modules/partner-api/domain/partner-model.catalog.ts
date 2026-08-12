@@ -66,10 +66,17 @@ export const PARTNER_MODELS: readonly PartnerModel[] = [
     capability: 'text_to_image',
     description:
       'Text-to-image with a different aesthetic. Useful as an A/B against yengine-photo.',
-    backend: 'inhouse',
-    target: AI_SERVICES.PHOTO,
+    // Ran on our own worker until 2026-08-12, same story as yengine-edit-alt: measured
+    // 71 s and 80 s against ~5 s hosted, with both our workers sitting `throttled`
+    // because RunPod had no 4090 to give them. That is a shortage of somebody else's
+    // hardware, not a setting we can turn. The model is the same one either way. The
+    // app keeps generating through the worker, which is why it stays up.
+    backend: 'hosted',
+    target: 'z-image-turbo',
     priceUsd: 0.015,
-    costUsd: 0.0027,
+    // Their published rate for a generation. Not yet reconciled against an invoice —
+    // the previous 0.0027 was our warm-worker figure, which the throttling made fiction.
+    costUsd: 0.005,
     sizes: ['1024x1024', '1280x704', '704x1280'],
   },
   {
