@@ -38,3 +38,14 @@ jobs:
             npm run build
             npm run migration:run
             pm2 restart yallery-backend
+            # `pm2 restart` returns 0 even when the app then crash-loops, which is how a
+            # broken DI graph shipped as a green deploy on 2026-08-13 and served 502s
+            # until someone looked. Nest on this 1-vCPU box takes ~40-60s to come up, so
+            # poll rather than sleep once: any HTTP answer (even 4xx) proves the app is
+            # accepting requests, and only a full minute of silence fails the deploy.
+            for i in $(seq 1 12); do
+              sleep 10
+              code=$(curl -s -o /dev/null -w '%{http_code}' -m 5 -X POST http://127.0.0.1:3000/auth/login -H 'Content-Type: application/json' -d '{}' || true)
+              if [ "$code" != "000" ] && [ -n "$code" ]; then echo "app is answering (http $code)"; exit 0; fi
+            done
+            echo "app never came up after restart"; pm2 logs yallery-backend --lines 30 --nostream; exit 1
