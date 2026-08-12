@@ -483,13 +483,18 @@ export class PartnerGenerationService {
       };
     }
     if (model.capability === 'image_to_image') {
-      return {
+      const base = {
         prompt: input.prompt,
-        images: input.images,
         aspect_ratio: HOSTED_EDIT_ASPECT_RATIOS[size] ?? 'match_input_image',
         seed,
         disable_safety_checker: false,
       };
+      // The two editors name the reference list differently, and the newer one rejects any
+      // field it does not know rather than ignoring it, so the two shapes are kept apart
+      // instead of merged into one payload that would please neither.
+      return model.target === 'qwen-image-edit-plus'
+        ? { ...base, image: input.images, output_format: 'png' }
+        : { ...base, images: input.images };
     }
     // num_frames is deliberately left at the upstream default of 81 (~5 s at 16 fps).
     // The published flat price covers that configuration; the same page says pricing is

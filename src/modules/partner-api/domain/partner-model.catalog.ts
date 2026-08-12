@@ -88,11 +88,18 @@ export const PARTNER_MODELS: readonly PartnerModel[] = [
     capability: 'image_to_image',
     description:
       'Photo editing with a different model. Useful as an A/B against yengine-edit.',
-    backend: 'inhouse',
-    target: AI_SERVICES.EDIT,
+    // Ran on our own worker until 2026-08-12. The model is unchanged — the same one is
+    // hosted upstream — but ours had to fetch 30 GB of weights onto every fresh worker
+    // before it could start: 224 s and 356 s measured, against 7 s of actual work, and
+    // partners were timing out rather than waiting. Hosted answers in 6.9 s (median of
+    // three) for half a cent. Our own hardware wins on unit cost once a worker stays
+    // warm, so this moves back the moment the volume justifies it. The app still edits
+    // through the worker, which is why it stays running.
+    backend: 'hosted',
+    target: 'qwen-image-edit-plus',
     priceUsd: 0.025,
-    costUsd: 0.0027,
-    sizes: ['match_input_image'],
+    costUsd: 0.005,
+    sizes: ['match_input_image', '1024x1024', '1280x704', '704x1280'],
   },
   {
     id: 'yengine-video-hd',

@@ -117,7 +117,10 @@ export class HostedMediaClient {
 
       const state = String(status.data?.status ?? '').toLowerCase();
       if (state === 'succeeded') {
-        const url = status.data?.generation_url;
+        // Some models answer with a single url, the newer ones with a list of them. We ask
+        // for one output either way, so the first entry is the whole result.
+        const delivered = status.data?.generation_url;
+        const url = Array.isArray(delivered) ? delivered[0] : delivered;
         if (typeof url !== 'string' || !url) {
           throw new HostedGenerationError(
             'upstream reported success with no output',
