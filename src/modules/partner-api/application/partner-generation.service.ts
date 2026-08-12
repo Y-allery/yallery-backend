@@ -472,6 +472,12 @@ export class PartnerGenerationService {
   ): Record<string, unknown> {
     if (model.capability === 'text_to_image') {
       const { width, height } = this.dimensionsOf(size);
+      // The newer generator takes plain pixels and refuses every field it does not know —
+      // including `aspect_ratio` and the two switches the older one insists on. Both end up
+      // at the exact size asked for; only the words differ.
+      if (model.target === 'z-image-turbo') {
+        return { prompt: input.prompt, width, height, seed };
+      }
       return {
         prompt: input.prompt,
         aspect_ratio: 'custom',
