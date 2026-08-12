@@ -141,6 +141,31 @@ export class RunpodMediaClient {
    * Download a remote asset (e.g. a media proxy image URL) as raw bytes. Callers normalise and
    * encode it (e.g. EXIF-orient + base64) before inlining as an `image_b64` worker input.
    */
+  /**
+   * The endpoint's own queue/worker counters. This is the only signal that tells a dead
+   * endpoint from a busy one: jobs in queue with not a single live worker means nothing
+   * is coming to serve them, however long you wait.
+   */
+  async fetchEndpointHealth(
+    endpointId: string,
+    apiKeyConfigKey?: string,
+  ): Promise<{
+    jobs: { inQueue: number; inProgress: number; completed: number };
+    workers: {
+      initializing: number;
+      ready: number;
+      running: number;
+      idle: number;
+      throttled: number;
+    };
+  }> {
+    const response = await axios.get(
+      `${await this.getApiBaseUrl()}/${endpointId}/health`,
+      { headers: await this.getHeaders(apiKeyConfigKey), timeout: 30_000 },
+    );
+    return response.data;
+  }
+
   async fetchBinary(url: string): Promise<Buffer> {
     const response = await axios.get<ArrayBuffer>(url, {
       responseType: 'arraybuffer',
