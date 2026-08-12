@@ -21,6 +21,13 @@ jobs:
           host: ${{ secrets.PROD_SERVER_IP }}
           username: root
           key: ${{ secrets.PROD_DEPLOY_KEY }}
+          # The node is a 1-vCPU box since the August downsize and the whole sequence no
+          # longer fits the action's 10m default: `nest build` alone takes ~4m and
+          # `migration:run` another ~2m40s, all of which is ts-node compiling the project
+          # rather than touching the database. Past the limit the ssh session is killed
+          # mid-run, so the code lands on disk and pm2 keeps serving the previous build —
+          # a deploy that reports failure and half-happens.
+          command_timeout: 25m
           script: |
             set -euo pipefail
             cd /root/yallery-backend
