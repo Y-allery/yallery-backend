@@ -12,6 +12,7 @@ import { TagEntity } from 'src/modules/catalog/tags/entities/tag.entity';
 import { MemeEntity } from 'src/modules/memes/entities/meme.entity';
 import { RunpodEndpointResolver } from 'src/modules/media-generation/infrastructure/providers/runpod/runpod-endpoint.resolver';
 import { RunpodMediaClient } from 'src/modules/media-generation/infrastructure/providers/runpod/runpod-media.client';
+import { PrunaHostedImageMediaProvider } from 'src/modules/media-generation/infrastructure/providers/pruna/pruna-hosted-image.provider';
 import { RunpodOpenEndpointMediaProvider } from 'src/modules/media-generation/infrastructure/providers/runpod/runpod-open-endpoint-media.provider';
 import { RunpodOutputExtractor } from 'src/modules/media-generation/infrastructure/providers/runpod/runpod-output.extractor';
 import { RunpodPayloadBuilder } from 'src/modules/media-generation/infrastructure/providers/runpod/runpod-payload.builder';
@@ -178,6 +179,7 @@ const mediaGenerationQueueOptions = {
     RunpodEndpointResolver,
     RunpodMediaClient,
     RunpodOpenEndpointMediaProvider,
+    PrunaHostedImageMediaProvider,
     RunpodOutputExtractor,
     RunpodPayloadBuilder,
     RunpodTimeoutPolicyService,
@@ -246,6 +248,7 @@ const mediaGenerationQueueOptions = {
     // through the queue: a partner's HTTP request is the job, and there is no post,
     // no points charge and no socket delivery to schedule around.
     RunpodOpenEndpointMediaProvider,
+    PrunaHostedImageMediaProvider,
     // Exported for the worker-keepalive module: its ping is a raw endpoint job on
     // purpose — no workflow row, no points, no delivery.
     RunpodMediaClient,

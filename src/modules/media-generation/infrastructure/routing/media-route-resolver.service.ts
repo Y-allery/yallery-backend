@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { MediaProvider } from 'src/modules/media-generation/domain/enums/media-provider.enum';
 import { MediaGenerationRoute } from 'src/modules/media-generation/domain/contracts/media-generation-route.contract';
 import { ProviderRuntimeConfigService } from 'src/modules/provider-settings/provider-runtime-config.service';
 import {
@@ -92,6 +93,14 @@ export class MediaRouteResolverService {
 
     if (!isEnabled) {
       return false;
+    }
+
+    // A hosted route has no RunPod endpoint to point at — its only prerequisite is the
+    // upstream key. Requiring endpointConfigKey here would silently disable it.
+    if (entry.provider === MediaProvider.PRUNA) {
+      return Boolean(
+        await this.providerRuntimeConfigService.getString('PRUNA_API_KEY'),
+      );
     }
 
     const [apiKey, endpointId] = await Promise.all([
